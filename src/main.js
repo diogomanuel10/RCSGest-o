@@ -1,32 +1,32 @@
 // Ponto de entrada da Central RCS.
-// Na Fase 0 apenas confirmamos que o andaime arranca e que a deteção das
-// variáveis do Supabase funciona. A autenticação, o layout e as vistas
-// são construídos nas fases seguintes.
+//
+// Fluxo de arranque:
+//   1. Se as variáveis do Supabase não estiverem definidas -> ecrã de ajuda.
+//   2. Caso contrário, segue para a autenticação e a aplicação (Fases seguintes).
 
 import './style.css';
 import { isConfigured } from './supabase.js';
+import { renderConfigHelp } from './views/config-help.js';
 
-const app = document.querySelector('#app');
+const root = document.querySelector('#app');
 
-function render() {
-  app.removeAttribute('aria-busy');
-
+async function boot() {
+  // Sem credenciais não há nada a fazer: explicamos como configurar.
   if (!isConfigured) {
-    app.innerHTML = `
-      <main class="boot">
-        <h1>Central RCS</h1>
-        <p>Falta configurar o Supabase (ver <code>.env</code>).</p>
-      </main>
-    `;
+    renderConfigHelp(root);
     return;
   }
 
-  app.innerHTML = `
-    <main class="boot">
-      <h1>Central RCS</h1>
-      <p>Andaime pronto. A construção continua nas próximas fases.</p>
+  // A autenticação e o resto da aplicação chegam nas próximas fases.
+  root.removeAttribute('aria-busy');
+  root.innerHTML = `
+    <main class="config-help">
+      <div class="card config-help__card" style="text-align:center">
+        <h1 class="section-title">Central RCS</h1>
+        <p class="muted">Supabase configurado. A autenticação chega na próxima fase.</p>
+      </div>
     </main>
   `;
 }
 
-render();
+boot();
