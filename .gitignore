@@ -1,0 +1,22 @@
+# Dependências
+node_modules/
+
+# Build
+dist/
+
+# Variáveis de ambiente (NUNCA versionar — contém as chaves do Supabase)
+.env
+.env.local
+.env.*.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Sistema operativo / editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
