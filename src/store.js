@@ -1,0 +1,134 @@
+// Camada de dados da Central RCS.
+//
+// Responsável por: ir buscar tudo ao Supabase uma vez, manter uma cópia em
+// memória (cache), oferecer operações de criar/editar/remover e avisar as
+// vistas quando algo muda (para re-desenharem).
+//
+// Modelo: clube único, dados partilhados — não há filtros por utilizador.
+
+import { supabase } from './supabase.js';
+
+// Estado em memória. As vistas leem daqui após o carregamento inicial.
+export const state = {
+  settings: { id: 1, season: '2026/2027', goal: 15000 },
+  coaches: [],
+  teams: [],
+  players: [],
+  sponsors: [],
+  events: [],
+  loaded: false,
+};
+
+// --- Subscrições (padrão observador) -------------------------------------
+const listeners = new Set();
+
+export function subscribe(fn) {
+  listeners.add(fn);
+  return () => listeners.delete(fn);
+}
+
+function notify() {
+  for (const fn of listeners) fn();
+}
+
+// --- Carregamento inicial -------------------------------------------------
+// Vai buscar todas as tabelas em paralelo. Lança erro se alguma falhar.
+export async function loadAll() {
+  const [settings, coaches, teams, players, sponsors, events] = await Promise.all([
+    supabase.from('settings').select('*').eq('id', 1).maybeSingle(),
+    supabase.from('coaches').select('*').order('name'),
+    supabase.from('teams').select('*').order('created_at'),
+    supabase.from('players').select('*').order('number'),
+    supabase.from('sponsors').select('*').order('name'),
+    supabase.from('events').select('*').order('date'),
+  ]);
+
+  for (const res of [settings, coaches, teams, players, sponsors, events]) {
+    if (res.error) throw res.error;
+  }
+
+  if (settings.data) state.settings = settings.data;
+  state.coaches = coaches.data || [];
+  state.teams = teams.data || [];
+  state.players = players.data || [];
+  state.sponsors = sponsors.data || [];
+  state.events = events.data || [];
+  state.loaded = true;
+  notify();
+}
+
+// --- Operações genéricas (CRUD) ------------------------------------------
+// Cada operação atualiza o Supabase e, em caso de sucesso, a cache local,
+// avisando depois as vistas. `collection` é a chave em `state` (ex.: 'coaches').
+
+export async function createRow(table, collection, values) {
+  const { data, error } = await supabase
+    .from(table)
+    .insert(values)
+    .select()
+    .single();
+  if (error) throw error;
+  state[collection].push(data);
+  notify();
+  return data;
+}
+
+export async function updateRow(table, collection, id, values) {
+  const { data, error } = await supabase
+    .from(table)
+    .update(values)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  const i = state[collection].findIndex((r) => r.id === id);
+  if (i !== -1) state[collection][i] = data;
+  notify();
+  return data;
+}
+
+export async function deleteRow(table, collection, id) {
+  const { error } = await supabase.from(table).delete().eq('id', id);
+  if (error) throw error;
+  state[collection] = state[collection].filter((r) => r.id !== id);
+
+  // Tratar relações apagadas em cascata/anuladas na cache local:
+  if (collection === 'teams') {
+    state.players = state.players.filter((p) => p.team_id !== id);
+    state.events.forEach((e) => {
+      if (e.team_id === id) e.team_id = null;
+    });
+  }
+  if (collection === 'coaches') {
+    state.teams.forEach((t) => {
+      if (t.coach_id === id) t.coach_id = null;
+    });
+  }
+  notify();
+}
+
+// --- Definições (linha única) --------------------------------------------
+export async function saveSettings(values) {
+  const { data, error } = await supabase
+    .from('settings')
+    .update(values)
+    .eq('id', 1)
+    .select()
+    .single();
+  if (error) throw error;
+  state.settings = data;
+  notify();
+  return data;
+}
+
+// Mensagens de erro de base de dados em português europeu.
+export function dbErrorMessage(error) {
+  const msg = (error?.message || '').toLowerCase();
+  if (msg.includes('failed to fetch') || msg.includes('network')) {
+    return 'Sem ligação ao servidor. Verifica a internet e tenta de novo.';
+  }
+  if (msg.includes('row-level security') || msg.includes('rls')) {
+    return 'Sem permissão para esta operação. Confirma que tens sessão iniciada.';
+  }
+  return error?.message || 'Ocorreu um erro ao guardar os dados.';
+}

@@ -7,40 +7,30 @@
 
 import './style.css';
 import { isConfigured } from './supabase.js';
-import { getSession, signOut, onAuthChange } from './auth.js';
+import { getSession, onAuthChange } from './auth.js';
 import { renderConfigHelp } from './views/config-help.js';
 import { renderLogin } from './views/login.js';
+import { renderAppShell } from './views/app-shell.js';
 import { loadingHTML, errorHTML } from './ui.js';
 
 const root = document.querySelector('#app');
 
+// Evita re-render desnecessário quando o onAuthChange dispara com a mesma sessão.
+let currentUserId = null;
+
 // Decide o que mostrar consoante exista (ou não) sessão.
 function route(session) {
+  const userId = session?.user?.id ?? null;
+  if (userId === currentUserId && session) return;
+  currentUserId = userId;
+
   if (session) {
-    renderApp(session);
+    renderAppShell(root, session);
   } else {
     renderLogin(root, () => {
       /* a transição é tratada pelo onAuthChange */
     });
   }
-}
-
-// Placeholder da aplicação autenticada (substituído pelo layout na Fase 4).
-function renderApp(session) {
-  root.removeAttribute('aria-busy');
-  root.innerHTML = `
-    <main class="login">
-      <div class="card login__card" style="text-align:center">
-        <h1 class="section-title">Central RCS</h1>
-        <p class="muted">Sessão iniciada como <strong>${session.user.email}</strong>.</p>
-        <p class="muted">O painel e as restantes vistas chegam na próxima fase.</p>
-        <button class="btn btn--ghost" id="logout-btn">Sair</button>
-      </div>
-    </main>
-  `;
-  root.querySelector('#logout-btn').addEventListener('click', async () => {
-    await signOut();
-  });
 }
 
 async function boot() {
