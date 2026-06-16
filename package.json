@@ -1,0 +1,18 @@
+{
+  "name": "central-rcs",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Central RCS — painel de gestão do Real Clube Senhorense (voleibol)",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0"
+  }
+}
