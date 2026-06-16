@@ -37,10 +37,13 @@ e treinadores**, com login e dados guardados numa base de dados Supabase.
 3. Em **SQL Editor → New query**, cola e corre todo o ficheiro
    [`supabase/schema.sql`](supabase/schema.sql). Cria as tabelas, as políticas
    de segurança (RLS) e os dados iniciais. Podes correr mais do que uma vez.
-4. Em **Authentication → Providers/Settings**, desativa
-   **"Allow new users to sign up"** (sem registo público).
-5. Em **Authentication → Users**, cria o teu utilizador (email + password).
-   É com este que entras. Cria outros para quem mais precisar de aceder.
+4. Em **Authentication → Sign In / Providers**, garante que
+   **"Allow new users to sign up"** está **ativo** — a app permite criar conta
+   por email e password no separador "Criar conta".
+   - Se mantiveres **"Confirm email"** ativo (recomendado), cada nova conta
+     recebe um email de confirmação e só consegue entrar depois de confirmar.
+   - Em alternativa, podes criar contas manualmente em
+     **Authentication → Users**.
 
 ## 2. Ligar a aplicação ao Supabase
 

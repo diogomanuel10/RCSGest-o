@@ -1029,6 +1029,46 @@ tbody tr:hover {
 .login__card .field {
   text-align: left;
 }
+.login__tabs {
+  display: flex;
+  gap: 0.3rem;
+  background: var(--surface-2);
+  padding: 0.25rem;
+  border-radius: var(--radius-sm);
+  margin-bottom: 1.2rem;
+}
+.login__tab {
+  flex: 1;
+  background: transparent;
+  border: none;
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 0.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.login__tab--active {
+  background: var(--surface);
+  color: var(--navy);
+  box-shadow: var(--shadow-sm);
+}
+.login__hint-inline {
+  display: block;
+  font-size: 0.74rem;
+  margin-top: 0.3rem;
+}
+.login__ok {
+  background: var(--ok-bg);
+  color: var(--ok);
+  font-size: 0.85rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--radius-sm);
+  margin: 0 0 0.8rem;
+  text-align: left;
+}
 .login__submit {
   width: 100%;
   justify-content: center;

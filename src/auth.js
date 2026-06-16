@@ -20,6 +20,19 @@ export async function signIn(email, password) {
   return data;
 }
 
+// Cria uma conta nova com email + password.
+// Devolve { needsConfirmation } — true quando o Supabase exige confirmação
+// por email antes de a sessão ficar ativa.
+export async function signUp(email, password) {
+  const { data, error } = await supabase.auth.signUp({
+    email: email.trim(),
+    password,
+  });
+  if (error) throw error;
+  // Sem sessão imediata => a conta requer confirmação por email.
+  return { needsConfirmation: !data.session, data };
+}
+
 // Termina a sessão.
 export async function signOut() {
   const { error } = await supabase.auth.signOut();
@@ -41,10 +54,22 @@ export function authErrorMessage(error) {
     return 'Email ou palavra-passe incorretos. Verifica e tenta de novo.';
   }
   if (msg.includes('email not confirmed')) {
-    return 'A conta ainda não foi confirmada. Confirma no painel do Supabase.';
+    return 'A conta ainda não foi confirmada. Vê o email de confirmação que recebeste.';
+  }
+  if (msg.includes('user already registered') || msg.includes('already been registered')) {
+    return 'Já existe uma conta com este email. Inicia sessão em vez de criar conta.';
+  }
+  if (msg.includes('signups not allowed') || msg.includes('signup is disabled')) {
+    return 'O registo está desativado no Supabase. Ativa "Allow new users to sign up" nas definições de autenticação.';
+  }
+  if (msg.includes('password should be') || msg.includes('weak password')) {
+    return 'A palavra-passe é demasiado fraca (mínimo 6 caracteres).';
+  }
+  if (msg.includes('unable to validate email') || msg.includes('invalid email')) {
+    return 'O email indicado não é válido.';
   }
   if (msg.includes('failed to fetch') || msg.includes('network')) {
     return 'Não foi possível contactar o servidor. Verifica a ligação à internet.';
   }
-  return error?.message || 'Ocorreu um erro ao iniciar sessão.';
+  return error?.message || 'Ocorreu um erro de autenticação.';
 }
