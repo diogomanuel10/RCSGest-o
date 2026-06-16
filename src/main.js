@@ -8,6 +8,7 @@
 import './style.css';
 import { isConfigured } from './supabase.js';
 import { getSession, onAuthChange } from './auth.js';
+import { resetState } from './store.js';
 import { renderConfigHelp } from './views/config-help.js';
 import { renderLogin } from './views/login.js';
 import { renderAppShell } from './views/app-shell.js';
@@ -22,6 +23,9 @@ let currentUserId = null;
 function route(session) {
   const userId = session?.user?.id ?? null;
   if (userId === currentUserId && session) return;
+
+  // Mudou de utilizador (ou terminou sessão): limpa a cache para recarregar.
+  if (userId !== currentUserId) resetState();
   currentUserId = userId;
 
   if (session) {

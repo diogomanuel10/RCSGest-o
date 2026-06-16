@@ -4,21 +4,23 @@ import { state, createRow, updateRow, deleteRow, dbErrorMessage } from '../store
 import { esc, emptyHTML } from '../ui.js';
 import { teamName } from '../compute.js';
 import { openModal, confirmDialog } from '../modal.js';
+import { canEdit } from '../permissions.js';
 
 export function renderTreinadores(container) {
+  const editable = canEdit('coaches');
   container.innerHTML = `
     <header class="page-head">
       <h1 class="section-title">Treinadores</h1>
-      <button class="btn btn--accent" id="add-coach" type="button">+ Treinador</button>
+      ${editable ? '<button class="btn btn--accent" id="add-coach" type="button">+ Treinador</button>' : ''}
     </header>
     ${
       state.coaches.length
-        ? `<div class="coach-grid">${state.coaches.map(coachCard).join('')}</div>`
-        : emptyHTML('Ainda não há treinadores. Adiciona o primeiro.')
+        ? `<div class="coach-grid">${state.coaches.map((c) => coachCard(c, editable)).join('')}</div>`
+        : emptyHTML('Ainda não há treinadores.')
     }
   `;
 
-  container.querySelector('#add-coach').addEventListener('click', () => openForm());
+  container.querySelector('#add-coach')?.addEventListener('click', () => openForm());
   container.querySelectorAll('[data-edit]').forEach((b) =>
     b.addEventListener('click', () => openForm(b.dataset.edit))
   );
@@ -27,7 +29,7 @@ export function renderTreinadores(container) {
   );
 }
 
-function coachCard(coach) {
+function coachCard(coach, editable) {
   const teams = state.teams.filter((t) => t.coach_id === coach.id);
   return `
     <article class="card coach-card">
@@ -36,10 +38,14 @@ function coachCard(coach) {
           <strong class="coach-card__name">${esc(coach.name)}</strong>
           ${coach.role ? `<span class="muted coach-card__role">${esc(coach.role)}</span>` : ''}
         </div>
-        <div class="cell-actions">
+        ${
+          editable
+            ? `<div class="cell-actions">
           <button class="btn btn--ghost btn--sm" data-edit="${coach.id}" type="button">Editar</button>
           <button class="btn btn--danger btn--sm" data-del="${coach.id}" type="button">Remover</button>
-        </div>
+        </div>`
+            : ''
+        }
       </div>
 
       ${coach.contact ? `<p class="coach-card__contact">${esc(coach.contact)}</p>` : ''}

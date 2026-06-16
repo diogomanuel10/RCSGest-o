@@ -16,8 +16,22 @@ export const state = {
   players: [],
   sponsors: [],
   events: [],
+  profile: null, // perfil do utilizador atual (com o papel/role)
+  profiles: [], // todos os perfis (preenchido só se o utilizador for coordenador)
   loaded: false,
 };
+
+// Limpa a cache (usado ao terminar sessão, para o próximo login recarregar).
+export function resetState() {
+  state.coaches = [];
+  state.teams = [];
+  state.players = [];
+  state.sponsors = [];
+  state.events = [];
+  state.profile = null;
+  state.profiles = [];
+  state.loaded = false;
+}
 
 // --- Subscrições (padrão observador) -------------------------------------
 const listeners = new Set();
@@ -29,6 +43,25 @@ export function subscribe(fn) {
 
 function notify() {
   for (const fn of listeners) fn();
+}
+
+// Carrega o perfil (papel) do utilizador atual e, se for coordenador, a lista
+// de todos os perfis (para a gestão de utilizadores). O RLS garante que um
+// não-coordenador só recebe o seu próprio perfil.
+export async function loadProfile() {
+  const { data: userData } = await supabase.auth.getUser();
+  const userId = userData?.user?.id;
+  if (!userId) return;
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .order('email');
+  if (error) throw error;
+
+  const all = data || [];
+  state.profiles = all;
+  state.profile = all.find((p) => p.id === userId) || { id: userId, role: 'leitura' };
 }
 
 // --- Carregamento inicial -------------------------------------------------
@@ -53,8 +86,27 @@ export async function loadAll() {
   state.players = players.data || [];
   state.sponsors = sponsors.data || [];
   state.events = events.data || [];
+
+  await loadProfile();
+
   state.loaded = true;
   notify();
+}
+
+// Altera o papel de um utilizador (apenas coordenador, validado pelo RLS).
+export async function updateProfileRole(id, role) {
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ role })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  const i = state.profiles.findIndex((p) => p.id === id);
+  if (i !== -1) state.profiles[i] = data;
+  if (state.profile?.id === id) state.profile = data;
+  notify();
+  return data;
 }
 
 // --- Operações genéricas (CRUD) ------------------------------------------

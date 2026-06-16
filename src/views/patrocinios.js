@@ -14,11 +14,13 @@ import {
   STATUS_LABEL,
   STATUS_BADGE,
 } from '../constants.js';
+import { canEdit } from '../permissions.js';
 
 // Estado local dos filtros (mantido entre re-desenhos da vista).
 const filters = { category: '', status: '' };
 
 export function renderPatrocinios(container) {
+  const editable = canEdit('sponsors');
   const counts = confirmedByTier();
 
   const filtered = state.sponsors.filter(
@@ -30,7 +32,7 @@ export function renderPatrocinios(container) {
   container.innerHTML = `
     <header class="page-head">
       <h1 class="section-title">Patrocínios</h1>
-      <button class="btn btn--accent" id="add-sponsor" type="button">+ Empresa</button>
+      ${editable ? '<button class="btn btn--accent" id="add-sponsor" type="button">+ Empresa</button>' : ''}
     </header>
 
     <section class="tier-cards">
@@ -81,10 +83,10 @@ export function renderPatrocinios(container) {
               <thead>
                 <tr>
                   <th>Empresa</th><th>Categoria</th><th>Nível</th>
-                  <th>Estado</th><th>Contacto</th><th></th>
+                  <th>Estado</th><th>Contacto</th>${editable ? '<th></th>' : ''}
                 </tr>
               </thead>
-              <tbody>${filtered.map(rowHTML).join('')}</tbody>
+              <tbody>${filtered.map((s) => rowHTML(s, editable)).join('')}</tbody>
             </table></div>`
           : emptyHTML('Sem empresas para os filtros escolhidos.')
       }
@@ -92,7 +94,7 @@ export function renderPatrocinios(container) {
   `;
 
   // --- Ligações de eventos ---
-  container.querySelector('#add-sponsor').addEventListener('click', () => openForm());
+  container.querySelector('#add-sponsor')?.addEventListener('click', () => openForm());
   container.querySelector('#f-cat').addEventListener('change', (e) => {
     filters.category = e.target.value;
     renderPatrocinios(container);
@@ -109,7 +111,7 @@ export function renderPatrocinios(container) {
   );
 }
 
-function rowHTML(s) {
+function rowHTML(s, editable) {
   const tier = s.tier ? `<span class="badge badge--${s.tier}">${TIER_LABEL[s.tier]}</span>` : '<span class="muted">—</span>';
   return `
     <tr>
@@ -123,10 +125,14 @@ function rowHTML(s) {
     STATUS_LABEL[s.status] || s.status
   )}</span></td>
       <td>${esc(s.contact || '—')}</td>
-      <td class="cell-actions">
+      ${
+        editable
+          ? `<td class="cell-actions">
         <button class="btn btn--ghost btn--sm" data-edit="${s.id}" type="button">Editar</button>
         <button class="btn btn--danger btn--sm" data-del="${s.id}" type="button">Remover</button>
-      </td>
+      </td>`
+          : ''
+      }
     </tr>
   `;
 }

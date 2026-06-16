@@ -88,8 +88,56 @@ create index if not exists idx_events_team   on events  (team_id);
 create index if not exists idx_teams_coach   on teams   (coach_id);
 
 -- ---------------------------------------------------------------------
+-- Perfis e papéis (permissões)
+-- ---------------------------------------------------------------------
+-- Cada utilizador tem um perfil com um papel:
+--   'coordenador' -> faz tudo (inclui gerir utilizadores e definições)
+--   'treinador'   -> edita Plantéis e Calendário; vê o resto
+--   'leitura'     -> só vê
+create table if not exists profiles (
+  id         uuid primary key references auth.users(id) on delete cascade,
+  email      text,
+  role       text not null default 'leitura'
+             check (role in ('coordenador','treinador','leitura')),
+  created_at timestamptz default now()
+);
+
+-- Devolve o papel do utilizador atual. SECURITY DEFINER para poder ser usado
+-- dentro das políticas sem entrar em recursão de RLS.
+create or replace function public.app_role()
+returns text
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select role from public.profiles where id = auth.uid();
+$$;
+
+-- Cria automaticamente um perfil (papel 'leitura') quando alguém se regista.
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.profiles (id, email, role)
+  values (new.id, new.email, 'leitura')
+  on conflict (id) do nothing;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.handle_new_user();
+
+-- ---------------------------------------------------------------------
 -- Row Level Security (RLS)
 -- ---------------------------------------------------------------------
+alter table profiles enable row level security;
 alter table settings enable row level security;
 alter table coaches  enable row level security;
 alter table teams    enable row level security;
@@ -97,21 +145,60 @@ alter table players  enable row level security;
 alter table sponsors enable row level security;
 alter table events   enable row level security;
 
--- Uma política por tabela: qualquer utilizador AUTENTICADO pode ler e escrever.
--- (Recriamos para o script poder correr mais do que uma vez sem erro.)
-drop policy if exists "auth_all" on settings;
-drop policy if exists "auth_all" on coaches;
-drop policy if exists "auth_all" on teams;
-drop policy if exists "auth_all" on players;
-drop policy if exists "auth_all" on sponsors;
-drop policy if exists "auth_all" on events;
+-- Limpa políticas anteriores para o script poder correr mais do que uma vez.
+drop policy if exists "auth_all"        on settings;
+drop policy if exists "auth_all"        on coaches;
+drop policy if exists "auth_all"        on teams;
+drop policy if exists "auth_all"        on players;
+drop policy if exists "auth_all"        on sponsors;
+drop policy if exists "auth_all"        on events;
+drop policy if exists "read_all"        on settings;
+drop policy if exists "write_coord"     on settings;
+drop policy if exists "read_all"        on coaches;
+drop policy if exists "write_coord"     on coaches;
+drop policy if exists "read_all"        on sponsors;
+drop policy if exists "write_coord"     on sponsors;
+drop policy if exists "read_all"        on teams;
+drop policy if exists "write_editor"    on teams;
+drop policy if exists "read_all"        on players;
+drop policy if exists "write_editor"    on players;
+drop policy if exists "read_all"        on events;
+drop policy if exists "write_editor"    on events;
+drop policy if exists "profiles_read"   on profiles;
+drop policy if exists "profiles_manage" on profiles;
 
-create policy "auth_all" on settings for all to authenticated using (true) with check (true);
-create policy "auth_all" on coaches  for all to authenticated using (true) with check (true);
-create policy "auth_all" on teams    for all to authenticated using (true) with check (true);
-create policy "auth_all" on players  for all to authenticated using (true) with check (true);
-create policy "auth_all" on sponsors for all to authenticated using (true) with check (true);
-create policy "auth_all" on events   for all to authenticated using (true) with check (true);
+-- LEITURA: qualquer utilizador autenticado vê os dados do clube.
+create policy "read_all" on settings for select to authenticated using (true);
+create policy "read_all" on coaches  for select to authenticated using (true);
+create policy "read_all" on sponsors for select to authenticated using (true);
+create policy "read_all" on teams    for select to authenticated using (true);
+create policy "read_all" on players  for select to authenticated using (true);
+create policy "read_all" on events   for select to authenticated using (true);
+
+-- ESCRITA só coordenador: definições, treinadores e patrocínios.
+create policy "write_coord" on settings for all to authenticated
+  using (app_role() = 'coordenador') with check (app_role() = 'coordenador');
+create policy "write_coord" on coaches for all to authenticated
+  using (app_role() = 'coordenador') with check (app_role() = 'coordenador');
+create policy "write_coord" on sponsors for all to authenticated
+  using (app_role() = 'coordenador') with check (app_role() = 'coordenador');
+
+-- ESCRITA coordenador OU treinador: plantéis e calendário.
+create policy "write_editor" on teams for all to authenticated
+  using (app_role() in ('coordenador','treinador'))
+  with check (app_role() in ('coordenador','treinador'));
+create policy "write_editor" on players for all to authenticated
+  using (app_role() in ('coordenador','treinador'))
+  with check (app_role() in ('coordenador','treinador'));
+create policy "write_editor" on events for all to authenticated
+  using (app_role() in ('coordenador','treinador'))
+  with check (app_role() in ('coordenador','treinador'));
+
+-- PERFIS: cada um vê o seu; o coordenador vê e gere todos.
+create policy "profiles_read" on profiles for select to authenticated
+  using (id = auth.uid() or app_role() = 'coordenador');
+create policy "profiles_manage" on profiles for all to authenticated
+  using (app_role() = 'coordenador') with check (app_role() = 'coordenador');
 
 -- ---------------------------------------------------------------------
 -- Dados iniciais
@@ -138,3 +225,19 @@ select * from (values
   ('Café na Hora','Restaurantes/Cafés','','telefone','Sem email público — contactar por telefone.')
 ) as seed(name, category, tier, status, notes)
 where not exists (select 1 from sponsors);
+
+-- ---------------------------------------------------------------------
+-- Perfis: backfill e coordenador inicial
+-- ---------------------------------------------------------------------
+-- Cria perfis (papel 'leitura') para utilizadores que já existam mas ainda
+-- não tenham perfil (ex.: contas criadas antes deste esquema).
+insert into profiles (id, email, role)
+select u.id, u.email, 'leitura'
+from auth.users u
+where not exists (select 1 from profiles p where p.id = u.id);
+
+-- Promove o coordenador inicial. Só tem efeito DEPOIS de esse email se
+-- registar (o perfil é criado no registo). Se ainda não existir, não faz nada;
+-- basta voltar a correr esta linha após o registo, ou registar primeiro.
+update profiles set role = 'coordenador'
+where email = 'diomanuel10@gmail.com';

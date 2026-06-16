@@ -21,6 +21,7 @@ src/
   auth.js               Login/logout/sessão + mensagens de erro em PT
   store.js              Camada de dados: cache em memória, CRUD, backup, eventos
   compute.js            Cálculos derivados (totais, próximos eventos, nomes…)
+  permissions.js        Papéis e capacidades (canEdit, canManageUsers…)
   constants.js          Valores partilhados (níveis, estados, escalões, etc.)
   ui.js                 Utilitários de UI (esc, euros, loading/erro/vazio, logo)
   modal.js              Modal de formulário reutilizável + diálogo de confirmação
@@ -36,6 +37,7 @@ src/
     calendario.js       Vista Calendário
     treinadores.js      Vista Treinadores
     definicoes.js       Vista Definições (época, meta, backup)
+    utilizadores.js     Vista Utilizadores (gestão de papéis — só coordenador)
 supabase/schema.sql     Tabelas, índices, RLS e dados iniciais (correr no Supabase)
 ```
 
@@ -71,6 +73,21 @@ Cada `views/*.js` exporta `renderXxx(container)` que:
 
 Filtros e estados locais de UI (ex.: equipas expandidas) vivem em variáveis no
 topo do módulo da vista.
+
+## Permissões (papéis)
+
+- Cada utilizador tem um perfil na tabela `profiles` com um `role`:
+  `coordenador` (tudo), `treinador` (edita Plantéis e Calendário; vê o resto)
+  ou `leitura` (só vê). Quem se regista começa em `leitura`.
+- O **RLS** no Supabase é a fonte de verdade (ver `schema.sql`): leitura para
+  todos os autenticados; escrita conforme o papel via a função `app_role()`.
+- Na interface, `src/permissions.js` (`canEdit`, `canManageUsers`,
+  `canManageSettings`) esconde/mostra ações. É só conveniência de UI — mesmo
+  que algo escapasse, o RLS recusa a operação.
+- `store.js` carrega o perfil atual em `state.profile` e (se coordenador) todos
+  os perfis em `state.profiles`. A vista `utilizadores.js` permite ao
+  coordenador mudar papéis. As entradas Definições e Utilizadores na barra
+  lateral só aparecem ao coordenador.
 
 ## Regras de negócio
 

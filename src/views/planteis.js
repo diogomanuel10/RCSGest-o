@@ -6,24 +6,26 @@ import { esc, emptyHTML } from '../ui.js';
 import { coachById, teamName } from '../compute.js';
 import { openModal, confirmDialog } from '../modal.js';
 import { GENDERS, ESCALOES, POSITIONS } from '../constants.js';
+import { canEdit } from '../permissions.js';
 
 // Equipas expandidas (mostram os atletas). Mantido entre re-desenhos.
 const expanded = new Set();
 
 export function renderPlanteis(container) {
+  const editable = canEdit('teams');
   container.innerHTML = `
     <header class="page-head">
       <h1 class="section-title">Plantéis</h1>
-      <button class="btn btn--accent" id="add-team" type="button">+ Equipa</button>
+      ${editable ? '<button class="btn btn--accent" id="add-team" type="button">+ Equipa</button>' : ''}
     </header>
     ${
       state.teams.length
-        ? `<div class="genders">${GENDERS.map(genderColumnHTML).join('')}</div>`
-        : emptyHTML('Ainda não há equipas. Começa por adicionar uma.')
+        ? `<div class="genders">${GENDERS.map((g) => genderColumnHTML(g, editable)).join('')}</div>`
+        : emptyHTML('Ainda não há equipas.')
     }
   `;
 
-  container.querySelector('#add-team').addEventListener('click', () => openTeamForm());
+  container.querySelector('#add-team')?.addEventListener('click', () => openTeamForm());
 
   container.querySelectorAll('[data-toggle]').forEach((b) =>
     b.addEventListener('click', () => {
@@ -50,21 +52,21 @@ export function renderPlanteis(container) {
   );
 }
 
-function genderColumnHTML(g) {
+function genderColumnHTML(g, editable) {
   const teams = state.teams.filter((t) => t.gender === g.key);
   return `
     <section class="gender-col">
       <h2 class="section-title gender-col__title">${g.label}</h2>
       ${
         teams.length
-          ? teams.map(teamCardHTML).join('')
+          ? teams.map((t) => teamCardHTML(t, editable)).join('')
           : `<p class="muted">Sem equipas ${g.label.toLowerCase()}.</p>`
       }
     </section>
   `;
 }
 
-function teamCardHTML(team) {
+function teamCardHTML(team, editable) {
   const players = state.players
     .filter((p) => p.team_id === team.id)
     .sort((a, b) => (Number(a.number) || 999) - (Number(b.number) || 999));
@@ -86,10 +88,14 @@ function teamCardHTML(team) {
             </span>
           </span>
         </button>
-        <div class="cell-actions">
+        ${
+          editable
+            ? `<div class="cell-actions">
           <button class="btn btn--ghost btn--sm" data-team-edit="${team.id}" type="button">Editar</button>
           <button class="btn btn--danger btn--sm" data-team-del="${team.id}" type="button">Remover</button>
-        </div>
+        </div>`
+            : ''
+        }
       </div>
 
       ${
@@ -99,7 +105,9 @@ function teamCardHTML(team) {
           ${
             players.length
               ? `<table class="players-table">
-                  <thead><tr><th>#</th><th>Nome</th><th>Ano</th><th>Posição</th><th></th></tr></thead>
+                  <thead><tr><th>#</th><th>Nome</th><th>Ano</th><th>Posição</th>${
+                    editable ? '<th></th>' : ''
+                  }</tr></thead>
                   <tbody>
                     ${players
                       .map(
@@ -109,10 +117,14 @@ function teamCardHTML(team) {
                         <td>${esc(p.name)}</td>
                         <td>${esc(p.birth_year || '—')}</td>
                         <td>${esc(p.position || '—')}</td>
-                        <td class="cell-actions">
+                        ${
+                          editable
+                            ? `<td class="cell-actions">
                           <button class="btn btn--ghost btn--sm" data-team="${team.id}" data-player-edit="${p.id}" type="button">Editar</button>
                           <button class="btn btn--danger btn--sm" data-player-del="${p.id}" type="button">Remover</button>
-                        </td>
+                        </td>`
+                            : ''
+                        }
                       </tr>`
                       )
                       .join('')}
@@ -120,9 +132,11 @@ function teamCardHTML(team) {
                 </table>`
               : '<p class="muted" style="margin:0.4rem 0">Sem atletas nesta equipa.</p>'
           }
-          <button class="btn btn--ghost btn--sm team-card__addplayer" data-add-player="${team.id}" type="button">
-            + Atleta
-          </button>
+          ${
+            editable
+              ? `<button class="btn btn--ghost btn--sm team-card__addplayer" data-add-player="${team.id}" type="button">+ Atleta</button>`
+              : ''
+          }
         </div>`
           : ''
       }

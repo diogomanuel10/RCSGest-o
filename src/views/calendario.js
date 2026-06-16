@@ -11,10 +11,12 @@ import {
   EVENT_TYPE_BADGE,
   DEFAULT_LOCATION,
 } from '../constants.js';
+import { canEdit } from '../permissions.js';
 
 const filters = { type: '', team: '' };
 
 export function renderCalendario(container) {
+  const editable = canEdit('events');
   const now = new Date();
 
   const events = state.events
@@ -31,7 +33,7 @@ export function renderCalendario(container) {
   container.innerHTML = `
     <header class="page-head">
       <h1 class="section-title">Calendário</h1>
-      <button class="btn btn--accent" id="add-event" type="button">+ Evento</button>
+      ${editable ? '<button class="btn btn--accent" id="add-event" type="button">+ Evento</button>' : ''}
     </header>
 
     <section class="card">
@@ -68,15 +70,15 @@ export function renderCalendario(container) {
       ${
         events.length
           ? `
-        ${future.length ? `<h3 class="cal-group">Próximos</h3>${future.map((e) => eventRow(e, false)).join('')}` : ''}
-        ${past.length ? `<h3 class="cal-group cal-group--past">Passados</h3>${past.map((e) => eventRow(e, true)).join('')}` : ''}
+        ${future.length ? `<h3 class="cal-group">Próximos</h3>${future.map((e) => eventRow(e, false, editable)).join('')}` : ''}
+        ${past.length ? `<h3 class="cal-group cal-group--past">Passados</h3>${past.map((e) => eventRow(e, true, editable)).join('')}` : ''}
       `
           : emptyHTML('Sem eventos para os filtros escolhidos.')
       }
     </section>
   `;
 
-  container.querySelector('#add-event').addEventListener('click', () => openForm());
+  container.querySelector('#add-event')?.addEventListener('click', () => openForm());
   container.querySelector('#f-type').addEventListener('change', (e) => {
     filters.type = e.target.value;
     renderCalendario(container);
@@ -93,7 +95,7 @@ export function renderCalendario(container) {
   );
 }
 
-function eventRow(ev, isPast) {
+function eventRow(ev, isPast, editable) {
   const dt = eventDateTime(ev);
   const team = teamById(ev.team_id);
   const dateStr = dt.toLocaleDateString('pt-PT', {
@@ -124,10 +126,14 @@ function eventRow(ev, isPast) {
         </div>
         ${meta ? `<span class="muted event-row__meta">${meta}</span>` : ''}
       </div>
-      <div class="cell-actions">
+      ${
+        editable
+          ? `<div class="cell-actions">
         <button class="btn btn--ghost btn--sm" data-edit="${ev.id}" type="button">Editar</button>
         <button class="btn btn--danger btn--sm" data-del="${ev.id}" type="button">Remover</button>
-      </div>
+      </div>`
+          : ''
+      }
     </div>
   `;
 }

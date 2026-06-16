@@ -17,6 +17,16 @@ e treinadores**, com login e dados guardados numa base de dados Supabase.
   entre passado e futuro.
 - **Treinadores** — fichas com contacto, notas e equipas que orientam.
 - **Definições** — época e meta editáveis; exportar/importar backup `.json`.
+- **Utilizadores** — o coordenador define o papel de cada pessoa.
+
+## Papéis (permissões)
+
+- **Coordenador** — acesso total (inclui Definições e gestão de Utilizadores).
+- **Treinador** — edita Plantéis e Calendário; vê o resto.
+- **Leitura** — apenas consulta.
+
+Quem se regista começa em **Leitura**; o coordenador promove em **Utilizadores**.
+As permissões são impostas pela base de dados (RLS), não só pela interface.
 
 ## Stack
 
@@ -35,8 +45,9 @@ e treinadores**, com login e dados guardados numa base de dados Supabase.
 2. Em **Project Settings → API**, copia o **Project URL** e a chave
    **anon public**.
 3. Em **SQL Editor → New query**, cola e corre todo o ficheiro
-   [`supabase/schema.sql`](supabase/schema.sql). Cria as tabelas, as políticas
-   de segurança (RLS) e os dados iniciais. Podes correr mais do que uma vez.
+   [`supabase/schema.sql`](supabase/schema.sql). Cria as tabelas, os perfis e
+   papéis, as políticas de segurança (RLS) e os dados iniciais. Podes correr
+   mais do que uma vez.
 4. Em **Authentication → Sign In / Providers**, garante que
    **"Allow new users to sign up"** está **ativo** — a app permite criar conta
    por email e password no separador "Criar conta".
@@ -44,6 +55,12 @@ e treinadores**, com login e dados guardados numa base de dados Supabase.
      recebe um email de confirmação e só consegue entrar depois de confirmar.
    - Em alternativa, podes criar contas manualmente em
      **Authentication → Users**.
+5. **Coordenador inicial.** O `schema.sql` promove automaticamente a conta
+   `diomanuel10@gmail.com` a coordenador — mas só *depois* de essa conta se
+   registar (o perfil é criado no registo). Por isso: **regista-te primeiro** na
+   app e **volta a correr o `schema.sql`** (ou só a última linha de `update`).
+   Para outro email, edita essa linha no fim do `schema.sql`. A partir daí,
+   geres todos os papéis dentro da app, em **Utilizadores**.
 
 ## 2. Ligar a aplicação ao Supabase
 
