@@ -92,11 +92,38 @@ npm run build      # gera a pasta dist/
 npm run preview    # pré-visualiza a build
 ```
 
+## 4. Publicar no Vercel
+
+A app é um site estático (Vite), por isso assenta bem no Vercel.
+
+1. Faz **push** do código para o GitHub (já está no repositório).
+2. Em [vercel.com](https://vercel.com), **Add New → Project** e importa este
+   repositório. O Vercel deteta o **Vite** automaticamente:
+   - *Framework Preset*: **Vite**
+   - *Build Command*: `npm run build`
+   - *Output Directory*: `dist`
+   - (o ficheiro [`vercel.json`](vercel.json) já trata do *fallback* para a app)
+3. Em **Settings → Environment Variables**, adiciona as **duas** variáveis
+   (os mesmos valores do teu `.env`, que **não** vai no Git):
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
+
+   > Em Vite, as variáveis são lidas durante o *build*. Se as adicionares depois
+   > do primeiro deploy, faz **Redeploy** para entrarem em vigor.
+4. **Deploy.** No fim ficas com um endereço tipo `https://o-teu-projeto.vercel.app`.
+5. No **Supabase → Authentication → URL Configuration**, mete esse endereço em
+   **Site URL** (e em *Redirect URLs*). Assim os emails de confirmação de conta
+   apontam para o site publicado, e não para `localhost`.
+
+Cada novo *push* para o branch de produção volta a publicar automaticamente.
+
 ## Resolução de problemas
 
-- **Ecrã "Falta ligar ao Supabase"** — o `.env` não existe ou está incompleto.
-  Confirma as duas variáveis e reinicia o `npm run dev`.
+- **Ecrã "Falta ligar ao Supabase"** — o `.env` (local) ou as variáveis de
+  ambiente (Vercel) não estão definidas. No Vercel, confirma-as e faz *Redeploy*.
 - **"Email ou palavra-passe incorretos"** — confirma o utilizador em
   Authentication → Users no Supabase.
 - **Erros a carregar/guardar dados** — confirma que correste o
   `supabase/schema.sql` e que o RLS está ativo.
+- **Link de confirmação aponta para localhost** — define o **Site URL** no
+  Supabase com o endereço do Vercel (passo 5 acima).
