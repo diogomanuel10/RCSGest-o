@@ -121,6 +121,51 @@ export async function saveSettings(values) {
   return data;
 }
 
+// --- Backup: substituir todos os dados (importar) ------------------------
+// Apaga o que existe e insere o conteúdo do backup, respeitando a ordem das
+// relações (filhos primeiro a apagar, pais primeiro a inserir).
+export async function replaceAllData(backup) {
+  const delFilter = (q) => q.not('id', 'is', null);
+
+  // Apagar (ordem segura para as chaves estrangeiras).
+  for (const table of ['events', 'players', 'teams', 'sponsors', 'coaches']) {
+    const { error } = await delFilter(supabase.from(table).delete());
+    if (error) throw error;
+  }
+
+  // Inserir (pais primeiro). Só insere se houver linhas.
+  const insertOrder = ['coaches', 'teams', 'players', 'sponsors', 'events'];
+  for (const table of insertOrder) {
+    const rows = backup[table];
+    if (Array.isArray(rows) && rows.length) {
+      const { error } = await supabase.from(table).insert(rows);
+      if (error) throw error;
+    }
+  }
+
+  // Definições (linha única).
+  if (backup.settings) {
+    const { season, goal } = backup.settings;
+    await saveSettings({ season, goal });
+  }
+
+  await loadAll();
+}
+
+// Snapshot de todos os dados, para exportar.
+export function snapshot() {
+  return {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    settings: state.settings,
+    coaches: state.coaches,
+    teams: state.teams,
+    players: state.players,
+    sponsors: state.sponsors,
+    events: state.events,
+  };
+}
+
 // Mensagens de erro de base de dados em português europeu.
 export function dbErrorMessage(error) {
   const msg = (error?.message || '').toLowerCase();
