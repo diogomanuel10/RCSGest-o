@@ -787,6 +787,60 @@ tbody tr:hover {
 }
 
 /* =========================================================================
+   Treinadores
+   ========================================================================= */
+.coach-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+}
+.coach-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.coach-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+.coach-card__name {
+  font-family: var(--font-title);
+  font-size: 1.15rem;
+  color: var(--navy);
+  display: block;
+}
+.coach-card__role {
+  font-size: 0.82rem;
+}
+.coach-card__contact {
+  margin: 0;
+  font-size: 0.9rem;
+}
+.coach-card__notes {
+  margin: 0;
+  font-size: 0.85rem;
+}
+.coach-card__teams {
+  margin-top: auto;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+.coach-card__teams-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  font-weight: 600;
+  width: 100%;
+}
+
+/* =========================================================================
    Modal e diálogo de confirmação
    ========================================================================= */
 .no-scroll {
