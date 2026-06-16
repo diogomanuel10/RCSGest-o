@@ -577,6 +577,87 @@ tbody tr:hover {
 }
 
 /* =========================================================================
+   Patrocínios (cartões de nível) + filtros + células de tabela
+   ========================================================================= */
+.tier-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-bottom: 1.2rem;
+}
+.tier-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  border-left: 4px solid var(--border);
+}
+.tier-card--ouro {
+  border-left-color: var(--gold);
+}
+.tier-card--prata {
+  border-left-color: var(--silver);
+}
+.tier-card--bronze {
+  border-left-color: var(--bronze);
+}
+.tier-card__name {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+.tier-card__value {
+  font-family: var(--font-title);
+  font-size: 1.6rem;
+  color: var(--navy);
+}
+.tier-card__count {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.filters {
+  display: flex;
+  align-items: flex-end;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+.filters > div {
+  min-width: 180px;
+}
+.filters select {
+  min-width: 180px;
+}
+.filters__count {
+  margin-left: auto;
+  font-size: 0.85rem;
+}
+
+.cell-note {
+  font-size: 0.78rem;
+  margin-top: 0.15rem;
+  max-width: 320px;
+}
+.cell-actions {
+  white-space: nowrap;
+  text-align: right;
+}
+.cell-actions .btn + .btn {
+  margin-left: 0.3rem;
+}
+
+@media (max-width: 820px) {
+  .tier-cards {
+    grid-template-columns: 1fr;
+  }
+  .filters__count {
+    margin-left: 0;
+  }
+}
+
+/* =========================================================================
    Modal e diálogo de confirmação
    ========================================================================= */
 .no-scroll {
