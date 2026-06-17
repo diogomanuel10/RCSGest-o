@@ -7,7 +7,15 @@
 const loadXLSX = () => import('xlsx');
 
 // Cabeçalhos esperados no ficheiro (a 1.ª linha). A ordem é a do modelo.
-export const PLAYER_COLUMNS = ['Nome', 'Número', 'Ano de nascimento', 'Posição'];
+export const PLAYER_COLUMNS = [
+  'Nome',
+  'Número',
+  'Ano de nascimento',
+  'Posição',
+  'Nº de federado',
+  'Contacto do encarregado',
+  'Observações',
+];
 
 // Normaliza um cabeçalho (minúsculas, sem acentos, sem espaços extra) para
 // conseguir mapear variações como "Numero", "Nº" ou "Ano".
@@ -16,7 +24,7 @@ function normalize(text) {
     .trim()
     .toLowerCase()
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
+    .replace(/[̀-ͯ]/g, '');
 }
 
 // Mapeia o cabeçalho do ficheiro para o campo interno do atleta.
@@ -26,6 +34,9 @@ function fieldForHeader(header) {
   if (h === 'numero' || h === 'no' || h === 'n' || h === '#') return 'number';
   if (h.startsWith('ano')) return 'birth_year';
   if (h.startsWith('posic')) return 'position';
+  if (h.includes('feder')) return 'federation_number';
+  if (h.includes('encarreg') || h.includes('guardian') || h.includes('contact')) return 'guardian_contact';
+  if (h.startsWith('observ') || h === 'notas' || h === 'obs') return 'notes';
   return null;
 }
 
@@ -64,6 +75,9 @@ export async function parsePlayersFile(file) {
       number: obj.number || null,
       birth_year: obj.birth_year || null,
       position: obj.position || null,
+      federation_number: obj.federation_number || null,
+      guardian_contact: obj.guardian_contact || null,
+      notes: obj.notes || null,
     });
   }
 
@@ -75,11 +89,19 @@ export async function downloadPlayersTemplate() {
   const XLSX = await loadXLSX();
   const rows = [
     PLAYER_COLUMNS,
-    ['Maria Silva', '7', '2008', 'Distribuidor'],
-    ['Joana Costa', '12', '2009', 'Central'],
+    ['Maria Silva', '7', '2008', 'Distribuidor', 'FVB-12345', '912 345 678', ''],
+    ['Joana Costa', '12', '2009', 'Central', 'FVB-67890', '963 456 789', 'Lesão no joelho esq.'],
   ];
   const ws = XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols'] = [{ wch: 22 }, { wch: 10 }, { wch: 18 }, { wch: 16 }];
+  ws['!cols'] = [
+    { wch: 22 },
+    { wch: 10 },
+    { wch: 18 },
+    { wch: 16 },
+    { wch: 16 },
+    { wch: 24 },
+    { wch: 28 },
+  ];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Atletas');
   XLSX.writeFile(wb, 'modelo-atletas-rcs.xlsx');
