@@ -815,6 +815,46 @@ tbody tr:hover {
   flex-wrap: wrap;
 }
 
+/* Alertas do painel */
+.alerts-card {
+  margin-bottom: 1.3rem;
+  border-left: 4px solid var(--warn);
+}
+.alerts-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.alert-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.alert-item__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-top: 0.35rem;
+  flex-shrink: 0;
+}
+.alert-item--warn .alert-item__dot { background: var(--warn); }
+.alert-item--danger .alert-item__dot { background: var(--danger); }
+.alert-item__title {
+  display: block;
+  font-size: 0.92rem;
+}
+.alert-item__sub {
+  display: block;
+  font-size: 0.8rem;
+}
+
 @media (max-width: 900px) {
   .cards-grid {
     grid-template-columns: repeat(2, 1fr);
