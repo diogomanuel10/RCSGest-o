@@ -38,6 +38,7 @@ export function loadingHTML(message = 'A carregar…') {
 export function errorHTML(message) {
   return `
     <div class="state state--error" role="alert">
+      <span class="state__icon" aria-hidden="true">⚠</span>
       <strong>Algo correu mal</strong>
       <p>${esc(message)}</p>
     </div>
@@ -46,5 +47,10 @@ export function errorHTML(message) {
 
 // Estado vazio (sem dados ainda).
 export function emptyHTML(message) {
-  return `<div class="state"><p>${esc(message)}</p></div>`;
+  return `
+    <div class="state">
+      <span class="state__icon" aria-hidden="true">📂</span>
+      <p>${esc(message)}</p>
+    </div>
+  `;
 }

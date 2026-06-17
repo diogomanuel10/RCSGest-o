@@ -18,18 +18,27 @@ import { renderTreinadores } from './treinadores.js';
 import { renderDefinicoes } from './definicoes.js';
 import { renderUtilizadores } from './utilizadores.js';
 
+const ICONS = {
+  painel: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>`,
+  patrocinios: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`,
+  planteis: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+  calendario: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`,
+  treinadores: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
+  definicoes: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`,
+  utilizadores: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+};
+
 const NAV = [
-  { key: 'painel', label: 'Painel', icon: '▦', render: renderPainel },
-  { key: 'patrocinios', label: 'Patrocínios', icon: '★', render: renderPatrocinios },
-  { key: 'planteis', label: 'Plantéis', icon: '🏐', render: renderPlanteis },
-  { key: 'calendario', label: 'Calendário', icon: '📅', render: renderCalendario },
-  { key: 'treinadores', label: 'Treinadores', icon: '🧑‍🏫', render: renderTreinadores },
+  { key: 'painel',      label: 'Painel',       icon: ICONS.painel,      render: renderPainel },
+  { key: 'patrocinios', label: 'Patrocínios',  icon: ICONS.patrocinios, render: renderPatrocinios },
+  { key: 'planteis',    label: 'Plantéis',     icon: ICONS.planteis,    render: renderPlanteis },
+  { key: 'calendario',  label: 'Calendário',   icon: ICONS.calendario,  render: renderCalendario },
+  { key: 'treinadores', label: 'Treinadores',  icon: ICONS.treinadores, render: renderTreinadores },
 ];
 
-// Rotas do rodapé, com a condição de visibilidade (por papel).
 const FOOTER = [
-  { key: 'definicoes', label: 'Definições', icon: '⚙', render: renderDefinicoes, can: canManageSettings },
-  { key: 'utilizadores', label: 'Utilizadores', icon: '👥', render: renderUtilizadores, can: canManageUsers },
+  { key: 'definicoes',   label: 'Definições',   icon: ICONS.definicoes,   render: renderDefinicoes,   can: canManageSettings },
+  { key: 'utilizadores', label: 'Utilizadores', icon: ICONS.utilizadores, render: renderUtilizadores, can: canManageUsers },
 ];
 
 const COLLAPSE_KEY = 'rcs-sidebar-collapsed';
@@ -48,7 +57,7 @@ export async function renderAppShell(root, session) {
         <button class="navitem${footer ? ' hidden' : ''}" data-route="${n.key}"${
           footer ? ' data-footer' : ''
         } type="button" title="${n.label}">
-          <span class="navitem__icon" aria-hidden="true">${n.icon}</span>
+          <span class="navitem__icon">${n.icon}</span>
           <span>${n.label}</span>
         </button>`
       )
@@ -67,7 +76,7 @@ export async function renderAppShell(root, session) {
           </svg>
         </button>
         <div class="topbar__brand">
-          <img src="${logoUrl}" alt="" width="38" height="38" />
+          <img src="${logoUrl}" alt="" width="36" height="36" />
           <div>
             <strong>Central RCS</strong>
             <span>Real Clube Senhorense</span>
@@ -119,7 +128,6 @@ export async function renderAppShell(root, session) {
   root.querySelector('#scrim').addEventListener('click', closeDrawer);
   root.querySelector('#logout').addEventListener('click', () => signOut());
 
-  // Limpa o estado de gaveta ao passar para desktop.
   window.addEventListener('resize', () => {
     if (!isMobile()) closeDrawer();
   });
@@ -135,7 +143,6 @@ export async function renderAppShell(root, session) {
     return [...NAV, ...FOOTER];
   }
 
-  // Mostra/esconde as entradas do rodapé e atualiza o papel apresentado.
   function refreshChrome() {
     sidebar.querySelectorAll('[data-footer]').forEach((btn) => {
       const item = FOOTER.find((f) => f.key === btn.dataset.route);
@@ -157,7 +164,6 @@ export async function renderAppShell(root, session) {
   function paint() {
     refreshChrome();
 
-    // Guarda de rota: se a entrada atual não estiver acessível, volta ao Painel.
     const item = allRoutes().find((n) => n.key === current);
     if (!item || (item.can && !item.can())) current = 'painel';
 
@@ -177,10 +183,8 @@ export async function renderAppShell(root, session) {
     content.scrollTop = 0;
   }
 
-  // Re-desenha a vista atual sempre que os dados mudam.
   subscribe(() => paint());
 
-  // Carrega tudo do Supabase e desenha.
   content.innerHTML = loadingHTML('A carregar os dados do clube…');
   try {
     if (!state.loaded) await loadAll();
