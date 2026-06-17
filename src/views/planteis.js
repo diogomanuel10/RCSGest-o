@@ -1,12 +1,13 @@
 // Vista: Plantéis. Equipas agrupadas por género, com lista de atletas
 // expansível e operações de adicionar/editar/remover equipas e atletas.
 
-import { state, createRow, updateRow, deleteRow, dbErrorMessage } from '../store.js';
+import { state, createRow, createRows, updateRow, deleteRow, dbErrorMessage } from '../store.js';
 import { esc, emptyHTML } from '../ui.js';
 import { coachById, teamName, escaloes } from '../compute.js';
 import { openModal, confirmDialog } from '../modal.js';
 import { GENDERS, POSITIONS } from '../constants.js';
 import { canEdit } from '../permissions.js';
+import { parsePlayersFile, downloadPlayersTemplate } from '../players-xlsx.js';
 
 // Equipas expandidas (mostram os atletas). Mantido entre re-desenhos.
 const expanded = new Set();
@@ -43,6 +44,12 @@ export function renderPlanteis(container) {
   );
   container.querySelectorAll('[data-add-player]').forEach((b) =>
     b.addEventListener('click', () => openPlayerForm(b.dataset.addPlayer))
+  );
+  container.querySelectorAll('[data-import-player]').forEach((b) =>
+    b.addEventListener('click', () => importPlayers(b.dataset.importPlayer))
+  );
+  container.querySelectorAll('[data-template]').forEach((b) =>
+    b.addEventListener('click', () => downloadPlayersTemplate())
   );
   container.querySelectorAll('[data-player-edit]').forEach((b) =>
     b.addEventListener('click', () => openPlayerForm(b.dataset.team, b.dataset.playerEdit))
@@ -134,7 +141,11 @@ function teamCardHTML(team, editable) {
           }
           ${
             editable
-              ? `<button class="btn btn--ghost btn--sm team-card__addplayer" data-add-player="${team.id}" type="button">+ Atleta</button>`
+              ? `<div class="team-card__actions">
+                   <button class="btn btn--ghost btn--sm" data-add-player="${team.id}" type="button">+ Atleta</button>
+                   <button class="btn btn--ghost btn--sm" data-import-player="${team.id}" type="button">Importar (xlsx)</button>
+                   <button class="btn btn--link btn--sm" data-template type="button">Descarregar modelo</button>
+                 </div>`
               : ''
           }
         </div>`
@@ -216,6 +227,52 @@ function openPlayerForm(teamId, playerId) {
       }
     },
   });
+}
+
+// Importa atletas de um ficheiro .xlsx para a equipa indicada.
+function importPlayers(teamId) {
+  const team = state.teams.find((t) => t.id === teamId);
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept =
+    '.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  input.addEventListener('change', async () => {
+    const file = input.files?.[0];
+    if (!file) return;
+
+    let parsed;
+    try {
+      parsed = await parsePlayersFile(file);
+    } catch {
+      alert('Não foi possível ler o ficheiro. Confirma que é um .xlsx válido.');
+      return;
+    }
+
+    if (!parsed.players.length) {
+      alert(
+        'Não foram encontrados atletas no ficheiro. Usa o modelo (coluna "Nome" obrigatória).'
+      );
+      return;
+    }
+
+    const skippedMsg = parsed.skipped
+      ? ` ${parsed.skipped} linha(s) sem nome foram ignoradas.`
+      : '';
+    const ok = await confirmDialog(
+      `Importar ${parsed.players.length} atleta(s) para a equipa "${teamName(team)}"?${skippedMsg}`,
+      { confirmLabel: 'Importar', danger: false }
+    );
+    if (!ok) return;
+
+    const rows = parsed.players.map((p) => ({ ...p, team_id: teamId }));
+    try {
+      await createRows('players', 'players', rows);
+      expanded.add(teamId);
+    } catch (err) {
+      alert(dbErrorMessage(err));
+    }
+  });
+  input.click();
 }
 
 async function removeTeam(id, container) {

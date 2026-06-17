@@ -72,6 +72,19 @@ export const POSITIONS = [
   'Universal',
 ];
 
+// --- Avaliação de plantel (decisão para a próxima época) ---
+export const REVIEW_STATUSES = [
+  { key: 'pendente', label: 'Pendente', badge: 'muted' },
+  { key: 'mantem', label: 'Mantém', badge: 'ok' },
+  { key: 'sai', label: 'Sai', badge: 'danger' },
+];
+export const REVIEW_LABEL = Object.fromEntries(
+  REVIEW_STATUSES.map((s) => [s.key, s.label])
+);
+export const REVIEW_BADGE = Object.fromEntries(
+  REVIEW_STATUSES.map((s) => [s.key, s.badge])
+);
+
 // --- Calendário ---
 export const EVENT_TYPES = [
   { key: 'jogo', label: 'Jogo', badge: 'danger' },

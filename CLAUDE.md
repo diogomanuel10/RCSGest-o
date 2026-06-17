@@ -26,6 +26,7 @@ src/
   ui.js                 Utilitários de UI (esc, euros, loading/erro/vazio, logo)
   modal.js              Modal de formulário reutilizável + diálogo de confirmação
   style.css             Design system completo (tokens + componentes)
+  players-xlsx.js       Importar atletas de .xlsx + gerar modelo (SheetJS lazy)
   assets/logo.svg       Logótipo do clube (emblema SVG)
   views/
     config-help.js      Ecrã quando faltam as variáveis do Supabase
@@ -33,12 +34,14 @@ src/
     app-shell.js        Layout (top bar + barra lateral colapsável + router)
     painel.js           Vista Painel
     patrocinios.js      Vista Patrocínios
-    planteis.js         Vista Plantéis
+    planteis.js         Vista Plantéis (CRUD + importar atletas via .xlsx)
+    avaliacao.js        Vista Avaliação de plantel (Mantém/Sai/Pendente)
     calendario.js       Vista Calendário
     treinadores.js      Vista Treinadores
-    definicoes.js       Vista Definições (época, meta, backup)
+    definicoes.js       Vista Definições (época, meta, escalões, backup)
     utilizadores.js     Vista Utilizadores (gestão de papéis — só coordenador)
 supabase/schema.sql     Tabelas, índices, RLS e dados iniciais (correr no Supabase)
+public/                 Ficheiros estáticos (modelo-atletas-rcs.xlsx)
 ```
 
 ## Fluxo de arranque (`main.js`)
@@ -101,6 +104,17 @@ topo do módulo da vista.
 - **Escalões configuráveis**: guardados em `settings.escaloes` (JSON). A lista
   em vigor obtém-se por `compute.escaloes()` (recorre a `DEFAULT_ESCALOES` se
   vazio). Geridos nas Definições; usados no formulário de equipa dos Plantéis.
+- **Credenciação do treinador**: `coaches.license_number` (Nº da Licença) e
+  `coaches.tptd` são texto livre, opcionais; mostrados na ficha do treinador.
+- **Importar atletas (.xlsx)**: nos Plantéis, cada equipa tem "Importar (xlsx)".
+  `players-xlsx.js` lê o ficheiro com SheetJS (carregado dinamicamente) e mapeia
+  as colunas por cabeçalho (Nome, Número, Ano de nascimento, Posição; aceita
+  variações). Linhas sem nome são ignoradas. Insere em lote via `createRows`.
+  O modelo descarrega-se por "Descarregar modelo" (ou de `public/`).
+- **Avaliação de plantel**: `players.review_status` ∈ `pendente|mantem|sai`
+  (omissão `pendente`). A vista `avaliacao.js` deixa o coordenador/treinador
+  decidir, por equipa, quem fica na próxima época, com contadores. Não apaga
+  ninguém — é só planeamento. Editável por quem tem `canEdit('players')`.
 
 ## Convenções
 

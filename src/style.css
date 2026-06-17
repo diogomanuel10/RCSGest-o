@@ -178,6 +178,18 @@ a {
   font-size: 0.82rem;
   border-radius: var(--radius-xs);
 }
+.btn--link {
+  background: transparent;
+  border-color: transparent;
+  color: var(--navy-300);
+  text-decoration: underline;
+  padding-left: 0.4rem;
+  padding-right: 0.4rem;
+}
+.btn--link:hover {
+  color: var(--navy);
+  background: transparent;
+}
 .btn[disabled] {
   opacity: 0.5;
   cursor: not-allowed;
@@ -981,13 +993,155 @@ tbody tr:hover {
 .players-table td {
   padding: 0.45rem 0.55rem;
 }
-.team-card__addplayer {
+.team-card__actions {
   margin-top: 0.7rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 @media (max-width: 820px) {
   .genders {
     grid-template-columns: 1fr;
+  }
+}
+
+/* =========================================================================
+   Avaliação de plantel
+   ========================================================================= */
+.aval-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 200px;
+}
+.aval-pick label {
+  margin-bottom: 0;
+}
+.aval-summary {
+  margin-bottom: 1.3rem;
+}
+.aval-metric {
+  cursor: default;
+  gap: 0.1rem;
+}
+.aval-metric .metric__value {
+  font-size: 1.7rem;
+}
+.metric--red {
+  border-top: 3px solid var(--danger);
+}
+.metric--green {
+  border-top: 3px solid var(--ok);
+}
+.metric--muted {
+  border-top: 3px solid var(--border);
+}
+.aval-list {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.aval-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  transition: border-color 0.14s ease, background 0.14s ease;
+}
+.aval-row--mantem {
+  border-left-color: var(--ok);
+  background: linear-gradient(90deg, rgba(22, 163, 74, 0.05), transparent 40%);
+}
+.aval-row--sai {
+  border-left-color: var(--danger);
+  background: linear-gradient(90deg, rgba(220, 38, 38, 0.05), transparent 40%);
+}
+.aval-row__player {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+.aval-row__num {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--navy-100);
+  color: var(--navy);
+  border-radius: 50%;
+  font-family: var(--font-title);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.aval-row__name {
+  display: block;
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+.aval-row__meta {
+  display: block;
+  font-size: 0.78rem;
+}
+.aval-seg {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--surface-2);
+}
+.aval-seg__btn {
+  border: none;
+  background: transparent;
+  padding: 0.4rem 0.8rem;
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+  min-height: 38px;
+}
+.aval-seg__btn + .aval-seg__btn {
+  border-left: 1px solid var(--border);
+}
+.aval-seg__btn:hover {
+  background: rgba(20, 59, 97, 0.06);
+}
+.aval-seg__btn--mantem.is-active {
+  background: var(--ok);
+  color: #fff;
+}
+.aval-seg__btn--sai.is-active {
+  background: var(--danger);
+  color: #fff;
+}
+.aval-seg__btn--pendente.is-active {
+  background: var(--text-muted);
+  color: #fff;
+}
+
+@media (max-width: 560px) {
+  .aval-row {
+    align-items: flex-start;
+  }
+  .aval-seg {
+    width: 100%;
+  }
+  .aval-seg__btn {
+    flex: 1;
   }
 }
 
@@ -1140,6 +1294,30 @@ tbody tr:hover {
   margin: 0;
   font-size: 0.84rem;
 }
+.coach-card__creds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.coach-card__cred {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  padding: 0.3rem 0.6rem;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.coach-card__cred-label {
+  font-size: 0.64rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  font-weight: 700;
+}
 .coach-card__teams {
   margin-top: auto;
   padding-top: 0.65rem;
@@ -1178,9 +1356,14 @@ tbody tr:hover {
 /* =========================================================================
    Definições
    ========================================================================= */
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1.2rem;
+  align-items: start;
+}
 .settings-card {
-  max-width: 660px;
-  margin-bottom: 1.3rem;
+  margin-bottom: 0;
 }
 .settings-card__title {
   font-size: 1.05rem;

@@ -9,8 +9,14 @@ export function renderDefinicoes(container) {
   const { season, goal } = state.settings;
 
   container.innerHTML = `
-    <header class="page-head"><h1 class="section-title">Definições</h1></header>
+    <header class="page-head">
+      <div>
+        <h1 class="section-title">Definições</h1>
+        <p class="muted" style="margin:0;font-size:0.88rem">Época, escalões e cópia de segurança</p>
+      </div>
+    </header>
 
+    <div class="settings-grid">
     <section class="card settings-card">
       <h2 class="section-title settings-card__title">Época e meta</h2>
       <form id="settings-form">
@@ -66,6 +72,7 @@ export function renderDefinicoes(container) {
         ⚠ A importação <strong>substitui</strong> todos os dados atuais pelos do ficheiro.
       </p>
     </section>
+    </div>
   `;
 
   // --- Guardar definições ---
