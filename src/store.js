@@ -20,6 +20,7 @@ export const state = {
   quotas: [],
   equipment: [],
   teamCoaches: [], // ligação equipa<->treinador (principal/adjunto)
+  prospects: [],  // funil de recrutamento
   profile: null, // perfil do utilizador atual (com o papel/role)
   profiles: [], // todos os perfis (preenchido só se o utilizador for coordenador)
   loaded: false,
@@ -36,6 +37,7 @@ export function resetState() {
   state.quotas = [];
   state.equipment = [];
   state.teamCoaches = [];
+  state.prospects = [];
   state.profile = null;
   state.profiles = [];
   state.loaded = false;
@@ -75,7 +77,7 @@ export async function loadProfile() {
 // --- Carregamento inicial -------------------------------------------------
 // Vai buscar todas as tabelas em paralelo. Lança erro se alguma falhar.
 export async function loadAll() {
-  const [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches] =
+  const [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects] =
     await Promise.all([
       supabase.from('settings').select('*').eq('id', 1).maybeSingle(),
       supabase.from('coaches').select('*').order('name'),
@@ -87,9 +89,10 @@ export async function loadAll() {
       supabase.from('quotas').select('*'),
       supabase.from('equipment').select('*').order('name'),
       supabase.from('team_coaches').select('*'),
+      supabase.from('prospects').select('*').order('created_at'),
     ]);
 
-  for (const res of [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches]) {
+  for (const res of [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects]) {
     if (res.error) throw res.error;
   }
 
@@ -103,6 +106,7 @@ export async function loadAll() {
   state.quotas      = quotas.data      || [];
   state.equipment   = equipment.data   || [];
   state.teamCoaches = teamCoaches.data || [];
+  state.prospects   = prospects.data   || [];
 
   await loadProfile();
 
@@ -193,6 +197,33 @@ export async function toggleQuota(id, pago) {
     pago,
     pago_em: pago ? new Date().toISOString() : null,
   });
+}
+
+// Converte um prospeto em atleta do plantel: cria o jogador e apaga o prospeto.
+// `teamId` é a equipa de destino (obrigatório).
+export async function convertProspect(prospectId, teamId) {
+  const p = state.prospects.find((x) => x.id === prospectId);
+  if (!p) throw new Error('Prospeto não encontrado.');
+  const { data: player, error: cErr } = await supabase
+    .from('players')
+    .insert({
+      team_id: teamId,
+      name: p.name,
+      birth_year: p.birth_year || null,
+      position: p.position || null,
+      notes: p.notes || null,
+      contact: p.contact || null,
+    })
+    .select()
+    .single();
+  if (cErr) throw cErr;
+  state.players.push(player);
+
+  const { error: dErr } = await supabase.from('prospects').delete().eq('id', prospectId);
+  if (dErr) throw dErr;
+  state.prospects = state.prospects.filter((x) => x.id !== prospectId);
+  notify();
+  return player;
 }
 
 // Define o conjunto de treinadores de uma equipa (substitui o que existir).
