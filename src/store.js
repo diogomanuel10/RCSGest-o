@@ -19,6 +19,7 @@ export const state = {
   attendances: [],
   quotas: [],
   equipment: [],
+  teamCoaches: [], // ligação equipa<->treinador (principal/adjunto)
   profile: null, // perfil do utilizador atual (com o papel/role)
   profiles: [], // todos os perfis (preenchido só se o utilizador for coordenador)
   loaded: false,
@@ -34,6 +35,7 @@ export function resetState() {
   state.attendances = [];
   state.quotas = [];
   state.equipment = [];
+  state.teamCoaches = [];
   state.profile = null;
   state.profiles = [];
   state.loaded = false;
@@ -73,7 +75,7 @@ export async function loadProfile() {
 // --- Carregamento inicial -------------------------------------------------
 // Vai buscar todas as tabelas em paralelo. Lança erro se alguma falhar.
 export async function loadAll() {
-  const [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment] =
+  const [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches] =
     await Promise.all([
       supabase.from('settings').select('*').eq('id', 1).maybeSingle(),
       supabase.from('coaches').select('*').order('name'),
@@ -84,9 +86,10 @@ export async function loadAll() {
       supabase.from('attendances').select('*'),
       supabase.from('quotas').select('*'),
       supabase.from('equipment').select('*').order('name'),
+      supabase.from('team_coaches').select('*'),
     ]);
 
-  for (const res of [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment]) {
+  for (const res of [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches]) {
     if (res.error) throw res.error;
   }
 
@@ -99,6 +102,7 @@ export async function loadAll() {
   state.attendances = attendances.data || [];
   state.quotas      = quotas.data      || [];
   state.equipment   = equipment.data   || [];
+  state.teamCoaches = teamCoaches.data || [];
 
   await loadProfile();
 
@@ -191,6 +195,35 @@ export async function toggleQuota(id, pago) {
   });
 }
 
+// Define o conjunto de treinadores de uma equipa (substitui o que existir).
+// `entries` é uma lista de { coach_id, role } (role: 'principal' | 'adjunto').
+// Estratégia simples: apaga os atuais e insere os novos.
+export async function saveTeamCoaches(teamId, entries) {
+  const { error: delErr } = await supabase
+    .from('team_coaches')
+    .delete()
+    .eq('team_id', teamId);
+  if (delErr) throw delErr;
+
+  let inserted = [];
+  if (entries.length) {
+    const rows = entries.map((e) => ({
+      team_id: teamId,
+      coach_id: e.coach_id,
+      role: e.role,
+    }));
+    const { data, error } = await supabase.from('team_coaches').insert(rows).select();
+    if (error) throw error;
+    inserted = data;
+  }
+
+  state.teamCoaches = state.teamCoaches
+    .filter((tc) => tc.team_id !== teamId)
+    .concat(inserted);
+  notify();
+  return inserted;
+}
+
 export async function updateRow(table, collection, id, values) {
   const { data, error } = await supabase
     .from(table)
@@ -216,11 +249,13 @@ export async function deleteRow(table, collection, id) {
     state.events.forEach((e) => {
       if (e.team_id === id) e.team_id = null;
     });
+    state.teamCoaches = state.teamCoaches.filter((tc) => tc.team_id !== id);
   }
   if (collection === 'coaches') {
     state.teams.forEach((t) => {
       if (t.coach_id === id) t.coach_id = null;
     });
+    state.teamCoaches = state.teamCoaches.filter((tc) => tc.coach_id !== id);
   }
   notify();
 }

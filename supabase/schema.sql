@@ -81,6 +81,25 @@ create table if not exists players (
 alter table players add column if not exists review_status text not null default 'pendente'
   check (review_status in ('pendente','mantem','sai'));
 
+-- Dados adicionais do atleta (adicionados por ALTER para tabelas já criadas).
+alter table players add column if not exists guardian_contact  text;
+alter table players add column if not exists federation_number text;
+alter table players add column if not exists notes             text;
+
+-- Treinadores de uma equipa (N-para-N, com papel principal/adjunto).
+-- Uma equipa pode ter vários treinadores; cada treinador pode estar em várias
+-- equipas. A coluna teams.coach_id mantém-se por compatibilidade (espelha o
+-- treinador principal), mas esta tabela é a fonte de verdade.
+create table if not exists team_coaches (
+  id         uuid primary key default gen_random_uuid(),
+  team_id    uuid not null references teams(id)   on delete cascade,
+  coach_id   uuid not null references coaches(id) on delete cascade,
+  role       text not null default 'adjunto'
+             check (role in ('principal','adjunto')),
+  created_at timestamptz default now(),
+  unique (team_id, coach_id)
+);
+
 -- Patrocínios. tier: '' (sem nível), 'ouro', 'prata' ou 'bronze'.
 -- Nota: a regra "nível obrigatório quando confirmado" é validada na aplicação.
 create table if not exists sponsors (
@@ -141,10 +160,12 @@ create index if not exists idx_players_team     on players     (team_id);
 create index if not exists idx_events_date      on events      (date);
 create index if not exists idx_events_team      on events      (team_id);
 create index if not exists idx_teams_coach      on teams       (coach_id);
-create index if not exists idx_attend_event     on attendances (event_id);
-create index if not exists idx_attend_player    on attendances (player_id);
-create index if not exists idx_quotas_player    on quotas      (player_id);
-create index if not exists idx_quotas_mes_ano   on quotas      (mes, ano);
+create index if not exists idx_attend_event     on attendances  (event_id);
+create index if not exists idx_attend_player    on attendances  (player_id);
+create index if not exists idx_quotas_player    on quotas       (player_id);
+create index if not exists idx_quotas_mes_ano   on quotas       (mes, ano);
+create index if not exists idx_team_coaches_team  on team_coaches (team_id);
+create index if not exists idx_team_coaches_coach on team_coaches (coach_id);
 
 -- ---------------------------------------------------------------------
 -- Perfis e papéis (permissões)
@@ -205,9 +226,10 @@ alter table sponsors enable row level security;
 alter table events   enable row level security;
 
 -- Novas tabelas (seguras para re-executar)
-alter table attendances enable row level security;
-alter table quotas      enable row level security;
-alter table equipment   enable row level security;
+alter table attendances  enable row level security;
+alter table quotas       enable row level security;
+alter table equipment    enable row level security;
+alter table team_coaches enable row level security;
 
 -- Limpa políticas anteriores para o script poder correr mais do que uma vez.
 drop policy if exists "auth_all"        on settings;
@@ -236,6 +258,8 @@ drop policy if exists "read_all"        on quotas;
 drop policy if exists "write_coord"     on quotas;
 drop policy if exists "read_all"        on equipment;
 drop policy if exists "write_coord"     on equipment;
+drop policy if exists "read_all"        on team_coaches;
+drop policy if exists "write_editor"    on team_coaches;
 
 -- LEITURA: qualquer utilizador autenticado vê os dados do clube.
 create policy "read_all" on settings for select to authenticated using (true);
@@ -280,6 +304,12 @@ create policy "read_all" on equipment for select to authenticated using (true);
 create policy "write_coord" on equipment for all to authenticated
   using (app_role() = 'coordenador') with check (app_role() = 'coordenador');
 
+-- TREINADORES POR EQUIPA: ler todos; escrever coordenador ou treinador.
+create policy "read_all" on team_coaches for select to authenticated using (true);
+create policy "write_editor" on team_coaches for all to authenticated
+  using (app_role() in ('coordenador','treinador'))
+  with check (app_role() in ('coordenador','treinador'));
+
 -- PERFIS: cada um vê o seu; o coordenador vê e gere todos.
 create policy "profiles_read" on profiles for select to authenticated
   using (id = auth.uid() or app_role() = 'coordenador');
@@ -293,6 +323,12 @@ create policy "profiles_manage" on profiles for all to authenticated
 -- Definições (época + meta). Só insere se ainda não existir.
 insert into settings (id, season, goal) values (1, '2026/2027', 15000)
   on conflict (id) do nothing;
+
+-- Migra o treinador único de cada equipa (teams.coach_id) para a nova tabela
+-- de ligação, marcando-o como principal. Seguro de re-executar.
+insert into team_coaches (team_id, coach_id, role)
+select id, coach_id, 'principal' from teams where coach_id is not null
+  on conflict (team_id, coach_id) do nothing;
 
 -- Lista inicial de empresas a contactar (sem nível atribuído ainda).
 -- status: 'email' = email enviado; 'telefone' = contactar por telefone.

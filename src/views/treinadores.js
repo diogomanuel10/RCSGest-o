@@ -2,9 +2,10 @@
 
 import { state, createRow, updateRow, deleteRow, dbErrorMessage } from '../store.js';
 import { esc, emptyHTML } from '../ui.js';
-import { teamName } from '../compute.js';
+import { teamName, coachTeams } from '../compute.js';
 import { openModal, confirmDialog } from '../modal.js';
 import { canEdit } from '../permissions.js';
+import { COACH_ROLE_LABEL } from '../constants.js';
 
 export function renderTreinadores(container) {
   const editable = canEdit('coaches');
@@ -36,7 +37,7 @@ function initials(name) {
 }
 
 function coachCard(coach, editable) {
-  const teams = state.teams.filter((t) => t.coach_id === coach.id);
+  const teams = coachTeams(coach.id);
   return `
     <article class="card coach-card">
       <div class="coach-card__head">
@@ -72,7 +73,7 @@ function coachCard(coach, editable) {
         <span class="coach-card__teams-label">Equipas</span>
         ${
           teams.length
-            ? teams.map((t) => `<span class="badge badge--muted">${esc(teamName(t))}</span>`).join(' ')
+            ? teams.map((t) => `<span class="badge badge--${t.role === 'principal' ? 'info' : 'muted'}" title="${esc(COACH_ROLE_LABEL[t.role] || '')}">${esc(teamName(t.team))}</span>`).join(' ')
             : '<span class="muted" style="font-size:0.84rem">Sem equipas atribuídas</span>'
         }
       </div>
@@ -115,8 +116,8 @@ function openForm(id) {
 
 async function remove(id) {
   const coach = state.coaches.find((c) => c.id === id);
-  const n = state.teams.filter((t) => t.coach_id === id).length;
-  const extra = n ? ` As ${n} equipas que orienta ficam sem treinador atribuído.` : '';
+  const n = coachTeams(id).length;
+  const extra = n ? ` Deixa de constar nas ${n} equipa(s) que orienta.` : '';
   const ok = await confirmDialog(`Remover o treinador "${coach?.name}"?${extra}`);
   if (!ok) return;
   try {

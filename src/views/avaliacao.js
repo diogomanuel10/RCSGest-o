@@ -5,7 +5,7 @@
 
 import { state, updateRow, dbErrorMessage } from '../store.js';
 import { esc, emptyHTML } from '../ui.js';
-import { coachById, teamName } from '../compute.js';
+import { teamCoaches, teamName } from '../compute.js';
 import { REVIEW_STATUSES, REVIEW_LABEL } from '../constants.js';
 import { canEdit } from '../permissions.js';
 
@@ -33,7 +33,7 @@ export function renderAvaliacao(container) {
     selectedTeam = state.teams[0].id;
   }
   const team = state.teams.find((t) => t.id === selectedTeam);
-  const coach = coachById(team.coach_id);
+  const coachLabel = teamCoaches(team.id).map((c) => c.coach.name).join(', ');
   const players = state.players
     .filter((p) => p.team_id === selectedTeam)
     .sort((a, b) => (Number(a.number) || 999) - (Number(b.number) || 999));
@@ -74,7 +74,7 @@ export function renderAvaliacao(container) {
 
     <section class="card">
       <div class="goal-card__header">
-        <h2 class="section-title goal-card__title">${esc(teamName(team))}${coach ? ` · ${esc(coach.name)}` : ''}</h2>
+        <h2 class="section-title goal-card__title">${esc(teamName(team))}${coachLabel ? ` · ${esc(coachLabel)}` : ''}</h2>
         <span class="goal-card__pct">${pct}%</span>
       </div>
       <div class="progress"><div class="progress__bar" style="width:${pct}%"></div></div>

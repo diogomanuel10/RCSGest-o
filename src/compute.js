@@ -62,3 +62,22 @@ export function teamById(id) {
 export function coachById(id) {
   return state.coaches.find((c) => c.id === id) || null;
 }
+
+// Treinadores de uma equipa, com o respetivo papel. Principal primeiro.
+// Devolve [{ coach, role }] já com o objeto do treinador resolvido.
+export function teamCoaches(teamId) {
+  return state.teamCoaches
+    .filter((tc) => tc.team_id === teamId)
+    .map((tc) => ({ coach: coachById(tc.coach_id), role: tc.role }))
+    .filter((x) => x.coach)
+    .sort((a, b) => (a.role === 'principal' ? 0 : 1) - (b.role === 'principal' ? 0 : 1));
+}
+
+// Equipas de um treinador, com o papel que ocupa em cada uma.
+// Devolve [{ team, role }].
+export function coachTeams(coachId) {
+  return state.teamCoaches
+    .filter((tc) => tc.coach_id === coachId)
+    .map((tc) => ({ team: teamById(tc.team_id), role: tc.role }))
+    .filter((x) => x.team);
+}
