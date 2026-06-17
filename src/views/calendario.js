@@ -118,13 +118,10 @@ function eventRow(ev, isPast, editable) {
         <span class="event-row__time muted">${ev.time ? esc(ev.time) : '—'}</span>
       </div>
       <div class="event-row__main">
-        <div class="row row--wrap" style="gap:0.5rem">
-          <span class="badge badge--${EVENT_TYPE_BADGE[ev.type] || 'muted'}">${esc(
-    EVENT_TYPE_LABEL[ev.type] || ev.type
-  )}</span>
-          <strong>${esc(ev.title || EVENT_TYPE_LABEL[ev.type] || 'Evento')}</strong>
+        <div class="event-row__title">
+          <span class="badge badge--${EVENT_TYPE_BADGE[ev.type] || 'muted'}" style="margin-right:0.4rem">${esc(EVENT_TYPE_LABEL[ev.type] || ev.type)}</span>${esc(ev.title || EVENT_TYPE_LABEL[ev.type] || 'Evento')}
         </div>
-        ${meta ? `<span class="muted event-row__meta">${meta}</span>` : ''}
+        ${meta ? `<span class="event-row__meta">${meta}</span>` : ''}
       </div>
       ${
         editable

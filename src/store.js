@@ -197,8 +197,10 @@ export async function replaceAllData(backup) {
 
   // Definições (linha única).
   if (backup.settings) {
-    const { season, goal } = backup.settings;
-    await saveSettings({ season, goal });
+    const { season, goal, escaloes } = backup.settings;
+    const values = { season, goal };
+    if (Array.isArray(escaloes)) values.escaloes = escaloes;
+    await saveSettings(values);
   }
 
   await loadAll();

@@ -29,14 +29,23 @@ export function renderTreinadores(container) {
   );
 }
 
+function initials(name) {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
 function coachCard(coach, editable) {
   const teams = state.teams.filter((t) => t.coach_id === coach.id);
   return `
     <article class="card coach-card">
       <div class="coach-card__head">
-        <div>
-          <strong class="coach-card__name">${esc(coach.name)}</strong>
-          ${coach.role ? `<span class="muted coach-card__role">${esc(coach.role)}</span>` : ''}
+        <div class="coach-card__identity">
+          <div class="coach-avatar" aria-hidden="true">${esc(initials(coach.name))}</div>
+          <div>
+            <strong class="coach-card__name">${esc(coach.name)}</strong>
+            ${coach.role ? `<span class="muted coach-card__role">${esc(coach.role)}</span>` : ''}
+          </div>
         </div>
         ${
           editable
@@ -48,7 +57,7 @@ function coachCard(coach, editable) {
         }
       </div>
 
-      ${coach.contact ? `<p class="coach-card__contact">${esc(coach.contact)}</p>` : ''}
+      ${coach.contact ? `<p class="coach-card__contact muted">${esc(coach.contact)}</p>` : ''}
       ${coach.notes ? `<p class="muted coach-card__notes">${esc(coach.notes)}</p>` : ''}
 
       <div class="coach-card__teams">
@@ -56,7 +65,7 @@ function coachCard(coach, editable) {
         ${
           teams.length
             ? teams.map((t) => `<span class="badge badge--muted">${esc(teamName(t))}</span>`).join(' ')
-            : '<span class="muted">Sem equipas atribuídas</span>'
+            : '<span class="muted" style="font-size:0.84rem">Sem equipas atribuídas</span>'
         }
       </div>
     </article>

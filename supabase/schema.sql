@@ -23,6 +23,11 @@ create table if not exists settings (
   goal   integer not null default 15000
 );
 
+-- Escalões configuráveis (lista ordenada). Guardados como JSON na linha única
+-- de definições. Adicionado por ALTER para quem já tinha a tabela criada.
+alter table settings add column if not exists escaloes jsonb not null default
+  '["Minis","Infantis","Iniciados","Juvenis","Juniores","Seniores"]'::jsonb;
+
 -- Treinadores.
 create table if not exists coaches (
   id         uuid primary key default gen_random_uuid(),

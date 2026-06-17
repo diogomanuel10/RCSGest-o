@@ -51,7 +51,10 @@ export const GENDERS = [
 ];
 export const GENDER_LABEL = Object.fromEntries(GENDERS.map((g) => [g.key, g.label]));
 
-export const ESCALOES = [
+// Escalões por omissão. A lista real é configurável e vive em
+// state.settings.escaloes (ver compute.escaloes()); isto é só o ponto de
+// partida e o recurso de segurança caso ainda não exista nada guardado.
+export const DEFAULT_ESCALOES = [
   'Minis',
   'Infantis',
   'Iniciados',
