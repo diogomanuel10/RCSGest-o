@@ -1,7 +1,14 @@
 // Cálculos derivados a partir do estado (state). Sem efeitos secundários.
 
 import { state } from './store.js';
-import { TIER_VALUE, IN_PROGRESS_STATUSES } from './constants.js';
+import { TIER_VALUE, IN_PROGRESS_STATUSES, DEFAULT_ESCALOES } from './constants.js';
+
+// Lista de escalões em vigor (configurável nas Definições). Recorre à lista
+// por omissão se ainda não houver nada guardado.
+export function escaloes() {
+  const e = state.settings?.escaloes;
+  return Array.isArray(e) && e.length ? e : DEFAULT_ESCALOES;
+}
 
 // Total angariado = soma do valor do nível dos patrocínios CONFIRMADOS.
 // Patrocínios confirmados sem nível contam 0 (não deviam existir, pois a app

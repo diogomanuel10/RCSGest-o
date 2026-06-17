@@ -2,6 +2,7 @@
 
 import { state, saveSettings, snapshot, replaceAllData, dbErrorMessage } from '../store.js';
 import { esc } from '../ui.js';
+import { escaloes } from '../compute.js';
 import { confirmDialog } from '../modal.js';
 
 export function renderDefinicoes(container) {
@@ -29,6 +30,24 @@ export function renderDefinicoes(container) {
           <button type="submit" class="btn btn--primary" id="save-settings">Guardar</button>
         </div>
       </form>
+    </section>
+
+    <section class="card settings-card">
+      <h2 class="section-title settings-card__title">Escalões</h2>
+      <p class="muted" style="margin-top:0">
+        A lista usada ao criar equipas nos Plantéis. A ordem aqui é a ordem que
+        aparece no formulário.
+      </p>
+      <ul class="chips" id="esc-list"></ul>
+      <form class="esc-add" id="esc-add">
+        <input type="text" id="esc-input" placeholder="Novo escalão" maxlength="40"
+               aria-label="Novo escalão" />
+        <button class="btn btn--ghost" type="submit">Adicionar</button>
+      </form>
+      <p class="settings-msg hidden" id="esc-msg"></p>
+      <div class="row" style="justify-content:flex-end">
+        <button type="button" class="btn btn--primary" id="save-esc">Guardar escalões</button>
+      </div>
     </section>
 
     <section class="card settings-card">
@@ -68,6 +87,91 @@ export function renderDefinicoes(container) {
     } finally {
       btn.disabled = false;
       btn.textContent = 'Guardar';
+    }
+  });
+
+  // --- Escalões configuráveis ---
+  let escList = [...escaloes()];
+  const escListEl = container.querySelector('#esc-list');
+  const escMsg = container.querySelector('#esc-msg');
+
+  function drawEscList() {
+    if (!escList.length) {
+      escListEl.innerHTML = '<li class="muted" style="list-style:none">Sem escalões.</li>';
+    } else {
+      escListEl.innerHTML = escList
+        .map(
+          (name, i) => `
+        <li class="chip">
+          <span class="chip__label">${esc(name)}</span>
+          <span class="chip__actions">
+            <button type="button" data-up="${i}" aria-label="Mover para cima" ${
+            i === 0 ? 'disabled' : ''
+          }>↑</button>
+            <button type="button" data-down="${i}" aria-label="Mover para baixo" ${
+            i === escList.length - 1 ? 'disabled' : ''
+          }>↓</button>
+            <button type="button" data-remove="${i}" aria-label="Remover" class="chip__remove">×</button>
+          </span>
+        </li>`
+        )
+        .join('');
+    }
+    escListEl.querySelectorAll('[data-remove]').forEach((b) =>
+      b.addEventListener('click', () => {
+        escList.splice(Number(b.dataset.remove), 1);
+        drawEscList();
+      })
+    );
+    escListEl.querySelectorAll('[data-up]').forEach((b) =>
+      b.addEventListener('click', () => move(Number(b.dataset.up), -1))
+    );
+    escListEl.querySelectorAll('[data-down]').forEach((b) =>
+      b.addEventListener('click', () => move(Number(b.dataset.down), 1))
+    );
+  }
+
+  function move(i, dir) {
+    const j = i + dir;
+    if (j < 0 || j >= escList.length) return;
+    [escList[i], escList[j]] = [escList[j], escList[i]];
+    drawEscList();
+  }
+
+  drawEscList();
+
+  container.querySelector('#esc-add').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const input = container.querySelector('#esc-input');
+    const name = input.value.trim();
+    if (!name) return;
+    if (escList.some((x) => x.toLowerCase() === name.toLowerCase())) {
+      showMsg(escMsg, 'Esse escalão já existe na lista.', 'error');
+      return;
+    }
+    escList.push(name);
+    input.value = '';
+    escMsg.classList.add('hidden');
+    drawEscList();
+    input.focus();
+  });
+
+  container.querySelector('#save-esc').addEventListener('click', async (e) => {
+    if (!escList.length) {
+      showMsg(escMsg, 'Tem de existir pelo menos um escalão.', 'error');
+      return;
+    }
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    btn.textContent = 'A guardar…';
+    try {
+      await saveSettings({ escaloes: escList });
+      showMsg(escMsg, 'Escalões guardados.', 'ok');
+    } catch (err) {
+      showMsg(escMsg, dbErrorMessage(err), 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Guardar escalões';
     }
   });
 

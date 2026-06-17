@@ -217,6 +217,18 @@ textarea {
   box-shadow: var(--shadow-sm);
   padding: 1.1rem 1.2rem;
 }
+/* Elevação subtil ao passar o rato nos cartões de conteúdo. */
+.metric,
+.tier-card,
+.coach-card {
+  transition: box-shadow 0.16s ease, transform 0.16s ease, border-color 0.16s ease;
+}
+.metric:hover,
+.tier-card:hover,
+.coach-card:hover {
+  box-shadow: var(--shadow);
+  transform: translateY(-2px);
+}
 
 /* =========================================================================
    Distintivos (badges) — estados e níveis
@@ -358,42 +370,115 @@ tbody tr:hover {
 }
 
 /* =========================================================================
-   Layout principal (barra lateral + conteúdo)
+   Layout: top bar + barra lateral colapsável + conteúdo
    ========================================================================= */
-.layout {
-  display: grid;
-  grid-template-columns: 248px 1fr;
+.app {
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
 }
+
+/* --- Top bar --- */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  height: 62px;
+  padding: 0 1.1rem 0 0.7rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 1px 3px rgba(20, 59, 97, 0.05);
+}
+.topbar__toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--navy);
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+.topbar__toggle:hover {
+  background: var(--surface-2);
+}
+.topbar__toggle svg {
+  width: 22px;
+  height: 22px;
+}
+.topbar__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.topbar__brand img {
+  display: block;
+}
+.topbar__brand strong {
+  font-family: var(--font-title);
+  font-size: 1.2rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--navy);
+  line-height: 1.05;
+  display: block;
+}
+.topbar__brand span {
+  display: block;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+.topbar__spacer {
+  flex: 1;
+}
+.topbar__account {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+.topbar__user {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.2;
+}
+.topbar__email {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
+  max-width: 230px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- Corpo: barra lateral + conteúdo --- */
+.app__body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
 .sidebar {
+  flex: 0 0 240px;
+  width: 240px;
   background: var(--navy);
   color: #dce6f1;
   display: flex;
   flex-direction: column;
-  padding: 1.1rem 0.9rem;
+  padding: 0.9rem 0.7rem;
   position: sticky;
-  top: 0;
-  height: 100vh;
-}
-.sidebar__brand {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.2rem 0.4rem 1rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  margin-bottom: 0.8rem;
-}
-.sidebar__brand strong {
-  font-family: var(--font-title);
-  font-size: 1.15rem;
-  color: #fff;
-  display: block;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-.sidebar__sub {
-  font-size: 0.72rem;
-  color: #9fb6cf;
+  top: 62px;
+  height: calc(100vh - 62px);
+  transition: flex-basis 0.18s ease, width 0.18s ease;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 .sidebar__nav {
   display: flex;
@@ -401,6 +486,7 @@ tbody tr:hover {
   gap: 0.2rem;
   flex: 1;
 }
+
 .navitem {
   display: flex;
   align-items: center;
@@ -434,32 +520,46 @@ tbody tr:hover {
 }
 .sidebar__foot {
   border-top: 1px solid rgba(255, 255, 255, 0.1);
-  padding-top: 0.8rem;
+  padding-top: 0.6rem;
   margin-top: 0.6rem;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.25rem;
 }
-.sidebar__logout {
-  color: #dce6f1;
-  border-color: rgba(255, 255, 255, 0.25);
+
+/* --- Estado colapsado (rail só com ícones, em desktop) --- */
+.app--collapsed .sidebar {
+  flex-basis: 70px;
+  width: 70px;
 }
-.sidebar__logout:hover {
-  background: rgba(255, 255, 255, 0.1);
+.app--collapsed .navitem {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
 }
-.sidebar__user {
-  font-size: 0.72rem;
-  color: #9fb6cf;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  padding: 0 0.2rem;
+.app--collapsed .navitem span:not(.navitem__icon) {
+  display: none;
+}
+
+/* --- Cortina (scrim) para o drawer em telemóvel --- */
+.scrim {
+  position: fixed;
+  inset: 62px 0 0 0;
+  background: rgba(15, 30, 48, 0.45);
+  z-index: 40;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
 }
 
 .content {
-  padding: 1.6rem 1.8rem 3rem;
+  flex: 1;
+  min-width: 0;
+  padding: 1.7rem 2rem 3rem;
+}
+.content__inner {
   max-width: 1180px;
-  width: 100%;
+  margin: 0 auto;
 }
 .page-head {
   display: flex;
@@ -891,6 +991,67 @@ tbody tr:hover {
   color: var(--info);
 }
 
+/* Chips (escalões configuráveis) */
+.chips {
+  list-style: none;
+  margin: 0 0 0.8rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.4rem 0.4rem 0.4rem 0.8rem;
+}
+.chip__label {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.chip__actions {
+  display: flex;
+  gap: 0.2rem;
+}
+.chip__actions button {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--navy);
+  font-size: 0.9rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.chip__actions button:hover:not([disabled]) {
+  background: var(--surface-2);
+}
+.chip__actions button[disabled] {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.chip__remove {
+  color: var(--danger) !important;
+  font-size: 1.1rem !important;
+}
+.esc-add {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+.esc-add input {
+  flex: 1;
+}
+
 /* =========================================================================
    Modal e diálogo de confirmação
    ========================================================================= */
@@ -969,47 +1130,57 @@ tbody tr:hover {
 }
 
 /* =========================================================================
-   Responsivo: barra lateral passa a separadores no topo
+   Responsivo: a barra lateral vira gaveta (drawer) sobreposta
    ========================================================================= */
 @media (max-width: 820px) {
-  .layout {
-    grid-template-columns: 1fr;
-  }
   .sidebar {
-    position: static;
-    height: auto;
-    flex-direction: column;
-    padding: 0.8rem;
+    position: fixed;
+    top: 62px;
+    left: 0;
+    z-index: 45;
+    flex-basis: 250px;
+    width: 250px;
+    height: calc(100vh - 62px);
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    box-shadow: 6px 0 24px rgba(15, 30, 48, 0.25);
   }
-  .sidebar__nav {
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 0.3rem;
+  /* No telemóvel o "colapsar" não encolhe — abre/fecha a gaveta. */
+  .app--collapsed .sidebar {
+    flex-basis: 250px;
+    width: 250px;
   }
-  .navitem {
-    flex: 1 1 auto;
-    justify-content: center;
+  .app--collapsed .navitem {
+    justify-content: flex-start;
+    padding: 0.6rem 0.7rem;
   }
-  .navitem span:not(.navitem__icon) {
-    font-size: 0.85rem;
+  .app--collapsed .navitem span:not(.navitem__icon) {
+    display: inline;
   }
-  .sidebar__foot {
-    flex-direction: row;
-    align-items: center;
-    flex-wrap: wrap;
+  .app--drawer .sidebar {
+    transform: translateX(0);
   }
-  .sidebar__foot .navitem {
-    flex: 0 1 auto;
+  .app--drawer .scrim {
+    opacity: 1;
+    pointer-events: auto;
   }
-  .sidebar__user {
-    flex: 1;
-    text-align: right;
+  .topbar__brand span {
+    display: none;
+  }
+  .topbar__email {
+    max-width: 130px;
   }
   .content {
     padding: 1.1rem 1rem 2.5rem;
   }
   .field-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .topbar__user {
+    display: none;
   }
 }
 

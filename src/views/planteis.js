@@ -3,9 +3,9 @@
 
 import { state, createRow, updateRow, deleteRow, dbErrorMessage } from '../store.js';
 import { esc, emptyHTML } from '../ui.js';
-import { coachById, teamName } from '../compute.js';
+import { coachById, teamName, escaloes } from '../compute.js';
 import { openModal, confirmDialog } from '../modal.js';
-import { GENDERS, ESCALOES, POSITIONS } from '../constants.js';
+import { GENDERS, POSITIONS } from '../constants.js';
 import { canEdit } from '../permissions.js';
 
 // Equipas expandidas (mostram os atletas). Mantido entre re-desenhos.
@@ -151,7 +151,7 @@ function openTeamForm(id) {
     submitLabel: existing ? 'Guardar' : 'Adicionar',
     values: existing || {},
     fields: [
-      { name: 'escalao', label: 'Escalão', type: 'select', required: true, placeholder: 'Escolhe…', options: ESCALOES },
+      { name: 'escalao', label: 'Escalão', type: 'select', required: true, placeholder: 'Escolhe…', options: escaloes() },
       { name: 'gender', label: 'Género', type: 'select', required: true, options: GENDERS },
       {
         name: 'coach_id',

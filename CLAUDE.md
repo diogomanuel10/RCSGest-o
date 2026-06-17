@@ -30,7 +30,7 @@ src/
   views/
     config-help.js      Ecrã quando faltam as variáveis do Supabase
     login.js            Ecrã de login
-    app-shell.js        Layout (barra lateral + router) e carregamento inicial
+    app-shell.js        Layout (top bar + barra lateral colapsável + router)
     painel.js           Vista Painel
     patrocinios.js      Vista Patrocínios
     planteis.js         Vista Plantéis
@@ -98,6 +98,9 @@ topo do módulo da vista.
 - Apagar uma equipa apaga os atletas (cascade) e liberta os eventos
   (`team_id` → null); apagar um treinador liberta as equipas. Refletido na
   base de dados (FKs) e na cache local em `deleteRow`.
+- **Escalões configuráveis**: guardados em `settings.escaloes` (JSON). A lista
+  em vigor obtém-se por `compute.escaloes()` (recorre a `DEFAULT_ESCALOES` se
+  vazio). Geridos nas Definições; usados no formulário de equipa dos Plantéis.
 
 ## Convenções
 
