@@ -10,7 +10,7 @@ import { canEdit } from '../permissions.js';
 import { PROSPECT_STATUSES, PROSPECT_LABEL, PROSPECT_BADGE, POSITIONS } from '../constants.js';
 
 export function renderRecrutamento(container) {
-  const canWrite = canEdit('players');
+  const canWrite = canEdit('prospects');
   const total = state.prospects.length;
 
   container.innerHTML = `

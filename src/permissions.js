@@ -15,9 +15,13 @@ const EDIT_ROLES = {
   settings: ['coordenador'],
   coaches: ['coordenador'],
   sponsors: ['coordenador'],
+  quotas: ['coordenador'],
+  equipment: ['coordenador'],
   teams: ['coordenador', 'treinador'],
   players: ['coordenador', 'treinador'],
   events: ['coordenador', 'treinador'],
+  attendances: ['coordenador', 'treinador'],
+  prospects: ['coordenador', 'treinador'],
 };
 
 // Papel do utilizador atual (por omissão 'leitura' até o perfil carregar).
