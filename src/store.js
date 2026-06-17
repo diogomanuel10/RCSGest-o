@@ -125,6 +125,17 @@ export async function createRow(table, collection, values) {
   return data;
 }
 
+// Inserção em lote (ex.: importar atletas de um ficheiro). Devolve as linhas
+// criadas e atualiza a cache local de uma só vez.
+export async function createRows(table, collection, rows) {
+  if (!rows.length) return [];
+  const { data, error } = await supabase.from(table).insert(rows).select();
+  if (error) throw error;
+  state[collection].push(...data);
+  notify();
+  return data;
+}
+
 export async function updateRow(table, collection, id, values) {
   const { data, error } = await supabase
     .from(table)

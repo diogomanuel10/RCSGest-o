@@ -38,6 +38,10 @@ create table if not exists coaches (
   created_at timestamptz default now()
 );
 
+-- Dados de credenciação do treinador (adicionados por ALTER para tabelas já criadas).
+alter table coaches add column if not exists license_number text;
+alter table coaches add column if not exists tptd           text;
+
 -- Equipas (plantéis). Género 'M' ou 'F'.
 create table if not exists teams (
   id         uuid primary key default gen_random_uuid(),
@@ -57,6 +61,13 @@ create table if not exists players (
   position   text,
   created_at timestamptz default now()
 );
+
+-- Estado de avaliação do atleta para a próxima época (gestão de plantel).
+--   'pendente' -> ainda não decidido (omissão)
+--   'mantem'   -> continua no plantel
+--   'sai'      -> não continua
+alter table players add column if not exists review_status text not null default 'pendente'
+  check (review_status in ('pendente','mantem','sai'));
 
 -- Patrocínios. tier: '' (sem nível), 'ouro', 'prata' ou 'bronze'.
 -- Nota: a regra "nível obrigatório quando confirmado" é validada na aplicação.

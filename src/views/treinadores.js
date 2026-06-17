@@ -58,6 +58,14 @@ function coachCard(coach, editable) {
       </div>
 
       ${coach.contact ? `<p class="coach-card__contact muted">${esc(coach.contact)}</p>` : ''}
+      ${
+        coach.license_number || coach.tptd
+          ? `<div class="coach-card__creds">
+              ${coach.license_number ? `<span class="coach-card__cred"><span class="coach-card__cred-label">Nº Licença</span>${esc(coach.license_number)}</span>` : ''}
+              ${coach.tptd ? `<span class="coach-card__cred"><span class="coach-card__cred-label">TPTD</span>${esc(coach.tptd)}</span>` : ''}
+            </div>`
+          : ''
+      }
       ${coach.notes ? `<p class="muted coach-card__notes">${esc(coach.notes)}</p>` : ''}
 
       <div class="coach-card__teams">
@@ -82,6 +90,8 @@ function openForm(id) {
       { name: 'name', label: 'Nome', required: true, full: true },
       { name: 'role', label: 'Função', placeholder: 'ex.: Treinador principal' },
       { name: 'contact', label: 'Contacto', placeholder: 'Email ou telefone' },
+      { name: 'license_number', label: 'Nº da Licença', placeholder: 'ex.: 123456' },
+      { name: 'tptd', label: 'TPTD', placeholder: 'ex.: Grau II' },
       { name: 'notes', label: 'Notas', type: 'textarea', full: true },
     ],
     onSubmit: async (values) => {
@@ -89,6 +99,8 @@ function openForm(id) {
         name: values.name.trim(),
         role: values.role?.trim() || null,
         contact: values.contact?.trim() || null,
+        license_number: values.license_number?.trim() || null,
+        tptd: values.tptd?.trim() || null,
         notes: values.notes?.trim() || null,
       };
       try {
