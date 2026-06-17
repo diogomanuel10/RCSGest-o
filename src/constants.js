@@ -72,6 +72,18 @@ export const POSITIONS = [
   'Universal',
 ];
 
+// Papel de um treinador dentro de uma equipa.
+export const COACH_ROLES = [
+  { key: 'principal', label: 'Principal', badge: 'info' },
+  { key: 'adjunto', label: 'Adjunto', badge: 'muted' },
+];
+export const COACH_ROLE_LABEL = Object.fromEntries(
+  COACH_ROLES.map((r) => [r.key, r.label])
+);
+export const COACH_ROLE_BADGE = Object.fromEntries(
+  COACH_ROLES.map((r) => [r.key, r.badge])
+);
+
 // --- Avaliação de plantel (decisão para a próxima época) ---
 export const REVIEW_STATUSES = [
   { key: 'pendente', label: 'Pendente', badge: 'muted' },
