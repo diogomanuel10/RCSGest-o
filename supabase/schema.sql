@@ -188,6 +188,26 @@ create index if not exists idx_team_coaches_coach on team_coaches (coach_id);
 create index if not exists idx_prospects_status   on prospects    (status);
 create index if not exists idx_prospects_team     on prospects    (target_team_id);
 
+-- Ligação entre conta de utilizador e registo de treinador.
+-- Permite ao RLS filtrar dados por equipa do treinador autenticado.
+alter table coaches add column if not exists user_id uuid references auth.users(id) on delete set null;
+create index if not exists idx_coaches_user_id on coaches (user_id);
+
+-- Devolve os IDs das equipas do treinador atual (via coaches.user_id).
+-- SECURITY DEFINER para poder ser usada dentro das políticas RLS.
+create or replace function public.trainer_team_ids()
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select tc.team_id
+  from team_coaches tc
+  join coaches c on c.id = tc.coach_id
+  where c.user_id = auth.uid();
+$$;
+
 -- ---------------------------------------------------------------------
 -- Perfis e papéis (permissões)
 -- ---------------------------------------------------------------------
@@ -285,13 +305,29 @@ drop policy if exists "write_editor"    on team_coaches;
 drop policy if exists "read_all"        on prospects;
 drop policy if exists "write_editor"    on prospects;
 
--- LEITURA: qualquer utilizador autenticado vê os dados do clube.
+-- LEITURA global: settings, coaches, sponsors — todos os autenticados.
 create policy "read_all" on settings for select to authenticated using (true);
 create policy "read_all" on coaches  for select to authenticated using (true);
 create policy "read_all" on sponsors for select to authenticated using (true);
-create policy "read_all" on teams    for select to authenticated using (true);
-create policy "read_all" on players  for select to authenticated using (true);
-create policy "read_all" on events   for select to authenticated using (true);
+
+-- Equipas: coordenador e leitura veem todas; treinador só as suas.
+create policy "read_all" on teams for select to authenticated using (
+  app_role() in ('coordenador', 'leitura')
+  OR id in (select trainer_team_ids())
+);
+
+-- Atletas: coordenador e leitura veem todos; treinador só os das suas equipas.
+create policy "read_all" on players for select to authenticated using (
+  app_role() in ('coordenador', 'leitura')
+  OR team_id in (select trainer_team_ids())
+);
+
+-- Eventos: coordenador e leitura veem todos; treinador só os das suas equipas.
+create policy "read_all" on events for select to authenticated using (
+  app_role() in ('coordenador', 'leitura')
+  OR team_id is null
+  OR team_id in (select trainer_team_ids())
+);
 
 -- ESCRITA só coordenador: definições, treinadores e patrocínios.
 create policy "write_coord" on settings for all to authenticated

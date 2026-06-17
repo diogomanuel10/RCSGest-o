@@ -8,7 +8,7 @@ import { logoUrl } from '../ui.js';
 import { signOut } from '../auth.js';
 import { state, subscribe, loadAll } from '../store.js';
 import { loadingHTML, errorHTML } from '../ui.js';
-import { canManageSettings, canManageUsers, ROLE_LABEL } from '../permissions.js';
+import { canManageSettings, canManageUsers, canViewSection, ROLE_LABEL } from '../permissions.js';
 
 import { renderPainel } from './painel.js';
 import { renderPatrocinios } from './patrocinios.js';
@@ -43,15 +43,15 @@ const ICONS = {
 const NAV = [
   { key: 'painel',       label: 'Painel',        icon: ICONS.painel,       render: renderPainel },
   { key: 'patrocinios',  label: 'Patrocínios',   icon: ICONS.patrocinios,  render: renderPatrocinios },
-  { key: 'planteis',     label: 'Plantéis',      icon: ICONS.planteis,     render: renderPlanteis },
-  { key: 'avaliacao',    label: 'Avaliação',     icon: ICONS.avaliacao,    render: renderAvaliacao },
-  { key: 'calendario',   label: 'Calendário',    icon: ICONS.calendario,   render: renderCalendario },
-  { key: 'presencas',    label: 'Presenças',     icon: ICONS.presencas,    render: renderPresencas },
-  { key: 'estatisticas', label: 'Estatísticas',  icon: ICONS.estatisticas, render: renderEstatisticas },
-  { key: 'quotas',       label: 'Quotas',        icon: ICONS.quotas,       render: renderQuotas },
-  { key: 'equipamentos', label: 'Equipamentos',  icon: ICONS.equipamentos, render: renderEquipamentos },
-  { key: 'treinadores',  label: 'Treinadores',   icon: ICONS.treinadores,  render: renderTreinadores },
-  { key: 'recrutamento', label: 'Recrutamento',  icon: ICONS.recrutamento, render: renderRecrutamento },
+  { key: 'planteis',     label: 'Plantéis',      icon: ICONS.planteis,     render: renderPlanteis,     can: canViewSection },
+  { key: 'avaliacao',    label: 'Avaliação',     icon: ICONS.avaliacao,    render: renderAvaliacao,    can: canViewSection },
+  { key: 'calendario',   label: 'Calendário',    icon: ICONS.calendario,   render: renderCalendario,   can: canViewSection },
+  { key: 'presencas',    label: 'Presenças',     icon: ICONS.presencas,    render: renderPresencas,    can: canViewSection },
+  { key: 'estatisticas', label: 'Estatísticas',  icon: ICONS.estatisticas, render: renderEstatisticas, can: canViewSection },
+  { key: 'quotas',       label: 'Quotas',        icon: ICONS.quotas,       render: renderQuotas,       can: canViewSection },
+  { key: 'equipamentos', label: 'Equipamentos',  icon: ICONS.equipamentos, render: renderEquipamentos, can: canViewSection },
+  { key: 'treinadores',  label: 'Treinadores',   icon: ICONS.treinadores,  render: renderTreinadores,  can: canViewSection },
+  { key: 'recrutamento', label: 'Recrutamento',  icon: ICONS.recrutamento, render: renderRecrutamento, can: canViewSection },
 ];
 
 const FOOTER = [
@@ -165,6 +165,10 @@ export async function renderAppShell(root, session) {
     sidebar.querySelectorAll('[data-footer]').forEach((btn) => {
       const item = FOOTER.find((f) => f.key === btn.dataset.route);
       btn.classList.toggle('hidden', !(item && item.can()));
+    });
+    sidebar.querySelectorAll('[data-route]:not([data-footer])').forEach((btn) => {
+      const item = NAV.find((n) => n.key === btn.dataset.route);
+      if (item?.can) btn.classList.toggle('hidden', !item.can());
     });
     const role = state.profile?.role;
     if (role) {

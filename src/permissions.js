@@ -33,6 +33,16 @@ export function isCoordenador() {
   return currentRole() === 'coordenador';
 }
 
+export function isLeitura() {
+  return currentRole() === 'leitura';
+}
+
+// Coordenador e treinador acedem a todas as secções operacionais.
+// Leitura só vê Painel e Patrocínios.
+export function canViewSection() {
+  return !isLeitura();
+}
+
 // Pode editar (criar/alterar/remover) uma dada entidade?
 export function canEdit(entity) {
   return (EDIT_ROLES[entity] || []).includes(currentRole());
