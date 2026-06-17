@@ -16,6 +16,9 @@ export const state = {
   players: [],
   sponsors: [],
   events: [],
+  attendances: [],
+  quotas: [],
+  equipment: [],
   profile: null, // perfil do utilizador atual (com o papel/role)
   profiles: [], // todos os perfis (preenchido só se o utilizador for coordenador)
   loaded: false,
@@ -28,6 +31,9 @@ export function resetState() {
   state.players = [];
   state.sponsors = [];
   state.events = [];
+  state.attendances = [];
+  state.quotas = [];
+  state.equipment = [];
   state.profile = null;
   state.profiles = [];
   state.loaded = false;
@@ -67,25 +73,32 @@ export async function loadProfile() {
 // --- Carregamento inicial -------------------------------------------------
 // Vai buscar todas as tabelas em paralelo. Lança erro se alguma falhar.
 export async function loadAll() {
-  const [settings, coaches, teams, players, sponsors, events] = await Promise.all([
-    supabase.from('settings').select('*').eq('id', 1).maybeSingle(),
-    supabase.from('coaches').select('*').order('name'),
-    supabase.from('teams').select('*').order('created_at'),
-    supabase.from('players').select('*').order('number'),
-    supabase.from('sponsors').select('*').order('name'),
-    supabase.from('events').select('*').order('date'),
-  ]);
+  const [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment] =
+    await Promise.all([
+      supabase.from('settings').select('*').eq('id', 1).maybeSingle(),
+      supabase.from('coaches').select('*').order('name'),
+      supabase.from('teams').select('*').order('created_at'),
+      supabase.from('players').select('*').order('number'),
+      supabase.from('sponsors').select('*').order('name'),
+      supabase.from('events').select('*').order('date'),
+      supabase.from('attendances').select('*'),
+      supabase.from('quotas').select('*'),
+      supabase.from('equipment').select('*').order('name'),
+    ]);
 
-  for (const res of [settings, coaches, teams, players, sponsors, events]) {
+  for (const res of [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment]) {
     if (res.error) throw res.error;
   }
 
   if (settings.data) state.settings = settings.data;
-  state.coaches = coaches.data || [];
-  state.teams = teams.data || [];
-  state.players = players.data || [];
-  state.sponsors = sponsors.data || [];
-  state.events = events.data || [];
+  state.coaches     = coaches.data     || [];
+  state.teams       = teams.data       || [];
+  state.players     = players.data     || [];
+  state.sponsors    = sponsors.data    || [];
+  state.events      = events.data      || [];
+  state.attendances = attendances.data || [];
+  state.quotas      = quotas.data      || [];
+  state.equipment   = equipment.data   || [];
 
   await loadProfile();
 
@@ -134,6 +147,48 @@ export async function createRows(table, collection, rows) {
   state[collection].push(...data);
   notify();
   return data;
+}
+
+// Upsert de presença (cria ou atualiza — chave única event_id+player_id).
+export async function upsertAttendance(eventId, playerId, values) {
+  const { data, error } = await supabase
+    .from('attendances')
+    .upsert(
+      { event_id: eventId, player_id: playerId, ...values },
+      { onConflict: 'event_id,player_id' }
+    )
+    .select()
+    .single();
+  if (error) throw error;
+  const i = state.attendances.findIndex(
+    (a) => a.event_id === eventId && a.player_id === playerId
+  );
+  if (i !== -1) state.attendances[i] = data;
+  else state.attendances.push(data);
+  notify();
+  return data;
+}
+
+// Gera registos de quota para todos os atletas de uma equipa que ainda não
+// tenham registo nesse mês/ano. Não duplica — usa upsert com onConflict.
+export async function generateQuotas(teamId, mes, ano, valor) {
+  const players = state.players.filter((p) => p.team_id === teamId);
+  const existing = new Set(
+    state.quotas.filter((q) => q.mes === mes && q.ano === ano).map((q) => q.player_id)
+  );
+  const rows = players.filter((p) => !existing.has(p.id)).map((p) => ({
+    player_id: p.id, mes, ano, valor,
+  }));
+  if (!rows.length) return [];
+  return createRows('quotas', 'quotas', rows);
+}
+
+// Marca uma quota como paga (ou não paga).
+export async function toggleQuota(id, pago) {
+  return updateRow('quotas', 'quotas', id, {
+    pago,
+    pago_em: pago ? new Date().toISOString() : null,
+  });
 }
 
 export async function updateRow(table, collection, id, values) {
