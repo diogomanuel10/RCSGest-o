@@ -15,6 +15,8 @@ import {
 import { canEdit } from '../permissions.js';
 
 const filters = { type: '', team: '' };
+let calView = 'lista'; // 'lista' | 'grelha'
+let gridMonth = new Date(); // mês exibido na grelha
 
 export function renderCalendario(container) {
   const editable = canEdit('events');
@@ -34,71 +36,139 @@ export function renderCalendario(container) {
   container.innerHTML = `
     <header class="page-head">
       <h1 class="section-title">Calendário</h1>
-      ${editable ? `
-        <div class="row" style="gap:0.5rem;flex-wrap:wrap">
-          <button class="btn btn--ghost" id="add-recurrent" type="button">↺ Treinos recorrentes</button>
+      <div class="row" style="gap:0.5rem;flex-wrap:wrap">
+        <div class="cal-toggle" role="group" aria-label="Vista">
+          <button class="cal-toggle__btn ${calView === 'lista' ? 'cal-toggle__btn--active' : ''}" id="view-lista" type="button">☰ Lista</button>
+          <button class="cal-toggle__btn ${calView === 'grelha' ? 'cal-toggle__btn--active' : ''}" id="view-grelha" type="button">▦ Grelha</button>
+        </div>
+        ${editable ? `
+          <button class="btn btn--ghost" id="add-recurrent" type="button">↺ Recorrentes</button>
           <button class="btn btn--accent" id="add-event" type="button">+ Evento</button>
-        </div>` : ''}
+        ` : ''}
+      </div>
     </header>
 
+    ${calView === 'grelha' ? renderGrid(events, editable) : renderLista(events, future, past, editable)}
+  `;
+
+  container.querySelector('#add-event')?.addEventListener('click', () => openForm());
+  container.querySelector('#add-recurrent')?.addEventListener('click', () => openRecurrentModal());
+  container.querySelector('#view-lista').addEventListener('click', () => { calView = 'lista'; renderCalendario(container); });
+  container.querySelector('#view-grelha').addEventListener('click', () => { calView = 'grelha'; renderCalendario(container); });
+  container.querySelector('#f-type')?.addEventListener('change', (e) => { filters.type = e.target.value; renderCalendario(container); });
+  container.querySelector('#f-team')?.addEventListener('change', (e) => { filters.team = e.target.value; renderCalendario(container); });
+  container.querySelector('#grid-prev')?.addEventListener('click', () => { gridMonth = new Date(gridMonth.getFullYear(), gridMonth.getMonth() - 1, 1); renderCalendario(container); });
+  container.querySelector('#grid-next')?.addEventListener('click', () => { gridMonth = new Date(gridMonth.getFullYear(), gridMonth.getMonth() + 1, 1); renderCalendario(container); });
+  container.querySelector('#grid-today')?.addEventListener('click', () => { gridMonth = new Date(); renderCalendario(container); });
+  container.querySelectorAll('[data-edit]').forEach((b) => b.addEventListener('click', () => openForm(b.dataset.edit)));
+  container.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => remove(b.dataset.del)));
+  container.querySelectorAll('[data-new-day]').forEach((b) => b.addEventListener('click', () => openForm(null, b.dataset.newDay)));
+}
+
+function renderLista(events, future, past, editable) {
+  return `
     <section class="card">
       <div class="filters">
         <div>
           <label for="f-type">Tipo</label>
           <select id="f-type">
             <option value="">Todos</option>
-            ${EVENT_TYPES.map(
-              (t) => `<option value="${t.key}" ${filters.type === t.key ? 'selected' : ''}>${esc(
-                t.label
-              )}</option>`
-            ).join('')}
+            ${EVENT_TYPES.map((t) => `<option value="${t.key}" ${filters.type === t.key ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}
           </select>
         </div>
         <div>
           <label for="f-team">Equipa</label>
           <select id="f-team">
             <option value="">Todas</option>
-            ${state.teams
-              .map(
-                (t) => `<option value="${t.id}" ${filters.team === t.id ? 'selected' : ''}>${esc(
-                  teamName(t)
-                )}</option>`
-              )
-              .join('')}
+            ${state.teams.map((t) => `<option value="${t.id}" ${filters.team === t.id ? 'selected' : ''}>${esc(teamName(t))}</option>`).join('')}
           </select>
         </div>
-        <span class="filters__count muted">${events.length} evento${
-    events.length === 1 ? '' : 's'
-  }</span>
+        <span class="filters__count muted">${events.length} evento${events.length === 1 ? '' : 's'}</span>
       </div>
-
-      ${
-        events.length
-          ? `
-        ${future.length ? `<h3 class="cal-group">Próximos</h3>${future.map((e) => eventRow(e, false, editable)).join('')}` : ''}
-        ${past.length ? `<h3 class="cal-group cal-group--past">Passados</h3>${past.map((e) => eventRow(e, true, editable)).join('')}` : ''}
-      `
-          : emptyHTML('Sem eventos para os filtros escolhidos.')
-      }
+      ${events.length
+        ? `${future.length ? `<h3 class="cal-group">Próximos</h3>${future.map((e) => eventRow(e, false, editable)).join('')}` : ''}
+           ${past.length ? `<h3 class="cal-group cal-group--past">Passados</h3>${past.map((e) => eventRow(e, true, editable)).join('')}` : ''}`
+        : emptyHTML('Sem eventos para os filtros escolhidos.')}
     </section>
   `;
+}
 
-  container.querySelector('#add-event')?.addEventListener('click', () => openForm());
-  container.querySelector('#add-recurrent')?.addEventListener('click', () => openRecurrentModal());
-  container.querySelector('#f-type').addEventListener('change', (e) => {
-    filters.type = e.target.value;
-    renderCalendario(container);
+function renderGrid(allEvents, editable) {
+  const year = gridMonth.getFullYear();
+  const month = gridMonth.getMonth(); // 0-indexed
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0, 10);
+
+  const monthLabel = gridMonth.toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' });
+
+  // Days of the week header (Mon–Sun, 1-7, JS: 0=Sun)
+  const DAYS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+
+  // First day of month and total days
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  // Offset: Monday-based (Mon=0 … Sun=6)
+  const startOffset = (firstDay.getDay() + 6) % 7;
+
+  // Build events map by date string
+  const evMap = {};
+  allEvents.forEach((ev) => {
+    const d = ev.date;
+    if (!evMap[d]) evMap[d] = [];
+    evMap[d].push(ev);
   });
-  container.querySelector('#f-team').addEventListener('change', (e) => {
-    filters.team = e.target.value;
-    renderCalendario(container);
-  });
-  container.querySelectorAll('[data-edit]').forEach((b) =>
-    b.addEventListener('click', () => openForm(b.dataset.edit))
-  );
-  container.querySelectorAll('[data-del]').forEach((b) =>
-    b.addEventListener('click', () => remove(b.dataset.del))
-  );
+
+  // Build cell array
+  const cells = [];
+  for (let i = 0; i < startOffset; i++) cells.push(null);
+  for (let d = 1; d <= lastDay.getDate(); d++) {
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    cells.push({ day: d, dateStr, events: evMap[dateStr] || [] });
+  }
+  // pad to complete last row
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const rows = [];
+  for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7));
+
+  return `
+    <div class="grid-nav">
+      <button class="btn btn--ghost btn--sm" id="grid-prev" type="button">‹ Anterior</button>
+      <span class="grid-nav__month">${esc(monthLabel)}</span>
+      <button class="btn btn--ghost btn--sm" id="grid-today" type="button">Hoje</button>
+      <button class="btn btn--ghost btn--sm" id="grid-next" type="button">Seguinte ›</button>
+    </div>
+    <div class="cal-grid card">
+      <div class="cal-grid__head">
+        ${DAYS.map((d) => `<div class="cal-grid__dow">${d}</div>`).join('')}
+      </div>
+      <div class="cal-grid__body">
+        ${rows.map((row) => `
+          <div class="cal-grid__row">
+            ${row.map((cell) => {
+              if (!cell) return `<div class="cal-grid__cell cal-grid__cell--empty"></div>`;
+              const isToday = cell.dateStr === todayStr;
+              const isPast = cell.dateStr < todayStr;
+              return `
+                <div class="cal-grid__cell${isToday ? ' cal-grid__cell--today' : ''}${isPast ? ' cal-grid__cell--past' : ''}">
+                  <div class="cal-grid__day-head">
+                    <span class="cal-grid__day-num${isToday ? ' cal-grid__day-num--today' : ''}">${cell.day}</span>
+                    ${editable ? `<button class="cal-grid__add" data-new-day="${cell.dateStr}" type="button" title="Novo evento">+</button>` : ''}
+                  </div>
+                  <div class="cal-grid__events">
+                    ${cell.events.slice(0, 3).map((ev) => `
+                      <div class="cal-grid__ev badge--${EVENT_TYPE_BADGE[ev.type] || 'muted'}" title="${esc(ev.title || EVENT_TYPE_LABEL[ev.type])}">
+                        ${esc((ev.title || EVENT_TYPE_LABEL[ev.type] || '').slice(0, 18))}${(ev.title || '').length > 18 ? '…' : ''}
+                      </div>`).join('')}
+                    ${cell.events.length > 3 ? `<span class="muted" style="font-size:0.7rem">+${cell.events.length - 3} mais</span>` : ''}
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>`).join('')}
+      </div>
+    </div>
+  `;
 }
 
 function eventRow(ev, isPast, editable) {
@@ -141,12 +211,12 @@ function eventRow(ev, isPast, editable) {
   `;
 }
 
-function openForm(id) {
+function openForm(id, prefillDate) {
   const existing = id ? state.events.find((e) => e.id === id) : null;
   openModal({
     title: existing ? 'Editar evento' : 'Novo evento',
     submitLabel: existing ? 'Guardar' : 'Adicionar',
-    values: existing || { type: 'jogo', location: DEFAULT_LOCATION },
+    values: existing || { type: 'jogo', location: DEFAULT_LOCATION, date: prefillDate || '' },
     fields: [
       { name: 'type', label: 'Tipo', type: 'select', required: true, options: EVENT_TYPES },
       { name: 'title', label: 'Título', placeholder: 'ex.: Jornada 3' },

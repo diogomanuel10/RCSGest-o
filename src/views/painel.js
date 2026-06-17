@@ -10,6 +10,9 @@ import {
   eventDateTime,
   teamById,
   teamName,
+  quotasOwed,
+  attendanceStats,
+  equipmentNeedsAttention,
 } from '../compute.js';
 import { EVENT_TYPE_LABEL, EVENT_TYPE_BADGE } from '../constants.js';
 
@@ -21,6 +24,14 @@ const ICON_USERS = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" 
 
 const ICON_COACH = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
 
+const ICON_CHECK = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`;
+
+const ICON_CARD = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>`;
+
+const ICON_SHIELD = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`;
+
+const ICON_BOX = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>`;
+
 export function renderPainel(container) {
   const raised = totalRaised();
   const goal = state.settings.goal || 0;
@@ -28,7 +39,14 @@ export function renderPainel(container) {
   const inProgress = inProgressCount();
   const athletes = state.players.length;
   const coaches = state.coaches.length;
+  const teamsCount = state.teams.length;
   const upcoming = upcomingEvents(5);
+
+  const owed = quotasOwed();
+  const att = attendanceStats();
+  const equipReview = equipmentNeedsAttention();
+
+  const alerts = buildAlerts(owed, equipReview);
 
   container.innerHTML = `
     <header class="page-head">
@@ -41,9 +59,18 @@ export function renderPainel(container) {
     <section class="cards-grid">
       ${metricCard(ICON_MONEY, 'Angariado', euros(raised), `Meta: ${euros(goal)}`, 'accent')}
       ${metricCard(ICON_CHART, 'Em contacto', inProgress, 'patrocínios a decorrer', 'blue')}
-      ${metricCard(ICON_USERS, 'Atletas', athletes, 'inscritos nos plantéis', 'green')}
+      ${metricCard(ICON_USERS, 'Atletas', athletes, `em ${teamsCount} equipa${teamsCount === 1 ? '' : 's'}`, 'green')}
       ${metricCard(ICON_COACH, 'Treinadores', coaches, 'na equipa técnica', 'purple')}
     </section>
+
+    <section class="cards-grid">
+      ${metricCard(ICON_CHECK, 'Presenças', att.rate == null ? '—' : att.rate + '%', att.total ? `média em ${att.total} registo${att.total === 1 ? '' : 's'}` : 'ainda sem registos', 'green')}
+      ${metricCard(ICON_CARD, 'Em dívida', euros(owed.total), owed.count ? `${owed.count} quota${owed.count === 1 ? '' : 's'} por pagar` : 'tudo regularizado', owed.total > 0 ? 'accent' : 'blue')}
+      ${metricCard(ICON_SHIELD, 'Equipas', teamsCount, 'plantéis ativos', 'blue')}
+      ${metricCard(ICON_BOX, 'Equipamentos', state.equipment.length, equipReview ? `${equipReview} em mau estado` : 'inventário em dia', equipReview ? 'accent' : 'purple')}
+    </section>
+
+    ${alerts ? `<section class="card alerts-card">${alerts}</section>` : ''}
 
     <section class="card goal-card">
       <div class="goal-card__header">
@@ -62,6 +89,46 @@ export function renderPainel(container) {
       <h2 class="section-title upcoming-card__title">Próximos eventos</h2>
       ${upcoming.length ? upcomingList(upcoming) : '<p class="muted" style="margin:0.3rem 0 0">Sem eventos futuros agendados.</p>'}
     </section>
+  `;
+}
+
+// Constrói a lista de alertas do clube (devolve '' se não houver nenhum).
+function buildAlerts(owed, equipReview) {
+  const items = [];
+  if (owed.count > 0) {
+    items.push(
+      alertItem(
+        'warn',
+        `${owed.count} quota${owed.count === 1 ? '' : 's'} por pagar`,
+        `${euros(owed.total)} por regularizar — ver em Quotas.`
+      )
+    );
+  }
+  if (equipReview > 0) {
+    items.push(
+      alertItem(
+        'danger',
+        `${equipReview} equipamento${equipReview === 1 ? '' : 's'} em mau estado`,
+        'Rever ou substituir — ver em Equipamentos.'
+      )
+    );
+  }
+  if (!items.length) return '';
+  return `
+    <h2 class="section-title upcoming-card__title">A precisar de atenção</h2>
+    <ul class="alerts-list">${items.join('')}</ul>
+  `;
+}
+
+function alertItem(variant, title, sub) {
+  return `
+    <li class="alert-item alert-item--${variant}">
+      <span class="alert-item__dot" aria-hidden="true"></span>
+      <div>
+        <strong class="alert-item__title">${esc(title)}</strong>
+        <span class="muted alert-item__sub">${esc(sub)}</span>
+      </div>
+    </li>
   `;
 }
 

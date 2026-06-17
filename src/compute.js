@@ -24,6 +24,42 @@ export function inProgressCount() {
   return state.sponsors.filter((s) => IN_PROGRESS_STATUSES.includes(s.status)).length;
 }
 
+// Quotas por pagar: total em dívida (€) e nº de registos pendentes.
+export function quotasOwed() {
+  const pendentes = state.quotas.filter((q) => !q.pago);
+  const total = pendentes.reduce((sum, q) => sum + Number(q.valor || 0), 0);
+  return { total, count: pendentes.length };
+}
+
+// Estatística global de presenças nos treinos.
+// "Presente" conta presente + atraso (compareceu). Devolve a taxa (0–100),
+// o total de registos e a contagem por estado. rate é null se não houver dados.
+export function attendanceStats() {
+  const all = state.attendances;
+  const counts = { presente: 0, atraso: 0, justificado: 0, falta: 0 };
+  all.forEach((a) => {
+    if (counts[a.status] !== undefined) counts[a.status]++;
+  });
+  const total = all.length;
+  const presentes = counts.presente + counts.atraso;
+  const rate = total ? Math.round((presentes / total) * 100) : null;
+  return { rate, total, counts };
+}
+
+// Nº de equipamentos em mau estado (precisam de atenção).
+export function equipmentNeedsAttention() {
+  return state.equipment.filter((e) => e.condition === 'mau').length;
+}
+
+// Próximos treinos (subconjunto de upcomingEvents só com type 'treino').
+export function upcomingTrainings(limit = 5) {
+  const now = new Date();
+  return state.events
+    .filter((e) => e.type === 'treino' && eventDateTime(e) >= now)
+    .sort((a, b) => eventDateTime(a) - eventDateTime(b))
+    .slice(0, limit);
+}
+
 // Quantos patrocínios confirmados existem em cada nível.
 export function confirmedByTier() {
   const counts = { ouro: 0, prata: 0, bronze: 0 };
