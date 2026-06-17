@@ -100,3 +100,56 @@ export const EVENT_TYPE_BADGE = Object.fromEntries(
 
 // Local pré-preenchido para novos eventos.
 export const DEFAULT_LOCATION = 'Pavilhão Municipal da Senhora da Hora';
+
+// --- Presenças ---
+export const ATTENDANCE_STATUSES = [
+  { key: 'presente',    label: 'Presente',    badge: 'ok',     color: 'green' },
+  { key: 'atraso',      label: 'Atraso',      badge: 'warn',   color: 'warn' },
+  { key: 'justificado', label: 'Justificado', badge: 'info',   color: 'info' },
+  { key: 'falta',       label: 'Falta',       badge: 'danger', color: 'red' },
+];
+export const ATTENDANCE_LABEL = Object.fromEntries(
+  ATTENDANCE_STATUSES.map((s) => [s.key, s.label])
+);
+export const ATTENDANCE_BADGE = Object.fromEntries(
+  ATTENDANCE_STATUSES.map((s) => [s.key, s.badge])
+);
+
+// Dias da semana para recorrência de treinos (0=Dom, 1=Seg, …, 6=Sáb).
+export const WEEKDAYS = [
+  { n: 1, label: 'Seg' },
+  { n: 2, label: 'Ter' },
+  { n: 3, label: 'Qua' },
+  { n: 4, label: 'Qui' },
+  { n: 5, label: 'Sex' },
+  { n: 6, label: 'Sáb' },
+  { n: 0, label: 'Dom' },
+];
+
+// --- Equipamentos ---
+export const EQUIPMENT_CATEGORIES = [
+  'Bolas',
+  'Redes e postes',
+  'Coletes',
+  'Cones e material de treino',
+  'Uniformes',
+  'Material médico',
+  'Outro',
+];
+export const EQUIPMENT_CONDITIONS = [
+  { key: 'bom',      label: 'Bom',      badge: 'ok' },
+  { key: 'razoavel', label: 'Razoável', badge: 'warn' },
+  { key: 'mau',      label: 'Mau',      badge: 'danger' },
+];
+export const CONDITION_LABEL = Object.fromEntries(
+  EQUIPMENT_CONDITIONS.map((c) => [c.key, c.label])
+);
+export const CONDITION_BADGE = Object.fromEntries(
+  EQUIPMENT_CONDITIONS.map((c) => [c.key, c.badge])
+);
+
+// --- Quotas ---
+export const MONTHS = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+];

@@ -1,7 +1,7 @@
 // Vista: Calendário. Lista de eventos por ordem cronológica, com filtros
 // por tipo e por equipa, distinguindo eventos passados dos futuros.
 
-import { state, createRow, updateRow, deleteRow, dbErrorMessage } from '../store.js';
+import { state, createRow, createRows, updateRow, deleteRow, dbErrorMessage } from '../store.js';
 import { esc, emptyHTML } from '../ui.js';
 import { eventDateTime, teamById, teamName } from '../compute.js';
 import { openModal, confirmDialog } from '../modal.js';
@@ -10,6 +10,7 @@ import {
   EVENT_TYPE_LABEL,
   EVENT_TYPE_BADGE,
   DEFAULT_LOCATION,
+  WEEKDAYS,
 } from '../constants.js';
 import { canEdit } from '../permissions.js';
 
@@ -33,7 +34,11 @@ export function renderCalendario(container) {
   container.innerHTML = `
     <header class="page-head">
       <h1 class="section-title">Calendário</h1>
-      ${editable ? '<button class="btn btn--accent" id="add-event" type="button">+ Evento</button>' : ''}
+      ${editable ? `
+        <div class="row" style="gap:0.5rem;flex-wrap:wrap">
+          <button class="btn btn--ghost" id="add-recurrent" type="button">↺ Treinos recorrentes</button>
+          <button class="btn btn--accent" id="add-event" type="button">+ Evento</button>
+        </div>` : ''}
     </header>
 
     <section class="card">
@@ -79,6 +84,7 @@ export function renderCalendario(container) {
   `;
 
   container.querySelector('#add-event')?.addEventListener('click', () => openForm());
+  container.querySelector('#add-recurrent')?.addEventListener('click', () => openRecurrentModal());
   container.querySelector('#f-type').addEventListener('change', (e) => {
     filters.type = e.target.value;
     renderCalendario(container);
@@ -185,4 +191,165 @@ async function remove(id) {
   } catch (err) {
     alert(dbErrorMessage(err));
   }
+}
+
+function openRecurrentModal() {
+  const today = new Date().toISOString().slice(0, 10);
+  const inThreeMonths = new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10);
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal card" role="dialog" aria-modal="true" aria-labelledby="rec-title" style="width:min(540px,96vw)">
+      <div class="modal__head">
+        <h2 id="rec-title">Treinos recorrentes</h2>
+        <button class="modal__close" type="button" aria-label="Fechar">&times;</button>
+      </div>
+
+      <div class="field">
+        <label>Dias da semana</label>
+        <div class="weekday-pills" id="rec-days">
+          ${WEEKDAYS.map((d) => `
+            <button type="button" class="weekday-pill" data-day="${d.n}" aria-pressed="false">
+              ${esc(d.label)}
+            </button>`).join('')}
+        </div>
+      </div>
+
+      <div class="field-grid">
+        <div class="field">
+          <label for="rec-time">Hora</label>
+          <input type="time" id="rec-time" value="19:00" />
+        </div>
+        <div class="field">
+          <label for="rec-team">Equipa</label>
+          <select id="rec-team">
+            <option value="">Sem equipa</option>
+            ${state.teams.map((t) => `<option value="${t.id}">${esc(teamName(t))}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field">
+          <label for="rec-start">Data início</label>
+          <input type="date" id="rec-start" value="${today}" required />
+        </div>
+        <div class="field">
+          <label for="rec-end">Data fim</label>
+          <input type="date" id="rec-end" value="${inThreeMonths}" required />
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="rec-location">Local</label>
+        <input type="text" id="rec-location" value="${esc(DEFAULT_LOCATION)}" />
+      </div>
+      <div class="field">
+        <label for="rec-title-field">Título (opcional)</label>
+        <input type="text" id="rec-title-field" placeholder="ex.: Treino semanal" />
+      </div>
+
+      <p class="rec-preview muted" id="rec-preview" style="font-size:0.85rem;margin:0.2rem 0 0"></p>
+
+      <div id="rec-err" class="modal__error" style="display:none"></div>
+      <div class="modal__actions">
+        <button class="btn btn--ghost" id="rec-cancel" type="button">Cancelar</button>
+        <button class="btn btn--primary" id="rec-confirm" type="button" disabled>Criar treinos</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  document.body.classList.add('no-scroll');
+
+  const close = () => {
+    overlay.remove();
+    document.body.classList.remove('no-scroll');
+  };
+  overlay.querySelector('.modal__close').addEventListener('click', close);
+  overlay.querySelector('#rec-cancel').addEventListener('click', close);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+  const selectedDays = new Set();
+  const confirmBtn = overlay.querySelector('#rec-confirm');
+  const previewEl = overlay.querySelector('#rec-preview');
+  const errEl = overlay.querySelector('#rec-err');
+
+  function updatePreview() {
+    const start = overlay.querySelector('#rec-start').value;
+    const end = overlay.querySelector('#rec-end').value;
+    if (!start || !end || !selectedDays.size) {
+      previewEl.textContent = '';
+      confirmBtn.disabled = true;
+      return;
+    }
+    const dates = generateDates(start, end, [...selectedDays]);
+    previewEl.textContent = dates.length
+      ? `${dates.length} treino${dates.length === 1 ? '' : 's'} a criar`
+      : 'Nenhum treino nesse período com os dias selecionados.';
+    confirmBtn.disabled = dates.length === 0;
+  }
+
+  overlay.querySelectorAll('.weekday-pill').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const day = Number(btn.dataset.day);
+      if (selectedDays.has(day)) {
+        selectedDays.delete(day);
+        btn.classList.remove('weekday-pill--active');
+        btn.setAttribute('aria-pressed', 'false');
+      } else {
+        selectedDays.add(day);
+        btn.classList.add('weekday-pill--active');
+        btn.setAttribute('aria-pressed', 'true');
+      }
+      updatePreview();
+    });
+  });
+  overlay.querySelector('#rec-start').addEventListener('input', updatePreview);
+  overlay.querySelector('#rec-end').addEventListener('input', updatePreview);
+
+  overlay.querySelector('#rec-confirm').addEventListener('click', async () => {
+    const start = overlay.querySelector('#rec-start').value;
+    const end = overlay.querySelector('#rec-end').value;
+    const time = overlay.querySelector('#rec-time').value || null;
+    const teamId = overlay.querySelector('#rec-team').value || null;
+    const location = overlay.querySelector('#rec-location').value.trim() || null;
+    const title = overlay.querySelector('#rec-title-field').value.trim() || null;
+
+    const dates = generateDates(start, end, [...selectedDays]);
+    if (!dates.length) return;
+
+    const rows = dates.map((date) => ({
+      type: 'treino',
+      date,
+      time: time || null,
+      team_id: teamId,
+      location,
+      title,
+    }));
+
+    confirmBtn.disabled = true;
+    errEl.style.display = 'none';
+    try {
+      await createRows('events', 'events', rows);
+      close();
+    } catch (err) {
+      errEl.textContent = dbErrorMessage(err);
+      errEl.style.display = 'block';
+      confirmBtn.disabled = false;
+    }
+  });
+}
+
+function generateDates(startStr, endStr, days) {
+  const start = new Date(startStr + 'T00:00:00');
+  const end = new Date(endStr + 'T00:00:00');
+  if (isNaN(start) || isNaN(end) || end < start) return [];
+  const daySet = new Set(days);
+  const dates = [];
+  const cur = new Date(start);
+  while (cur <= end) {
+    if (daySet.has(cur.getDay())) {
+      dates.push(cur.toISOString().slice(0, 10));
+    }
+    cur.setDate(cur.getDate() + 1);
+  }
+  return dates;
 }

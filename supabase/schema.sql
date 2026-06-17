@@ -42,6 +42,18 @@ create table if not exists coaches (
 alter table coaches add column if not exists license_number text;
 alter table coaches add column if not exists tptd           text;
 
+-- Inventário de equipamentos desportivos.
+create table if not exists equipment (
+  id         uuid primary key default gen_random_uuid(),
+  name       text not null,
+  category   text,
+  quantity   integer not null default 1,
+  condition  text not null default 'bom'
+             check (condition in ('bom','razoavel','mau')),
+  notes      text,
+  created_at timestamptz default now()
+);
+
 -- Equipas (plantéis). Género 'M' ou 'F'.
 create table if not exists teams (
   id         uuid primary key default gen_random_uuid(),
@@ -95,13 +107,44 @@ create table if not exists events (
   created_at timestamptz default now()
 );
 
+-- Presenças nos treinos.
+create table if not exists attendances (
+  id            uuid primary key default gen_random_uuid(),
+  event_id      uuid not null references events(id)  on delete cascade,
+  player_id     uuid not null references players(id) on delete cascade,
+  status        text not null default 'falta'
+                check (status in ('presente','falta','justificado','atraso')),
+  justification text,
+  minutes_late  integer,
+  created_at    timestamptz default now(),
+  unique (event_id, player_id)
+);
+
+-- Quotas / mensalidades dos atletas.
+create table if not exists quotas (
+  id         uuid primary key default gen_random_uuid(),
+  player_id  uuid not null references players(id) on delete cascade,
+  mes        integer not null check (mes between 1 and 12),
+  ano        integer not null,
+  valor      numeric(8,2) not null default 0,
+  pago       boolean not null default false,
+  pago_em    timestamptz,
+  notes      text,
+  created_at timestamptz default now(),
+  unique (player_id, mes, ano)
+);
+
 -- ---------------------------------------------------------------------
 -- Índices úteis (consultas por equipa e ordenação por data)
 -- ---------------------------------------------------------------------
-create index if not exists idx_players_team  on players (team_id);
-create index if not exists idx_events_date   on events  (date);
-create index if not exists idx_events_team   on events  (team_id);
-create index if not exists idx_teams_coach   on teams   (coach_id);
+create index if not exists idx_players_team     on players     (team_id);
+create index if not exists idx_events_date      on events      (date);
+create index if not exists idx_events_team      on events      (team_id);
+create index if not exists idx_teams_coach      on teams       (coach_id);
+create index if not exists idx_attend_event     on attendances (event_id);
+create index if not exists idx_attend_player    on attendances (player_id);
+create index if not exists idx_quotas_player    on quotas      (player_id);
+create index if not exists idx_quotas_mes_ano   on quotas      (mes, ano);
 
 -- ---------------------------------------------------------------------
 -- Perfis e papéis (permissões)
@@ -161,6 +204,11 @@ alter table players  enable row level security;
 alter table sponsors enable row level security;
 alter table events   enable row level security;
 
+-- Novas tabelas (seguras para re-executar)
+alter table attendances enable row level security;
+alter table quotas      enable row level security;
+alter table equipment   enable row level security;
+
 -- Limpa políticas anteriores para o script poder correr mais do que uma vez.
 drop policy if exists "auth_all"        on settings;
 drop policy if exists "auth_all"        on coaches;
@@ -182,6 +230,12 @@ drop policy if exists "read_all"        on events;
 drop policy if exists "write_editor"    on events;
 drop policy if exists "profiles_read"   on profiles;
 drop policy if exists "profiles_manage" on profiles;
+drop policy if exists "read_all"        on attendances;
+drop policy if exists "write_editor"    on attendances;
+drop policy if exists "read_all"        on quotas;
+drop policy if exists "write_coord"     on quotas;
+drop policy if exists "read_all"        on equipment;
+drop policy if exists "write_coord"     on equipment;
 
 -- LEITURA: qualquer utilizador autenticado vê os dados do clube.
 create policy "read_all" on settings for select to authenticated using (true);
@@ -209,6 +263,22 @@ create policy "write_editor" on players for all to authenticated
 create policy "write_editor" on events for all to authenticated
   using (app_role() in ('coordenador','treinador'))
   with check (app_role() in ('coordenador','treinador'));
+
+-- PRESENÇAS: ler todos; escrever coordenador ou treinador.
+create policy "read_all" on attendances for select to authenticated using (true);
+create policy "write_editor" on attendances for all to authenticated
+  using (app_role() in ('coordenador','treinador'))
+  with check (app_role() in ('coordenador','treinador'));
+
+-- QUOTAS: ler todos; escrever só coordenador.
+create policy "read_all" on quotas for select to authenticated using (true);
+create policy "write_coord" on quotas for all to authenticated
+  using (app_role() = 'coordenador') with check (app_role() = 'coordenador');
+
+-- EQUIPAMENTOS: ler todos; escrever só coordenador.
+create policy "read_all" on equipment for select to authenticated using (true);
+create policy "write_coord" on equipment for all to authenticated
+  using (app_role() = 'coordenador') with check (app_role() = 'coordenador');
 
 -- PERFIS: cada um vê o seu; o coordenador vê e gere todos.
 create policy "profiles_read" on profiles for select to authenticated

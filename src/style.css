@@ -1727,6 +1727,312 @@ tbody tr:hover {
 }
 
 /* =========================================================================
+   Presenças
+   ========================================================================= */
+.metric--warn {
+  border-top: 3px solid var(--warn);
+}
+.metric--info {
+  border-top: 3px solid var(--info);
+}
+
+.presenca-picker {
+  margin-bottom: 1.2rem;
+}
+
+.pres-list {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.pres-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  transition: border-color 0.14s ease, background 0.14s ease;
+}
+.pres-row--presente {
+  border-left-color: var(--ok);
+  background: linear-gradient(90deg, rgba(22,163,74,0.05), transparent 40%);
+}
+.pres-row--atraso {
+  border-left-color: var(--warn);
+  background: linear-gradient(90deg, rgba(217,119,6,0.06), transparent 40%);
+}
+.pres-row--justificado {
+  border-left-color: var(--info);
+  background: linear-gradient(90deg, rgba(37,99,235,0.05), transparent 40%);
+}
+.pres-row--falta {
+  border-left-color: var(--danger);
+  background: linear-gradient(90deg, rgba(220,38,38,0.05), transparent 40%);
+}
+
+.pres-actions {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+.pres-btn {
+  padding: 0.32rem 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-family: var(--font-body);
+  border-radius: var(--radius-xs);
+  border: 1.5px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+  min-height: 36px;
+}
+.pres-btn:hover {
+  background: var(--navy-100);
+  border-color: var(--navy-300);
+  color: var(--navy);
+}
+.pres-btn--presente.is-active {
+  background: var(--ok);
+  border-color: var(--ok);
+  color: #fff;
+}
+.pres-btn--atraso.is-active {
+  background: var(--warn);
+  border-color: var(--warn);
+  color: #fff;
+}
+.pres-btn--justificado.is-active {
+  background: var(--info);
+  border-color: var(--info);
+  color: #fff;
+}
+.pres-btn--falta.is-active {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+
+.pres-detail {
+  display: block;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  margin-top: 0.1rem;
+  font-style: italic;
+}
+
+.pres-inline {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--yellow);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 1rem;
+  margin: 0.2rem 0;
+  animation: presInlineIn 0.14s ease;
+}
+@keyframes presInlineIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.pres-inline__inner { display: flex; flex-direction: column; gap: 0.4rem; }
+.pres-inline__text  { min-height: 64px; }
+.pres-inline__num   { max-width: 120px; }
+
+@media (max-width: 600px) {
+  .pres-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .pres-actions {
+    width: 100%;
+  }
+  .pres-btn {
+    flex: 1;
+    text-align: center;
+    justify-content: center;
+  }
+}
+
+/* =========================================================================
+   Quotas
+   ========================================================================= */
+.quota-list {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.quota-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  transition: border-color 0.14s ease;
+}
+.quota-row--pago {
+  border-left-color: var(--ok);
+  background: linear-gradient(90deg, rgba(22,163,74,0.04), transparent 40%);
+}
+.quota-row--pendente {
+  border-left-color: var(--warn);
+  background: linear-gradient(90deg, rgba(217,119,6,0.04), transparent 40%);
+}
+
+.quota-row__right {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.quota-row__valor {
+  font-family: var(--font-title);
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--navy);
+  min-width: 60px;
+  text-align: right;
+}
+
+@media (max-width: 600px) {
+  .quota-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .quota-row__right {
+    width: 100%;
+  }
+}
+
+/* =========================================================================
+   Equipamentos
+   ========================================================================= */
+.equip-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.equip-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  transition: box-shadow 0.16s ease, transform 0.16s ease, border-color 0.16s ease;
+}
+.equip-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+  border-color: var(--navy-100);
+}
+
+.equip-card__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+.equip-card__qty {
+  min-width: 44px;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  background: var(--navy-100);
+  color: var(--navy);
+  font-family: var(--font-title);
+  font-weight: 700;
+  font-size: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.equip-card__info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding-top: 0.15rem;
+}
+.equip-card__name {
+  font-weight: 700;
+  font-size: 0.98rem;
+  color: var(--navy);
+  font-family: var(--font-title);
+}
+.equip-card__cat {
+  font-size: 0.79rem;
+}
+.equip-card__actions {
+  margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  text-align: right;
+}
+.equip-card__foot {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--border);
+}
+.equip-card__notes {
+  font-size: 0.8rem;
+  flex: 1;
+}
+
+/* =========================================================================
+   Dias da semana (recorrência de treinos)
+   ========================================================================= */
+.weekday-pills {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.weekday-pill {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-family: var(--font-body);
+  border: 1.5px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+  min-height: 36px;
+}
+.weekday-pill:hover {
+  background: var(--navy-100);
+  border-color: var(--navy-300);
+  color: var(--navy);
+}
+.weekday-pill--active {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: #fff;
+}
+
+/* =========================================================================
    Ecrã de configuração em falta
    ========================================================================= */
 .config-help {
