@@ -14,7 +14,7 @@ import {
 } from '../constants.js';
 
 export function renderEquipamentos(container) {
-  const canWrite = canEdit('players');
+  const canWrite = canEdit('equipment');
   const items = state.equipment.slice().sort((a, b) => a.name.localeCompare(b.name));
 
   // Contagens por condição

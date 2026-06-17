@@ -15,9 +15,13 @@ const EDIT_ROLES = {
   settings: ['coordenador'],
   coaches: ['coordenador'],
   sponsors: ['coordenador'],
+  quotas: ['coordenador'],
+  equipment: ['coordenador'],
   teams: ['coordenador', 'treinador'],
   players: ['coordenador', 'treinador'],
   events: ['coordenador', 'treinador'],
+  attendances: ['coordenador', 'treinador'],
+  prospects: ['coordenador', 'treinador'],
 };
 
 // Papel do utilizador atual (por omissão 'leitura' até o perfil carregar).
@@ -27,6 +31,16 @@ export function currentRole() {
 
 export function isCoordenador() {
   return currentRole() === 'coordenador';
+}
+
+export function isLeitura() {
+  return currentRole() === 'leitura';
+}
+
+// Coordenador e treinador acedem a todas as secções operacionais.
+// Leitura só vê Painel e Patrocínios.
+export function canViewSection() {
+  return !isLeitura();
 }
 
 // Pode editar (criar/alterar/remover) uma dada entidade?

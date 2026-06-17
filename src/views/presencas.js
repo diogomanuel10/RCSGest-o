@@ -11,7 +11,7 @@ import { canEdit } from '../permissions.js';
 let selectedEventId = null;
 
 export function renderPresencas(container) {
-  const editable = canEdit('players');
+  const editable = canEdit('attendances');
 
   // Treinos ordenados do mais recente para o mais antigo
   const trainings = state.events

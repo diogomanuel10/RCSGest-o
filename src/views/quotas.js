@@ -16,7 +16,7 @@ const filters = {
 };
 
 export function renderQuotas(container) {
-  const canWrite = canEdit('players');
+  const canWrite = canEdit('quotas');
 
   // Anos disponíveis: do ano mais antigo nas quotas até ao atual +1
   const anos = buildYears();
