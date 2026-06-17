@@ -153,6 +153,25 @@ create table if not exists quotas (
   unique (player_id, mes, ano)
 );
 
+-- Prospetos/recrutamento. Funil de novos atletas antes de entrarem no plantel.
+--   observado  -> visto em jogo/treino
+--   contactado -> primeiro contacto feito
+--   negociacao -> a negociar condições
+--   confirmado -> acordo verbal/escrito
+--   inscrito   -> convertido em atleta do plantel
+create table if not exists prospects (
+  id             uuid primary key default gen_random_uuid(),
+  name           text not null,
+  birth_year     text,
+  position       text,
+  contact        text,
+  target_team_id uuid references teams(id) on delete set null,
+  status         text not null default 'observado'
+                 check (status in ('observado','contactado','negociacao','confirmado','inscrito')),
+  notes          text,
+  created_at     timestamptz default now()
+);
+
 -- ---------------------------------------------------------------------
 -- Índices úteis (consultas por equipa e ordenação por data)
 -- ---------------------------------------------------------------------
@@ -166,6 +185,8 @@ create index if not exists idx_quotas_player    on quotas       (player_id);
 create index if not exists idx_quotas_mes_ano   on quotas       (mes, ano);
 create index if not exists idx_team_coaches_team  on team_coaches (team_id);
 create index if not exists idx_team_coaches_coach on team_coaches (coach_id);
+create index if not exists idx_prospects_status   on prospects    (status);
+create index if not exists idx_prospects_team     on prospects    (target_team_id);
 
 -- ---------------------------------------------------------------------
 -- Perfis e papéis (permissões)
@@ -230,6 +251,7 @@ alter table attendances  enable row level security;
 alter table quotas       enable row level security;
 alter table equipment    enable row level security;
 alter table team_coaches enable row level security;
+alter table prospects    enable row level security;
 
 -- Limpa políticas anteriores para o script poder correr mais do que uma vez.
 drop policy if exists "auth_all"        on settings;
@@ -260,6 +282,8 @@ drop policy if exists "read_all"        on equipment;
 drop policy if exists "write_coord"     on equipment;
 drop policy if exists "read_all"        on team_coaches;
 drop policy if exists "write_editor"    on team_coaches;
+drop policy if exists "read_all"        on prospects;
+drop policy if exists "write_editor"    on prospects;
 
 -- LEITURA: qualquer utilizador autenticado vê os dados do clube.
 create policy "read_all" on settings for select to authenticated using (true);
@@ -307,6 +331,12 @@ create policy "write_coord" on equipment for all to authenticated
 -- TREINADORES POR EQUIPA: ler todos; escrever coordenador ou treinador.
 create policy "read_all" on team_coaches for select to authenticated using (true);
 create policy "write_editor" on team_coaches for all to authenticated
+  using (app_role() in ('coordenador','treinador'))
+  with check (app_role() in ('coordenador','treinador'));
+
+-- RECRUTAMENTO: ler todos; escrever coordenador ou treinador.
+create policy "read_all" on prospects for select to authenticated using (true);
+create policy "write_editor" on prospects for all to authenticated
   using (app_role() in ('coordenador','treinador'))
   with check (app_role() in ('coordenador','treinador'));
 

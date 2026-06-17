@@ -165,3 +165,18 @@ export const MONTHS = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
 ];
+
+// --- Recrutamento: estados do funil ---
+export const PROSPECT_STATUSES = [
+  { key: 'observado',  label: 'Observado',      badge: 'muted' },
+  { key: 'contactado', label: 'Contactado',      badge: 'info'  },
+  { key: 'negociacao', label: 'Em negociação',   badge: 'warn'  },
+  { key: 'confirmado', label: 'Confirmado',      badge: 'ok'    },
+  { key: 'inscrito',   label: 'Inscrito',        badge: 'ok'    },
+];
+export const PROSPECT_LABEL = Object.fromEntries(
+  PROSPECT_STATUSES.map((s) => [s.key, s.label])
+);
+export const PROSPECT_BADGE = Object.fromEntries(
+  PROSPECT_STATUSES.map((s) => [s.key, s.badge])
+);

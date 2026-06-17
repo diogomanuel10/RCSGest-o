@@ -8,6 +8,7 @@ import { openModal, confirmDialog } from '../modal.js';
 import { GENDERS, POSITIONS, COACH_ROLE_LABEL } from '../constants.js';
 import { canEdit } from '../permissions.js';
 import { parsePlayersFile, downloadPlayersTemplate } from '../players-xlsx.js';
+import { openPlayerDetail } from './player-detail.js';
 
 // Equipas expandidas (mostram os atletas). Mantido entre re-desenhos.
 const expanded = new Set();
@@ -50,6 +51,13 @@ export function renderPlanteis(container) {
   );
   container.querySelectorAll('[data-template]').forEach((b) =>
     b.addEventListener('click', () => downloadPlayersTemplate())
+  );
+  container.querySelectorAll('[data-player-view]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const id = b.dataset.playerView;
+      const teamId = b.dataset.team;
+      openPlayerDetail(id, canEdit('players') ? { onEdit: () => openPlayerForm(teamId, id) } : {});
+    })
   );
   container.querySelectorAll('[data-player-edit]').forEach((b) =>
     b.addEventListener('click', () => openPlayerForm(b.dataset.team, b.dataset.playerEdit))
@@ -136,7 +144,10 @@ function teamCardHTML(team, editable) {
                         (p) => `
                       <tr>
                         <td>${esc(p.number || '—')}</td>
-                        <td>${esc(p.name)}${playerExtraHTML(p)}</td>
+                        <td>
+                          <button class="player-link" data-player-view="${p.id}" data-team="${team.id}" type="button">${esc(p.name)}</button>
+                          ${playerExtraHTML(p)}
+                        </td>
                         <td>${esc(p.birth_year || '—')}</td>
                         <td>${esc(p.position || '—')}</td>
                         ${

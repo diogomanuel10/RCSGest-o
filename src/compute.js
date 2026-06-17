@@ -117,3 +117,37 @@ export function coachTeams(coachId) {
     .map((tc) => ({ team: teamById(tc.team_id), role: tc.role }))
     .filter((x) => x.team);
 }
+
+// Estatística de presenças de UM atleta (só treinos passados da sua equipa).
+// "Compareceu" = presente + atraso. rate é null se não houver registos.
+// Devolve { rate, total, counts, totalTrainings, semRegisto }.
+export function playerAttendanceStats(playerId) {
+  const player = state.players.find((p) => p.id === playerId);
+  const counts = { presente: 0, atraso: 0, justificado: 0, falta: 0 };
+  if (!player) return { rate: null, total: 0, counts, totalTrainings: 0, semRegisto: 0 };
+
+  const trainings = state.events.filter(
+    (e) => e.type === 'treino' && e.team_id === player.team_id && eventDateTime(e) <= new Date()
+  );
+  const trainingIds = new Set(trainings.map((t) => t.id));
+  const atts = state.attendances.filter(
+    (a) => a.player_id === playerId && trainingIds.has(a.event_id)
+  );
+  atts.forEach((a) => { if (counts[a.status] !== undefined) counts[a.status]++; });
+
+  const total = atts.length;
+  const compareceu = counts.presente + counts.atraso;
+  const rate = total ? Math.round((compareceu / total) * 100) : null;
+  return { rate, total, counts, totalTrainings: trainings.length, semRegisto: trainings.length - total };
+}
+
+// Quotas de UM atleta. Devolve { list, owed, owedCount, paidCount }.
+// `list` ordenada da mais recente para a mais antiga.
+export function playerQuotas(playerId) {
+  const list = state.quotas
+    .filter((q) => q.player_id === playerId)
+    .sort((a, b) => (b.ano - a.ano) || (b.mes - a.mes));
+  const pendentes = list.filter((q) => !q.pago);
+  const owed = pendentes.reduce((s, q) => s + Number(q.valor || 0), 0);
+  return { list, owed, owedCount: pendentes.length, paidCount: list.length - pendentes.length };
+}
