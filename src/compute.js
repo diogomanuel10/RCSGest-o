@@ -60,6 +60,49 @@ export function upcomingTrainings(limit = 5) {
     .slice(0, limit);
 }
 
+// Data local YYYY-MM-DD (sem conversão para UTC).
+function localDateStr(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+// Treinos a precisar de marcação de presenças: os de hoje (sempre) e os
+// passados que ainda não têm todos os atletas marcados. Devolve objetos
+// enriquecidos { event, total, marked, isToday }, mais urgentes primeiro.
+export function trainingsToMark(limit = 6) {
+  const now = new Date();
+  const todayStr = localDateStr(now);
+
+  const attCount = {};
+  state.attendances.forEach((a) => {
+    attCount[a.event_id] = (attCount[a.event_id] || 0) + 1;
+  });
+  const teamSize = (teamId) =>
+    teamId ? state.players.filter((p) => p.team_id === teamId).length : 0;
+
+  const list = state.events.filter((e) => {
+    if (e.type !== 'treino') return false;
+    if (e.date === todayStr) return true; // hoje, sempre
+    if (eventDateTime(e) < now && e.team_id) {
+      const total = teamSize(e.team_id);
+      return total > 0 && (attCount[e.id] || 0) < total; // ainda há quem marcar
+    }
+    return false;
+  });
+
+  return list
+    .sort((a, b) => eventDateTime(b) - eventDateTime(a))
+    .slice(0, limit)
+    .map((e) => ({
+      event: e,
+      total: teamSize(e.team_id),
+      marked: attCount[e.id] || 0,
+      isToday: e.date === todayStr,
+    }));
+}
+
 // Quantos patrocínios confirmados existem em cada nível.
 export function confirmedByTier() {
   const counts = { ouro: 0, prata: 0, bronze: 0 };
@@ -69,10 +112,48 @@ export function confirmedByTier() {
   return counts;
 }
 
+// Quotas por cobrar no mês atual: nº de pendentes (registadas mas não pagas)
+// e total em dívida desse mês.
+export function quotasThisMonth() {
+  const now = new Date();
+  const mes = now.getMonth() + 1;
+  const ano = now.getFullYear();
+  const monthQuotas = state.quotas.filter((q) => q.mes === mes && q.ano === ano);
+  const pendentes = monthQuotas.filter((q) => !q.pago);
+  const total = pendentes.reduce((s, q) => s + Number(q.valor || 0), 0);
+  return { pendentes: pendentes.length, total, mes, ano };
+}
+
+// Nº de atletas com avaliação ainda por decidir (review_status 'pendente').
+export function pendingReviews() {
+  return state.players.filter((p) => (p.review_status || 'pendente') === 'pendente').length;
+}
+
+// Nº de prospetos prontos a inscrever no plantel (estado 'confirmado').
+export function prospectsReady() {
+  return state.prospects.filter((p) => p.status === 'confirmado').length;
+}
+
 // Data/hora de um evento como objeto Date (para comparar passado/futuro).
 export function eventDateTime(ev) {
   const time = ev.time && /^\d{2}:\d{2}/.test(ev.time) ? ev.time : '00:00';
   return new Date(`${ev.date}T${time}`);
+}
+
+// Intervalo horário legível de um evento: "19:00–20:30", "19:00" ou "".
+export function eventTimeRange(ev) {
+  const s = ev.time ? ev.time.slice(0, 5) : '';
+  const e = ev.end_time ? ev.end_time.slice(0, 5) : '';
+  if (s && e) return `${s}–${e}`;
+  return s || e || '';
+}
+
+// Eventos de hoje (qualquer tipo), ordenados por hora.
+export function todayEvents() {
+  const todayStr = localDateStr(new Date());
+  return state.events
+    .filter((e) => e.date === todayStr)
+    .sort((a, b) => eventDateTime(a) - eventDateTime(b));
 }
 
 // Próximos eventos (a partir de agora), ordenados, limitados a `limit`.

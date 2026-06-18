@@ -4,11 +4,16 @@
 
 import { state, upsertAttendance, dbErrorMessage } from '../store.js';
 import { esc, emptyHTML } from '../ui.js';
-import { eventDateTime, teamById, teamName } from '../compute.js';
+import { eventDateTime, eventTimeRange, teamById, teamName } from '../compute.js';
 import { ATTENDANCE_STATUSES, ATTENDANCE_LABEL, ATTENDANCE_BADGE } from '../constants.js';
 import { canEdit } from '../permissions.js';
 
 let selectedEventId = null;
+
+// Pré-seleciona uma sessão de treino (usado pelo atalho do Painel).
+export function setSelectedTraining(id) {
+  selectedEventId = id;
+}
 
 export function renderPresencas(container) {
   const editable = canEdit('attendances');
@@ -82,13 +87,14 @@ export function renderPresencas(container) {
                 day: '2-digit', month: 'short', year: 'numeric',
               });
               const tm = teamById(t.team_id);
-              const label = `${dt}${t.time ? ' ' + t.time.slice(0, 5) : ''}${tm ? ' — ' + teamName(tm) : ''}${t.title ? ' — ' + t.title : ''}`;
+              const range = eventTimeRange(t);
+              const label = `${dt}${range ? ' ' + range : ''}${tm ? ' — ' + teamName(tm) : ''}${t.title ? ' — ' + t.title : ''}`;
               return `<option value="${t.id}" ${t.id === selectedEventId ? 'selected' : ''}>${esc(label)}</option>`;
             }).join('')}
           </select>
         </div>
         <div class="presenca-meta muted" style="font-size:0.86rem;align-self:flex-end;padding-bottom:0.1rem">
-          ${team ? `<strong>${esc(teamName(team))}</strong> · ` : ''}${esc(dateStr)}${ev?.time ? ' · ' + ev.time.slice(0, 5) : ''}
+          ${team ? `<strong>${esc(teamName(team))}</strong> · ` : ''}${esc(dateStr)}${ev && eventTimeRange(ev) ? ' · ' + esc(eventTimeRange(ev)) : ''}
         </div>
       </div>
     </div>

@@ -7,14 +7,24 @@ import {
   totalRaised,
   inProgressCount,
   upcomingEvents,
+  todayEvents,
   eventDateTime,
+  eventTimeRange,
   teamById,
   teamName,
   quotasOwed,
+  quotasThisMonth,
+  pendingReviews,
+  prospectsReady,
   attendanceStats,
   equipmentNeedsAttention,
+  trainingsToMark,
 } from '../compute.js';
 import { EVENT_TYPE_LABEL, EVENT_TYPE_BADGE } from '../constants.js';
+import { canEdit } from '../permissions.js';
+import { setSelectedTraining } from './presencas.js';
+import { openEventForm, openRecurrentTrainings } from './calendario.js';
+import { openSponsorForm } from './patrocinios.js';
 
 const ICON_MONEY = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v12m-3-3.5c0 1.38 1.34 2.5 3 2.5s3-1.12 3-2.5c0-1.74-1.35-2.17-3-2.5C10.35 11.67 9 11.24 9 9.5 9 8.12 10.34 7 12 7s3 1.12 3 2.5"/></svg>`;
 
@@ -46,15 +56,27 @@ export function renderPainel(container) {
   const att = attendanceStats();
   const equipReview = equipmentNeedsAttention();
 
-  const alerts = buildAlerts(owed, equipReview);
+  const canMark = canEdit('attendances');
+  const toMark = canMark ? trainingsToMark(6) : [];
+  const actions = buildActions();
+  const today = todayEvents();
+  const quick = quickActions();
 
   container.innerHTML = `
-    <header class="page-head">
+    <header class="page-head page-head--hero">
       <div>
-        <h1 class="section-title">Painel</h1>
-        <p class="muted" style="margin:0;font-size:0.88rem">Época ${esc(state.settings.season)}</p>
+        <h1 class="section-title">${esc(greeting())}${displayName() ? ', ' + esc(displayName()) : ''}</h1>
+        <p class="muted" style="margin:0;font-size:0.9rem">${todayLine(today)}</p>
       </div>
+      ${quick.length ? `<div class="hero-actions">${quick.map((q) => `
+        <button class="btn btn--ghost btn--sm" data-quick="${q.key}" type="button">${esc(q.label)}</button>
+      `).join('')}</div>` : ''}
     </header>
+
+    ${today.length ? `<section class="card today-card">
+      <h2 class="section-title upcoming-card__title">Hoje</h2>
+      <ul class="today-list">${today.map(todayRow).join('')}</ul>
+    </section>` : ''}
 
     <section class="cards-grid">
       ${metricCard(ICON_MONEY, 'Angariado', euros(raised), `Meta: ${euros(goal)}`, 'accent')}
@@ -70,7 +92,15 @@ export function renderPainel(container) {
       ${metricCard(ICON_BOX, 'Equipamentos', state.equipment.length, equipReview ? `${equipReview} em mau estado` : 'inventário em dia', equipReview ? 'accent' : 'purple')}
     </section>
 
-    ${alerts ? `<section class="card alerts-card">${alerts}</section>` : ''}
+    ${actions.length ? `<section class="card alerts-card">
+      <h2 class="section-title upcoming-card__title">A precisar da tua atenção</h2>
+      <ul class="alerts-list">${actions.map(actionItem).join('')}</ul>
+    </section>` : ''}
+
+    ${toMark.length ? `<section class="card mark-card">
+      <h2 class="section-title upcoming-card__title">Presenças por marcar</h2>
+      <ul class="mark-list">${toMark.map(markRow).join('')}</ul>
+    </section>` : ''}
 
     <section class="card goal-card">
       <div class="goal-card__header">
@@ -90,44 +120,200 @@ export function renderPainel(container) {
       ${upcoming.length ? upcomingList(upcoming) : '<p class="muted" style="margin:0.3rem 0 0">Sem eventos futuros agendados.</p>'}
     </section>
   `;
+
+  // Atalho: pré-seleciona o treino e navega para a vista Presenças.
+  container.querySelectorAll('[data-mark-event]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      setSelectedTraining(btn.dataset.markEvent);
+      navTo('presencas');
+    });
+  });
+
+  // Itens de ação: navegam para a secção respetiva.
+  container.querySelectorAll('[data-nav]').forEach((el) => {
+    el.addEventListener('click', () => navTo(el.dataset.nav));
+  });
+
+  // Criação rápida: abre diretamente o formulário respetivo.
+  container.querySelectorAll('[data-quick]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const fn = QUICK_HANDLERS[btn.dataset.quick];
+      if (fn) fn();
+    });
+  });
 }
 
-// Constrói a lista de alertas do clube (devolve '' se não houver nenhum).
-function buildAlerts(owed, equipReview) {
-  const items = [];
-  if (owed.count > 0) {
-    items.push(
-      alertItem(
-        'warn',
-        `${owed.count} quota${owed.count === 1 ? '' : 's'} por pagar`,
-        `${euros(owed.total)} por regularizar — ver em Quotas.`
-      )
-    );
+// Saudação conforme a hora do dia.
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 12) return 'Bom dia';
+  if (h < 20) return 'Boa tarde';
+  return 'Boa noite';
+}
+
+// Nome a mostrar: o do treinador vinculado à conta, senão a parte local do email.
+function displayName() {
+  const uid = state.profile?.id;
+  const coach = uid ? state.coaches.find((c) => c.user_id === uid) : null;
+  if (coach?.name) return coach.name.split(/\s+/)[0];
+  const email = state.profile?.email || '';
+  return email ? email.split('@')[0] : '';
+}
+
+// Frase contextual sobre os eventos de hoje.
+function todayLine(today) {
+  if (!today.length) return 'Não há eventos agendados para hoje.';
+  const n = today.length;
+  const treinos = today.filter((e) => e.type === 'treino').length;
+  const jogos = today.filter((e) => e.type === 'jogo').length;
+  const partes = [];
+  if (treinos) partes.push(`${treinos} treino${treinos === 1 ? '' : 's'}`);
+  if (jogos) partes.push(`${jogos} jogo${jogos === 1 ? '' : 's'}`);
+  const detalhe = partes.length ? ` (${partes.join(' · ')})` : '';
+  return `Tens ${n} evento${n === 1 ? '' : 's'} hoje${detalhe}.`;
+}
+
+// Botões de criação rápida disponíveis para o utilizador atual.
+function quickActions() {
+  const list = [];
+  if (canEdit('events')) {
+    list.push({ key: 'event', label: '+ Evento' });
+    list.push({ key: 'rec', label: '↺ Treinos' });
   }
-  if (equipReview > 0) {
-    items.push(
-      alertItem(
-        'danger',
-        `${equipReview} equipamento${equipReview === 1 ? '' : 's'} em mau estado`,
-        'Rever ou substituir — ver em Equipamentos.'
-      )
-    );
-  }
-  if (!items.length) return '';
+  if (canEdit('sponsors')) list.push({ key: 'sponsor', label: '+ Patrocínio' });
+  return list;
+}
+
+const QUICK_HANDLERS = {
+  event: openEventForm,
+  rec: openRecurrentTrainings,
+  sponsor: openSponsorForm,
+};
+
+// Uma linha do resumo "Hoje".
+function todayRow(ev) {
+  const team = teamById(ev.team_id);
+  const range = eventTimeRange(ev);
+  const meta = [
+    team ? teamName(team) : '',
+    ev.opponent ? `vs ${esc(ev.opponent)}` : '',
+    ev.location ? esc(ev.location) : '',
+  ].filter(Boolean).join(' · ');
+
   return `
-    <h2 class="section-title upcoming-card__title">A precisar de atenção</h2>
-    <ul class="alerts-list">${items.join('')}</ul>
+    <li class="today-item">
+      <span class="today-item__time">${range ? esc(range) : '—'}</span>
+      <div class="today-item__body">
+        <span class="today-item__title">
+          <span class="badge badge--${EVENT_TYPE_BADGE[ev.type] || 'muted'}">${esc(EVENT_TYPE_LABEL[ev.type] || ev.type)}</span>
+          ${esc(ev.title || EVENT_TYPE_LABEL[ev.type] || 'Evento')}
+        </span>
+        ${meta ? `<span class="muted today-item__meta">${meta}</span>` : ''}
+      </div>
+    </li>
   `;
 }
 
-function alertItem(variant, title, sub) {
+// Navega para uma secção, reaproveitando os botões da barra lateral.
+function navTo(route) {
+  document.querySelector(`[data-route="${route}"]`)?.click();
+}
+
+// Constrói a lista de ações pendentes (cada uma navega para a sua secção).
+// Só inclui itens com algo por resolver; devolve [] se estiver tudo em dia.
+function buildActions() {
+  const items = [];
+
+  if (canEdit('quotas')) {
+    const qm = quotasThisMonth();
+    if (qm.pendentes > 0) {
+      items.push({
+        variant: 'warn',
+        route: 'quotas',
+        title: `${qm.pendentes} quota${qm.pendentes === 1 ? '' : 's'} por cobrar este mês`,
+        sub: `${euros(qm.total)} por receber — abrir Quotas.`,
+      });
+    }
+  }
+
+  if (canEdit('prospects')) {
+    const ready = prospectsReady();
+    if (ready > 0) {
+      items.push({
+        variant: 'ok',
+        route: 'recrutamento',
+        title: `${ready} prospeto${ready === 1 ? '' : 's'} pronto${ready === 1 ? '' : 's'} a inscrever`,
+        sub: 'Confirmados no recrutamento — inscrever no plantel.',
+      });
+    }
+  }
+
+  if (canEdit('equipment') && equipmentNeedsAttention() > 0) {
+    const n = equipmentNeedsAttention();
+    items.push({
+      variant: 'danger',
+      route: 'equipamentos',
+      title: `${n} equipamento${n === 1 ? '' : 's'} em mau estado`,
+      sub: 'Rever ou substituir — abrir Equipamentos.',
+    });
+  }
+
+  if (canEdit('players')) {
+    const pend = pendingReviews();
+    if (pend > 0 && state.players.length > 0) {
+      items.push({
+        variant: 'info',
+        route: 'avaliacao',
+        title: `${pend} avaliaç${pend === 1 ? 'ão' : 'ões'} de atleta por decidir`,
+        sub: 'Definir quem fica para a próxima época — abrir Avaliação.',
+      });
+    }
+  }
+
+  return items;
+}
+
+function actionItem({ variant, title, sub, route }) {
   return `
-    <li class="alert-item alert-item--${variant}">
-      <span class="alert-item__dot" aria-hidden="true"></span>
-      <div>
-        <strong class="alert-item__title">${esc(title)}</strong>
-        <span class="muted alert-item__sub">${esc(sub)}</span>
+    <li>
+      <button class="alert-item alert-item--${variant} alert-item--nav" data-nav="${route}" type="button">
+        <span class="alert-item__dot" aria-hidden="true"></span>
+        <span class="alert-item__text">
+          <strong class="alert-item__title">${esc(title)}</strong>
+          <span class="muted alert-item__sub">${esc(sub)}</span>
+        </span>
+        <span class="alert-item__chevron" aria-hidden="true">›</span>
+      </button>
+    </li>
+  `;
+}
+
+// Uma linha do atalho "Presenças por marcar".
+function markRow({ event, total, marked, isToday }) {
+  const team = teamById(event.team_id);
+  const dt = eventDateTime(event);
+  const dateLabel = isToday
+    ? 'Hoje'
+    : dt.toLocaleDateString('pt-PT', { weekday: 'short', day: '2-digit', month: 'short' });
+  const range = eventTimeRange(event);
+  const falta = Math.max(0, total - marked);
+  const sub = total
+    ? (marked === 0 ? `${total} atleta${total === 1 ? '' : 's'} por marcar`
+       : `${falta} de ${total} por marcar`)
+    : 'sem equipa associada';
+
+  return `
+    <li class="mark-item">
+      <div class="mark-item__when">
+        <span class="mark-item__date${isToday ? ' mark-item__date--today' : ''}">${esc(dateLabel)}</span>
+        ${range ? `<span class="muted mark-item__time">${esc(range)}</span>` : ''}
       </div>
+      <div class="mark-item__body">
+        <span class="mark-item__title">${esc(team ? teamName(team) : (event.title || 'Treino'))}</span>
+        <span class="muted mark-item__sub">${esc(sub)}</span>
+      </div>
+      <button class="btn btn--accent btn--sm" data-mark-event="${event.id}" type="button"
+              ${total ? '' : 'disabled'}>Marcar</button>
     </li>
   `;
 }

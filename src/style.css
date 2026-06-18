@@ -846,12 +846,154 @@ tbody tr:hover {
 }
 .alert-item--warn .alert-item__dot { background: var(--warn); }
 .alert-item--danger .alert-item__dot { background: var(--danger); }
+.alert-item--ok .alert-item__dot { background: var(--ok); }
+.alert-item--info .alert-item__dot { background: var(--info); }
 .alert-item__title {
   display: block;
   font-size: 0.92rem;
 }
 .alert-item__sub {
   display: block;
+  font-size: 0.8rem;
+}
+
+/* Item de ação clicável (navega para a secção) */
+.alerts-list li {
+  list-style: none;
+}
+.alert-item--nav {
+  width: 100%;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  background: var(--surface-2);
+  transition: background 0.14s ease, border-color 0.14s ease, transform 0.06s ease;
+}
+.alert-item--nav:hover {
+  background: var(--navy-100);
+  border-color: var(--navy-300);
+}
+.alert-item--nav:active {
+  transform: translateY(1px);
+}
+.alert-item__text {
+  flex: 1;
+  min-width: 0;
+}
+.alert-item__chevron {
+  flex: none;
+  font-size: 1.4rem;
+  line-height: 1;
+  color: var(--text-muted);
+  align-self: center;
+}
+
+/* Hero do Painel (saudação + criação rápida) */
+.page-head--hero {
+  align-items: flex-start;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+.hero-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* Resumo "Hoje" no Painel */
+.today-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.today-item {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.today-item__time {
+  flex: none;
+  width: 92px;
+  font-weight: 700;
+  font-size: 0.86rem;
+  color: var(--navy);
+}
+.today-item__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+.today-item__title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+.today-item__meta {
+  font-size: 0.8rem;
+}
+
+/* Atalho "Presenças por marcar" no Painel */
+.mark-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.mark-item {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.mark-item__when {
+  flex: none;
+  width: 84px;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+.mark-item__date {
+  font-weight: 700;
+  font-size: 0.86rem;
+  text-transform: capitalize;
+}
+.mark-item__date--today {
+  color: var(--navy);
+}
+.mark-item__time {
+  font-size: 0.78rem;
+}
+.mark-item__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+.mark-item__title {
+  font-weight: 600;
+  font-size: 0.92rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mark-item__sub {
   font-size: 0.8rem;
 }
 
@@ -2700,4 +2842,89 @@ tbody tr:hover {
     flex: none;
     width: 100%;
   }
+}
+
+/* =====================================================================
+   Portal do atleta
+   ===================================================================== */
+.portal-events,
+.portal-quota-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.portal-event {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.portal-event__when {
+  flex: none;
+  width: 96px;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+.portal-event__date {
+  font-weight: 700;
+  font-size: 0.86rem;
+  text-transform: capitalize;
+}
+.portal-event__time {
+  font-size: 0.78rem;
+}
+.portal-event__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+.portal-event__title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+.portal-event__meta {
+  font-size: 0.8rem;
+}
+.portal-att__pct {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0.3rem 0 0.6rem;
+}
+.portal-att__pct strong {
+  font-size: 1.6rem;
+}
+.portal-att__chips,
+.portal-quotas-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.portal-quotas-head {
+  margin-bottom: 0.6rem;
+}
+.portal-quota-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.9rem;
+}
+.portal-quota-row__when {
+  flex: 1;
+  font-weight: 600;
+}
+.portal-quota-row__valor {
+  color: var(--text-muted);
 }
