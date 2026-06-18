@@ -2928,3 +2928,10 @@ tbody tr:hover {
 .portal-quota-row__valor {
   color: var(--text-muted);
 }
+
+/* Configuração de acessos (modal de Utilizadores) */
+.acc-actions {
+  display: flex;
+  gap: 0.6rem;
+  margin-bottom: 0.6rem;
+}

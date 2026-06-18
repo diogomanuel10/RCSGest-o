@@ -8,7 +8,7 @@ import { logoUrl } from '../ui.js';
 import { signOut } from '../auth.js';
 import { state, subscribe, loadAll } from '../store.js';
 import { loadingHTML, errorHTML } from '../ui.js';
-import { canManageSettings, canManageUsers, canViewSection, canViewDashboard, isAtleta, ROLE_LABEL } from '../permissions.js';
+import { canManageSettings, canManageUsers, canAccess, ROLE_LABEL } from '../permissions.js';
 
 import { renderPainel } from './painel.js';
 import { renderPatrocinios } from './patrocinios.js';
@@ -42,19 +42,21 @@ const ICONS = {
   portal: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`,
 };
 
+// Visibilidade das secções: cada item usa canAccess(key). Definições e
+// Utilizadores (footer) mantêm o seu próprio `can` (coordenador).
 const NAV = [
-  { key: 'portal',       label: 'A minha página', icon: ICONS.portal,      render: renderPortal,       can: isAtleta },
-  { key: 'painel',       label: 'Painel',        icon: ICONS.painel,       render: renderPainel,       can: canViewDashboard },
-  { key: 'patrocinios',  label: 'Patrocínios',   icon: ICONS.patrocinios,  render: renderPatrocinios,  can: canViewDashboard },
-  { key: 'planteis',     label: 'Plantéis',      icon: ICONS.planteis,     render: renderPlanteis,     can: canViewSection },
-  { key: 'avaliacao',    label: 'Avaliação',     icon: ICONS.avaliacao,    render: renderAvaliacao,    can: canViewSection },
-  { key: 'calendario',   label: 'Calendário',    icon: ICONS.calendario,   render: renderCalendario,   can: canViewSection },
-  { key: 'presencas',    label: 'Presenças',     icon: ICONS.presencas,    render: renderPresencas,    can: canViewSection },
-  { key: 'estatisticas', label: 'Estatísticas',  icon: ICONS.estatisticas, render: renderEstatisticas, can: canViewSection },
-  { key: 'quotas',       label: 'Quotas',        icon: ICONS.quotas,       render: renderQuotas,       can: canViewSection },
-  { key: 'equipamentos', label: 'Equipamentos',  icon: ICONS.equipamentos, render: renderEquipamentos, can: canViewSection },
-  { key: 'treinadores',  label: 'Treinadores',   icon: ICONS.treinadores,  render: renderTreinadores,  can: canViewSection },
-  { key: 'recrutamento', label: 'Recrutamento',  icon: ICONS.recrutamento, render: renderRecrutamento, can: canViewSection },
+  { key: 'portal',       label: 'A minha página', icon: ICONS.portal,      render: renderPortal },
+  { key: 'painel',       label: 'Painel',        icon: ICONS.painel,       render: renderPainel },
+  { key: 'patrocinios',  label: 'Patrocínios',   icon: ICONS.patrocinios,  render: renderPatrocinios },
+  { key: 'planteis',     label: 'Plantéis',      icon: ICONS.planteis,     render: renderPlanteis },
+  { key: 'avaliacao',    label: 'Avaliação',     icon: ICONS.avaliacao,    render: renderAvaliacao },
+  { key: 'calendario',   label: 'Calendário',    icon: ICONS.calendario,   render: renderCalendario },
+  { key: 'presencas',    label: 'Presenças',     icon: ICONS.presencas,    render: renderPresencas },
+  { key: 'estatisticas', label: 'Estatísticas',  icon: ICONS.estatisticas, render: renderEstatisticas },
+  { key: 'quotas',       label: 'Quotas',        icon: ICONS.quotas,       render: renderQuotas },
+  { key: 'equipamentos', label: 'Equipamentos',  icon: ICONS.equipamentos, render: renderEquipamentos },
+  { key: 'treinadores',  label: 'Treinadores',   icon: ICONS.treinadores,  render: renderTreinadores },
+  { key: 'recrutamento', label: 'Recrutamento',  icon: ICONS.recrutamento, render: renderRecrutamento },
 ];
 
 const FOOTER = [
@@ -164,14 +166,15 @@ export async function renderAppShell(root, session) {
     return [...NAV, ...FOOTER];
   }
 
+  // Um item é visível se: footer → o seu próprio `can`; NAV → canAccess(key).
+  function routeAllowed(item) {
+    return item.can ? item.can() : canAccess(item.key);
+  }
+
   function refreshChrome() {
-    sidebar.querySelectorAll('[data-footer]').forEach((btn) => {
-      const item = FOOTER.find((f) => f.key === btn.dataset.route);
-      btn.classList.toggle('hidden', !(item && item.can()));
-    });
-    sidebar.querySelectorAll('[data-route]:not([data-footer])').forEach((btn) => {
-      const item = NAV.find((n) => n.key === btn.dataset.route);
-      if (item?.can) btn.classList.toggle('hidden', !item.can());
+    root.querySelectorAll('[data-route]').forEach((btn) => {
+      const item = allRoutes().find((r) => r.key === btn.dataset.route);
+      btn.classList.toggle('hidden', !(item && routeAllowed(item)));
     });
     const role = state.profile?.role;
     if (role) {
@@ -186,18 +189,37 @@ export async function renderAppShell(root, session) {
     });
   }
 
-  // Primeira secção visível para o papel atual (fallback de navegação).
-  function firstAllowed() {
-    return (allRoutes().find((n) => !n.can || n.can()) || NAV[0]).key;
+  // Mostra um ecrã de espera quando a conta ainda não tem acesso a nada.
+  function renderWaiting() {
+    content.innerHTML = `
+      <div class="card" style="text-align:center;max-width:520px;margin:2rem auto">
+        <div class="state">
+          <span class="state__icon" aria-hidden="true">⏳</span>
+          <h1 class="section-title" style="margin-bottom:0.4rem">A tua conta está quase pronta</h1>
+          <p class="muted" style="margin:0">
+            Ainda não tens acesso a nenhuma secção. O coordenador do clube precisa
+            de te atribuir acessos. Tenta novamente mais tarde.
+          </p>
+        </div>
+      </div>
+    `;
   }
 
   function paint() {
     refreshChrome();
 
-    const item = allRoutes().find((n) => n.key === current);
-    if (!item || (item.can && !item.can())) current = firstAllowed();
+    const allowed = allRoutes().filter(routeAllowed);
+    if (!allowed.length) {
+      current = null;
+      setActive();
+      renderWaiting();
+      return;
+    }
 
-    const view = allRoutes().find((n) => n.key === current) || NAV[0];
+    const item = allRoutes().find((n) => n.key === current);
+    if (!item || !routeAllowed(item)) current = allowed[0].key;
+
+    const view = allRoutes().find((n) => n.key === current) || allowed[0];
     setActive();
     try {
       view.render(content);

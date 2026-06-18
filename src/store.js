@@ -184,6 +184,22 @@ export async function updateProfileRole(id, role) {
   return data;
 }
 
+// Define as secções que um utilizador pode ver (lista de chaves de secção).
+export async function updateProfilePermissions(id, permissions) {
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ permissions })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  const i = state.profiles.findIndex((p) => p.id === id);
+  if (i !== -1) state.profiles[i] = data;
+  if (state.profile?.id === id) state.profile = data;
+  notify();
+  return data;
+}
+
 // --- Operações genéricas (CRUD) ------------------------------------------
 // Cada operação atualiza o Supabase e, em caso de sucesso, a cache local,
 // avisando depois as vistas. `collection` é a chave em `state` (ex.: 'coaches').
