@@ -12,7 +12,7 @@ import {
   dbErrorMessage,
 } from '../store.js';
 import { esc, emptyHTML } from '../ui.js';
-import { ROLES, ROLE_LABEL, SECTIONS, isCoordenador } from '../permissions.js';
+import { ROLES, ROLE_LABEL, SECTIONS, DEFAULT_TRAINER_SECTIONS, isCoordenador } from '../permissions.js';
 import { teamName, teamById } from '../compute.js';
 
 export function renderUtilizadores(container) {
@@ -77,6 +77,12 @@ export function renderUtilizadores(container) {
       e.target.disabled = true;
       try {
         await updateProfileRole(id, role);
+        // Ao tornar-se treinador sem acessos definidos, sugere os de base.
+        const before = state.profiles.find((p) => p.id === id);
+        const hadPerms = Array.isArray(before?.permissions) && before.permissions.length > 0;
+        if (role === 'treinador' && !hadPerms) {
+          await updateProfilePermissions(id, [...DEFAULT_TRAINER_SECTIONS]);
+        }
         const updated = state.profiles.find((p) => p.id === id);
         // Reconstrói o vínculo e os acessos para o novo papel.
         const linkWrap = container.querySelector(`[data-link-wrap="${id}"]`);

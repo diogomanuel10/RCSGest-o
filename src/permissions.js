@@ -29,6 +29,16 @@ export const SECTIONS = [
 ];
 const SECTION_KEYS = new Set(SECTIONS.map((s) => s.key));
 
+// Acessos sugeridos por omissão ao definir alguém como treinador: as
+// ferramentas operacionais das suas equipas (limitadas pelo RLS às dele).
+export const DEFAULT_TRAINER_SECTIONS = [
+  'planteis',
+  'avaliacao',
+  'calendario',
+  'presencas',
+  'estatisticas',
+];
+
 // Que papéis podem ESCREVER em cada entidade (alinhado com o RLS do schema.sql).
 // Nota: para players/events/attendances o treinador só escreve nas SUAS
 // equipas — essa restrição por equipa é imposta pelo RLS, não aqui.
