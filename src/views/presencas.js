@@ -10,6 +10,11 @@ import { canEdit } from '../permissions.js';
 
 let selectedEventId = null;
 
+// Pré-seleciona uma sessão de treino (usado pelo atalho do Painel).
+export function setSelectedTraining(id) {
+  selectedEventId = id;
+}
+
 export function renderPresencas(container) {
   const editable = canEdit('attendances');
 

@@ -855,6 +855,60 @@ tbody tr:hover {
   font-size: 0.8rem;
 }
 
+/* Atalho "Presenças por marcar" no Painel */
+.mark-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.mark-item {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.mark-item__when {
+  flex: none;
+  width: 84px;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+.mark-item__date {
+  font-weight: 700;
+  font-size: 0.86rem;
+  text-transform: capitalize;
+}
+.mark-item__date--today {
+  color: var(--navy);
+}
+.mark-item__time {
+  font-size: 0.78rem;
+}
+.mark-item__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+.mark-item__title {
+  font-weight: 600;
+  font-size: 0.92rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mark-item__sub {
+  font-size: 0.8rem;
+}
+
 @media (max-width: 900px) {
   .cards-grid {
     grid-template-columns: repeat(2, 1fr);

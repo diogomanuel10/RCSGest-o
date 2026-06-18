@@ -8,13 +8,17 @@ import {
   inProgressCount,
   upcomingEvents,
   eventDateTime,
+  eventTimeRange,
   teamById,
   teamName,
   quotasOwed,
   attendanceStats,
   equipmentNeedsAttention,
+  trainingsToMark,
 } from '../compute.js';
 import { EVENT_TYPE_LABEL, EVENT_TYPE_BADGE } from '../constants.js';
+import { canEdit } from '../permissions.js';
+import { setSelectedTraining } from './presencas.js';
 
 const ICON_MONEY = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v12m-3-3.5c0 1.38 1.34 2.5 3 2.5s3-1.12 3-2.5c0-1.74-1.35-2.17-3-2.5C10.35 11.67 9 11.24 9 9.5 9 8.12 10.34 7 12 7s3 1.12 3 2.5"/></svg>`;
 
@@ -48,6 +52,9 @@ export function renderPainel(container) {
 
   const alerts = buildAlerts(owed, equipReview);
 
+  const canMark = canEdit('attendances');
+  const toMark = canMark ? trainingsToMark(6) : [];
+
   container.innerHTML = `
     <header class="page-head">
       <div>
@@ -72,6 +79,11 @@ export function renderPainel(container) {
 
     ${alerts ? `<section class="card alerts-card">${alerts}</section>` : ''}
 
+    ${toMark.length ? `<section class="card mark-card">
+      <h2 class="section-title upcoming-card__title">Presenças por marcar</h2>
+      <ul class="mark-list">${toMark.map(markRow).join('')}</ul>
+    </section>` : ''}
+
     <section class="card goal-card">
       <div class="goal-card__header">
         <h2 class="section-title goal-card__title">Meta de patrocínios</h2>
@@ -89,6 +101,44 @@ export function renderPainel(container) {
       <h2 class="section-title upcoming-card__title">Próximos eventos</h2>
       ${upcoming.length ? upcomingList(upcoming) : '<p class="muted" style="margin:0.3rem 0 0">Sem eventos futuros agendados.</p>'}
     </section>
+  `;
+
+  // Atalho: pré-seleciona o treino e navega para a vista Presenças.
+  container.querySelectorAll('[data-mark-event]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      setSelectedTraining(btn.dataset.markEvent);
+      document.querySelector('[data-route="presencas"]')?.click();
+    });
+  });
+}
+
+// Uma linha do atalho "Presenças por marcar".
+function markRow({ event, total, marked, isToday }) {
+  const team = teamById(event.team_id);
+  const dt = eventDateTime(event);
+  const dateLabel = isToday
+    ? 'Hoje'
+    : dt.toLocaleDateString('pt-PT', { weekday: 'short', day: '2-digit', month: 'short' });
+  const range = eventTimeRange(event);
+  const falta = Math.max(0, total - marked);
+  const sub = total
+    ? (marked === 0 ? `${total} atleta${total === 1 ? '' : 's'} por marcar`
+       : `${falta} de ${total} por marcar`)
+    : 'sem equipa associada';
+
+  return `
+    <li class="mark-item">
+      <div class="mark-item__when">
+        <span class="mark-item__date${isToday ? ' mark-item__date--today' : ''}">${esc(dateLabel)}</span>
+        ${range ? `<span class="muted mark-item__time">${esc(range)}</span>` : ''}
+      </div>
+      <div class="mark-item__body">
+        <span class="mark-item__title">${esc(team ? teamName(team) : (event.title || 'Treino'))}</span>
+        <span class="muted mark-item__sub">${esc(sub)}</span>
+      </div>
+      <button class="btn btn--accent btn--sm" data-mark-event="${event.id}" type="button"
+              ${total ? '' : 'disabled'}>Marcar</button>
+    </li>
   `;
 }
 

@@ -60,6 +60,49 @@ export function upcomingTrainings(limit = 5) {
     .slice(0, limit);
 }
 
+// Data local YYYY-MM-DD (sem conversão para UTC).
+function localDateStr(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+// Treinos a precisar de marcação de presenças: os de hoje (sempre) e os
+// passados que ainda não têm todos os atletas marcados. Devolve objetos
+// enriquecidos { event, total, marked, isToday }, mais urgentes primeiro.
+export function trainingsToMark(limit = 6) {
+  const now = new Date();
+  const todayStr = localDateStr(now);
+
+  const attCount = {};
+  state.attendances.forEach((a) => {
+    attCount[a.event_id] = (attCount[a.event_id] || 0) + 1;
+  });
+  const teamSize = (teamId) =>
+    teamId ? state.players.filter((p) => p.team_id === teamId).length : 0;
+
+  const list = state.events.filter((e) => {
+    if (e.type !== 'treino') return false;
+    if (e.date === todayStr) return true; // hoje, sempre
+    if (eventDateTime(e) < now && e.team_id) {
+      const total = teamSize(e.team_id);
+      return total > 0 && (attCount[e.id] || 0) < total; // ainda há quem marcar
+    }
+    return false;
+  });
+
+  return list
+    .sort((a, b) => eventDateTime(b) - eventDateTime(a))
+    .slice(0, limit)
+    .map((e) => ({
+      event: e,
+      total: teamSize(e.team_id),
+      marked: attCount[e.id] || 0,
+      isToday: e.date === todayStr,
+    }));
+}
+
 // Quantos patrocínios confirmados existem em cada nível.
 export function confirmedByTier() {
   const counts = { ouro: 0, prata: 0, bronze: 0 };
