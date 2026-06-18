@@ -340,22 +340,49 @@ create policy "write_coord" on coaches for all to authenticated
 create policy "write_coord" on sponsors for all to authenticated
   using (app_role() = 'coordenador') with check (app_role() = 'coordenador');
 
--- ESCRITA coordenador OU treinador: plantéis e calendário.
+-- EQUIPAS: gestão de equipas é só do coordenador (criar/editar/remover).
 create policy "write_editor" on teams for all to authenticated
-  using (app_role() in ('coordenador','treinador'))
-  with check (app_role() in ('coordenador','treinador'));
-create policy "write_editor" on players for all to authenticated
-  using (app_role() in ('coordenador','treinador'))
-  with check (app_role() in ('coordenador','treinador'));
-create policy "write_editor" on events for all to authenticated
-  using (app_role() in ('coordenador','treinador'))
-  with check (app_role() in ('coordenador','treinador'));
+  using (app_role() = 'coordenador')
+  with check (app_role() = 'coordenador');
 
--- PRESENÇAS: ler todos; escrever coordenador ou treinador.
+-- ATLETAS: coordenador em todos; treinador só nos das SUAS equipas.
+create policy "write_editor" on players for all to authenticated
+  using (
+    app_role() = 'coordenador'
+    OR (app_role() = 'treinador' AND team_id in (select trainer_team_ids()))
+  )
+  with check (
+    app_role() = 'coordenador'
+    OR (app_role() = 'treinador' AND team_id in (select trainer_team_ids()))
+  );
+
+-- EVENTOS: coordenador em todos; treinador só nos das SUAS equipas.
+create policy "write_editor" on events for all to authenticated
+  using (
+    app_role() = 'coordenador'
+    OR (app_role() = 'treinador' AND team_id in (select trainer_team_ids()))
+  )
+  with check (
+    app_role() = 'coordenador'
+    OR (app_role() = 'treinador' AND team_id in (select trainer_team_ids()))
+  );
+
+-- PRESENÇAS: ler todos; escrever coordenador, ou treinador só nas presenças
+-- de eventos das suas equipas.
 create policy "read_all" on attendances for select to authenticated using (true);
 create policy "write_editor" on attendances for all to authenticated
-  using (app_role() in ('coordenador','treinador'))
-  with check (app_role() in ('coordenador','treinador'));
+  using (
+    app_role() = 'coordenador'
+    OR (app_role() = 'treinador' AND event_id in (
+      select id from events where team_id in (select trainer_team_ids())
+    ))
+  )
+  with check (
+    app_role() = 'coordenador'
+    OR (app_role() = 'treinador' AND event_id in (
+      select id from events where team_id in (select trainer_team_ids())
+    ))
+  );
 
 -- QUOTAS: ler todos; escrever só coordenador.
 create policy "read_all" on quotas for select to authenticated using (true);
@@ -367,11 +394,12 @@ create policy "read_all" on equipment for select to authenticated using (true);
 create policy "write_coord" on equipment for all to authenticated
   using (app_role() = 'coordenador') with check (app_role() = 'coordenador');
 
--- TREINADORES POR EQUIPA: ler todos; escrever coordenador ou treinador.
+-- TREINADORES POR EQUIPA: ler todos; atribuir treinadores a equipas é só do
+-- coordenador (faz parte da gestão de equipas).
 create policy "read_all" on team_coaches for select to authenticated using (true);
 create policy "write_editor" on team_coaches for all to authenticated
-  using (app_role() in ('coordenador','treinador'))
-  with check (app_role() in ('coordenador','treinador'));
+  using (app_role() = 'coordenador')
+  with check (app_role() = 'coordenador');
 
 -- RECRUTAMENTO: ler todos; escrever coordenador ou treinador.
 create policy "read_all" on prospects for select to authenticated using (true);

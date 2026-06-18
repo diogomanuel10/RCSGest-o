@@ -11,13 +11,15 @@ export const ROLES = [
 export const ROLE_LABEL = Object.fromEntries(ROLES.map((r) => [r.key, r.label]));
 
 // Que papéis podem ESCREVER em cada entidade (alinhado com o RLS do schema.sql).
+// Nota: para players/events/attendances o treinador só escreve nas SUAS
+// equipas — essa restrição por equipa é imposta pelo RLS, não aqui.
 const EDIT_ROLES = {
   settings: ['coordenador'],
   coaches: ['coordenador'],
   sponsors: ['coordenador'],
   quotas: ['coordenador'],
   equipment: ['coordenador'],
-  teams: ['coordenador', 'treinador'],
+  teams: ['coordenador'],
   players: ['coordenador', 'treinador'],
   events: ['coordenador', 'treinador'],
   attendances: ['coordenador', 'treinador'],

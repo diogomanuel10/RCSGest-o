@@ -14,15 +14,18 @@ import { openPlayerDetail } from './player-detail.js';
 const expanded = new Set();
 
 export function renderPlanteis(container) {
-  const editable = canEdit('teams');
+  // Gestão de equipas é do coordenador; gestão de atletas é do coordenador
+  // ou do treinador (limitado às suas equipas pelo RLS).
+  const canTeams = canEdit('teams');
+  const canPlayers = canEdit('players');
   container.innerHTML = `
     <header class="page-head">
       <h1 class="section-title">Plantéis</h1>
-      ${editable ? '<button class="btn btn--accent" id="add-team" type="button">+ Equipa</button>' : ''}
+      ${canTeams ? '<button class="btn btn--accent" id="add-team" type="button">+ Equipa</button>' : ''}
     </header>
     ${
       state.teams.length
-        ? `<div class="genders">${GENDERS.map((g) => genderColumnHTML(g, editable)).join('')}</div>`
+        ? `<div class="genders">${GENDERS.map((g) => genderColumnHTML(g, canTeams, canPlayers)).join('')}</div>`
         : emptyHTML('Ainda não há equipas.')
     }
   `;
@@ -67,21 +70,21 @@ export function renderPlanteis(container) {
   );
 }
 
-function genderColumnHTML(g, editable) {
+function genderColumnHTML(g, canTeams, canPlayers) {
   const teams = state.teams.filter((t) => t.gender === g.key);
   return `
     <section class="gender-col">
       <h2 class="section-title gender-col__title">${g.label}</h2>
       ${
         teams.length
-          ? teams.map((t) => teamCardHTML(t, editable)).join('')
+          ? teams.map((t) => teamCardHTML(t, canTeams, canPlayers)).join('')
           : `<p class="muted">Sem equipas ${g.label.toLowerCase()}.</p>`
       }
     </section>
   `;
 }
 
-function teamCardHTML(team, editable) {
+function teamCardHTML(team, canTeams, canPlayers) {
   const players = state.players
     .filter((p) => p.team_id === team.id)
     .sort((a, b) => (Number(a.number) || 999) - (Number(b.number) || 999));
@@ -105,7 +108,7 @@ function teamCardHTML(team, editable) {
           </span>
         </button>
         ${
-          editable
+          canTeams
             ? `<div class="cell-actions">
           <button class="btn btn--ghost btn--sm" data-team-edit="${team.id}" type="button">Editar</button>
           <button class="btn btn--danger btn--sm" data-team-del="${team.id}" type="button">Remover</button>
@@ -136,7 +139,7 @@ function teamCardHTML(team, editable) {
             players.length
               ? `<table class="players-table">
                   <thead><tr><th>#</th><th>Nome</th><th>Ano</th><th>Posição</th>${
-                    editable ? '<th></th>' : ''
+                    canPlayers ? '<th></th>' : ''
                   }</tr></thead>
                   <tbody>
                     ${players
@@ -151,7 +154,7 @@ function teamCardHTML(team, editable) {
                         <td>${esc(p.birth_year || '—')}</td>
                         <td>${esc(p.position || '—')}</td>
                         ${
-                          editable
+                          canPlayers
                             ? `<td class="cell-actions">
                           <button class="btn btn--ghost btn--sm" data-team="${team.id}" data-player-edit="${p.id}" type="button">Editar</button>
                           <button class="btn btn--danger btn--sm" data-player-del="${p.id}" type="button">Remover</button>
@@ -166,7 +169,7 @@ function teamCardHTML(team, editable) {
               : '<p class="muted" style="margin:0.4rem 0">Sem atletas nesta equipa.</p>'
           }
           ${
-            editable
+            canPlayers
               ? `<div class="team-card__actions">
                    <button class="btn btn--ghost btn--sm" data-add-player="${team.id}" type="button">+ Atleta</button>
                    <button class="btn btn--ghost btn--sm" data-import-player="${team.id}" type="button">Importar (xlsx)</button>
