@@ -12,7 +12,7 @@ import {
   dbErrorMessage,
 } from '../store.js';
 import { esc, emptyHTML } from '../ui.js';
-import { ROLES, ROLE_LABEL, SECTIONS, DEFAULT_TRAINER_SECTIONS, isCoordenador } from '../permissions.js';
+import { ROLES, ROLE_LABEL, SECTIONS, DEFAULT_TRAINER_SECTIONS, DEFAULT_FISIO_SECTIONS, isCoordenador } from '../permissions.js';
 import { teamName, teamById } from '../compute.js';
 
 export function renderUtilizadores(container) {
@@ -82,6 +82,11 @@ export function renderUtilizadores(container) {
         const hadPerms = Array.isArray(before?.permissions) && before.permissions.length > 0;
         if (role === 'treinador' && !hadPerms) {
           await updateProfilePermissions(id, [...DEFAULT_TRAINER_SECTIONS]);
+        }
+        // O fisioterapeuta tem sempre o Departamento Médico; sugere também as
+        // secções de apoio (calendário, plantéis) se ainda não tiver acessos.
+        if (role === 'fisioterapeuta' && !hadPerms) {
+          await updateProfilePermissions(id, [...DEFAULT_FISIO_SECTIONS]);
         }
         const updated = state.profiles.find((p) => p.id === id);
         // Reconstrói o vínculo e os acessos para o novo papel.

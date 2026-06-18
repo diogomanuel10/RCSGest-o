@@ -21,6 +21,9 @@ export const state = {
   equipment: [],
   teamCoaches: [], // ligação equipa<->treinador (principal/adjunto)
   prospects: [],  // funil de recrutamento
+  clinicalEpisodes: [], // episódios clínicos (departamento médico)
+  clinicalSessions: [], // sessões realizadas dentro de cada episódio
+  appointments: [],     // atendimentos de fisioterapia (agenda médica)
   profile: null, // perfil do utilizador atual (com o papel/role)
   profiles: [], // todos os perfis (preenchido só se o utilizador for coordenador)
   loaded: false,
@@ -38,6 +41,9 @@ export function resetState() {
   state.equipment = [];
   state.teamCoaches = [];
   state.prospects = [];
+  state.clinicalEpisodes = [];
+  state.clinicalSessions = [];
+  state.appointments = [];
   state.profile = null;
   state.profiles = [];
   state.loaded = false;
@@ -77,7 +83,7 @@ export async function loadProfile() {
 // --- Carregamento inicial -------------------------------------------------
 // Vai buscar todas as tabelas em paralelo. Lança erro se alguma falhar.
 export async function loadAll() {
-  const [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects] =
+  const [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects, episodes, sessions, appointments] =
     await Promise.all([
       supabase.from('settings').select('*').eq('id', 1).maybeSingle(),
       supabase.from('coaches').select('*').order('name'),
@@ -90,9 +96,14 @@ export async function loadAll() {
       supabase.from('equipment').select('*').order('name'),
       supabase.from('team_coaches').select('*'),
       supabase.from('prospects').select('*').order('created_at'),
+      // Dados do departamento médico. Para papéis sem acesso, o RLS devolve
+      // uma lista vazia (sem erro), por isso é seguro consultar sempre.
+      supabase.from('clinical_episodes').select('*').order('created_at', { ascending: false }),
+      supabase.from('clinical_sessions').select('*').order('date', { ascending: false }),
+      supabase.from('physio_appointments').select('*').order('date'),
     ]);
 
-  for (const res of [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects]) {
+  for (const res of [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects, episodes, sessions, appointments]) {
     if (res.error) throw res.error;
   }
 
@@ -107,6 +118,9 @@ export async function loadAll() {
   state.equipment   = equipment.data   || [];
   state.teamCoaches = teamCoaches.data || [];
   state.prospects   = prospects.data   || [];
+  state.clinicalEpisodes = episodes.data     || [];
+  state.clinicalSessions = sessions.data      || [];
+  state.appointments     = appointments.data  || [];
 
   await loadProfile();
 
@@ -339,6 +353,17 @@ export async function updateRow(table, collection, id, values) {
   return data;
 }
 
+// Remove da cache local os dados clínicos de um atleta apagado (episódios,
+// respetivas sessões e atendimentos). Na BD isto é tratado pelas FKs em cascata.
+function cleanupPlayerClinical(playerId) {
+  const episodeIds = new Set(
+    state.clinicalEpisodes.filter((e) => e.player_id === playerId).map((e) => e.id)
+  );
+  state.clinicalEpisodes = state.clinicalEpisodes.filter((e) => e.player_id !== playerId);
+  state.clinicalSessions = state.clinicalSessions.filter((s) => !episodeIds.has(s.episode_id));
+  state.appointments = state.appointments.filter((a) => a.player_id !== playerId);
+}
+
 export async function deleteRow(table, collection, id) {
   const { error } = await supabase.from(table).delete().eq('id', id);
   if (error) throw error;
@@ -346,17 +371,30 @@ export async function deleteRow(table, collection, id) {
 
   // Tratar relações apagadas em cascata/anuladas na cache local:
   if (collection === 'teams') {
+    const removedPlayers = state.players.filter((p) => p.team_id === id).map((p) => p.id);
     state.players = state.players.filter((p) => p.team_id !== id);
     state.events.forEach((e) => {
       if (e.team_id === id) e.team_id = null;
     });
     state.teamCoaches = state.teamCoaches.filter((tc) => tc.team_id !== id);
+    removedPlayers.forEach(cleanupPlayerClinical);
   }
   if (collection === 'coaches') {
     state.teams.forEach((t) => {
       if (t.coach_id === id) t.coach_id = null;
     });
     state.teamCoaches = state.teamCoaches.filter((tc) => tc.coach_id !== id);
+  }
+  if (collection === 'players') {
+    cleanupPlayerClinical(id);
+  }
+  // Apagar um episódio leva as suas sessões (cascade na BD) e liberta os
+  // atendimentos que lhe estavam associados (episode_id -> null).
+  if (collection === 'clinicalEpisodes') {
+    state.clinicalSessions = state.clinicalSessions.filter((s) => s.episode_id !== id);
+    state.appointments.forEach((a) => {
+      if (a.episode_id === id) a.episode_id = null;
+    });
   }
   notify();
 }

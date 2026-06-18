@@ -2935,3 +2935,124 @@ tbody tr:hover {
   gap: 0.6rem;
   margin-bottom: 0.6rem;
 }
+
+/* =====================================================================
+   Departamento Médico / Fisioterapia
+   ===================================================================== */
+.med-stats {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+.med-table th:last-child,
+.med-table td:last-child {
+  text-align: right;
+}
+.med-agenda {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+@media (max-width: 820px) {
+  .med-agenda { grid-template-columns: 1fr; }
+}
+
+/* Cabeçalho de secção com ação à direita (ficha clínica e agenda) */
+.cf-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 0.4rem;
+}
+
+/* Episódios clínicos */
+.cf-episodes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.cf-episode {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.cf-episode__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.6rem 0.8rem;
+}
+.cf-episode__toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  flex: 1;
+  color: inherit;
+  font: inherit;
+}
+.cf-episode__chevron {
+  color: var(--text-muted);
+}
+.cf-episode__sub {
+  display: block;
+  font-size: 0.82rem;
+  margin-top: 0.1rem;
+}
+.cf-episode__body {
+  padding: 0 0.8rem 0.8rem;
+  border-top: 1px solid var(--border);
+}
+
+/* Listas de sessões e atendimentos */
+.cf-session-list,
+.cf-appt-list {
+  list-style: none;
+  margin: 0.3rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.cf-session-row,
+.cf-appt-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  font-size: 0.88rem;
+}
+.cf-session-row__date,
+.cf-appt-row__when {
+  font-weight: 600;
+  min-width: 7rem;
+}
+.cf-session-row__notes,
+.cf-appt-row__notes {
+  flex: 1;
+}
+.cf-appt-row .cell-actions {
+  margin-left: auto;
+}
+
+/* Aviso de conflito de horário no formulário de atendimento */
+.appt-conflict {
+  margin: 0.4rem 0;
+  padding: 0.55rem 0.7rem;
+  border-radius: 8px;
+  border-left: 4px solid var(--warn);
+  background: var(--warn-bg);
+  color: var(--warn);
+  font-size: 0.85rem;
+}
