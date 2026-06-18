@@ -239,7 +239,7 @@ export async function convertProspect(prospectId, teamId) {
       birth_year: p.birth_year || null,
       position: p.position || null,
       notes: p.notes || null,
-      contact: p.contact || null,
+      guardian_contact: p.contact || null,
     })
     .select()
     .single();
