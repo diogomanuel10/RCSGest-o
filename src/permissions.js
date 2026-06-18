@@ -7,6 +7,7 @@ export const ROLES = [
   { key: 'coordenador', label: 'Coordenador', desc: 'Acesso total' },
   { key: 'treinador', label: 'Treinador', desc: 'Edita plantéis e calendário das suas equipas' },
   { key: 'fisioterapeuta', label: 'Fisioterapeuta', desc: 'Departamento médico e calendário de treinos' },
+  { key: 'preparador', label: 'Preparador físico', desc: 'Preparação física, periodização e controlo' },
   { key: 'leitura', label: 'Leitura', desc: 'Apenas consulta' },
   { key: 'atleta', label: 'Atleta', desc: 'Portal pessoal (calendário, presenças, quotas)' },
 ];
@@ -48,6 +49,14 @@ export const DEFAULT_FISIO_SECTIONS = [
   'planteis',
 ];
 
+// Acessos sugeridos por omissão ao definir alguém como preparador físico. A
+// Preparação Física é sempre acessível ao preparador (ver canAccess); aqui
+// ficam as secções de apoio (calendário/mapa de jogos e plantéis).
+export const DEFAULT_PREP_SECTIONS = [
+  'calendario',
+  'planteis',
+];
+
 // Que papéis podem ESCREVER em cada entidade (alinhado com o RLS do schema.sql).
 // Nota: para players/events/attendances o treinador só escreve nas SUAS
 // equipas — essa restrição por equipa é imposta pelo RLS, não aqui.
@@ -66,6 +75,11 @@ const EDIT_ROLES = {
   // do fisioterapeuta (alinhado com a política "med_rw" do RLS).
   clinical: ['coordenador', 'fisioterapeuta'],
   appointments: ['coordenador', 'fisioterapeuta'],
+  // Preparação física: perfil físico, avaliações, periodização e controlo
+  // (alinhado com as políticas "phys_*"/"prep_*" do RLS).
+  physical: ['coordenador', 'preparador'],
+  // A história clínica é editada pela fisio/coordenador; o preparador só lê.
+  medicalHistory: ['coordenador', 'fisioterapeuta'],
 };
 
 // Papel do utilizador atual (por omissão 'leitura' até o perfil carregar).
@@ -89,6 +103,10 @@ export function isFisio() {
   return currentRole() === 'fisioterapeuta';
 }
 
+export function isPreparador() {
+  return currentRole() === 'preparador';
+}
+
 // Lista de secções que o utilizador atual pode ver (configurada pelo
 // coordenador). Vazia se ainda não tiver acesso a nada.
 export function currentPermissions() {
@@ -107,6 +125,8 @@ export function canAccess(key) {
   // O Departamento Médico é exclusivo do coordenador e do fisioterapeuta
   // (não é uma secção configurável para treinador/leitura).
   if (key === 'medico') return role === 'fisioterapeuta';
+  // A Preparação Física é exclusiva do coordenador e do preparador físico.
+  if (key === 'fisica') return role === 'preparador';
   if (!SECTION_KEYS.has(key)) return false; // portal e afins não se aplicam
   return currentPermissions().includes(key);
 }

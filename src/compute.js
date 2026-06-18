@@ -309,6 +309,118 @@ function toMinutes(t) {
   return (h || 0) * 60 + (m || 0);
 }
 
+// --- Preparação Física ---------------------------------------------------
+
+export function physicalProfile(playerId) {
+  return state.physicalProfiles.find((p) => p.player_id === playerId) || null;
+}
+
+export function playerMedicalHistory(playerId) {
+  return state.medicalHistory.find((m) => m.player_id === playerId) || null;
+}
+
+// Índice de massa corporal a partir do perfil físico (kg / m²). null se faltar
+// altura ou peso.
+export function bmi(playerId) {
+  const prof = physicalProfile(playerId);
+  const h = Number(prof?.height_cm);
+  const w = Number(prof?.weight_kg);
+  if (!h || !w) return null;
+  const m = h / 100;
+  return Math.round((w / (m * m)) * 10) / 10;
+}
+
+// Testes físicos de UM atleta, do mais recente para o mais antigo.
+export function playerTests(playerId) {
+  return state.physicalTests
+    .filter((t) => t.player_id === playerId)
+    .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+}
+
+// Fases (macrociclo) de uma equipa, ordenadas por data de início.
+export function teamPhases(teamId) {
+  return state.phases
+    .filter((p) => p.team_id === teamId)
+    .sort((a, b) => (a.start_date || '').localeCompare(b.start_date || ''));
+}
+
+// Mesociclos de uma equipa, ordenados por data de início.
+export function teamMesocycles(teamId) {
+  return state.mesocycles
+    .filter((m) => m.team_id === teamId)
+    .sort((a, b) => (a.start_date || '').localeCompare(b.start_date || ''));
+}
+
+// Treinos de um mesociclo (ou os sem mesociclo de uma equipa), por data.
+export function mesocycleSessions(mesocycleId) {
+  return state.gymSessions
+    .filter((s) => s.mesocycle_id === mesocycleId)
+    .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+}
+
+export function teamSessions(teamId) {
+  return state.gymSessions
+    .filter((s) => s.team_id === teamId)
+    .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+}
+
+// Exercícios de um treino, pela ordem definida.
+export function sessionExercises(sessionId) {
+  return state.gymExercises
+    .filter((e) => e.session_id === sessionId)
+    .sort((a, b) => (a.position || 0) - (b.position || 0));
+}
+
+export function sessionAttendance(sessionId) {
+  return state.gymAttendance.filter((a) => a.session_id === sessionId);
+}
+
+// Controlo de treino de UM atleta: treinos feitos, faltas e tempo total.
+// Baseado nas presenças de ginásio dos treinos da sua equipa.
+export function playerGymStats(playerId) {
+  const player = state.players.find((p) => p.id === playerId);
+  if (!player) return { treinos: 0, faltas: 0, minutos: 0, totalSessions: 0 };
+  const teamSessionIds = new Set(
+    state.gymSessions.filter((s) => s.team_id === player.team_id).map((s) => s.id)
+  );
+  const durBySession = {};
+  state.gymSessions.forEach((s) => { durBySession[s.id] = s.duration_min || 0; });
+
+  let treinos = 0, faltas = 0, minutos = 0;
+  state.gymAttendance.forEach((a) => {
+    if (a.player_id !== playerId || !teamSessionIds.has(a.session_id)) return;
+    if (a.present) {
+      treinos++;
+      minutos += a.minutes != null ? a.minutes : durBySession[a.session_id] || 0;
+    } else {
+      faltas++;
+    }
+  });
+  return { treinos, faltas, minutos, totalSessions: teamSessionIds.size };
+}
+
+// Minutos de jogo de UM atleta: total e lista por jogo (mais recente primeiro).
+export function playerGameMinutes(playerId) {
+  const rows = state.gameMinutes.filter((g) => g.player_id === playerId);
+  const list = rows
+    .map((g) => ({ event: state.events.find((e) => e.id === g.event_id), minutes: g.minutes }))
+    .filter((x) => x.event)
+    .sort((a, b) => eventDateTime(b.event) - eventDateTime(a.event));
+  const total = rows.reduce((s, g) => s + (g.minutes || 0), 0);
+  return { total, list };
+}
+
+// Jogos de uma equipa num mês (para o mapa de jogos), ordenados por data.
+export function gamesInMonth(teamId, year, month) {
+  return state.events
+    .filter((e) => e.type === 'jogo' && e.team_id === teamId)
+    .filter((e) => {
+      const d = new Date(e.date + 'T00:00:00');
+      return d.getFullYear() === year && d.getMonth() === month;
+    })
+    .sort((a, b) => eventDateTime(a) - eventDateTime(b));
+}
+
 // Quotas de UM atleta. Devolve { list, owed, owedCount, paidCount }.
 // `list` ordenada da mais recente para a mais antiga.
 export function playerQuotas(playerId) {
