@@ -148,6 +148,14 @@ export function eventTimeRange(ev) {
   return s || e || '';
 }
 
+// Eventos de hoje (qualquer tipo), ordenados por hora.
+export function todayEvents() {
+  const todayStr = localDateStr(new Date());
+  return state.events
+    .filter((e) => e.date === todayStr)
+    .sort((a, b) => eventDateTime(a) - eventDateTime(b));
+}
+
 // Próximos eventos (a partir de agora), ordenados, limitados a `limit`.
 export function upcomingEvents(limit = 5) {
   const now = new Date();

@@ -202,3 +202,8 @@ async function remove(id, container) {
     alert(dbErrorMessage(err));
   }
 }
+
+// Abre o formulário de nova empresa (usado pela criação rápida do Painel).
+export function openSponsorForm() {
+  openForm();
+}

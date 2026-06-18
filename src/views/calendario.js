@@ -441,3 +441,11 @@ function toLocalISO(d) {
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
 }
+
+// Aberturas usadas pela criação rápida do Painel.
+export function openEventForm() {
+  openForm();
+}
+export function openRecurrentTrainings() {
+  openRecurrentModal();
+}

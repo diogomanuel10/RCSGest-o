@@ -888,6 +888,61 @@ tbody tr:hover {
   align-self: center;
 }
 
+/* Hero do Painel (saudação + criação rápida) */
+.page-head--hero {
+  align-items: flex-start;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+.hero-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* Resumo "Hoje" no Painel */
+.today-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.today-item {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.today-item__time {
+  flex: none;
+  width: 92px;
+  font-weight: 700;
+  font-size: 0.86rem;
+  color: var(--navy);
+}
+.today-item__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+.today-item__title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+.today-item__meta {
+  font-size: 0.8rem;
+}
+
 /* Atalho "Presenças por marcar" no Painel */
 .mark-list {
   list-style: none;
