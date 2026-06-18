@@ -166,6 +166,48 @@ export const MONTHS = [
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
 ];
 
+// --- Departamento Médico / Fisioterapia ---
+
+// Estado de um episódio clínico (ex.: percurso de uma lesão).
+export const EPISODE_STATUSES = [
+  { key: 'ativo',       label: 'Ativo',           badge: 'danger' },
+  { key: 'recuperacao', label: 'Em recuperação',  badge: 'warn' },
+  { key: 'alta',        label: 'Alta',            badge: 'ok' },
+];
+export const EPISODE_STATUS_LABEL = Object.fromEntries(
+  EPISODE_STATUSES.map((s) => [s.key, s.label])
+);
+export const EPISODE_STATUS_BADGE = Object.fromEntries(
+  EPISODE_STATUSES.map((s) => [s.key, s.badge])
+);
+
+// Tipo de atendimento de fisioterapia.
+export const APPOINTMENT_TYPES = [
+  { key: 'avaliacao',   label: 'Avaliação',   badge: 'info' },
+  { key: 'tratamento',  label: 'Tratamento',  badge: 'warn' },
+  { key: 'reavaliacao', label: 'Reavaliação', badge: 'info' },
+];
+export const APPOINTMENT_TYPE_LABEL = Object.fromEntries(
+  APPOINTMENT_TYPES.map((t) => [t.key, t.label])
+);
+export const APPOINTMENT_TYPE_BADGE = Object.fromEntries(
+  APPOINTMENT_TYPES.map((t) => [t.key, t.badge])
+);
+
+// Estado de um atendimento agendado.
+export const APPOINTMENT_STATUSES = [
+  { key: 'agendado',  label: 'Agendado',  badge: 'info' },
+  { key: 'realizado', label: 'Realizado', badge: 'ok' },
+  { key: 'faltou',    label: 'Faltou',    badge: 'danger' },
+  { key: 'cancelado', label: 'Cancelado', badge: 'muted' },
+];
+export const APPOINTMENT_STATUS_LABEL = Object.fromEntries(
+  APPOINTMENT_STATUSES.map((s) => [s.key, s.label])
+);
+export const APPOINTMENT_STATUS_BADGE = Object.fromEntries(
+  APPOINTMENT_STATUSES.map((s) => [s.key, s.badge])
+);
+
 // --- Recrutamento: estados do funil ---
 export const PROSPECT_STATUSES = [
   { key: 'observado',  label: 'Observado',      badge: 'muted' },

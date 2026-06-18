@@ -36,6 +36,8 @@ src/
     patrocinios.js      Vista Patrocínios
     planteis.js         Vista Plantéis (CRUD + importar atletas via .xlsx)
     avaliacao.js        Vista Avaliação de plantel (Mantém/Sai/Pendente)
+    medico.js           Vista Departamento Médico (atletas + agenda de fisioterapia)
+    clinical-file.js    Ficha clínica do atleta (episódios, sessões, atendimentos)
     calendario.js       Vista Calendário
     treinadores.js      Vista Treinadores
     definicoes.js       Vista Definições (época, meta, escalões, backup)
@@ -80,8 +82,13 @@ topo do módulo da vista.
 ## Permissões (papéis)
 
 - Cada utilizador tem um perfil na tabela `profiles` com um `role`:
-  `coordenador` (tudo), `treinador` (edita Plantéis e Calendário; vê o resto)
-  ou `leitura` (só vê). Quem se regista começa em `leitura`.
+  `coordenador` (tudo), `treinador` (edita Plantéis e Calendário; vê o resto),
+  `fisioterapeuta` (Departamento Médico + calendário de treinos), `atleta`
+  (portal pessoal) ou `leitura` (só vê). Quem se regista começa em `leitura`.
+- O **Departamento Médico** (`medico`) não é uma secção configurável: é
+  exclusivo do coordenador e do fisioterapeuta (ver `canAccess` em
+  `permissions.js`). Os dados clínicos têm o seu próprio RLS (`med_rw`):
+  leitura/escrita só para esses dois papéis.
 - O **RLS** no Supabase é a fonte de verdade (ver `schema.sql`): leitura para
   todos os autenticados; escrita conforme o papel via a função `app_role()`.
 - Na interface, `src/permissions.js` (`canEdit`, `canManageUsers`,
@@ -115,6 +122,19 @@ topo do módulo da vista.
   (omissão `pendente`). A vista `avaliacao.js` deixa o coordenador/treinador
   decidir, por equipa, quem fica na próxima época, com contadores. Não apaga
   ninguém — é só planeamento. Editável por quem tem `canEdit('players')`.
+- **Departamento Médico / Fisioterapia**: processo clínico digital do atleta.
+  - `clinical_episodes` — episódios clínicos (ex.: lesões) com `status`
+    (`ativo|recuperacao|alta`), avaliação inicial, diagnóstico funcional, plano
+    de tratamento, evolução, restrições, previsão de retorno e data de alta.
+  - `clinical_sessions` — sessões realizadas dentro de um episódio (data + notas).
+  - `physio_appointments` — atendimentos agendados (`avaliacao|tratamento|
+    reavaliacao`) com estado (`agendado|realizado|faltou|cancelado`), data/hora.
+  - A vista `medico.js` lista todos os atletas (com o estado clínico) e a agenda;
+    `clinical-file.js` é a ficha clínica (abre também a partir dos Plantéis para
+    o coordenador/fisioterapeuta). `compute.appointmentConflicts()` avisa quando
+    um atendimento se sobrepõe a um treino/jogo da equipa do atleta.
+  - Editável por quem tem `canEdit('clinical')` / `canEdit('appointments')`
+    (coordenador e fisioterapeuta), em linha com o RLS `med_rw`.
 
 ## Convenções
 

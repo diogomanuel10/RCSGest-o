@@ -249,14 +249,15 @@ create table if not exists profiles (
   id         uuid primary key references auth.users(id) on delete cascade,
   email      text,
   role       text not null default 'leitura'
-             check (role in ('coordenador','treinador','leitura','atleta')),
+             check (role in ('coordenador','treinador','leitura','atleta','fisioterapeuta')),
   created_at timestamptz default now()
 );
 
--- Acrescenta o papel 'atleta' à restrição para tabelas profiles já criadas.
+-- Acrescenta os papéis 'atleta' e 'fisioterapeuta' à restrição para tabelas
+-- profiles já criadas.
 alter table profiles drop constraint if exists profiles_role_check;
 alter table profiles add constraint profiles_role_check
-  check (role in ('coordenador','treinador','leitura','atleta'));
+  check (role in ('coordenador','treinador','leitura','atleta','fisioterapeuta'));
 
 -- Acessos por secção configuráveis pelo coordenador (treinador/leitura).
 -- Lista de chaves de secção que o utilizador pode VER (ex.: ["planteis",
@@ -355,25 +356,28 @@ create policy "read_all" on sponsors for select to authenticated using (
   app_role() <> 'atleta'
 );
 
--- Equipas: coordenador e leitura veem todas; treinador as suas; atleta a sua.
+-- Equipas: coordenador, leitura e fisioterapeuta veem todas; treinador as
+-- suas; atleta a sua.
 create policy "read_all" on teams for select to authenticated using (
-  app_role() in ('coordenador', 'leitura')
+  app_role() in ('coordenador', 'leitura', 'fisioterapeuta')
   OR id in (select trainer_team_ids())
   OR id = athlete_team_id()
 );
 
--- Atletas: coordenador e leitura todos; treinador os das suas equipas;
--- atleta só o seu próprio registo.
+-- Atletas: coordenador, leitura e fisioterapeuta todos (o fisioterapeuta
+-- precisa da lista completa para o departamento médico); treinador os das
+-- suas equipas; atleta só o seu próprio registo.
 create policy "read_all" on players for select to authenticated using (
-  app_role() in ('coordenador', 'leitura')
+  app_role() in ('coordenador', 'leitura', 'fisioterapeuta')
   OR team_id in (select trainer_team_ids())
   OR id = athlete_player_id()
 );
 
--- Eventos: coordenador e leitura todos; treinador e atleta os da(s) sua(s)
--- equipa(s); eventos sem equipa (clube) visíveis a todos.
+-- Eventos: coordenador, leitura e fisioterapeuta todos (o fisioterapeuta vê o
+-- calendário de treinos para cruzar com os atendimentos); treinador e atleta
+-- os da(s) sua(s) equipa(s); eventos sem equipa (clube) visíveis a todos.
 create policy "read_all" on events for select to authenticated using (
-  app_role() in ('coordenador', 'leitura')
+  app_role() in ('coordenador', 'leitura', 'fisioterapeuta')
   OR team_id is null
   OR team_id in (select trainer_team_ids())
   OR team_id = athlete_team_id()
@@ -468,6 +472,89 @@ create policy "profiles_read" on profiles for select to authenticated
   using (id = auth.uid() or app_role() = 'coordenador');
 create policy "profiles_manage" on profiles for all to authenticated
   using (app_role() = 'coordenador') with check (app_role() = 'coordenador');
+
+-- =====================================================================
+-- Departamento Médico / Fisioterapia
+-- =====================================================================
+-- Processo clínico digital do atleta. Cada atleta pode ter vários episódios
+-- clínicos (ex.: lesões); cada episódio reúne avaliação, diagnóstico, plano,
+-- evolução, restrições, previsão de retorno e alta, e contém as sessões
+-- realizadas. Os atendimentos (avaliações/tratamentos/reavaliações) são
+-- marcados numa agenda própria do departamento, cruzada com os treinos.
+--
+-- Confidencialidade: estes dados são reservados ao departamento médico. O RLS
+-- só dá leitura e escrita ao coordenador e ao fisioterapeuta.
+
+-- Episódio clínico (ex.: uma lesão e todo o seu percurso de recuperação).
+create table if not exists clinical_episodes (
+  id                  uuid primary key default gen_random_uuid(),
+  player_id           uuid not null references players(id) on delete cascade,
+  title               text not null,             -- ex.: "Entorse tornozelo direito"
+  body_area           text,                       -- zona do corpo
+  status              text not null default 'ativo'
+                      check (status in ('ativo','recuperacao','alta')),
+  injury_date         date,                       -- data da lesão / início
+  initial_assessment  text,                       -- avaliação inicial
+  functional_diagnosis text,                      -- diagnóstico funcional
+  treatment_plan      text,                       -- plano de tratamento
+  evolution           text,                       -- evolução (notas gerais)
+  restrictions        text,                       -- restrições ao treino/jogo
+  expected_return     date,                       -- previsão de retorno
+  discharge_date      date,                       -- data de alta
+  created_at          timestamptz default now()
+);
+
+-- Sessão realizada dentro de um episódio (registo do que foi feito).
+create table if not exists clinical_sessions (
+  id          uuid primary key default gen_random_uuid(),
+  episode_id  uuid not null references clinical_episodes(id) on delete cascade,
+  date        date not null,
+  notes       text,
+  created_at  timestamptz default now()
+);
+
+-- Atendimento de fisioterapia (agenda do departamento médico).
+create table if not exists physio_appointments (
+  id          uuid primary key default gen_random_uuid(),
+  player_id   uuid not null references players(id) on delete cascade,
+  episode_id  uuid references clinical_episodes(id) on delete set null,
+  type        text not null default 'tratamento'
+              check (type in ('avaliacao','tratamento','reavaliacao')),
+  date        date not null,
+  time        text,
+  end_time    text,
+  location    text,
+  status      text not null default 'agendado'
+              check (status in ('agendado','realizado','faltou','cancelado')),
+  notes       text,
+  created_at  timestamptz default now()
+);
+
+create index if not exists idx_episodes_player    on clinical_episodes   (player_id);
+create index if not exists idx_episodes_status     on clinical_episodes   (status);
+create index if not exists idx_sessions_episode    on clinical_sessions   (episode_id);
+create index if not exists idx_appointments_player on physio_appointments (player_id);
+create index if not exists idx_appointments_date   on physio_appointments (date);
+
+alter table clinical_episodes   enable row level security;
+alter table clinical_sessions   enable row level security;
+alter table physio_appointments enable row level security;
+
+drop policy if exists "med_rw" on clinical_episodes;
+drop policy if exists "med_rw" on clinical_sessions;
+drop policy if exists "med_rw" on physio_appointments;
+
+-- Reservado ao departamento médico: ler e escrever só coordenador e
+-- fisioterapeuta.
+create policy "med_rw" on clinical_episodes for all to authenticated
+  using (app_role() in ('coordenador','fisioterapeuta'))
+  with check (app_role() in ('coordenador','fisioterapeuta'));
+create policy "med_rw" on clinical_sessions for all to authenticated
+  using (app_role() in ('coordenador','fisioterapeuta'))
+  with check (app_role() in ('coordenador','fisioterapeuta'));
+create policy "med_rw" on physio_appointments for all to authenticated
+  using (app_role() in ('coordenador','fisioterapeuta'))
+  with check (app_role() in ('coordenador','fisioterapeuta'));
 
 -- ---------------------------------------------------------------------
 -- Dados iniciais

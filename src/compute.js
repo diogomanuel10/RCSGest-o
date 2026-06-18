@@ -222,6 +222,93 @@ export function playerAttendanceStats(playerId) {
   return { rate, total, counts, totalTrainings: trainings.length, semRegisto: trainings.length - total };
 }
 
+// --- Departamento Médico / Fisioterapia ---------------------------------
+
+// Episódios clínicos de UM atleta, do mais recente para o mais antigo
+// (ativos/em recuperação antes dos que têm alta, depois por data de lesão).
+export function playerEpisodes(playerId) {
+  const rank = { ativo: 0, recuperacao: 1, alta: 2 };
+  return state.clinicalEpisodes
+    .filter((e) => e.player_id === playerId)
+    .sort((a, b) => {
+      const r = (rank[a.status] ?? 9) - (rank[b.status] ?? 9);
+      if (r !== 0) return r;
+      return (b.injury_date || b.created_at || '').localeCompare(a.injury_date || a.created_at || '');
+    });
+}
+
+// Sessões de um episódio, da mais recente para a mais antiga.
+export function episodeSessions(episodeId) {
+  return state.clinicalSessions
+    .filter((s) => s.episode_id === episodeId)
+    .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+}
+
+// Episódio "ativo" de um atleta (ativo ou em recuperação), se existir.
+export function activeEpisode(playerId) {
+  return state.clinicalEpisodes.find(
+    (e) => e.player_id === playerId && (e.status === 'ativo' || e.status === 'recuperacao')
+  ) || null;
+}
+
+// Nº de atletas com um episódio em curso (ativo ou em recuperação).
+export function injuredCount() {
+  const ids = new Set(
+    state.clinicalEpisodes
+      .filter((e) => e.status === 'ativo' || e.status === 'recuperacao')
+      .map((e) => e.player_id)
+  );
+  return ids.size;
+}
+
+// Atendimentos de UM atleta, ordenados por data/hora.
+export function playerAppointments(playerId) {
+  return state.appointments
+    .filter((a) => a.player_id === playerId)
+    .sort((a, b) => apptDateTime(a) - apptDateTime(b));
+}
+
+// Data/hora de um atendimento como Date (para ordenar/comparar).
+export function apptDateTime(ap) {
+  const time = ap.time && /^\d{2}:\d{2}/.test(ap.time) ? ap.time : '00:00';
+  return new Date(`${ap.date}T${time}`);
+}
+
+// Próximos atendimentos (a partir de agora), agendados, ordenados.
+export function upcomingAppointments(limit = 8) {
+  const now = new Date();
+  return state.appointments
+    .filter((a) => a.status === 'agendado' && apptDateTime(a) >= now)
+    .sort((a, b) => apptDateTime(a) - apptDateTime(b))
+    .slice(0, limit);
+}
+
+// Deteta treinos/jogos da equipa do atleta que se sobrepõem ao intervalo de um
+// atendimento (mesmo dia e horas a cruzar). Serve para avisar de conflitos.
+// `ignoreId` permite excluir o próprio atendimento ao editar.
+export function appointmentConflicts(playerId, date, time, endTime) {
+  const player = state.players.find((p) => p.id === playerId);
+  if (!player || !date) return [];
+  const start = time ? toMinutes(time) : null;
+  const end = endTime ? toMinutes(endTime) : null;
+
+  return state.events.filter((ev) => {
+    if (ev.date !== date) return false;
+    if (ev.team_id !== player.team_id) return false; // só eventos da sua equipa
+    // Sem horas em qualquer dos lados → conflito de dia (aviso na mesma).
+    if (start === null || !ev.time) return true;
+    const evStart = toMinutes(ev.time);
+    const evEnd = ev.end_time ? toMinutes(ev.end_time) : evStart + 90;
+    const apEnd = end !== null ? end : start + 60;
+    return start < evEnd && apEnd > evStart; // sobreposição de intervalos
+  });
+}
+
+function toMinutes(t) {
+  const [h, m] = String(t).slice(0, 5).split(':').map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
+
 // Quotas de UM atleta. Devolve { list, owed, owedCount, paidCount }.
 // `list` ordenada da mais recente para a mais antiga.
 export function playerQuotas(playerId) {
