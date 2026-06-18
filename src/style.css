@@ -846,6 +846,8 @@ tbody tr:hover {
 }
 .alert-item--warn .alert-item__dot { background: var(--warn); }
 .alert-item--danger .alert-item__dot { background: var(--danger); }
+.alert-item--ok .alert-item__dot { background: var(--ok); }
+.alert-item--info .alert-item__dot { background: var(--info); }
 .alert-item__title {
   display: block;
   font-size: 0.92rem;
@@ -853,6 +855,37 @@ tbody tr:hover {
 .alert-item__sub {
   display: block;
   font-size: 0.8rem;
+}
+
+/* Item de ação clicável (navega para a secção) */
+.alerts-list li {
+  list-style: none;
+}
+.alert-item--nav {
+  width: 100%;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  background: var(--surface-2);
+  transition: background 0.14s ease, border-color 0.14s ease, transform 0.06s ease;
+}
+.alert-item--nav:hover {
+  background: var(--navy-100);
+  border-color: var(--navy-300);
+}
+.alert-item--nav:active {
+  transform: translateY(1px);
+}
+.alert-item__text {
+  flex: 1;
+  min-width: 0;
+}
+.alert-item__chevron {
+  flex: none;
+  font-size: 1.4rem;
+  line-height: 1;
+  color: var(--text-muted);
+  align-self: center;
 }
 
 /* Atalho "Presenças por marcar" no Painel */

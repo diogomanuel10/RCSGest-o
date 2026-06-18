@@ -12,6 +12,9 @@ import {
   teamById,
   teamName,
   quotasOwed,
+  quotasThisMonth,
+  pendingReviews,
+  prospectsReady,
   attendanceStats,
   equipmentNeedsAttention,
   trainingsToMark,
@@ -50,10 +53,9 @@ export function renderPainel(container) {
   const att = attendanceStats();
   const equipReview = equipmentNeedsAttention();
 
-  const alerts = buildAlerts(owed, equipReview);
-
   const canMark = canEdit('attendances');
   const toMark = canMark ? trainingsToMark(6) : [];
+  const actions = buildActions();
 
   container.innerHTML = `
     <header class="page-head">
@@ -77,7 +79,10 @@ export function renderPainel(container) {
       ${metricCard(ICON_BOX, 'Equipamentos', state.equipment.length, equipReview ? `${equipReview} em mau estado` : 'inventário em dia', equipReview ? 'accent' : 'purple')}
     </section>
 
-    ${alerts ? `<section class="card alerts-card">${alerts}</section>` : ''}
+    ${actions.length ? `<section class="card alerts-card">
+      <h2 class="section-title upcoming-card__title">A precisar da tua atenção</h2>
+      <ul class="alerts-list">${actions.map(actionItem).join('')}</ul>
+    </section>` : ''}
 
     ${toMark.length ? `<section class="card mark-card">
       <h2 class="section-title upcoming-card__title">Presenças por marcar</h2>
@@ -107,9 +112,88 @@ export function renderPainel(container) {
   container.querySelectorAll('[data-mark-event]').forEach((btn) => {
     btn.addEventListener('click', () => {
       setSelectedTraining(btn.dataset.markEvent);
-      document.querySelector('[data-route="presencas"]')?.click();
+      navTo('presencas');
     });
   });
+
+  // Itens de ação: navegam para a secção respetiva.
+  container.querySelectorAll('[data-nav]').forEach((el) => {
+    el.addEventListener('click', () => navTo(el.dataset.nav));
+  });
+}
+
+// Navega para uma secção, reaproveitando os botões da barra lateral.
+function navTo(route) {
+  document.querySelector(`[data-route="${route}"]`)?.click();
+}
+
+// Constrói a lista de ações pendentes (cada uma navega para a sua secção).
+// Só inclui itens com algo por resolver; devolve [] se estiver tudo em dia.
+function buildActions() {
+  const items = [];
+
+  if (canEdit('quotas')) {
+    const qm = quotasThisMonth();
+    if (qm.pendentes > 0) {
+      items.push({
+        variant: 'warn',
+        route: 'quotas',
+        title: `${qm.pendentes} quota${qm.pendentes === 1 ? '' : 's'} por cobrar este mês`,
+        sub: `${euros(qm.total)} por receber — abrir Quotas.`,
+      });
+    }
+  }
+
+  if (canEdit('prospects')) {
+    const ready = prospectsReady();
+    if (ready > 0) {
+      items.push({
+        variant: 'ok',
+        route: 'recrutamento',
+        title: `${ready} prospeto${ready === 1 ? '' : 's'} pronto${ready === 1 ? '' : 's'} a inscrever`,
+        sub: 'Confirmados no recrutamento — inscrever no plantel.',
+      });
+    }
+  }
+
+  if (canEdit('equipment') && equipmentNeedsAttention() > 0) {
+    const n = equipmentNeedsAttention();
+    items.push({
+      variant: 'danger',
+      route: 'equipamentos',
+      title: `${n} equipamento${n === 1 ? '' : 's'} em mau estado`,
+      sub: 'Rever ou substituir — abrir Equipamentos.',
+    });
+  }
+
+  if (canEdit('players')) {
+    const pend = pendingReviews();
+    if (pend > 0 && state.players.length > 0) {
+      items.push({
+        variant: 'info',
+        route: 'avaliacao',
+        title: `${pend} avaliaç${pend === 1 ? 'ão' : 'ões'} de atleta por decidir`,
+        sub: 'Definir quem fica para a próxima época — abrir Avaliação.',
+      });
+    }
+  }
+
+  return items;
+}
+
+function actionItem({ variant, title, sub, route }) {
+  return `
+    <li>
+      <button class="alert-item alert-item--${variant} alert-item--nav" data-nav="${route}" type="button">
+        <span class="alert-item__dot" aria-hidden="true"></span>
+        <span class="alert-item__text">
+          <strong class="alert-item__title">${esc(title)}</strong>
+          <span class="muted alert-item__sub">${esc(sub)}</span>
+        </span>
+        <span class="alert-item__chevron" aria-hidden="true">›</span>
+      </button>
+    </li>
+  `;
 }
 
 // Uma linha do atalho "Presenças por marcar".
@@ -138,46 +222,6 @@ function markRow({ event, total, marked, isToday }) {
       </div>
       <button class="btn btn--accent btn--sm" data-mark-event="${event.id}" type="button"
               ${total ? '' : 'disabled'}>Marcar</button>
-    </li>
-  `;
-}
-
-// Constrói a lista de alertas do clube (devolve '' se não houver nenhum).
-function buildAlerts(owed, equipReview) {
-  const items = [];
-  if (owed.count > 0) {
-    items.push(
-      alertItem(
-        'warn',
-        `${owed.count} quota${owed.count === 1 ? '' : 's'} por pagar`,
-        `${euros(owed.total)} por regularizar — ver em Quotas.`
-      )
-    );
-  }
-  if (equipReview > 0) {
-    items.push(
-      alertItem(
-        'danger',
-        `${equipReview} equipamento${equipReview === 1 ? '' : 's'} em mau estado`,
-        'Rever ou substituir — ver em Equipamentos.'
-      )
-    );
-  }
-  if (!items.length) return '';
-  return `
-    <h2 class="section-title upcoming-card__title">A precisar de atenção</h2>
-    <ul class="alerts-list">${items.join('')}</ul>
-  `;
-}
-
-function alertItem(variant, title, sub) {
-  return `
-    <li class="alert-item alert-item--${variant}">
-      <span class="alert-item__dot" aria-hidden="true"></span>
-      <div>
-        <strong class="alert-item__title">${esc(title)}</strong>
-        <span class="muted alert-item__sub">${esc(sub)}</span>
-      </div>
     </li>
   `;
 }

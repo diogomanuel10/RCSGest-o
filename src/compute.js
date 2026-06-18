@@ -112,6 +112,28 @@ export function confirmedByTier() {
   return counts;
 }
 
+// Quotas por cobrar no mês atual: nº de pendentes (registadas mas não pagas)
+// e total em dívida desse mês.
+export function quotasThisMonth() {
+  const now = new Date();
+  const mes = now.getMonth() + 1;
+  const ano = now.getFullYear();
+  const monthQuotas = state.quotas.filter((q) => q.mes === mes && q.ano === ano);
+  const pendentes = monthQuotas.filter((q) => !q.pago);
+  const total = pendentes.reduce((s, q) => s + Number(q.valor || 0), 0);
+  return { pendentes: pendentes.length, total, mes, ano };
+}
+
+// Nº de atletas com avaliação ainda por decidir (review_status 'pendente').
+export function pendingReviews() {
+  return state.players.filter((p) => (p.review_status || 'pendente') === 'pendente').length;
+}
+
+// Nº de prospetos prontos a inscrever no plantel (estado 'confirmado').
+export function prospectsReady() {
+  return state.prospects.filter((p) => p.status === 'confirmado').length;
+}
+
 // Data/hora de um evento como objeto Date (para comparar passado/futuro).
 export function eventDateTime(ev) {
   const time = ev.time && /^\d{2}:\d{2}/.test(ev.time) ? ev.time : '00:00';
