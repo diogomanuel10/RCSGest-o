@@ -3,7 +3,7 @@
 
 import { state, createRow, createRows, updateRow, deleteRow, dbErrorMessage } from '../store.js';
 import { esc, emptyHTML } from '../ui.js';
-import { eventDateTime, teamById, teamName } from '../compute.js';
+import { eventDateTime, eventTimeRange, teamById, teamName } from '../compute.js';
 import { openModal, confirmDialog } from '../modal.js';
 import {
   EVENT_TYPES,
@@ -97,7 +97,7 @@ function renderGrid(allEvents, editable) {
   const year = gridMonth.getFullYear();
   const month = gridMonth.getMonth(); // 0-indexed
   const today = new Date();
-  const todayStr = today.toISOString().slice(0, 10);
+  const todayStr = toLocalISO(today);
 
   const monthLabel = gridMonth.toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' });
 
@@ -191,7 +191,7 @@ function eventRow(ev, isPast, editable) {
     <div class="event-row ${isPast ? 'event-row--past' : ''}">
       <div class="event-row__when">
         <span class="event-row__date">${dateStr}</span>
-        <span class="event-row__time muted">${ev.time ? esc(ev.time) : '—'}</span>
+        <span class="event-row__time muted">${eventTimeRange(ev) ? esc(eventTimeRange(ev)) : '—'}</span>
       </div>
       <div class="event-row__main">
         <div class="event-row__title">
@@ -221,7 +221,8 @@ function openForm(id, prefillDate) {
       { name: 'type', label: 'Tipo', type: 'select', required: true, options: EVENT_TYPES },
       { name: 'title', label: 'Título', placeholder: 'ex.: Jornada 3' },
       { name: 'date', label: 'Data', type: 'date', required: true },
-      { name: 'time', label: 'Hora', type: 'time' },
+      { name: 'time', label: 'Hora de início', type: 'time' },
+      { name: 'end_time', label: 'Hora de fim', type: 'time' },
       {
         name: 'team_id',
         label: 'Equipa',
@@ -238,6 +239,7 @@ function openForm(id, prefillDate) {
         title: values.title?.trim() || null,
         date: values.date,
         time: values.time || null,
+        end_time: values.end_time || null,
         team_id: values.team_id || null,
         opponent: values.type === 'jogo' ? values.opponent?.trim() || null : null,
         location: values.location?.trim() || null,
@@ -264,8 +266,8 @@ async function remove(id) {
 }
 
 function openRecurrentModal() {
-  const today = new Date().toISOString().slice(0, 10);
-  const inThreeMonths = new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10);
+  const today = toLocalISO(new Date());
+  const inThreeMonths = toLocalISO(new Date(Date.now() + 90 * 86400000));
 
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
@@ -288,8 +290,12 @@ function openRecurrentModal() {
 
       <div class="field-grid">
         <div class="field">
-          <label for="rec-time">Hora</label>
+          <label for="rec-time">Hora de início</label>
           <input type="time" id="rec-time" value="19:00" />
+        </div>
+        <div class="field">
+          <label for="rec-end-time">Hora de fim</label>
+          <input type="time" id="rec-end-time" value="20:30" />
         </div>
         <div class="field">
           <label for="rec-team">Equipa</label>
@@ -379,6 +385,7 @@ function openRecurrentModal() {
     const start = overlay.querySelector('#rec-start').value;
     const end = overlay.querySelector('#rec-end').value;
     const time = overlay.querySelector('#rec-time').value || null;
+    const endTime = overlay.querySelector('#rec-end-time').value || null;
     const teamId = overlay.querySelector('#rec-team').value || null;
     const location = overlay.querySelector('#rec-location').value.trim() || null;
     const title = overlay.querySelector('#rec-title-field').value.trim() || null;
@@ -390,6 +397,7 @@ function openRecurrentModal() {
       type: 'treino',
       date,
       time: time || null,
+      end_time: endTime || null,
       team_id: teamId,
       location,
       title,
@@ -417,9 +425,19 @@ function generateDates(startStr, endStr, days) {
   const cur = new Date(start);
   while (cur <= end) {
     if (daySet.has(cur.getDay())) {
-      dates.push(cur.toISOString().slice(0, 10));
+      // Formatar em data LOCAL (não toISOString, que converte para UTC e
+      // poderia deslocar o dia para trás em fusos a leste de Greenwich).
+      dates.push(toLocalISO(cur));
     }
     cur.setDate(cur.getDate() + 1);
   }
   return dates;
+}
+
+// Devolve YYYY-MM-DD na data local (sem conversão para UTC).
+function toLocalISO(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }

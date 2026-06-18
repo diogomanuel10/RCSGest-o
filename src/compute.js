@@ -75,6 +75,14 @@ export function eventDateTime(ev) {
   return new Date(`${ev.date}T${time}`);
 }
 
+// Intervalo horário legível de um evento: "19:00–20:30", "19:00" ou "".
+export function eventTimeRange(ev) {
+  const s = ev.time ? ev.time.slice(0, 5) : '';
+  const e = ev.end_time ? ev.end_time.slice(0, 5) : '';
+  if (s && e) return `${s}–${e}`;
+  return s || e || '';
+}
+
 // Próximos eventos (a partir de agora), ordenados, limitados a `limit`.
 export function upcomingEvents(limit = 5) {
   const now = new Date();

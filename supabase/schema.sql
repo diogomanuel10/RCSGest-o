@@ -126,6 +126,9 @@ create table if not exists events (
   created_at timestamptz default now()
 );
 
+-- Hora de fim do evento (opcional; útil sobretudo para treinos).
+alter table events add column if not exists end_time text;
+
 -- Presenças nos treinos.
 create table if not exists attendances (
   id            uuid primary key default gen_random_uuid(),
