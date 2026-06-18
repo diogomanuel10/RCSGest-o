@@ -11,6 +11,24 @@ export const ROLES = [
 ];
 export const ROLE_LABEL = Object.fromEntries(ROLES.map((r) => [r.key, r.label]));
 
+// Secções configuráveis por utilizador (o coordenador escolhe quais cada
+// treinador/leitura vê). Definições e Utilizadores ficam de fora — são sempre
+// exclusivas do coordenador. A ordem é a de apresentação na configuração.
+export const SECTIONS = [
+  { key: 'painel',       label: 'Painel' },
+  { key: 'patrocinios',  label: 'Patrocínios' },
+  { key: 'planteis',     label: 'Plantéis' },
+  { key: 'avaliacao',    label: 'Avaliação' },
+  { key: 'calendario',   label: 'Calendário' },
+  { key: 'presencas',    label: 'Presenças' },
+  { key: 'estatisticas', label: 'Estatísticas' },
+  { key: 'quotas',       label: 'Quotas' },
+  { key: 'equipamentos', label: 'Equipamentos' },
+  { key: 'treinadores',  label: 'Treinadores' },
+  { key: 'recrutamento', label: 'Recrutamento' },
+];
+const SECTION_KEYS = new Set(SECTIONS.map((s) => s.key));
+
 // Que papéis podem ESCREVER em cada entidade (alinhado com o RLS do schema.sql).
 // Nota: para players/events/attendances o treinador só escreve nas SUAS
 // equipas — essa restrição por equipa é imposta pelo RLS, não aqui.
@@ -44,15 +62,23 @@ export function isAtleta() {
   return currentRole() === 'atleta';
 }
 
-// Coordenador e treinador acedem às secções operacionais (plantéis, calendário…).
-// Leitura vê só Painel e Patrocínios; atleta vê só o seu portal.
-export function canViewSection() {
-  return isCoordenador() || currentRole() === 'treinador';
+// Lista de secções que o utilizador atual pode ver (configurada pelo
+// coordenador). Vazia se ainda não tiver acesso a nada.
+export function currentPermissions() {
+  const p = state.profile?.permissions;
+  return Array.isArray(p) ? p : [];
 }
 
-// O Painel e os Patrocínios são visíveis a toda a gestão, mas não ao atleta.
-export function canViewDashboard() {
-  return !isAtleta();
+// Pode aceder (ver) uma dada secção?
+//   coordenador → todas (menos o portal, que é do atleta);
+//   atleta      → só o portal;
+//   treinador / leitura → só as secções que o coordenador lhe deu.
+export function canAccess(key) {
+  const role = currentRole();
+  if (role === 'coordenador') return key !== 'portal';
+  if (role === 'atleta') return key === 'portal';
+  if (!SECTION_KEYS.has(key)) return false; // portal e afins não se aplicam
+  return currentPermissions().includes(key);
 }
 
 // Pode editar (criar/alterar/remover) uma dada entidade?

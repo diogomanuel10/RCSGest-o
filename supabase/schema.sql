@@ -258,6 +258,12 @@ alter table profiles drop constraint if exists profiles_role_check;
 alter table profiles add constraint profiles_role_check
   check (role in ('coordenador','treinador','leitura','atleta'));
 
+-- Acessos por secção configuráveis pelo coordenador (treinador/leitura).
+-- Lista de chaves de secção que o utilizador pode VER (ex.: ["planteis",
+-- "calendario"]). Vazio = sem acesso (à espera de o coordenador configurar).
+-- O coordenador vê tudo e o atleta vê só o seu portal, independentemente disto.
+alter table profiles add column if not exists permissions jsonb not null default '[]'::jsonb;
+
 -- Devolve o papel do utilizador atual. SECURITY DEFINER para poder ser usado
 -- dentro das políticas sem entrar em recursão de RLS.
 create or replace function public.app_role()
