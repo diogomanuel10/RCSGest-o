@@ -141,6 +141,33 @@ export async function linkCoachToUser(coachId, userId) {
   return data;
 }
 
+// Vincula (ou desvincula) uma conta de utilizador a um registo de atleta.
+// Garante que nenhum outro atleta fica com o mesmo user_id (1 conta → 1 atleta).
+export async function linkPlayerToUser(playerId, userId) {
+  if (userId) {
+    const { error: clearErr } = await supabase
+      .from('players')
+      .update({ user_id: null })
+      .eq('user_id', userId)
+      .neq('id', playerId);
+    if (clearErr) throw clearErr;
+    state.players.forEach((p) => {
+      if (p.id !== playerId && p.user_id === userId) p.user_id = null;
+    });
+  }
+  const { data, error } = await supabase
+    .from('players')
+    .update({ user_id: userId || null })
+    .eq('id', playerId)
+    .select()
+    .single();
+  if (error) throw error;
+  const i = state.players.findIndex((p) => p.id === playerId);
+  if (i !== -1) state.players[i] = data;
+  notify();
+  return data;
+}
+
 // Altera o papel de um utilizador (apenas coordenador, validado pelo RLS).
 export async function updateProfileRole(id, role) {
   const { data, error } = await supabase

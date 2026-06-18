@@ -2843,3 +2843,88 @@ tbody tr:hover {
     width: 100%;
   }
 }
+
+/* =====================================================================
+   Portal do atleta
+   ===================================================================== */
+.portal-events,
+.portal-quota-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.portal-event {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.portal-event__when {
+  flex: none;
+  width: 96px;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+.portal-event__date {
+  font-weight: 700;
+  font-size: 0.86rem;
+  text-transform: capitalize;
+}
+.portal-event__time {
+  font-size: 0.78rem;
+}
+.portal-event__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+.portal-event__title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+.portal-event__meta {
+  font-size: 0.8rem;
+}
+.portal-att__pct {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0.3rem 0 0.6rem;
+}
+.portal-att__pct strong {
+  font-size: 1.6rem;
+}
+.portal-att__chips,
+.portal-quotas-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.portal-quotas-head {
+  margin-bottom: 0.6rem;
+}
+.portal-quota-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.9rem;
+}
+.portal-quota-row__when {
+  flex: 1;
+  font-weight: 600;
+}
+.portal-quota-row__valor {
+  color: var(--text-muted);
+}

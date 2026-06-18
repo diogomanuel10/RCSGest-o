@@ -1,9 +1,11 @@
-// Vista: Utilizadores (gestão de papéis e vínculo a registo de treinador).
-// Visível apenas para o coordenador.
+// Vista: Utilizadores (gestão de papéis e vínculos). Visível só ao coordenador.
+// Treinador → vincula a um registo de treinador (vê só as suas equipas).
+// Atleta    → vincula a um registo de atleta (portal pessoal).
 
-import { state, updateProfileRole, linkCoachToUser, dbErrorMessage } from '../store.js';
+import { state, updateProfileRole, linkCoachToUser, linkPlayerToUser, dbErrorMessage } from '../store.js';
 import { esc, emptyHTML } from '../ui.js';
 import { ROLES, ROLE_LABEL, isCoordenador } from '../permissions.js';
+import { teamName, teamById } from '../compute.js';
 
 export function renderUtilizadores(container) {
   if (!isCoordenador()) {
@@ -18,18 +20,6 @@ export function renderUtilizadores(container) {
     (a.email || '').localeCompare(b.email || '')
   );
 
-  // Mapa coach.user_id → coach.id (para pré-selecionar o vínculo)
-  const coachByUser = {};
-  state.coaches.forEach((c) => {
-    if (c.user_id) coachByUser[c.user_id] = c.id;
-  });
-
-  const coachOptions = state.coaches
-    .slice()
-    .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
-    .map((c) => `<option value="${c.id}">${esc(c.name)}</option>`)
-    .join('');
-
   container.innerHTML = `
     <header class="page-head">
       <h1 class="section-title">Utilizadores</h1>
@@ -38,7 +28,7 @@ export function renderUtilizadores(container) {
     <section class="card">
       <p class="muted" style="margin-top:0">
         Define o papel de cada pessoa. Quem se regista começa em <strong>Leitura</strong>.
-        Para os treinadores, vincula o registo de treinador para que só vejam as suas equipas.
+        Treinadores e atletas devem ser vinculados ao respetivo registo.
       </p>
       <div class="roles-legend">
         ${ROLES.map(
@@ -49,10 +39,8 @@ export function renderUtilizadores(container) {
       ${
         profiles.length
           ? `<div class="table-wrap"><table class="users-table">
-              <thead><tr><th>Email</th><th>Papel</th><th>Treinador vinculado</th></tr></thead>
-              <tbody>
-                ${profiles.map((p) => userRow(p, coachByUser, coachOptions)).join('')}
-              </tbody>
+              <thead><tr><th>Email</th><th>Papel</th><th>Vínculo</th></tr></thead>
+              <tbody>${profiles.map(userRow).join('')}</tbody>
             </table></div>`
           : emptyHTML('Ainda não há outros utilizadores registados.')
       }
@@ -61,6 +49,10 @@ export function renderUtilizadores(container) {
   `;
 
   const msg = container.querySelector('#roles-msg');
+  function showMsg(text, kind) {
+    msg.textContent = text;
+    msg.className = `settings-msg settings-msg--${kind}`;
+  }
 
   container.querySelectorAll('.role-select').forEach((sel) => {
     sel.addEventListener('change', async (e) => {
@@ -69,21 +61,17 @@ export function renderUtilizadores(container) {
       const previous = state.profiles.find((p) => p.id === id)?.role;
 
       if (e.target.dataset.self && role !== 'coordenador') {
-        const ok = confirm(
-          'Vais deixar de ser coordenador e perdes o acesso de gestão. Continuar?'
-        );
-        if (!ok) {
-          e.target.value = previous;
-          return;
-        }
+        const ok = confirm('Vais deixar de ser coordenador e perdes o acesso de gestão. Continuar?');
+        if (!ok) { e.target.value = previous; return; }
       }
 
       e.target.disabled = true;
       try {
         await updateProfileRole(id, role);
-        // Ao mudar de treinador para outro papel, mostrar/esconder o seletor de coach
-        const coachWrap = container.querySelector(`[data-coach-wrap="${id}"]`);
-        if (coachWrap) coachWrap.classList.toggle('hidden', role !== 'treinador');
+        // Mostra o seletor de vínculo adequado ao novo papel.
+        const wrap = container.querySelector(`[data-link-wrap="${id}"]`);
+        if (wrap) wrap.innerHTML = linkControl(state.profiles.find((p) => p.id === id));
+        wireLink(container.querySelector(`[data-link-wrap="${id}"]`));
         showMsg(`Papel atualizado para ${ROLE_LABEL[role]}.`, 'ok');
       } catch (err) {
         e.target.value = previous;
@@ -94,20 +82,26 @@ export function renderUtilizadores(container) {
     });
   });
 
-  container.querySelectorAll('.coach-link-select').forEach((sel) => {
+  container.querySelectorAll('[data-link-wrap]').forEach(wireLink);
+
+  function wireLink(wrap) {
+    if (!wrap) return;
+    const sel = wrap.querySelector('.link-select');
+    if (!sel) return;
     sel.addEventListener('change', async (e) => {
-      const coachId = e.target.value;
+      const kind = e.target.dataset.kind; // 'coach' | 'player'
+      const targetId = e.target.value;
       const userId = e.target.dataset.userid;
       const previous = e.target.dataset.prev;
       e.target.disabled = true;
       try {
-        if (coachId) {
-          await linkCoachToUser(coachId, userId);
-          e.target.dataset.prev = coachId;
+        const linkFn = kind === 'coach' ? linkCoachToUser : linkPlayerToUser;
+        if (targetId) {
+          await linkFn(targetId, userId);
+          e.target.dataset.prev = targetId;
           showMsg('Vínculo guardado.', 'ok');
         } else if (previous) {
-          // Desvincula o coach anterior
-          await linkCoachToUser(previous, null);
+          await linkFn(previous, null);
           e.target.dataset.prev = '';
           showMsg('Vínculo removido.', 'ok');
         }
@@ -118,18 +112,10 @@ export function renderUtilizadores(container) {
         e.target.disabled = false;
       }
     });
-  });
-
-  function showMsg(text, kind) {
-    msg.textContent = text;
-    msg.className = `settings-msg settings-msg--${kind}`;
   }
 }
 
-function userRow(p, coachByUser, coachOptions) {
-  const linkedCoachId = coachByUser[p.id] || '';
-  const isTrainer = p.role === 'treinador';
-
+function userRow(p) {
   return `
     <tr>
       <td>
@@ -143,18 +129,40 @@ function userRow(p, coachByUser, coachOptions) {
           ).join('')}
         </select>
       </td>
-      <td>
-        <div data-coach-wrap="${p.id}" ${!isTrainer ? 'class="hidden"' : ''}>
-          <select class="coach-link-select" data-userid="${p.id}" data-prev="${linkedCoachId}">
-            <option value="">— Sem vínculo —</option>
-            ${coachOptions.replace(
-              `value="${linkedCoachId}"`,
-              `value="${linkedCoachId}" selected`
-            )}
-          </select>
-        </div>
-        ${!isTrainer ? '<span class="muted" style="font-size:0.8rem">—</span>' : ''}
-      </td>
+      <td><div data-link-wrap="${p.id}">${linkControl(p)}</div></td>
     </tr>
   `;
+}
+
+// Seletor de vínculo conforme o papel: treinador→coach, atleta→player.
+function linkControl(p) {
+  if (p.role === 'treinador') {
+    const linked = state.coaches.find((c) => c.user_id === p.id)?.id || '';
+    const opts = state.coaches
+      .slice()
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+      .map((c) => `<option value="${c.id}" ${c.id === linked ? 'selected' : ''}>${esc(c.name)}</option>`)
+      .join('');
+    return `
+      <select class="link-select" data-kind="coach" data-userid="${p.id}" data-prev="${linked}">
+        <option value="">— Sem treinador —</option>${opts}
+      </select>`;
+  }
+  if (p.role === 'atleta') {
+    const linked = state.players.find((pl) => pl.user_id === p.id)?.id || '';
+    const opts = state.players
+      .slice()
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+      .map((pl) => {
+        const t = teamById(pl.team_id);
+        const label = `${pl.name}${t ? ' — ' + teamName(t) : ''}`;
+        return `<option value="${pl.id}" ${pl.id === linked ? 'selected' : ''}>${esc(label)}</option>`;
+      })
+      .join('');
+    return `
+      <select class="link-select" data-kind="player" data-userid="${p.id}" data-prev="${linked}">
+        <option value="">— Sem atleta —</option>${opts}
+      </select>`;
+  }
+  return '<span class="muted" style="font-size:0.8rem">—</span>';
 }
