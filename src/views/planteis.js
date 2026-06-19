@@ -123,35 +123,7 @@ function teamCardHTML(team, canTeams, canPlayers) {
           }
           ${
             players.length
-              ? `<table class="players-table">
-                  <thead><tr><th>#</th><th>Nome</th><th>Ano</th><th>Posição</th>${
-                    canPlayers ? '<th></th>' : ''
-                  }</tr></thead>
-                  <tbody>
-                    ${players
-                      .map(
-                        (p) => `
-                      <tr>
-                        <td>${esc(p.number || '—')}</td>
-                        <td>
-                          <button class="player-link" data-player-view="${p.id}" data-team="${team.id}" type="button">${esc(p.name)}</button>
-                          ${playerExtraHTML(p)}
-                        </td>
-                        <td>${esc(p.birth_year || '—')}</td>
-                        <td>${esc(p.position || '—')}</td>
-                        ${
-                          canPlayers
-                            ? `<td class="cell-actions">
-                          <button class="btn btn--ghost btn--sm" data-team="${team.id}" data-player-edit="${p.id}" type="button">Editar</button>
-                          <button class="btn btn--danger btn--sm" data-player-del="${p.id}" type="button">Remover</button>
-                        </td>`
-                            : ''
-                        }
-                      </tr>`
-                      )
-                      .join('')}
-                  </tbody>
-                </table>`
+              ? `<div class="player-cards">${players.map((p) => playerCardHTML(p, team.id, canPlayers)).join('')}</div>`
               : '<p class="muted" style="margin:0.4rem 0">Sem atletas nesta equipa.</p>'
           }
           ${
@@ -303,14 +275,36 @@ function openTeamForm(id) {
   });
 }
 
-// Pequena linha com dados extra do atleta (nº de federado, encarregado, notas).
-function playerExtraHTML(p) {
-  const bits = [];
-  if (p.federation_number) bits.push(`Fed. ${esc(p.federation_number)}`);
-  if (p.guardian_contact) bits.push(esc(p.guardian_contact));
-  if (p.notes) bits.push(esc(p.notes));
-  if (!bits.length) return '';
-  return `<span class="player-extra muted">${bits.join(' · ')}</span>`;
+// Cartão de um atleta: clicável (abre o Perfil do Atleta) com nº, iniciais,
+// nome e posição/ano. Para quem pode editar, mostra ações discretas.
+function playerCardHTML(p, teamId, canPlayers) {
+  const initials = (p.name || '?')
+    .split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
+  const meta = [p.position, p.birth_year].filter(Boolean).map(esc).join(' · ') || 'Sem posição';
+  return `
+    <article class="player-card">
+      <button class="player-card__main" data-player-view="${p.id}" data-team="${teamId}" type="button">
+        <span class="player-card__num">${p.number ? esc(p.number) : '—'}</span>
+        <span class="player-card__avatar" aria-hidden="true">${esc(initials || '?')}</span>
+        <span class="player-card__info">
+          <span class="player-card__name">${esc(p.name)}</span>
+          <span class="player-card__meta muted">${meta}</span>
+        </span>
+      </button>
+      ${
+        canPlayers
+          ? `<div class="player-card__actions">
+               <button class="icon-btn" data-team="${teamId}" data-player-edit="${p.id}" type="button" aria-label="Editar atleta" title="Editar">
+                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+               </button>
+               <button class="icon-btn icon-btn--danger" data-player-del="${p.id}" type="button" aria-label="Remover atleta" title="Remover">
+                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+               </button>
+             </div>`
+          : ''
+      }
+    </article>
+  `;
 }
 
 function openPlayerForm(teamId, playerId) {
