@@ -199,6 +199,24 @@ export function coachTeams(coachId) {
     .filter((x) => x.team);
 }
 
+// Ficha de treinador (coach) ligada à conta autenticada, se existir.
+export function currentCoach() {
+  const uid = state.profile?.id;
+  return uid ? state.coaches.find((c) => c.user_id === uid) : null;
+}
+
+// Escalões que o utilizador atual orienta (via a sua ficha de treinador).
+// Devolve um Set de strings; vazio se não houver ficha/equipas.
+export function currentCoachEscaloes() {
+  const coach = currentCoach();
+  if (!coach) return new Set();
+  return new Set(
+    coachTeams(coach.id)
+      .map((x) => x.team?.escalao)
+      .filter(Boolean)
+  );
+}
+
 // Estatística de presenças de UM atleta (só treinos passados da sua equipa).
 // "Compareceu" = presente + atraso. rate é null se não houver registos.
 // Devolve { rate, total, counts, totalTrainings, semRegisto }.
