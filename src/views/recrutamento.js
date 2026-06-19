@@ -39,6 +39,8 @@ function visibleProspects(statusKey) {
 
 export function renderRecrutamento(container) {
   const canWrite = canEdit('prospects');
+  // Inscrever um prospeto cria uma atleta no plantel — só o coordenador.
+  const canConvert = isCoordenador();
   const mine = scopedProspects();
   const total = positionFilter
     ? mine.filter((p) => p.position === positionFilter).length
@@ -66,7 +68,7 @@ export function renderRecrutamento(container) {
     </div>
 
     <div class="kanban" id="kanban-board">
-      ${COLUMNS.map((col) => columnHTML(col, canWrite)).join('')}
+      ${COLUMNS.map((col) => columnHTML(col, canWrite, canConvert)).join('')}
     </div>
   `;
 
@@ -99,7 +101,7 @@ export function renderRecrutamento(container) {
   );
 }
 
-function columnHTML(col, canWrite) {
+function columnHTML(col, canWrite, canConvert) {
   const prospects = visibleProspects(col.key);
   const rejected = col.key === PROSPECT_REJECTED.key;
 
@@ -111,14 +113,14 @@ function columnHTML(col, canWrite) {
       </div>
       <div class="kanban-col__body">
         ${prospects.length
-          ? prospects.map((p) => cardHTML(p, canWrite)).join('')
+          ? prospects.map((p) => cardHTML(p, canWrite, canConvert)).join('')
           : `<div class="kanban-empty">—</div>`}
       </div>
     </div>
   `;
 }
 
-function cardHTML(p, canWrite) {
+function cardHTML(p, canWrite, canConvert) {
   const team = p.target_team_id ? state.teams.find((t) => t.id === p.target_team_id) : null;
   const meta = [
     p.birth_year ? `Nasc. ${esc(p.birth_year)}` : '',
@@ -151,7 +153,7 @@ function cardHTML(p, canWrite) {
             ? `<span></span><button class="btn btn--ghost btn--xs" data-prospect-restore="${p.id}" type="button">↩ Repor</button>`
             : `${!isFirst ? `<button class="btn btn--ghost btn--xs" data-prospect-move="${p.id}" data-dir="prev" type="button">← Recuar</button>` : '<span></span>'}
                ${isConfirmed
-                 ? `<button class="btn btn--primary btn--xs" data-prospect-convert="${p.id}" type="button">Inscrever na equipa</button>`
+                 ? (canConvert ? `<button class="btn btn--primary btn--xs" data-prospect-convert="${p.id}" type="button">Inscrever na equipa</button>` : '<span></span>')
                  : `<button class="btn btn--ghost btn--xs" data-prospect-move="${p.id}" data-dir="next" type="button">Avançar →</button>`}`}
         </div>` : ''}
     </div>
