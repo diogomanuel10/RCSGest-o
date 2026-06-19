@@ -38,6 +38,8 @@ src/
     avaliacao.js        Vista Avaliação de plantel (Mantém/Sai/Pendente)
     medico.js           Vista Departamento Médico (atletas + agenda de fisioterapia)
     clinical-file.js    Ficha clínica do atleta (episódios, sessões, atendimentos)
+    preparacao.js       Vista Preparação Física (atletas + periodização + mapa de jogos)
+    physical-file.js    Ficha física do atleta (dados físicos, avaliações, controlo)
     calendario.js       Vista Calendário
     treinadores.js      Vista Treinadores
     definicoes.js       Vista Definições (época, meta, escalões, backup)
@@ -83,12 +85,18 @@ topo do módulo da vista.
 
 - Cada utilizador tem um perfil na tabela `profiles` com um `role`:
   `coordenador` (tudo), `treinador` (edita Plantéis e Calendário; vê o resto),
-  `fisioterapeuta` (Departamento Médico + calendário de treinos), `atleta`
-  (portal pessoal) ou `leitura` (só vê). Quem se regista começa em `leitura`.
+  `fisioterapeuta` (Departamento Médico + calendário de treinos),
+  `preparador` (preparador físico: Preparação Física + mapa de jogos),
+  `atleta` (portal pessoal) ou `leitura` (só vê). Quem se regista começa em
+  `leitura`.
 - O **Departamento Médico** (`medico`) não é uma secção configurável: é
   exclusivo do coordenador e do fisioterapeuta (ver `canAccess` em
   `permissions.js`). Os dados clínicos têm o seu próprio RLS (`med_rw`):
   leitura/escrita só para esses dois papéis.
+- A **Preparação Física** (`fisica`) é exclusiva do coordenador e do
+  preparador físico (também `canAccess`). O perfil físico e a periodização têm
+  RLS próprio (`phys_*`/`prep_*`). A **história clínica** é editada pela
+  fisio/coordenador (`mh_write`) e o preparador só a consulta (`mh_read`).
 - O **RLS** no Supabase é a fonte de verdade (ver `schema.sql`): leitura para
   todos os autenticados; escrita conforme o papel via a função `app_role()`.
 - Na interface, `src/permissions.js` (`canEdit`, `canManageUsers`,
@@ -135,6 +143,22 @@ topo do módulo da vista.
     um atendimento se sobrepõe a um treino/jogo da equipa do atleta.
   - Editável por quem tem `canEdit('clinical')` / `canEdit('appointments')`
     (coordenador e fisioterapeuta), em linha com o RLS `med_rw`.
+- **Preparação Física**: gestão do preparador físico (e coordenador).
+  - `physical_profiles` (1:1 atleta) — altura, peso, mão dominante; o IMC é
+    calculado (`compute.bmi`). `medical_history` (1:1) — limitações, lesões,
+    cirurgias, doenças crónicas, medicação (editada pela fisio; lida também
+    pelo preparador).
+  - `physical_tests` — avaliações físicas (antropometria + testes: % massa
+    gorda, 1RM, aperto de mão, saltos, CMJ…) por atleta e data; tipos em
+    `constants.PHYSICAL_TEST_TYPES` (com `outro` de etiqueta livre).
+  - Periodização por equipa: `training_phases` (macrociclo: pré-época, fases,
+    paragens, off-season), `mesocycles` (mensais, com `objective`),
+    `gym_sessions` (treinos) e `gym_exercises` (séries/carga/reps/OBS).
+  - Controlo por atleta: `gym_attendance` (presenças nos treinos → treinos
+    feitos, faltas, tempo) e `game_minutes` (minutos de jogo por jogo).
+  - A vista `preparacao.js` tem três separadores (Atletas, Periodização, Mapa
+    de jogos); `physical-file.js` é a ficha física do atleta (abre também dos
+    Plantéis). Editável por quem tem `canEdit('physical')`.
 
 ## Convenções
 

@@ -8,7 +8,7 @@
 // É um painel próprio (não usa o openModal genérico no corpo) que se re-desenha
 // após cada operação no store. Os formulários de criar/editar abrem por cima.
 
-import { state, createRow, updateRow, deleteRow, dbErrorMessage } from '../store.js';
+import { state, createRow, updateRow, deleteRow, upsertByPlayer, dbErrorMessage } from '../store.js';
 import { esc } from '../ui.js';
 import {
   teamById,
@@ -18,6 +18,7 @@ import {
   playerAppointments,
   appointmentConflicts,
   activeEpisode,
+  playerMedicalHistory,
 } from '../compute.js';
 import { openModal, confirmDialog } from '../modal.js';
 import {
@@ -84,6 +85,7 @@ export function openClinicalFile(playerId) {
     const active = activeEpisode(playerId);
     const episodes = playerEpisodes(playerId);
     const appts = playerAppointments(playerId);
+    const hist = playerMedicalHistory(playerId);
 
     const initials = (p.name || '?')
       .split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
@@ -109,6 +111,20 @@ export function openClinicalFile(playerId) {
         ${dataItem('Posição', p.position)}
         ${dataItem('Contacto', p.guardian_contact)}
         ${dataItem('Nº de federado', p.federation_number)}
+      </div>
+
+      <div class="pd-section">
+        <div class="cf-section-head">
+          <span class="pd-label">História clínica</span>
+          ${editable ? '<button class="btn btn--ghost btn--sm" data-edit-history type="button">Editar</button>' : ''}
+        </div>
+        ${hist && (hist.limitations || hist.past_injuries || hist.surgeries || hist.chronic_diseases || hist.medication)
+          ? `${fieldBlock('Limitações ao treino', hist.limitations)}
+             ${fieldBlock('Lesões', hist.past_injuries)}
+             ${fieldBlock('Cirurgias', hist.surgeries)}
+             ${fieldBlock('Doenças crónicas', hist.chronic_diseases)}
+             ${fieldBlock('Medicação', hist.medication)}`
+          : '<p class="muted" style="margin:0.3rem 0 0">Sem história clínica registada.</p>'}
       </div>
 
       <div class="pd-section">
@@ -146,6 +162,9 @@ export function openClinicalFile(playerId) {
     );
     body.querySelector('[data-add-appt]')?.addEventListener('click', () =>
       openAppointmentForm({ playerId, onSaved: render })
+    );
+    body.querySelector('[data-edit-history]')?.addEventListener('click', () =>
+      openHistoryForm(playerId, render)
     );
 
     body.querySelectorAll('[data-ep-toggle]').forEach((b) =>
@@ -281,6 +300,36 @@ function apptLineHTML(a, editable) {
 }
 
 // --- Formulários ----------------------------------------------------------
+
+function openHistoryForm(playerId, onSaved) {
+  const hist = playerMedicalHistory(playerId) || {};
+  openModal({
+    title: 'História clínica',
+    submitLabel: 'Guardar',
+    values: hist,
+    fields: [
+      { name: 'limitations', label: 'Limitações ao treino', type: 'textarea', full: true },
+      { name: 'past_injuries', label: 'Lesões', type: 'textarea', full: true },
+      { name: 'surgeries', label: 'Cirurgias', type: 'textarea', full: true },
+      { name: 'chronic_diseases', label: 'Doenças crónicas', type: 'textarea', full: true },
+      { name: 'medication', label: 'Medicação', type: 'textarea', full: true },
+    ],
+    onSubmit: async (values) => {
+      try {
+        await upsertByPlayer('medical_history', 'medicalHistory', playerId, {
+          limitations: values.limitations?.trim() || null,
+          past_injuries: values.past_injuries?.trim() || null,
+          surgeries: values.surgeries?.trim() || null,
+          chronic_diseases: values.chronic_diseases?.trim() || null,
+          medication: values.medication?.trim() || null,
+        });
+        onSaved?.();
+      } catch (err) {
+        throw new Error(dbErrorMessage(err));
+      }
+    },
+  });
+}
 
 export function openEpisodeForm({ playerId, episode, onSaved }) {
   const existing = episode || null;

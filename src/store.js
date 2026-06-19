@@ -24,6 +24,15 @@ export const state = {
   clinicalEpisodes: [], // episódios clínicos (departamento médico)
   clinicalSessions: [], // sessões realizadas dentro de cada episódio
   appointments: [],     // atendimentos de fisioterapia (agenda médica)
+  physicalProfiles: [], // perfil físico (altura/peso/mão) por atleta
+  medicalHistory: [],   // história clínica resumida por atleta
+  physicalTests: [],    // avaliações físicas / testes
+  phases: [],           // macrociclo (fases da época)
+  mesocycles: [],       // mesociclos
+  gymSessions: [],      // treinos de preparação física
+  gymExercises: [],     // exercícios de cada treino
+  gymAttendance: [],    // presenças nos treinos de ginásio
+  gameMinutes: [],      // minutos de jogo por atleta
   profile: null, // perfil do utilizador atual (com o papel/role)
   profiles: [], // todos os perfis (preenchido só se o utilizador for coordenador)
   loaded: false,
@@ -44,6 +53,15 @@ export function resetState() {
   state.clinicalEpisodes = [];
   state.clinicalSessions = [];
   state.appointments = [];
+  state.physicalProfiles = [];
+  state.medicalHistory = [];
+  state.physicalTests = [];
+  state.phases = [];
+  state.mesocycles = [];
+  state.gymSessions = [];
+  state.gymExercises = [];
+  state.gymAttendance = [];
+  state.gameMinutes = [];
   state.profile = null;
   state.profiles = [];
   state.loaded = false;
@@ -83,7 +101,8 @@ export async function loadProfile() {
 // --- Carregamento inicial -------------------------------------------------
 // Vai buscar todas as tabelas em paralelo. Lança erro se alguma falhar.
 export async function loadAll() {
-  const [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects, episodes, sessions, appointments] =
+  const [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects, episodes, sessions, appointments,
+         physProfiles, medHistory, physTests, phases, mesocycles, gymSessions, gymExercises, gymAttendance, gameMinutes] =
     await Promise.all([
       supabase.from('settings').select('*').eq('id', 1).maybeSingle(),
       supabase.from('coaches').select('*').order('name'),
@@ -96,14 +115,24 @@ export async function loadAll() {
       supabase.from('equipment').select('*').order('name'),
       supabase.from('team_coaches').select('*'),
       supabase.from('prospects').select('*').order('created_at'),
-      // Dados do departamento médico. Para papéis sem acesso, o RLS devolve
-      // uma lista vazia (sem erro), por isso é seguro consultar sempre.
+      // Dados do departamento médico e da preparação física. Para papéis sem
+      // acesso, o RLS devolve uma lista vazia (sem erro): é seguro consultar.
       supabase.from('clinical_episodes').select('*').order('created_at', { ascending: false }),
       supabase.from('clinical_sessions').select('*').order('date', { ascending: false }),
       supabase.from('physio_appointments').select('*').order('date'),
+      supabase.from('physical_profiles').select('*'),
+      supabase.from('medical_history').select('*'),
+      supabase.from('physical_tests').select('*').order('date', { ascending: false }),
+      supabase.from('training_phases').select('*').order('start_date'),
+      supabase.from('mesocycles').select('*').order('start_date'),
+      supabase.from('gym_sessions').select('*').order('date'),
+      supabase.from('gym_exercises').select('*').order('position'),
+      supabase.from('gym_attendance').select('*'),
+      supabase.from('game_minutes').select('*'),
     ]);
 
-  for (const res of [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects, episodes, sessions, appointments]) {
+  for (const res of [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects, episodes, sessions, appointments,
+                     physProfiles, medHistory, physTests, phases, mesocycles, gymSessions, gymExercises, gymAttendance, gameMinutes]) {
     if (res.error) throw res.error;
   }
 
@@ -121,6 +150,15 @@ export async function loadAll() {
   state.clinicalEpisodes = episodes.data     || [];
   state.clinicalSessions = sessions.data      || [];
   state.appointments     = appointments.data  || [];
+  state.physicalProfiles = physProfiles.data  || [];
+  state.medicalHistory   = medHistory.data    || [];
+  state.physicalTests    = physTests.data     || [];
+  state.phases           = phases.data        || [];
+  state.mesocycles       = mesocycles.data    || [];
+  state.gymSessions      = gymSessions.data   || [];
+  state.gymExercises     = gymExercises.data  || [];
+  state.gymAttendance    = gymAttendance.data || [];
+  state.gameMinutes      = gameMinutes.data   || [];
 
   await loadProfile();
 
@@ -261,6 +299,52 @@ export async function upsertAttendance(eventId, playerId, values) {
   return data;
 }
 
+// Upsert de uma tabela com chave `player_id` (perfil físico, história clínica).
+// Cria ou atualiza a linha desse atleta e sincroniza a cache local.
+export async function upsertByPlayer(table, collection, playerId, values) {
+  const { data, error } = await supabase
+    .from(table)
+    .upsert({ player_id: playerId, ...values, updated_at: new Date().toISOString() }, { onConflict: 'player_id' })
+    .select()
+    .single();
+  if (error) throw error;
+  const i = state[collection].findIndex((r) => r.player_id === playerId);
+  if (i !== -1) state[collection][i] = data;
+  else state[collection].push(data);
+  notify();
+  return data;
+}
+
+// Upsert de presença num treino de ginásio (chave session_id+player_id).
+export async function upsertGymAttendance(sessionId, playerId, values) {
+  const { data, error } = await supabase
+    .from('gym_attendance')
+    .upsert({ session_id: sessionId, player_id: playerId, ...values }, { onConflict: 'session_id,player_id' })
+    .select()
+    .single();
+  if (error) throw error;
+  const i = state.gymAttendance.findIndex((a) => a.session_id === sessionId && a.player_id === playerId);
+  if (i !== -1) state.gymAttendance[i] = data;
+  else state.gymAttendance.push(data);
+  notify();
+  return data;
+}
+
+// Upsert de minutos de jogo (chave event_id+player_id).
+export async function upsertGameMinutes(eventId, playerId, minutes) {
+  const { data, error } = await supabase
+    .from('game_minutes')
+    .upsert({ event_id: eventId, player_id: playerId, minutes }, { onConflict: 'event_id,player_id' })
+    .select()
+    .single();
+  if (error) throw error;
+  const i = state.gameMinutes.findIndex((g) => g.event_id === eventId && g.player_id === playerId);
+  if (i !== -1) state.gameMinutes[i] = data;
+  else state.gameMinutes.push(data);
+  notify();
+  return data;
+}
+
 // Gera registos de quota para todos os atletas de uma equipa que ainda não
 // tenham registo nesse mês/ano. Não duplica — usa upsert com onConflict.
 export async function generateQuotas(teamId, mes, ano, valor) {
@@ -362,6 +446,12 @@ function cleanupPlayerClinical(playerId) {
   state.clinicalEpisodes = state.clinicalEpisodes.filter((e) => e.player_id !== playerId);
   state.clinicalSessions = state.clinicalSessions.filter((s) => !episodeIds.has(s.episode_id));
   state.appointments = state.appointments.filter((a) => a.player_id !== playerId);
+  // Preparação física do atleta apagado.
+  state.physicalProfiles = state.physicalProfiles.filter((p) => p.player_id !== playerId);
+  state.medicalHistory = state.medicalHistory.filter((m) => m.player_id !== playerId);
+  state.physicalTests = state.physicalTests.filter((t) => t.player_id !== playerId);
+  state.gymAttendance = state.gymAttendance.filter((a) => a.player_id !== playerId);
+  state.gameMinutes = state.gameMinutes.filter((g) => g.player_id !== playerId);
 }
 
 export async function deleteRow(table, collection, id) {
@@ -378,6 +468,13 @@ export async function deleteRow(table, collection, id) {
     });
     state.teamCoaches = state.teamCoaches.filter((tc) => tc.team_id !== id);
     removedPlayers.forEach(cleanupPlayerClinical);
+    // Periodização da equipa (fases, mesociclos, treinos, exercícios, presenças).
+    const sessionIds = new Set(state.gymSessions.filter((s) => s.team_id === id).map((s) => s.id));
+    state.phases = state.phases.filter((p) => p.team_id !== id);
+    state.mesocycles = state.mesocycles.filter((m) => m.team_id !== id);
+    state.gymSessions = state.gymSessions.filter((s) => s.team_id !== id);
+    state.gymExercises = state.gymExercises.filter((e) => !sessionIds.has(e.session_id));
+    state.gymAttendance = state.gymAttendance.filter((a) => !sessionIds.has(a.session_id));
   }
   if (collection === 'coaches') {
     state.teams.forEach((t) => {
@@ -394,6 +491,17 @@ export async function deleteRow(table, collection, id) {
     state.clinicalSessions = state.clinicalSessions.filter((s) => s.episode_id !== id);
     state.appointments.forEach((a) => {
       if (a.episode_id === id) a.episode_id = null;
+    });
+  }
+  // Apagar um treino de ginásio leva os exercícios e as presenças (cascade).
+  if (collection === 'gymSessions') {
+    state.gymExercises = state.gymExercises.filter((e) => e.session_id !== id);
+    state.gymAttendance = state.gymAttendance.filter((a) => a.session_id !== id);
+  }
+  // Apagar um mesociclo liberta os treinos que lhe pertenciam (mesocycle_id -> null).
+  if (collection === 'mesocycles') {
+    state.gymSessions.forEach((s) => {
+      if (s.mesocycle_id === id) s.mesocycle_id = null;
     });
   }
   notify();

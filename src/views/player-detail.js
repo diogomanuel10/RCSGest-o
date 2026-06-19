@@ -21,6 +21,7 @@ import {
 } from '../constants.js';
 import { canEdit } from '../permissions.js';
 import { openClinicalFile } from './clinical-file.js';
+import { openPhysicalFile } from './physical-file.js';
 
 // Abre a ficha do atleta. `onEdit` (opcional) é chamado ao clicar em Editar.
 export function openPlayerDetail(playerId, { onEdit } = {}) {
@@ -118,6 +119,7 @@ export function openPlayerDetail(playerId, { onEdit } = {}) {
       <div class="modal__actions">
         <button class="btn btn--ghost" id="pd-close" type="button">Fechar</button>
         ${canEdit('clinical') ? '<button class="btn btn--ghost" id="pd-clinical" type="button">Ficha clínica</button>' : ''}
+        ${canEdit('physical') ? '<button class="btn btn--ghost" id="pd-physical" type="button">Ficha física</button>' : ''}
         ${onEdit ? '<button class="btn btn--primary" id="pd-edit" type="button">Editar</button>' : ''}
       </div>
     </div>
@@ -144,6 +146,10 @@ export function openPlayerDetail(playerId, { onEdit } = {}) {
   overlay.querySelector('#pd-clinical')?.addEventListener('click', () => {
     close();
     openClinicalFile(playerId);
+  });
+  overlay.querySelector('#pd-physical')?.addEventListener('click', () => {
+    close();
+    openPhysicalFile(playerId);
   });
 }
 

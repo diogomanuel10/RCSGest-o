@@ -249,15 +249,15 @@ create table if not exists profiles (
   id         uuid primary key references auth.users(id) on delete cascade,
   email      text,
   role       text not null default 'leitura'
-             check (role in ('coordenador','treinador','leitura','atleta','fisioterapeuta')),
+             check (role in ('coordenador','treinador','leitura','atleta','fisioterapeuta','preparador')),
   created_at timestamptz default now()
 );
 
--- Acrescenta os papéis 'atleta' e 'fisioterapeuta' à restrição para tabelas
--- profiles já criadas.
+-- Acrescenta os papéis 'atleta', 'fisioterapeuta' e 'preparador' (preparador
+-- físico) à restrição para tabelas profiles já criadas.
 alter table profiles drop constraint if exists profiles_role_check;
 alter table profiles add constraint profiles_role_check
-  check (role in ('coordenador','treinador','leitura','atleta','fisioterapeuta'));
+  check (role in ('coordenador','treinador','leitura','atleta','fisioterapeuta','preparador'));
 
 -- Acessos por secção configuráveis pelo coordenador (treinador/leitura).
 -- Lista de chaves de secção que o utilizador pode VER (ex.: ["planteis",
@@ -356,28 +356,28 @@ create policy "read_all" on sponsors for select to authenticated using (
   app_role() <> 'atleta'
 );
 
--- Equipas: coordenador, leitura e fisioterapeuta veem todas; treinador as
--- suas; atleta a sua.
+-- Equipas: coordenador, leitura, fisioterapeuta e preparador físico veem
+-- todas; treinador as suas; atleta a sua.
 create policy "read_all" on teams for select to authenticated using (
-  app_role() in ('coordenador', 'leitura', 'fisioterapeuta')
+  app_role() in ('coordenador', 'leitura', 'fisioterapeuta', 'preparador')
   OR id in (select trainer_team_ids())
   OR id = athlete_team_id()
 );
 
--- Atletas: coordenador, leitura e fisioterapeuta todos (o fisioterapeuta
--- precisa da lista completa para o departamento médico); treinador os das
--- suas equipas; atleta só o seu próprio registo.
+-- Atletas: coordenador, leitura, fisioterapeuta e preparador físico todos (o
+-- departamento médico e a preparação física precisam da lista completa);
+-- treinador os das suas equipas; atleta só o seu próprio registo.
 create policy "read_all" on players for select to authenticated using (
-  app_role() in ('coordenador', 'leitura', 'fisioterapeuta')
+  app_role() in ('coordenador', 'leitura', 'fisioterapeuta', 'preparador')
   OR team_id in (select trainer_team_ids())
   OR id = athlete_player_id()
 );
 
--- Eventos: coordenador, leitura e fisioterapeuta todos (o fisioterapeuta vê o
--- calendário de treinos para cruzar com os atendimentos); treinador e atleta
--- os da(s) sua(s) equipa(s); eventos sem equipa (clube) visíveis a todos.
+-- Eventos: coordenador, leitura, fisioterapeuta e preparador físico todos (o
+-- preparador vê o calendário/mapa de jogos para a periodização); treinador e
+-- atleta os da(s) sua(s) equipa(s); eventos sem equipa (clube) visíveis a todos.
 create policy "read_all" on events for select to authenticated using (
-  app_role() in ('coordenador', 'leitura', 'fisioterapeuta')
+  app_role() in ('coordenador', 'leitura', 'fisioterapeuta', 'preparador')
   OR team_id is null
   OR team_id in (select trainer_team_ids())
   OR team_id = athlete_team_id()
@@ -555,6 +555,205 @@ create policy "med_rw" on clinical_sessions for all to authenticated
 create policy "med_rw" on physio_appointments for all to authenticated
   using (app_role() in ('coordenador','fisioterapeuta'))
   with check (app_role() in ('coordenador','fisioterapeuta'));
+
+-- =====================================================================
+-- Preparação Física
+-- =====================================================================
+-- Perfil físico do atleta, história clínica resumida, avaliações físicas
+-- (antropometria + testes) e periodização (macrociclo -> mesociclos ->
+-- treinos -> exercícios), além do controlo de treino e minutos de jogo.
+
+-- Perfil físico (1 linha por atleta): altura, peso e mão dominante.
+create table if not exists physical_profiles (
+  player_id     uuid primary key references players(id) on delete cascade,
+  height_cm     numeric(5,1),
+  weight_kg     numeric(5,1),
+  dominant_hand text check (dominant_hand in ('direita','esquerda','ambidestra')),
+  updated_at    timestamptz default now()
+);
+
+-- História clínica resumida (1 linha por atleta). Sensível: editada pela fisio
+-- e pelo coordenador; o preparador físico tem leitura (limitações ao treino).
+create table if not exists medical_history (
+  player_id          uuid primary key references players(id) on delete cascade,
+  past_injuries      text,   -- lesões (resumo)
+  surgeries          text,   -- cirurgias
+  chronic_diseases   text,   -- doenças crónicas
+  medication         text,   -- medicação
+  limitations        text,   -- limitações médicas / ao treino
+  updated_at         timestamptz default now()
+);
+
+-- Avaliações físicas / testes (antropometria e performance), por atleta e data.
+create table if not exists physical_tests (
+  id         uuid primary key default gen_random_uuid(),
+  player_id  uuid not null references players(id) on delete cascade,
+  date       date not null,
+  type       text not null,          -- chave do teste (ver constants.js)
+  label      text,                    -- etiqueta livre quando type = 'outro'
+  value      numeric(8,2),
+  unit       text,
+  notes      text,
+  created_at timestamptz default now()
+);
+
+-- Macrociclo: fases da época, configuráveis pelo clube (Pré-época, fases,
+-- paragens, off-season). team_id nulo = aplica-se ao clube.
+create table if not exists training_phases (
+  id         uuid primary key default gen_random_uuid(),
+  team_id    uuid references teams(id) on delete cascade,
+  name       text not null,
+  type       text not null default 'fase'
+             check (type in ('pre_epoca','competitiva','transicao','paragem','off_season','fase','outro')),
+  start_date date,
+  end_date   date,
+  notes      text,
+  created_at timestamptz default now()
+);
+
+-- Mesociclos (tipicamente mensais), com objetivo dominante.
+create table if not exists mesocycles (
+  id         uuid primary key default gen_random_uuid(),
+  team_id    uuid references teams(id) on delete cascade,
+  name       text not null,
+  objective  text,                    -- chave do objetivo (ver constants.js)
+  start_date date,
+  end_date   date,
+  notes      text,
+  created_at timestamptz default now()
+);
+
+-- Treinos (sessões de preparação física), dentro de um mesociclo / equipa.
+create table if not exists gym_sessions (
+  id           uuid primary key default gen_random_uuid(),
+  mesocycle_id uuid references mesocycles(id) on delete set null,
+  team_id      uuid references teams(id) on delete cascade,
+  date         date not null,
+  title        text,
+  objective    text,                  -- chave do objetivo
+  duration_min integer,               -- duração prevista (min)
+  notes        text,
+  created_at   timestamptz default now()
+);
+
+-- Exercícios de um treino (séries, carga, repetições, observações).
+create table if not exists gym_exercises (
+  id         uuid primary key default gen_random_uuid(),
+  session_id uuid not null references gym_sessions(id) on delete cascade,
+  name       text not null,
+  sets       text,    -- séries (texto livre: "4")
+  load       text,    -- carga ("70 kg", "70% 1RM")
+  reps       text,    -- repetições ("8-10")
+  notes      text,    -- OBS
+  position   integer not null default 0,
+  created_at timestamptz default now()
+);
+
+-- Presenças nos treinos de preparação física (controlo por atleta).
+create table if not exists gym_attendance (
+  id         uuid primary key default gen_random_uuid(),
+  session_id uuid not null references gym_sessions(id) on delete cascade,
+  player_id  uuid not null references players(id)      on delete cascade,
+  present    boolean not null default true,
+  minutes    integer,
+  notes      text,
+  created_at timestamptz default now(),
+  unique (session_id, player_id)
+);
+
+-- Minutos de jogo por atleta e por jogo (evento). Para o controlo do
+-- preparador físico (carga competitiva).
+create table if not exists game_minutes (
+  id         uuid primary key default gen_random_uuid(),
+  event_id   uuid not null references events(id)  on delete cascade,
+  player_id  uuid not null references players(id) on delete cascade,
+  minutes    integer not null default 0,
+  created_at timestamptz default now(),
+  unique (event_id, player_id)
+);
+
+create index if not exists idx_phys_tests_player on physical_tests (player_id);
+create index if not exists idx_phys_tests_date   on physical_tests (date);
+create index if not exists idx_phases_team       on training_phases (team_id);
+create index if not exists idx_meso_team         on mesocycles      (team_id);
+create index if not exists idx_gym_sessions_meso on gym_sessions    (mesocycle_id);
+create index if not exists idx_gym_sessions_team on gym_sessions    (team_id);
+create index if not exists idx_gym_exercises_sess on gym_exercises  (session_id);
+create index if not exists idx_gym_attend_session on gym_attendance (session_id);
+create index if not exists idx_gym_attend_player  on gym_attendance (player_id);
+create index if not exists idx_game_minutes_player on game_minutes  (player_id);
+
+alter table physical_profiles enable row level security;
+alter table medical_history   enable row level security;
+alter table physical_tests    enable row level security;
+alter table training_phases   enable row level security;
+alter table mesocycles        enable row level security;
+alter table gym_sessions      enable row level security;
+alter table gym_exercises     enable row level security;
+alter table gym_attendance    enable row level security;
+alter table game_minutes      enable row level security;
+
+drop policy if exists "phys_read"  on physical_profiles;
+drop policy if exists "phys_write" on physical_profiles;
+drop policy if exists "mh_read"    on medical_history;
+drop policy if exists "mh_write"   on medical_history;
+drop policy if exists "phys_read"  on physical_tests;
+drop policy if exists "phys_write" on physical_tests;
+drop policy if exists "prep_read"  on training_phases;
+drop policy if exists "prep_write" on training_phases;
+drop policy if exists "prep_read"  on mesocycles;
+drop policy if exists "prep_write" on mesocycles;
+drop policy if exists "prep_read"  on gym_sessions;
+drop policy if exists "prep_write" on gym_sessions;
+drop policy if exists "prep_read"  on gym_exercises;
+drop policy if exists "prep_write" on gym_exercises;
+drop policy if exists "prep_rw"    on gym_attendance;
+drop policy if exists "prep_rw"    on game_minutes;
+
+-- Perfil físico: visível à equipa técnica (não ao atleta); escrita coordenador
+-- e preparador físico.
+create policy "phys_read" on physical_profiles for select to authenticated
+  using (app_role() <> 'atleta');
+create policy "phys_write" on physical_profiles for all to authenticated
+  using (app_role() in ('coordenador','preparador'))
+  with check (app_role() in ('coordenador','preparador'));
+
+-- História clínica: leitura ao coordenador, fisioterapeuta e preparador
+-- (este só consulta); escrita só coordenador e fisioterapeuta.
+create policy "mh_read" on medical_history for select to authenticated
+  using (app_role() in ('coordenador','fisioterapeuta','preparador'));
+create policy "mh_write" on medical_history for all to authenticated
+  using (app_role() in ('coordenador','fisioterapeuta'))
+  with check (app_role() in ('coordenador','fisioterapeuta'));
+
+-- Avaliações físicas: leitura do coordenador, preparador e fisioterapeuta;
+-- escrita (criar/alterar/remover) só do coordenador e preparador.
+create policy "phys_read" on physical_tests for select to authenticated
+  using (app_role() in ('coordenador','preparador','fisioterapeuta'));
+create policy "phys_write" on physical_tests for all to authenticated
+  using (app_role() in ('coordenador','preparador'))
+  with check (app_role() in ('coordenador','preparador'));
+
+-- Periodização (fases, mesociclos, treinos, exercícios): leitura à equipa
+-- técnica (não ao atleta); escrita coordenador e preparador físico.
+do $$
+declare t text;
+begin
+  foreach t in array array['training_phases','mesocycles','gym_sessions','gym_exercises']
+  loop
+    execute format('create policy "prep_read" on %I for select to authenticated using (app_role() <> ''atleta'')', t);
+    execute format('create policy "prep_write" on %I for all to authenticated using (app_role() in (''coordenador'',''preparador'')) with check (app_role() in (''coordenador'',''preparador''))', t);
+  end loop;
+end $$;
+
+-- Controlo (presenças no ginásio e minutos de jogo): leitura/escrita do
+-- coordenador e preparador físico.
+create policy "prep_rw" on gym_attendance for all to authenticated
+  using (app_role() in ('coordenador','preparador'))
+  with check (app_role() in ('coordenador','preparador'));
+create policy "prep_rw" on game_minutes for all to authenticated
+  using (app_role() in ('coordenador','preparador'))
+  with check (app_role() in ('coordenador','preparador'));
 
 -- ---------------------------------------------------------------------
 -- Dados iniciais
