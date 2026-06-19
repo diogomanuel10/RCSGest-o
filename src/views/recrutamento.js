@@ -4,13 +4,14 @@
 
 import { state, createRow, updateRow, deleteRow, convertProspect, dbErrorMessage } from '../store.js';
 import { esc, emptyHTML } from '../ui.js';
-import { teamName, teamById, currentCoachEscaloes } from '../compute.js';
+import { teamName, teamById, currentCoachEscaloes, escaloes as getEscaloes } from '../compute.js';
 import { openModal, confirmDialog } from '../modal.js';
 import { canEdit, isCoordenador } from '../permissions.js';
 import { PROSPECT_STATUSES, PROSPECT_REJECTED, PROSPECT_LABEL, PROSPECT_BADGE, POSITIONS } from '../constants.js';
 
-// Filtro de posição (estado local da vista).
+// Filtros locais da vista.
 let positionFilter = '';
+let escalaoFilter = '';
 
 // Colunas: funil linear + coluna terminal "Não fica".
 const COLUMNS = [...PROSPECT_STATUSES, PROSPECT_REJECTED];
@@ -30,10 +31,16 @@ function scopedProspects() {
   return state.prospects.filter(inMyScope);
 }
 
+function prospectEscalao(p) {
+  const team = p.target_team_id ? teamById(p.target_team_id) : null;
+  return team?.escalao || '';
+}
+
 function visibleProspects(statusKey) {
   return scopedProspects()
     .filter((p) => p.status === statusKey)
     .filter((p) => !positionFilter || p.position === positionFilter)
+    .filter((p) => !escalaoFilter || prospectEscalao(p) === escalaoFilter)
     .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 }
 
@@ -42,22 +49,35 @@ export function renderRecrutamento(container) {
   // Inscrever um prospeto cria uma atleta no plantel — só o coordenador.
   const canConvert = isCoordenador();
   const mine = scopedProspects();
-  const total = positionFilter
-    ? mine.filter((p) => p.position === positionFilter).length
-    : mine.length;
+  const total = mine
+    .filter((p) => !positionFilter || p.position === positionFilter)
+    .filter((p) => !escalaoFilter || prospectEscalao(p) === escalaoFilter)
+    .length;
+  // Escalões disponíveis: só o coordenador vê todos; treinador já está limitado
+  // pelo scope, por isso mostramos apenas os escalões presentes nos prospetos visíveis.
+  const escalaoOptions = isCoordenador()
+    ? getEscaloes()
+    : [...new Set(mine.map(prospectEscalao).filter(Boolean))];
 
   container.innerHTML = `
     <header class="page-head">
       <div>
         <h1 class="section-title">Recrutamento</h1>
         <p class="muted" style="margin:0;font-size:0.88rem">
-          ${total} prospeto${total === 1 ? '' : 's'}${positionFilter ? ` · ${esc(positionFilter)}` : ' no funil'}
+          ${total} prospeto${total === 1 ? '' : 's'} no funil
         </p>
       </div>
       ${canWrite ? `<button class="btn btn--accent" id="add-prospect" type="button">+ Prospeto</button>` : ''}
     </header>
 
     <div class="filter-bar">
+      <div class="field">
+        <label for="rec-escalao">Escalão</label>
+        <select id="rec-escalao">
+          <option value="">Todos os escalões</option>
+          ${escalaoOptions.map((e) => `<option value="${esc(e)}" ${escalaoFilter === e ? 'selected' : ''}>${esc(e)}</option>`).join('')}
+        </select>
+      </div>
       <div class="field">
         <label for="rec-pos">Posição</label>
         <select id="rec-pos">
@@ -72,6 +92,10 @@ export function renderRecrutamento(container) {
     </div>
   `;
 
+  container.querySelector('#rec-escalao')?.addEventListener('change', (e) => {
+    escalaoFilter = e.target.value;
+    renderRecrutamento(container);
+  });
   container.querySelector('#rec-pos')?.addEventListener('change', (e) => {
     positionFilter = e.target.value;
     renderRecrutamento(container);
