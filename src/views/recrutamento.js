@@ -128,6 +128,7 @@ function cardHTML(p, canWrite) {
       </div>
       ${meta ? `<p class="muted kanban-card__meta">${meta}</p>` : ''}
       ${p.contact ? `<p class="kanban-card__contact">${esc(p.contact)}</p>` : ''}
+      ${p.notes ? `<p class="muted kanban-card__notes">${esc(p.notes)}</p>` : ''}
       ${canWrite ? `
         <div class="kanban-card__foot">
           ${rejected
