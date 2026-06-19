@@ -7,7 +7,7 @@
 //     calendário de treinos para evitar conflitos.
 
 import { state } from '../store.js';
-import { esc, emptyHTML } from '../ui.js';
+import { esc, emptyHTML, paginate, paginationHTML, wirePagination, PAGE_SIZE } from '../ui.js';
 import {
   teamById,
   teamName,
@@ -32,6 +32,7 @@ import { openAthleteProfile } from './athlete-profile.js';
 
 let tab = 'atletas'; // 'atletas' | 'agenda'
 let search = '';
+let page = 1;
 
 export function renderMedico(container) {
   const editable = canEdit('clinical');
@@ -62,6 +63,7 @@ export function renderMedico(container) {
   if (searchEl) {
     searchEl.addEventListener('input', (e) => {
       search = e.target.value;
+      page = 1;
       // Re-desenha só a lista, mantendo o foco no campo de pesquisa.
       const list = container.querySelector('#med-list');
       if (list) list.innerHTML = athleteListHTML();
@@ -80,6 +82,13 @@ function wireAthleteButtons(container) {
   container.querySelectorAll('[data-file]').forEach((b) =>
     b.addEventListener('click', () => openAthleteProfile(b.dataset.file, { tab: 'fisioterapia' }))
   );
+  const pg = paginate(filteredAthletes(), page, PAGE_SIZE);
+  wirePagination(container, 'med', pg.page, pg.totalPages, (np) => {
+    page = np;
+    const list = container.querySelector('#med-list');
+    if (list) list.innerHTML = athleteListHTML();
+    wireAthleteButtons(container);
+  });
 }
 
 // --- Separador Atletas ----------------------------------------------------
@@ -98,20 +107,24 @@ function renderAtletas(editable) {
   `;
 }
 
-function athleteListHTML() {
+function filteredAthletes() {
   const q = search.trim().toLowerCase();
-  const players = state.players
+  return state.players
     .filter((p) => !q || (p.name || '').toLowerCase().includes(q))
     .slice()
     .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+}
 
+function athleteListHTML() {
+  const players = filteredAthletes();
   if (!players.length) return emptyHTML('Nenhum atleta encontrado.');
+  const pg = paginate(players, page, PAGE_SIZE);
 
   return `
     <table class="players-table med-table">
       <thead><tr><th>Atleta</th><th>Equipa</th><th>Estado clínico</th><th></th></tr></thead>
       <tbody>
-        ${players.map((p) => {
+        ${pg.items.map((p) => {
           const team = teamById(p.team_id);
           const active = activeEpisode(p.id);
           const statusBadge = active
@@ -129,6 +142,7 @@ function athleteListHTML() {
         }).join('')}
       </tbody>
     </table>
+    ${paginationHTML({ ...pg, id: 'med' })}
   `;
 }
 

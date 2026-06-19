@@ -2,7 +2,7 @@
 // expansível e operações de adicionar/editar/remover equipas e atletas.
 
 import { state, createRow, createRows, updateRow, deleteRow, saveTeamCoaches, dbErrorMessage } from '../store.js';
-import { esc, emptyHTML } from '../ui.js';
+import { esc, emptyHTML, paginate, paginationHTML, wirePagination, PAGE_SIZE } from '../ui.js';
 import { teamName, teamCoaches, escaloes } from '../compute.js';
 import { openModal, confirmDialog } from '../modal.js';
 import { POSITIONS, COACH_ROLE_LABEL } from '../constants.js';
@@ -12,23 +12,69 @@ import { openAthleteProfile } from './athlete-profile.js';
 
 // Equipas expandidas (mostram os atletas). Mantido entre re-desenhos.
 const expanded = new Set();
+// Filtros e paginação (estado local da vista).
+let search = '';
+let positionFilter = '';
+const teamPage = new Map(); // team_id -> página atual dos atletas
+
+// Atletas de uma equipa após pesquisa e filtro de posição, ordenados por nº.
+function filteredPlayers(teamId) {
+  const q = search.trim().toLowerCase();
+  return state.players
+    .filter((p) => p.team_id === teamId)
+    .filter((p) => !q || (p.name || '').toLowerCase().includes(q))
+    .filter((p) => !positionFilter || p.position === positionFilter)
+    .sort((a, b) => (Number(a.number) || 999) - (Number(b.number) || 999));
+}
 
 export function renderPlanteis(container) {
   // Gestão de equipas é do coordenador; gestão de atletas é do coordenador
   // ou do treinador (limitado às suas equipas pelo RLS).
   const canTeams = canEdit('teams');
   const canPlayers = canEdit('players');
+  const filtering = !!(search.trim() || positionFilter);
+
+  // Com filtro ativo, mostram-se só as equipas com atletas correspondentes.
+  const teams = state.teams.filter((t) => !filtering || filteredPlayers(t.id).length);
+
   container.innerHTML = `
     <header class="page-head">
       <h1 class="section-title">Plantéis</h1>
       ${canTeams ? '<button class="btn btn--accent" id="add-team" type="button">+ Equipa</button>' : ''}
     </header>
+    ${state.teams.length ? filterBarHTML() : ''}
     ${
-      state.teams.length
-        ? `<div class="teams-list">${state.teams.map((t) => teamCardHTML(t, canTeams, canPlayers)).join('')}</div>`
-        : emptyHTML('Ainda não há equipas.')
+      !state.teams.length
+        ? emptyHTML('Ainda não há equipas.')
+        : teams.length
+          ? `<div class="teams-list">${teams.map((t) => teamCardHTML(t, canTeams, canPlayers, filtering)).join('')}</div>`
+          : emptyHTML('Nenhum atleta corresponde ao filtro.')
     }
   `;
+
+  // Filtros: pesquisa (mantém o foco) e posição.
+  const searchEl = container.querySelector('#pl-search');
+  searchEl?.addEventListener('input', (e) => {
+    search = e.target.value;
+    teamPage.clear();
+    renderPlanteis(container);
+    const el = container.querySelector('#pl-search');
+    if (el) { el.focus(); const v = el.value; el.value = ''; el.value = v; }
+  });
+  container.querySelector('#pl-pos')?.addEventListener('change', (e) => {
+    positionFilter = e.target.value;
+    teamPage.clear();
+    renderPlanteis(container);
+  });
+
+  // Paginação dos atletas de cada equipa visível.
+  teams.forEach((t) => {
+    const pg = paginate(filteredPlayers(t.id), teamPage.get(t.id) || 1, PAGE_SIZE);
+    wirePagination(container, `pl-${t.id}`, pg.page, pg.totalPages, (np) => {
+      teamPage.set(t.id, np);
+      renderPlanteis(container);
+    });
+  });
 
   container.querySelector('#add-team')?.addEventListener('click', () => openTeamForm());
 
@@ -70,15 +116,38 @@ export function renderPlanteis(container) {
   );
 }
 
-function teamCardHTML(team, canTeams, canPlayers) {
-  const players = state.players
-    .filter((p) => p.team_id === team.id)
-    .sort((a, b) => (Number(a.number) || 999) - (Number(b.number) || 999));
+// Barra de filtros (pesquisa por nome + posição).
+function filterBarHTML() {
+  return `
+    <div class="filter-bar">
+      <div class="field field--grow">
+        <label for="pl-search">Pesquisar atleta</label>
+        <input type="search" id="pl-search" placeholder="Nome do atleta…" value="${esc(search)}" />
+      </div>
+      <div class="field">
+        <label for="pl-pos">Posição</label>
+        <select id="pl-pos">
+          <option value="">Todas as posições</option>
+          ${POSITIONS.map((p) => `<option value="${esc(p)}" ${positionFilter === p ? 'selected' : ''}>${esc(p)}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+  `;
+}
+
+function teamCardHTML(team, canTeams, canPlayers, filtering = false) {
+  const players = filteredPlayers(team.id);
+  const totalInTeam = state.players.filter((p) => p.team_id === team.id).length;
   const coaches = teamCoaches(team.id);
   const coachesSummary = coaches.length
     ? coaches.map((c) => esc(c.coach.name)).join(', ')
     : 'Sem treinador';
-  const isOpen = expanded.has(team.id);
+  // Com filtro ativo as equipas correspondentes abrem automaticamente.
+  const isOpen = filtering || expanded.has(team.id);
+  const pg = paginate(players, teamPage.get(team.id) || 1, PAGE_SIZE);
+  const countLabel = filtering
+    ? `${players.length} de ${totalInTeam} atleta${totalInTeam === 1 ? '' : 's'}`
+    : `${totalInTeam} atleta${totalInTeam === 1 ? '' : 's'}`;
 
   return `
     <article class="card team-card">
@@ -89,7 +158,7 @@ function teamCardHTML(team, canTeams, canPlayers) {
           <span>
             <strong>${esc(team.escalao)}</strong>
             <span class="muted team-card__meta">
-              ${coachesSummary} · ${players.length} atleta${players.length === 1 ? '' : 's'}
+              ${coachesSummary} · ${countLabel}
             </span>
           </span>
         </button>
@@ -123,8 +192,9 @@ function teamCardHTML(team, canTeams, canPlayers) {
           }
           ${
             players.length
-              ? `<div class="player-cards">${players.map((p) => playerCardHTML(p, team.id, canPlayers)).join('')}</div>`
-              : '<p class="muted" style="margin:0.4rem 0">Sem atletas nesta equipa.</p>'
+              ? `<div class="player-cards">${pg.items.map((p) => playerCardHTML(p, team.id, canPlayers)).join('')}</div>
+                 ${paginationHTML({ ...pg, id: `pl-${team.id}` })}`
+              : `<p class="muted" style="margin:0.4rem 0">${filtering ? 'Nenhum atleta corresponde ao filtro.' : 'Sem atletas nesta equipa.'}</p>`
           }
           ${
             canPlayers

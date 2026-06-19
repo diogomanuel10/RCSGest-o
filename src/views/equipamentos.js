@@ -3,7 +3,7 @@
 // condição (bom/razoável/mau) e notas.
 
 import { state, createRow, updateRow, deleteRow, dbErrorMessage } from '../store.js';
-import { esc, emptyHTML } from '../ui.js';
+import { esc, emptyHTML, paginate, paginationHTML, wirePagination, PAGE_SIZE } from '../ui.js';
 import { openModal, confirmDialog } from '../modal.js';
 import { canEdit } from '../permissions.js';
 import {
@@ -13,9 +13,12 @@ import {
   CONDITION_BADGE,
 } from '../constants.js';
 
+let page = 1;
+
 export function renderEquipamentos(container) {
   const canWrite = canEdit('equipment');
   const items = state.equipment.slice().sort((a, b) => a.name.localeCompare(b.name));
+  const pg = paginate(items, page, PAGE_SIZE);
 
   // Contagens por condição
   const counts = { bom: 0, razoavel: 0, mau: 0 };
@@ -51,8 +54,9 @@ export function renderEquipamentos(container) {
 
     ${items.length
       ? `<div class="equip-grid">
-          ${items.map((e) => equipCard(e, canWrite)).join('')}
-         </div>`
+          ${pg.items.map((e) => equipCard(e, canWrite)).join('')}
+         </div>
+         ${paginationHTML({ ...pg, id: 'equip' })}`
       : emptyHTML('Ainda não há equipamentos no inventário.')
     }
   `;
@@ -64,6 +68,10 @@ export function renderEquipamentos(container) {
   container.querySelectorAll('[data-del-equip]').forEach((b) =>
     b.addEventListener('click', () => remove(b.dataset.delEquip))
   );
+  wirePagination(container, 'equip', pg.page, pg.totalPages, (np) => {
+    page = np;
+    renderEquipamentos(container);
+  });
 }
 
 function equipCard(item, canWrite) {

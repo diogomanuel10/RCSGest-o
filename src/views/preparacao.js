@@ -14,7 +14,7 @@ import {
   upsertGymAttendance,
   dbErrorMessage,
 } from '../store.js';
-import { esc, emptyHTML } from '../ui.js';
+import { esc, emptyHTML, paginate, paginationHTML, wirePagination, PAGE_SIZE } from '../ui.js';
 import {
   teamById,
   teamName,
@@ -42,6 +42,7 @@ import { openAthleteProfile } from './athlete-profile.js';
 
 let tab = 'atletas'; // 'atletas' | 'periodizacao' | 'jogos'
 let search = '';
+let page = 1;
 let selectedTeam = '';
 let jogosMonth = new Date();
 const openMeso = new Set();   // mesociclos expandidos
@@ -83,6 +84,7 @@ export function renderPreparacao(container) {
   if (searchEl) {
     searchEl.addEventListener('input', (e) => {
       search = e.target.value;
+      page = 1;
       const list = container.querySelector('#pf-list');
       if (list) list.innerHTML = athleteListHTML();
       wireAthletes(container);
@@ -155,6 +157,13 @@ function wireAthletes(container) {
   container.querySelectorAll('[data-pf-file]').forEach((b) =>
     b.addEventListener('click', () => openAthleteProfile(b.dataset.pfFile, { tab: 'fisica' }))
   );
+  const pg = paginate(filteredAthletes(), page, PAGE_SIZE);
+  wirePagination(container, 'pf', pg.page, pg.totalPages, (np) => {
+    page = np;
+    const list = container.querySelector('#pf-list');
+    if (list) list.innerHTML = athleteListHTML();
+    wireAthletes(container);
+  });
 }
 
 // --- Separador Atletas ----------------------------------------------------
@@ -173,20 +182,24 @@ function renderAtletas() {
   `;
 }
 
-function athleteListHTML() {
+function filteredAthletes() {
   const q = search.trim().toLowerCase();
-  const players = state.players
+  return state.players
     .filter((p) => !q || (p.name || '').toLowerCase().includes(q))
     .slice()
     .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+}
 
+function athleteListHTML() {
+  const players = filteredAthletes();
   if (!players.length) return emptyHTML('Nenhum atleta encontrado.');
+  const pg = paginate(players, page, PAGE_SIZE);
 
   return `
     <table class="players-table med-table">
       <thead><tr><th>Atleta</th><th>Equipa</th><th>IMC</th><th>Última avaliação</th><th></th></tr></thead>
       <tbody>
-        ${players.map((p) => {
+        ${pg.items.map((p) => {
           const team = teamById(p.team_id);
           const imc = bmi(p.id);
           const last = playerTests(p.id)[0];
@@ -203,6 +216,7 @@ function athleteListHTML() {
         }).join('')}
       </tbody>
     </table>
+    ${paginationHTML({ ...pg, id: 'pf' })}
   `;
 }
 

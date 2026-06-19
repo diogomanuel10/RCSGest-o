@@ -3,7 +3,7 @@
 // Regra de negócio: para marcar como "Confirmado" é obrigatório ter nível.
 
 import { state, createRow, updateRow, deleteRow, dbErrorMessage } from '../store.js';
-import { esc, euros, emptyHTML } from '../ui.js';
+import { esc, euros, emptyHTML, paginate, paginationHTML, wirePagination, PAGE_SIZE } from '../ui.js';
 import { confirmedByTier } from '../compute.js';
 import { openModal, confirmDialog } from '../modal.js';
 import {
@@ -18,6 +18,7 @@ import { canEdit } from '../permissions.js';
 
 // Estado local dos filtros (mantido entre re-desenhos da vista).
 const filters = { category: '', status: '' };
+let page = 1;
 
 export function renderPatrocinios(container) {
   const editable = canEdit('sponsors');
@@ -28,6 +29,7 @@ export function renderPatrocinios(container) {
       (!filters.category || s.category === filters.category) &&
       (!filters.status || s.status === filters.status)
   );
+  const pg = paginate(filtered, page, PAGE_SIZE);
 
   container.innerHTML = `
     <header class="page-head">
@@ -86,8 +88,9 @@ export function renderPatrocinios(container) {
                   <th>Estado</th><th>Contacto</th>${editable ? '<th></th>' : ''}
                 </tr>
               </thead>
-              <tbody>${filtered.map((s) => rowHTML(s, editable)).join('')}</tbody>
-            </table></div>`
+              <tbody>${pg.items.map((s) => rowHTML(s, editable)).join('')}</tbody>
+            </table></div>
+            ${paginationHTML({ ...pg, id: 'spon' })}`
           : emptyHTML('Sem empresas para os filtros escolhidos.')
       }
     </section>
@@ -97,10 +100,12 @@ export function renderPatrocinios(container) {
   container.querySelector('#add-sponsor')?.addEventListener('click', () => openForm());
   container.querySelector('#f-cat').addEventListener('change', (e) => {
     filters.category = e.target.value;
+    page = 1;
     renderPatrocinios(container);
   });
   container.querySelector('#f-status').addEventListener('change', (e) => {
     filters.status = e.target.value;
+    page = 1;
     renderPatrocinios(container);
   });
   container.querySelectorAll('[data-edit]').forEach((b) =>
@@ -109,6 +114,10 @@ export function renderPatrocinios(container) {
   container.querySelectorAll('[data-del]').forEach((b) =>
     b.addEventListener('click', () => remove(b.dataset.del, container))
   );
+  wirePagination(container, 'spon', pg.page, pg.totalPages, (np) => {
+    page = np;
+    renderPatrocinios(container);
+  });
 }
 
 function rowHTML(s, editable) {

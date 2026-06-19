@@ -1,22 +1,27 @@
 // Vista: Treinadores. Fichas com dados de contacto e as equipas que orientam.
 
 import { state, createRow, updateRow, deleteRow, dbErrorMessage } from '../store.js';
-import { esc, emptyHTML } from '../ui.js';
+import { esc, emptyHTML, paginate, paginationHTML, wirePagination, PAGE_SIZE } from '../ui.js';
 import { teamName, coachTeams } from '../compute.js';
 import { openModal, confirmDialog } from '../modal.js';
 import { canEdit } from '../permissions.js';
 import { COACH_ROLE_LABEL } from '../constants.js';
 
+let page = 1;
+
 export function renderTreinadores(container) {
   const editable = canEdit('coaches');
+  const coaches = state.coaches.slice().sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  const pg = paginate(coaches, page, PAGE_SIZE);
   container.innerHTML = `
     <header class="page-head">
       <h1 class="section-title">Treinadores</h1>
       ${editable ? '<button class="btn btn--accent" id="add-coach" type="button">+ Treinador</button>' : ''}
     </header>
     ${
-      state.coaches.length
-        ? `<div class="coach-grid">${state.coaches.map((c) => coachCard(c, editable)).join('')}</div>`
+      coaches.length
+        ? `<div class="coach-grid">${pg.items.map((c) => coachCard(c, editable)).join('')}</div>
+           ${paginationHTML({ ...pg, id: 'coach' })}`
         : emptyHTML('Ainda não há treinadores.')
     }
   `;
@@ -28,6 +33,10 @@ export function renderTreinadores(container) {
   container.querySelectorAll('[data-del]').forEach((b) =>
     b.addEventListener('click', () => remove(b.dataset.del))
   );
+  wirePagination(container, 'coach', pg.page, pg.totalPages, (np) => {
+    page = np;
+    renderTreinadores(container);
+  });
 }
 
 function initials(name) {
