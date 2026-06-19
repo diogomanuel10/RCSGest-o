@@ -68,7 +68,8 @@ const EDIT_ROLES = {
   equipment: ['coordenador'],
   teams: ['coordenador'],
   players: ['coordenador', 'treinador'],
-  events: ['coordenador', 'treinador'],
+  // Calendário: só o coordenador cria/edita/apaga eventos (treinos e jogos).
+  events: ['coordenador'],
   attendances: ['coordenador', 'treinador'],
   prospects: ['coordenador', 'treinador'],
   // Departamento médico: dados clínicos e atendimentos só do coordenador e

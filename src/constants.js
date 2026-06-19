@@ -290,16 +290,19 @@ export const AVAILABILITY_BADGE = Object.fromEntries(
 );
 
 // --- Recrutamento: estados do funil ---
+// Estados lineares do funil (avançar/recuar entre eles).
 export const PROSPECT_STATUSES = [
   { key: 'observado',  label: 'Observado',      badge: 'muted' },
   { key: 'contactado', label: 'Contactado',      badge: 'info'  },
   { key: 'negociacao', label: 'Em negociação',   badge: 'warn'  },
   { key: 'confirmado', label: 'Confirmado',      badge: 'ok'    },
-  { key: 'inscrito',   label: 'Inscrito',        badge: 'ok'    },
 ];
+// Estado terminal negativo (atletas que não ficam), fora do funil linear.
+export const PROSPECT_REJECTED = { key: 'dispensado', label: 'Não fica', badge: 'danger' };
+const ALL_PROSPECT_STATUSES = [...PROSPECT_STATUSES, PROSPECT_REJECTED];
 export const PROSPECT_LABEL = Object.fromEntries(
-  PROSPECT_STATUSES.map((s) => [s.key, s.label])
+  ALL_PROSPECT_STATUSES.map((s) => [s.key, s.label])
 );
 export const PROSPECT_BADGE = Object.fromEntries(
-  PROSPECT_STATUSES.map((s) => [s.key, s.badge])
+  ALL_PROSPECT_STATUSES.map((s) => [s.key, s.badge])
 );

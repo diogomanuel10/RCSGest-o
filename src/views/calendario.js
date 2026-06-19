@@ -2,7 +2,7 @@
 // por tipo e por equipa, distinguindo eventos passados dos futuros.
 
 import { state, createRow, createRows, updateRow, deleteRow, dbErrorMessage } from '../store.js';
-import { esc, emptyHTML } from '../ui.js';
+import { esc, emptyHTML, teamHue } from '../ui.js';
 import { eventDateTime, eventTimeRange, teamById, teamName } from '../compute.js';
 import { openModal, confirmDialog } from '../modal.js';
 import {
@@ -156,10 +156,25 @@ function renderGrid(allEvents, editable) {
                     ${editable ? `<button class="cal-grid__add" data-new-day="${cell.dateStr}" type="button" title="Novo evento">+</button>` : ''}
                   </div>
                   <div class="cal-grid__events">
-                    ${cell.events.slice(0, 3).map((ev) => `
-                      <div class="cal-grid__ev badge--${EVENT_TYPE_BADGE[ev.type] || 'muted'}" title="${esc(ev.title || EVENT_TYPE_LABEL[ev.type])}">
-                        ${esc((ev.title || EVENT_TYPE_LABEL[ev.type] || '').slice(0, 18))}${(ev.title || '').length > 18 ? '…' : ''}
-                      </div>`).join('')}
+                    ${cell.events.slice(0, 3).map((ev) => {
+                      const evTeam = teamById(ev.team_id);
+                      // Etiqueta da grelha: identifica a equipa (escalão) do
+                      // treino/jogo; sem equipa, mostra o título ou o tipo.
+                      const label = evTeam ? teamName(evTeam) : (ev.title || EVENT_TYPE_LABEL[ev.type] || '');
+                      const time = ev.time ? ev.time.slice(0, 5) : '';
+                      const full = [EVENT_TYPE_LABEL[ev.type] || ev.type, label, time, ev.opponent ? `vs ${ev.opponent}` : '']
+                        .filter(Boolean).join(' · ');
+                      // Cor por equipa (mantém o texto). Sem equipa, usa a cor do tipo.
+                      const hue = evTeam ? teamHue(evTeam.id) : null;
+                      const colorClass = hue != null ? 'cal-grid__ev--team' : `badge--${EVENT_TYPE_BADGE[ev.type] || 'muted'}`;
+                      const styleAttr = hue != null
+                        ? ` style="background:hsl(${hue} 70% 92%);border-left:3px solid hsl(${hue} 55% 42%);color:#1f2937"`
+                        : '';
+                      return `
+                      <div class="cal-grid__ev ${colorClass}"${styleAttr} title="${esc(full)}">
+                        ${time ? `<span class="cal-grid__ev-time">${esc(time)}</span> ` : ''}${esc(label.slice(0, 16))}${label.length > 16 ? '…' : ''}
+                      </div>`;
+                    }).join('')}
                     ${cell.events.length > 3 ? `<span class="muted" style="font-size:0.7rem">+${cell.events.length - 3} mais</span>` : ''}
                   </div>
                 </div>
@@ -187,8 +202,11 @@ function eventRow(ev, isPast, editable) {
     .filter(Boolean)
     .join(' · ');
 
+  const hue = team ? teamHue(team.id) : null;
+  const accent = hue != null ? ` style="border-left:4px solid hsl(${hue} 55% 45%);padding-left:0.7rem"` : '';
+
   return `
-    <div class="event-row ${isPast ? 'event-row--past' : ''}">
+    <div class="event-row ${isPast ? 'event-row--past' : ''}"${accent}>
       <div class="event-row__when">
         <span class="event-row__date">${dateStr}</span>
         <span class="event-row__time muted">${eventTimeRange(ev) ? esc(eventTimeRange(ev)) : '—'}</span>

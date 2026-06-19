@@ -2872,74 +2872,83 @@ tbody tr:hover {
   border-radius: 999px;
   padding: 0.05rem 0.5rem;
 }
+.kanban-col--rejected {
+  background: color-mix(in srgb, var(--danger, #dc2626) 7%, var(--surface-2));
+}
 .kanban-col__body {
-  padding: 0.6rem;
+  padding: 0.45rem;
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
-  min-height: 80px;
+  gap: 0.4rem;
+  min-height: 60px;
 }
 .kanban-empty {
   text-align: center;
   color: var(--text-muted);
-  font-size: 0.85rem;
-  padding: 0.5rem 0;
+  font-size: 0.8rem;
+  padding: 0.35rem 0;
 }
 .kanban-card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 0.65rem 0.7rem;
+  padding: 0.45rem 0.5rem;
   box-shadow: var(--shadow-sm);
 }
 .kanban-card__head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 0.3rem;
-  margin-bottom: 0.2rem;
 }
 .kanban-card__name {
-  font-size: 0.9rem;
-  line-height: 1.3;
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.25;
   word-break: break-word;
 }
 .kanban-card__actions {
   display: flex;
-  gap: 0.2rem;
+  gap: 0.1rem;
   flex: none;
 }
 .kanban-card__meta {
-  font-size: 0.75rem;
-  margin: 0 0 0.25rem;
-  line-height: 1.4;
+  font-size: 0.72rem;
+  margin: 0.1rem 0 0;
+  line-height: 1.35;
 }
-.kanban-card__contact,
-.kanban-card__notes {
-  font-size: 0.78rem;
-  margin: 0.2rem 0 0;
-  line-height: 1.4;
-  word-break: break-word;
+.kanban-card__contact {
+  font-size: 0.72rem;
+  margin: 0.1rem 0 0;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .kanban-card__notes {
+  font-size: 0.72rem;
+  margin: 0.1rem 0 0;
+  line-height: 1.35;
   color: var(--text-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 .kanban-card__foot {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.3rem;
-  margin-top: 0.55rem;
-  padding-top: 0.45rem;
-  border-top: 1px solid var(--border);
+  margin-top: 0.4rem;
 }
 
 /* Extra-small buttons (usados nos cards) */
 .btn--xs {
-  padding: 0.15rem 0.45rem;
-  font-size: 0.76rem;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.72rem;
   border-radius: var(--radius-sm);
-  line-height: 1.5;
+  line-height: 1.45;
 }
 
 @media (max-width: 640px) {
@@ -3279,4 +3288,10 @@ tbody tr:hover {
 .filter-bar .field--grow {
   flex: 1;
   min-width: 180px;
+}
+
+/* Hora dentro da etiqueta de evento na grelha do calendário */
+.cal-grid__ev-time {
+  font-weight: 700;
+  opacity: 0.85;
 }
