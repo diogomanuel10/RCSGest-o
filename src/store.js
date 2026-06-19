@@ -36,6 +36,10 @@ export const state = {
   availability: [],     // disponibilidade do atleta (resumo p/ treinador)
   profile: null, // perfil do utilizador atual (com o papel/role)
   profiles: [], // todos os perfis (preenchido só se o utilizador for coordenador)
+  // Registos arquivados (inativos), só carregados para o coordenador — usados
+  // na área "Arquivados" para consultar e repor. As coleções normais (acima)
+  // contêm apenas registos ativos.
+  archived: { teams: [], players: [], coaches: [], sponsors: [], events: [], prospects: [] },
   loaded: false,
 };
 
@@ -66,6 +70,7 @@ export function resetState() {
   state.availability = [];
   state.profile = null;
   state.profiles = [];
+  state.archived = { teams: [], players: [], coaches: [], sponsors: [], events: [], prospects: [] };
   state.loaded = false;
 }
 
@@ -107,16 +112,18 @@ export async function loadAll() {
          physProfiles, medHistory, physTests, phases, mesocycles, gymSessions, gymExercises, gymAttendance, gameMinutes, availability] =
     await Promise.all([
       supabase.from('settings').select('*').eq('id', 1).maybeSingle(),
-      supabase.from('coaches').select('*').order('name'),
-      supabase.from('teams').select('*').order('created_at'),
-      supabase.from('players').select('*').order('number'),
-      supabase.from('sponsors').select('*').order('name'),
-      supabase.from('events').select('*').order('date'),
+      // Só registos ativos (archived_at nulo). Os arquivados carregam-se à parte
+      // (loadArchived) e só para o coordenador.
+      supabase.from('coaches').select('*').is('archived_at', null).order('name'),
+      supabase.from('teams').select('*').is('archived_at', null).order('created_at'),
+      supabase.from('players').select('*').is('archived_at', null).order('number'),
+      supabase.from('sponsors').select('*').is('archived_at', null).order('name'),
+      supabase.from('events').select('*').is('archived_at', null).order('date'),
       supabase.from('attendances').select('*'),
       supabase.from('quotas').select('*'),
       supabase.from('equipment').select('*').order('name'),
       supabase.from('team_coaches').select('*'),
-      supabase.from('prospects').select('*').order('created_at'),
+      supabase.from('prospects').select('*').is('archived_at', null).order('created_at'),
       // Dados do departamento médico e da preparação física. Para papéis sem
       // acesso, o RLS devolve uma lista vazia (sem erro): é seguro consultar.
       supabase.from('clinical_episodes').select('*').order('created_at', { ascending: false }),
@@ -164,10 +171,76 @@ export async function loadAll() {
   state.gameMinutes      = gameMinutes.data   || [];
   state.availability     = availability.data  || [];
 
+  // Coerência da cache: com pais arquivados (ex.: uma equipa), os filhos que os
+  // referenciam não devem aparecer nos ecrãs ativos.
+  pruneOrphans();
+
   await loadProfile();
+  await loadArchived();
 
   state.loaded = true;
   notify();
+}
+
+// Remove da cache ativa os registos cujo "pai" já não está ativo (foi
+// arquivado): atletas de equipas arquivadas e os dados dependentes de atletas/
+// eventos que deixaram de existir na cache. Os registos continuam na BD (não se
+// apagam) — apenas não se mostram enquanto o pai estiver arquivado.
+function pruneOrphans() {
+  const teamIds = new Set(state.teams.map((t) => t.id));
+  // Atletas de equipas arquivadas saem das listas ativas.
+  state.players = state.players.filter((p) => teamIds.has(p.team_id));
+
+  const playerIds = new Set(state.players.map((p) => p.id));
+  const eventIds = new Set(state.events.map((e) => e.id));
+  const coachIds = new Set(state.coaches.map((c) => c.id));
+
+  state.attendances = state.attendances.filter((a) => eventIds.has(a.event_id) && playerIds.has(a.player_id));
+  state.quotas = state.quotas.filter((q) => playerIds.has(q.player_id));
+  state.gameMinutes = state.gameMinutes.filter((g) => playerIds.has(g.player_id) && eventIds.has(g.event_id));
+  state.gymAttendance = state.gymAttendance.filter((a) => playerIds.has(a.player_id));
+
+  const episodeIds = new Set(
+    state.clinicalEpisodes.filter((e) => playerIds.has(e.player_id)).map((e) => e.id)
+  );
+  state.clinicalEpisodes = state.clinicalEpisodes.filter((e) => playerIds.has(e.player_id));
+  state.clinicalSessions = state.clinicalSessions.filter((s) => episodeIds.has(s.episode_id));
+  state.appointments = state.appointments.filter((a) => playerIds.has(a.player_id));
+  state.physicalProfiles = state.physicalProfiles.filter((p) => playerIds.has(p.player_id));
+  state.medicalHistory = state.medicalHistory.filter((m) => playerIds.has(m.player_id));
+  state.physicalTests = state.physicalTests.filter((t) => playerIds.has(t.player_id));
+  state.availability = state.availability.filter((a) => playerIds.has(a.player_id));
+
+  // Ligações treinador<->equipa cujo treinador foi arquivado.
+  state.teamCoaches = state.teamCoaches.filter((tc) => coachIds.has(tc.coach_id) && teamIds.has(tc.team_id));
+}
+
+// Carrega os registos arquivados (só para o coordenador, que tem a área
+// "Arquivados"). Para os outros papéis fica vazio — não precisam.
+async function loadArchived() {
+  const empty = { teams: [], players: [], coaches: [], sponsors: [], events: [], prospects: [] };
+  if (state.profile?.role !== 'coordenador') {
+    state.archived = empty;
+    return;
+  }
+  const arch = (table, order) =>
+    supabase.from(table).select('*').not('archived_at', 'is', null).order(order, { ascending: false });
+  const [teams, players, coaches, sponsors, events, prospects] = await Promise.all([
+    arch('teams', 'archived_at'),
+    arch('players', 'archived_at'),
+    arch('coaches', 'archived_at'),
+    arch('sponsors', 'archived_at'),
+    arch('events', 'archived_at'),
+    arch('prospects', 'archived_at'),
+  ]);
+  state.archived = {
+    teams: teams.data || [],
+    players: players.data || [],
+    coaches: coaches.data || [],
+    sponsors: sponsors.data || [],
+    events: events.data || [],
+    prospects: prospects.data || [],
+  };
 }
 
 // Vincula (ou desvincula) uma conta de utilizador a um registo de treinador.
@@ -391,9 +464,16 @@ export async function convertProspect(prospectId, teamId) {
   if (cErr) throw cErr;
   state.players.push(player);
 
-  const { error: dErr } = await supabase.from('prospects').delete().eq('id', prospectId);
+  // Não se apaga o prospeto: fica como 'inscrito' e arquivado, preservando o
+  // histórico de recrutamento. Sai das listas ativas do funil.
+  const { error: dErr } = await supabase
+    .from('prospects')
+    .update({ status: 'inscrito', archived_at: new Date().toISOString() })
+    .eq('id', prospectId);
   if (dErr) throw dErr;
   state.prospects = state.prospects.filter((x) => x.id !== prospectId);
+  const arch = state.archived?.prospects;
+  if (arch) arch.unshift({ ...p, status: 'inscrito', archived_at: new Date().toISOString() });
   notify();
   return player;
 }
@@ -457,6 +537,28 @@ function cleanupPlayerClinical(playerId) {
   state.gymAttendance = state.gymAttendance.filter((a) => a.player_id !== playerId);
   state.gameMinutes = state.gameMinutes.filter((g) => g.player_id !== playerId);
   state.availability = state.availability.filter((a) => a.player_id !== playerId);
+}
+
+// Arquiva (soft-delete) um registo: marca-o como inativo em vez de apagar, para
+// manter o histórico. Recarrega tudo para repor a coerência da cache (filhos de
+// pais arquivados deixam de aparecer). Só o coordenador o consegue (guard no RLS).
+export async function archiveRow(table, id) {
+  const { error } = await supabase
+    .from(table)
+    .update({ archived_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) throw error;
+  await loadAll();
+}
+
+// Repõe (reativa) um registo arquivado.
+export async function restoreRow(table, id) {
+  const { error } = await supabase
+    .from(table)
+    .update({ archived_at: null })
+    .eq('id', id);
+  if (error) throw error;
+  await loadAll();
 }
 
 export async function deleteRow(table, collection, id) {

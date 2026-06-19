@@ -3479,3 +3479,18 @@ tbody tr:hover {
 .today-item--link { cursor: pointer; transition: background 0.12s ease; }
 .today-item--link:hover { background: var(--navy-100); }
 .today-item--link:focus-visible { outline: 2px solid var(--navy); outline-offset: -2px; }
+
+/* Arquivados (registos inativos) */
+.arch-list { display: flex; flex-direction: column; gap: 0.4rem; }
+.arch-row {
+  display: flex; align-items: center; gap: 0.75rem;
+  padding: 0.55rem 0.7rem; border: 1px solid var(--border);
+  border-radius: 0.6rem; background: var(--bg);
+}
+.arch-row__info { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+.arch-row__meta { font-size: 0.82rem; }
+.arch-row__date { font-size: 0.78rem; white-space: nowrap; }
+@media (max-width: 560px) {
+  .arch-row { flex-wrap: wrap; }
+  .arch-row__date { order: 3; }
+}

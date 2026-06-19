@@ -1,12 +1,12 @@
 // Vista: Plantéis. Equipas agrupadas por género, com lista de atletas
 // expansível e operações de adicionar/editar/remover equipas e atletas.
 
-import { state, createRow, createRows, updateRow, deleteRow, saveTeamCoaches, dbErrorMessage } from '../store.js';
+import { state, createRow, createRows, updateRow, archiveRow, saveTeamCoaches, dbErrorMessage } from '../store.js';
 import { esc, emptyHTML, paginate, paginationHTML, wirePagination, PAGE_SIZE } from '../ui.js';
 import { teamName, teamCoaches, escaloes, currentCoach, coachTeams } from '../compute.js';
 import { openModal, confirmDialog } from '../modal.js';
 import { POSITIONS, COACH_ROLE_LABEL } from '../constants.js';
-import { canEdit, isCoordenador } from '../permissions.js';
+import { canEdit, canDelete, isCoordenador } from '../permissions.js';
 import { parsePlayersFile, downloadPlayersTemplate } from '../players-xlsx.js';
 import { openAthleteProfile } from './athlete-profile.js';
 
@@ -42,6 +42,8 @@ export function renderPlanteis(container) {
   // ou do treinador (limitado às suas equipas pelo RLS).
   const canTeams = canEdit('teams');
   const canPlayers = canEdit('players');
+  // Arquivar atletas é uma decisão do coordenador (o treinador edita mas não remove).
+  const canRemovePlayers = canDelete('players');
   const filtering = !!(search.trim() || positionFilter);
 
   // Equipas do utilizador (todas para o coordenador; só as suas para o treinador).
@@ -59,7 +61,7 @@ export function renderPlanteis(container) {
       !myTeams.length
         ? emptyHTML('Ainda não há equipas.')
         : teams.length
-          ? `<div class="teams-list">${teams.map((t) => teamCardHTML(t, canTeams, canPlayers, filtering)).join('')}</div>`
+          ? `<div class="teams-list">${teams.map((t) => teamCardHTML(t, canTeams, canPlayers, canRemovePlayers, filtering)).join('')}</div>`
           : emptyHTML('Nenhum atleta corresponde ao filtro.')
     }
   `;
@@ -147,7 +149,7 @@ function filterBarHTML() {
   `;
 }
 
-function teamCardHTML(team, canTeams, canPlayers, filtering = false) {
+function teamCardHTML(team, canTeams, canPlayers, canRemovePlayers, filtering = false) {
   const players = filteredPlayers(team.id);
   const totalInTeam = state.players.filter((p) => p.team_id === team.id).length;
   const coaches = teamCoaches(team.id);
@@ -204,7 +206,7 @@ function teamCardHTML(team, canTeams, canPlayers, filtering = false) {
           }
           ${
             players.length
-              ? `<div class="player-cards">${pg.items.map((p) => playerCardHTML(p, team.id, canPlayers)).join('')}</div>
+              ? `<div class="player-cards">${pg.items.map((p) => playerCardHTML(p, team.id, canPlayers, canRemovePlayers)).join('')}</div>
                  ${paginationHTML({ ...pg, id: `pl-${team.id}` })}`
               : `<p class="muted" style="margin:0.4rem 0">${filtering ? 'Nenhum atleta corresponde ao filtro.' : 'Sem atletas nesta equipa.'}</p>`
           }
@@ -359,7 +361,7 @@ function openTeamForm(id) {
 
 // Cartão de um atleta: clicável (abre o Perfil do Atleta) com nº, iniciais,
 // nome e posição/ano. Para quem pode editar, mostra ações discretas.
-function playerCardHTML(p, teamId, canPlayers) {
+function playerCardHTML(p, teamId, canPlayers, canRemovePlayers) {
   const initials = (p.name || '?')
     .split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
   const meta = [p.position, p.birth_year].filter(Boolean).map(esc).join(' · ') || 'Sem posição';
@@ -374,14 +376,14 @@ function playerCardHTML(p, teamId, canPlayers) {
         </span>
       </button>
       ${
-        canPlayers
+        canPlayers || canRemovePlayers
           ? `<div class="player-card__actions">
-               <button class="icon-btn" data-team="${teamId}" data-player-edit="${p.id}" type="button" aria-label="Editar atleta" title="Editar">
+               ${canPlayers ? `<button class="icon-btn" data-team="${teamId}" data-player-edit="${p.id}" type="button" aria-label="Editar atleta" title="Editar">
                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-               </button>
-               <button class="icon-btn icon-btn--danger" data-player-del="${p.id}" type="button" aria-label="Remover atleta" title="Remover">
-                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-               </button>
+               </button>` : ''}
+               ${canRemovePlayers ? `<button class="icon-btn icon-btn--danger" data-player-del="${p.id}" type="button" aria-label="Arquivar atleta" title="Arquivar">
+                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8"/><path d="M10 12h4"/></svg>
+               </button>` : ''}
              </div>`
           : ''
       }
@@ -482,11 +484,14 @@ function importPlayers(teamId) {
 async function removeTeam(id, container) {
   const team = state.teams.find((t) => t.id === id);
   const n = state.players.filter((p) => p.team_id === id).length;
-  const extra = n ? ` Os ${n} atletas associados também serão removidos.` : '';
-  const ok = await confirmDialog(`Remover a equipa "${teamName(team)}"?${extra}`);
+  const extra = n ? ` Os ${n} atletas associados deixam de aparecer enquanto a equipa estiver arquivada.` : '';
+  const ok = await confirmDialog(
+    `Arquivar a equipa "${teamName(team)}"?${extra} Fica no histórico e pode ser reposta nos Arquivados.`,
+    { confirmLabel: 'Arquivar', danger: false }
+  );
   if (!ok) return;
   try {
-    await deleteRow('teams', 'teams', id);
+    await archiveRow('teams', id);
   } catch (err) {
     alert(dbErrorMessage(err));
   }
@@ -494,10 +499,13 @@ async function removeTeam(id, container) {
 
 async function removePlayer(id, container) {
   const p = state.players.find((x) => x.id === id);
-  const ok = await confirmDialog(`Remover o atleta "${p?.name}"?`);
+  const ok = await confirmDialog(
+    `Arquivar o atleta "${p?.name}"? Fica no histórico e pode ser reposto nos Arquivados.`,
+    { confirmLabel: 'Arquivar', danger: false }
+  );
   if (!ok) return;
   try {
-    await deleteRow('players', 'players', id);
+    await archiveRow('players', id);
   } catch (err) {
     alert(dbErrorMessage(err));
   }

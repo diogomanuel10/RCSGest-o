@@ -27,6 +27,7 @@ import { renderRecrutamento } from './recrutamento.js';
 import { renderMedico } from './medico.js';
 import { renderPreparacao } from './preparacao.js';
 import { renderPortal } from './portal.js';
+import { renderArquivados } from './arquivados.js';
 
 const ICONS = {
   painel: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>`,
@@ -45,6 +46,7 @@ const ICONS = {
   medico: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>`,
   fisica: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 6.5 17.5 17.5"/><path d="m21 21-1-1"/><path d="m3 3 1 1"/><path d="m18 22 4-4"/><path d="m2 6 4-4"/><path d="m3 10 7-7"/><path d="m14 21 7-7"/></svg>`,
   portal: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`,
+  arquivados: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="4" rx="1"/><path d="M5 7v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V7"/><path d="M10 11h4"/></svg>`,
 };
 
 // Visibilidade das secções: cada item usa canAccess(key). Definições e
@@ -67,6 +69,7 @@ const NAV = [
 ];
 
 const FOOTER = [
+  { key: 'arquivados',   label: 'Arquivados',   icon: ICONS.arquivados,   render: renderArquivados,   can: canManageSettings },
   { key: 'definicoes',   label: 'Definições',   icon: ICONS.definicoes,   render: renderDefinicoes,   can: canManageSettings },
   { key: 'utilizadores', label: 'Utilizadores', icon: ICONS.utilizadores, render: renderUtilizadores, can: canManageUsers },
 ];

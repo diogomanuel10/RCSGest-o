@@ -2,11 +2,11 @@
 // Colunas: Observado → Contactado → Em negociação → Confirmado → Inscrito.
 // Ao chegar a "Inscrito" pode converter-se em atleta do plantel.
 
-import { state, createRow, updateRow, deleteRow, convertProspect, dbErrorMessage } from '../store.js';
+import { state, createRow, updateRow, archiveRow, convertProspect, dbErrorMessage } from '../store.js';
 import { esc, emptyHTML } from '../ui.js';
 import { teamName, teamById, currentCoachEscaloes, escaloes as getEscaloes } from '../compute.js';
 import { openModal, confirmDialog } from '../modal.js';
-import { canEdit, isCoordenador } from '../permissions.js';
+import { canEdit, canDelete, isCoordenador } from '../permissions.js';
 import { PROSPECT_STATUSES, PROSPECT_REJECTED, PROSPECT_LABEL, PROSPECT_BADGE, POSITIONS } from '../constants.js';
 
 // Filtros locais da vista.
@@ -48,6 +48,8 @@ export function renderRecrutamento(container) {
   const canWrite = canEdit('prospects');
   // Inscrever um prospeto cria uma atleta no plantel — só o coordenador.
   const canConvert = isCoordenador();
+  // Arquivar um prospeto é uma decisão do coordenador.
+  const canRemove = canDelete('prospects');
   const mine = scopedProspects();
   const total = mine
     .filter((p) => !positionFilter || p.position === positionFilter)
@@ -88,7 +90,7 @@ export function renderRecrutamento(container) {
     </div>
 
     <div class="kanban" id="kanban-board">
-      ${COLUMNS.map((col) => columnHTML(col, canWrite, canConvert)).join('')}
+      ${COLUMNS.map((col) => columnHTML(col, canWrite, canConvert, canRemove)).join('')}
     </div>
   `;
 
@@ -125,7 +127,7 @@ export function renderRecrutamento(container) {
   );
 }
 
-function columnHTML(col, canWrite, canConvert) {
+function columnHTML(col, canWrite, canConvert, canRemove) {
   const prospects = visibleProspects(col.key);
   const rejected = col.key === PROSPECT_REJECTED.key;
 
@@ -137,14 +139,14 @@ function columnHTML(col, canWrite, canConvert) {
       </div>
       <div class="kanban-col__body">
         ${prospects.length
-          ? prospects.map((p) => cardHTML(p, canWrite, canConvert)).join('')
+          ? prospects.map((p) => cardHTML(p, canWrite, canConvert, canRemove)).join('')
           : `<div class="kanban-empty">—</div>`}
       </div>
     </div>
   `;
 }
 
-function cardHTML(p, canWrite, canConvert) {
+function cardHTML(p, canWrite, canConvert, canRemove) {
   const team = p.target_team_id ? state.teams.find((t) => t.id === p.target_team_id) : null;
   const meta = [
     p.birth_year ? `Nasc. ${esc(p.birth_year)}` : '',
@@ -165,7 +167,7 @@ function cardHTML(p, canWrite, canConvert) {
           <div class="kanban-card__actions">
             <button class="btn btn--ghost btn--xs" data-prospect-edit="${p.id}" type="button" title="Editar">✎</button>
             ${!rejected ? `<button class="btn btn--ghost btn--xs" data-prospect-reject="${p.id}" type="button" title="Não fica">⊘</button>` : ''}
-            <button class="btn btn--danger btn--xs" data-prospect-del="${p.id}" type="button" title="Remover">×</button>
+            ${canRemove ? `<button class="btn btn--danger btn--xs" data-prospect-del="${p.id}" type="button" title="Arquivar">×</button>` : ''}
           </div>` : ''}
       </div>
       ${meta ? `<p class="muted kanban-card__meta">${meta}</p>` : ''}
@@ -258,10 +260,13 @@ async function setStatus(id, status) {
 
 async function removeProspect(id) {
   const p = state.prospects.find((x) => x.id === id);
-  const ok = await confirmDialog(`Remover o prospeto "${p?.name}"?`);
+  const ok = await confirmDialog(
+    `Arquivar o prospeto "${p?.name}"? Fica no histórico e pode ser reposto nos Arquivados.`,
+    { confirmLabel: 'Arquivar', danger: false }
+  );
   if (!ok) return;
   try {
-    await deleteRow('prospects', 'prospects', id);
+    await archiveRow('prospects', id);
   } catch (err) {
     alert(dbErrorMessage(err));
   }

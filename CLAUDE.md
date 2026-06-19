@@ -45,6 +45,7 @@ src/
     treinadores.js      Vista Treinadores
     definicoes.js       Vista Definições (época, meta, escalões, backup)
     utilizadores.js     Vista Utilizadores (gestão de papéis — só coordenador)
+    arquivados.js       Vista Arquivados (registos inativos + repor — só coordenador)
 supabase/schema.sql     Tabelas, índices, RLS e dados iniciais (correr no Supabase)
 public/                 Ficheiros estáticos (modelo-atletas-rcs.xlsx)
 ```
@@ -128,13 +129,25 @@ topo do módulo da vista.
 
 ## Regras de negócio
 
+- **Arquivar em vez de apagar (soft-delete)**: as entidades principais
+  (`players`, `teams`, `coaches`, `sponsors`, `events`, `prospects`) **nunca
+  são apagadas** — ficam inativas via `archived_at` (timestamp). A app só
+  carrega registos ativos (`archived_at is null`); `pruneOrphans` em `store.js`
+  esconde da cache os filhos de pais arquivados (ex.: atletas de uma equipa
+  arquivada). `archiveRow`/`restoreRow` marcam/limpam `archived_at` e recarregam
+  tudo. Arquivar/repor é **decisão do coordenador**: `canDelete()` na UI e o
+  trigger `guard_archive` no Supabase impedem o treinador de arquivar atletas/
+  recrutamentos (que ainda pode editar). A vista `arquivados.js` (só
+  coordenador) lista os inativos e permite repô-los. Converter um prospeto em
+  atleta também o arquiva (`status='inscrito'`), preservando o funil.
 - **Total angariado** = soma do valor do nível dos patrocínios com
   `status = 'confirmado'` (Ouro 3000 / Prata 1500 / Bronze 500).
 - **Confirmar exige nível**: validado em `patrocinios.js` no `onSubmit`.
 - **Contactos em curso** = estados `email`, `telefone`, `conversacao`.
-- Apagar uma equipa apaga os atletas (cascade) e liberta os eventos
-  (`team_id` → null); apagar um treinador liberta as equipas. Refletido na
-  base de dados (FKs) e na cache local em `deleteRow`.
+- Arquivar uma equipa esconde também os seus atletas das listas ativas
+  (`pruneOrphans`), sem os apagar; repor a equipa repõe-nos. As FKs em cascata
+  (`deleteRow`) só atuam nas entidades que continuam a ser apagadas de vez
+  (equipamentos, dados clínicos/físicos, presenças, etc.).
 - **Escalões configuráveis**: guardados em `settings.escaloes` (JSON). A lista
   em vigor obtém-se por `compute.escaloes()` (recorre a `DEFAULT_ESCALOES` se
   vazio). Geridos nas Definições; usados no formulário de equipa dos Plantéis.
