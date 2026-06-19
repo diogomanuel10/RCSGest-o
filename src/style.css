@@ -1107,6 +1107,12 @@ tbody tr:hover {
   gap: 1.5rem;
   align-items: start;
 }
+/* Lista de equipas (clube só feminino, sem colunas por género). */
+.teams-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
 .gender-col__title {
   font-size: 1.05rem;
   color: var(--navy);

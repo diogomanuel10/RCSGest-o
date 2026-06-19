@@ -165,11 +165,11 @@ export function upcomingEvents(limit = 5) {
     .slice(0, limit);
 }
 
-// Nome legível de uma equipa (ex.: "Seniores Masculino").
+// Nome legível de uma equipa. O clube é só feminino, por isso o nome é o
+// escalão (ex.: "Seniores"), sem qualificador de género.
 export function teamName(team) {
   if (!team) return '';
-  const g = team.gender === 'M' ? 'Masculino' : 'Feminino';
-  return `${team.escalao} ${g}`;
+  return team.escalao;
 }
 
 export function teamById(id) {
