@@ -3474,3 +3474,8 @@ tbody tr:hover {
 .pres-pct--ok  { color: var(--ok); }
 .pres-pct--warn { color: var(--warn, #e08e00); }
 .pres-pct--bad { color: var(--danger); }
+
+/* Linha do painel clicável (abre o perfil do atleta) */
+.today-item--link { cursor: pointer; transition: background 0.12s ease; }
+.today-item--link:hover { background: var(--navy-100); }
+.today-item--link:focus-visible { outline: 2px solid var(--navy); outline-offset: -2px; }
