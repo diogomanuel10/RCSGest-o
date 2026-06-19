@@ -85,7 +85,8 @@ topo do módulo da vista.
 ## Permissões (papéis)
 
 - Cada utilizador tem um perfil na tabela `profiles` com um `role`:
-  `coordenador` (tudo), `treinador` (edita Plantéis e Calendário; vê o resto),
+  `coordenador` (tudo), `treinador` (edita Plantéis e marca presenças; vê o
+  Calendário mas só o coordenador cria/edita eventos),
   `fisioterapeuta` (Departamento Médico + calendário de treinos),
   `preparador` (preparador físico: Preparação Física + mapa de jogos),
   `atleta` (portal pessoal) ou `leitura` (só vê). Quem se regista começa em

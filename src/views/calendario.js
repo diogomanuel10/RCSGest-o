@@ -156,10 +156,19 @@ function renderGrid(allEvents, editable) {
                     ${editable ? `<button class="cal-grid__add" data-new-day="${cell.dateStr}" type="button" title="Novo evento">+</button>` : ''}
                   </div>
                   <div class="cal-grid__events">
-                    ${cell.events.slice(0, 3).map((ev) => `
-                      <div class="cal-grid__ev badge--${EVENT_TYPE_BADGE[ev.type] || 'muted'}" title="${esc(ev.title || EVENT_TYPE_LABEL[ev.type])}">
-                        ${esc((ev.title || EVENT_TYPE_LABEL[ev.type] || '').slice(0, 18))}${(ev.title || '').length > 18 ? '…' : ''}
-                      </div>`).join('')}
+                    ${cell.events.slice(0, 3).map((ev) => {
+                      const evTeam = teamById(ev.team_id);
+                      // Etiqueta da grelha: identifica a equipa (escalão) do
+                      // treino/jogo; sem equipa, mostra o título ou o tipo.
+                      const label = evTeam ? teamName(evTeam) : (ev.title || EVENT_TYPE_LABEL[ev.type] || '');
+                      const time = ev.time ? ev.time.slice(0, 5) : '';
+                      const full = [EVENT_TYPE_LABEL[ev.type] || ev.type, label, time, ev.opponent ? `vs ${ev.opponent}` : '']
+                        .filter(Boolean).join(' · ');
+                      return `
+                      <div class="cal-grid__ev badge--${EVENT_TYPE_BADGE[ev.type] || 'muted'}" title="${esc(full)}">
+                        ${time ? `<span class="cal-grid__ev-time">${esc(time)}</span> ` : ''}${esc(label.slice(0, 16))}${label.length > 16 ? '…' : ''}
+                      </div>`;
+                    }).join('')}
                     ${cell.events.length > 3 ? `<span class="muted" style="font-size:0.7rem">+${cell.events.length - 3} mais</span>` : ''}
                   </div>
                 </div>
