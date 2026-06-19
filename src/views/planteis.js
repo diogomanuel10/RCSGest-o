@@ -3,10 +3,10 @@
 
 import { state, createRow, createRows, updateRow, deleteRow, saveTeamCoaches, dbErrorMessage } from '../store.js';
 import { esc, emptyHTML, paginate, paginationHTML, wirePagination, PAGE_SIZE } from '../ui.js';
-import { teamName, teamCoaches, escaloes } from '../compute.js';
+import { teamName, teamCoaches, escaloes, currentCoach, coachTeams } from '../compute.js';
 import { openModal, confirmDialog } from '../modal.js';
 import { POSITIONS, COACH_ROLE_LABEL } from '../constants.js';
-import { canEdit } from '../permissions.js';
+import { canEdit, isCoordenador } from '../permissions.js';
 import { parsePlayersFile, downloadPlayersTemplate } from '../players-xlsx.js';
 import { openAthleteProfile } from './athlete-profile.js';
 
@@ -16,6 +16,16 @@ const expanded = new Set();
 let search = '';
 let positionFilter = '';
 const teamPage = new Map(); // team_id -> página atual dos atletas
+
+// Equipas visíveis ao utilizador atual. O coordenador vê todas; o treinador
+// (e qualquer outro papel ligado a uma ficha de treinador) só vê as suas.
+function scopedTeams() {
+  if (isCoordenador()) return state.teams;
+  const coach = currentCoach();
+  if (!coach) return state.teams;
+  const mine = new Set(coachTeams(coach.id).map((x) => x.team.id));
+  return state.teams.filter((t) => mine.has(t.id));
+}
 
 // Atletas de uma equipa após pesquisa e filtro de posição, ordenados por nº.
 function filteredPlayers(teamId) {
@@ -34,17 +44,19 @@ export function renderPlanteis(container) {
   const canPlayers = canEdit('players');
   const filtering = !!(search.trim() || positionFilter);
 
+  // Equipas do utilizador (todas para o coordenador; só as suas para o treinador).
+  const myTeams = scopedTeams();
   // Com filtro ativo, mostram-se só as equipas com atletas correspondentes.
-  const teams = state.teams.filter((t) => !filtering || filteredPlayers(t.id).length);
+  const teams = myTeams.filter((t) => !filtering || filteredPlayers(t.id).length);
 
   container.innerHTML = `
     <header class="page-head">
       <h1 class="section-title">Plantéis</h1>
       ${canTeams ? '<button class="btn btn--accent" id="add-team" type="button">+ Equipa</button>' : ''}
     </header>
-    ${state.teams.length ? filterBarHTML() : ''}
+    ${myTeams.length ? filterBarHTML() : ''}
     ${
-      !state.teams.length
+      !myTeams.length
         ? emptyHTML('Ainda não há equipas.')
         : teams.length
           ? `<div class="teams-list">${teams.map((t) => teamCardHTML(t, canTeams, canPlayers, filtering)).join('')}</div>`
