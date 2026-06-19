@@ -726,13 +726,35 @@ create policy "mh_write" on medical_history for all to authenticated
   using (app_role() in ('coordenador','fisioterapeuta'))
   with check (app_role() in ('coordenador','fisioterapeuta'));
 
--- Avaliações físicas: leitura do coordenador, preparador e fisioterapeuta;
--- escrita (criar/alterar/remover) só do coordenador e preparador.
+-- Avaliações físicas: leitura de toda a equipa técnica (não do atleta) — o
+-- treinador vê a última avaliação no perfil do atleta; escrita (criar/alterar/
+-- remover) só do coordenador e preparador.
 create policy "phys_read" on physical_tests for select to authenticated
-  using (app_role() in ('coordenador','preparador','fisioterapeuta'));
+  using (app_role() <> 'atleta');
 create policy "phys_write" on physical_tests for all to authenticated
   using (app_role() in ('coordenador','preparador'))
   with check (app_role() in ('coordenador','preparador'));
+
+-- Disponibilidade do atleta: resumo partilhável (estado + limitações ao
+-- treino + previsão de retorno) que a fisio/coordenador mantêm e que a equipa
+-- técnica (incl. treinador) pode consultar no perfil do atleta. Não expõe o
+-- detalhe clínico (diagnósticos, sessões, história), que continua reservado.
+create table if not exists athlete_availability (
+  player_id       uuid primary key references players(id) on delete cascade,
+  status          text not null default 'apto'
+                  check (status in ('apto','limitado','recuperacao','indisponivel')),
+  limitations     text,
+  expected_return date,
+  updated_at      timestamptz default now()
+);
+alter table athlete_availability enable row level security;
+drop policy if exists "avail_read"  on athlete_availability;
+drop policy if exists "avail_write" on athlete_availability;
+create policy "avail_read" on athlete_availability for select to authenticated
+  using (app_role() <> 'atleta');
+create policy "avail_write" on athlete_availability for all to authenticated
+  using (app_role() in ('coordenador','fisioterapeuta'))
+  with check (app_role() in ('coordenador','fisioterapeuta'));
 
 -- Periodização (fases, mesociclos, treinos, exercícios): leitura à equipa
 -- técnica (não ao atleta); escrita coordenador e preparador físico.

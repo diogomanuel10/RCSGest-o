@@ -1,24 +1,19 @@
-// Ficha clínica de fisioterapia de um atleta.
+// Conteúdo da área de Fisioterapia do perfil do atleta.
 //
-// Reúne os dados base do atleta e o processo clínico digital: episódios
-// clínicos (ex.: lesões) com avaliação inicial, diagnóstico funcional, plano
-// de tratamento, evolução, restrições, previsão de retorno e alta, e as sessões
-// realizadas em cada episódio. Permite ainda marcar atendimentos.
-//
-// É um painel próprio (não usa o openModal genérico no corpo) que se re-desenha
-// após cada operação no store. Os formulários de criar/editar abrem por cima.
+// Renderiza para um contentor (separador "Fisioterapia" do Perfil do Atleta):
+// disponibilidade para treino/jogo, história clínica, episódios clínicos
+// (ex.: lesões) com sessões, e atendimentos. Exporta também o formulário de
+// atendimento (reutilizado pela agenda do Departamento Médico).
 
 import { state, createRow, updateRow, deleteRow, upsertByPlayer, dbErrorMessage } from '../store.js';
 import { esc } from '../ui.js';
 import {
-  teamById,
-  teamName,
   playerEpisodes,
   episodeSessions,
   playerAppointments,
   appointmentConflicts,
-  activeEpisode,
   playerMedicalHistory,
+  playerAvailability,
 } from '../compute.js';
 import { openModal, confirmDialog } from '../modal.js';
 import {
@@ -31,6 +26,9 @@ import {
   APPOINTMENT_STATUSES,
   APPOINTMENT_STATUS_LABEL,
   APPOINTMENT_STATUS_BADGE,
+  AVAILABILITY_STATUSES,
+  AVAILABILITY_LABEL,
+  AVAILABILITY_BADGE,
   DEFAULT_LOCATION,
 } from '../constants.js';
 import { canEdit } from '../permissions.js';
@@ -38,182 +36,105 @@ import { canEdit } from '../permissions.js';
 const fmtDate = (d) =>
   d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-PT', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
 
-// Abre a ficha clínica de um atleta.
-export function openClinicalFile(playerId) {
-  const player = state.players.find((p) => p.id === playerId);
-  if (!player) return;
-  const editable = canEdit('clinical');
+// Renderiza a área de fisioterapia de um atleta no contentor indicado.
+export function renderClinicalInto(container, playerId, { editable } = {}) {
+  const canClinical = editable ?? canEdit('clinical');
+  const canAvail = canEdit('availability');
+  const rerender = () => renderClinicalInto(container, playerId, { editable });
 
-  // Episódios expandidos (mostram detalhe + sessões). Por omissão, expande o
-  // primeiro (o mais relevante: ativo/recuperação).
-  const expanded = new Set();
-  const first = playerEpisodes(playerId)[0];
-  if (first) expanded.add(first.id);
+  const av = playerAvailability(playerId);
+  const status = av?.status || 'apto';
+  const hist = playerMedicalHistory(playerId);
+  const episodes = playerEpisodes(playerId);
+  const appts = playerAppointments(playerId);
 
-  const overlay = document.createElement('div');
-  overlay.className = 'modal-overlay';
-  overlay.innerHTML = `
-    <div class="modal card clinical-file" role="dialog" aria-modal="true"
-         aria-label="Ficha clínica de ${esc(player.name)}" style="width:min(720px,96vw)">
-      <div class="modal__head">
-        <h2 class="section-title">Ficha clínica</h2>
-        <button class="modal__close" type="button" aria-label="Fechar">&times;</button>
+  container.innerHTML = `
+    <div class="pd-section">
+      <div class="cf-section-head">
+        <span class="pd-label">Disponibilidade</span>
+        ${canAvail ? '<button class="btn btn--ghost btn--sm" data-edit-avail type="button">Editar</button>' : ''}
       </div>
-      <div data-cf-body></div>
+      <div class="med-stats" style="margin:0.2rem 0 0.4rem">
+        <span class="badge badge--${AVAILABILITY_BADGE[status] || 'muted'}">${esc(AVAILABILITY_LABEL[status] || status)}</span>
+        ${av?.expected_return ? `<span class="badge badge--muted">Retorno: ${esc(fmtDate(av.expected_return))}</span>` : ''}
+      </div>
+      ${av?.limitations ? `<div class="pd-notes"><span class="pd-label">Limitações ao treino</span><p>${esc(av.limitations)}</p></div>` : ''}
+    </div>
+
+    <div class="pd-section">
+      <div class="cf-section-head">
+        <span class="pd-label">História clínica</span>
+        ${canClinical ? '<button class="btn btn--ghost btn--sm" data-edit-history type="button">Editar</button>' : ''}
+      </div>
+      ${hist && (hist.limitations || hist.past_injuries || hist.surgeries || hist.chronic_diseases || hist.medication)
+        ? `${fieldBlock('Limitações ao treino', hist.limitations)}
+           ${fieldBlock('Lesões', hist.past_injuries)}
+           ${fieldBlock('Cirurgias', hist.surgeries)}
+           ${fieldBlock('Doenças crónicas', hist.chronic_diseases)}
+           ${fieldBlock('Medicação', hist.medication)}`
+        : '<p class="muted" style="margin:0.3rem 0 0">Sem história clínica registada.</p>'}
+    </div>
+
+    <div class="pd-section">
+      <div class="cf-section-head">
+        <span class="pd-label">Episódios clínicos</span>
+        ${canClinical ? '<button class="btn btn--accent btn--sm" data-add-episode type="button">+ Episódio</button>' : ''}
+      </div>
+      ${episodes.length
+        ? `<div class="cf-episodes">${episodes.map((e) => episodeHTML(e, true, canClinical)).join('')}</div>`
+        : '<p class="muted" style="margin:0.3rem 0 0">Sem episódios registados.</p>'}
+    </div>
+
+    <div class="pd-section">
+      <div class="cf-section-head">
+        <span class="pd-label">Atendimentos</span>
+        ${canClinical ? '<button class="btn btn--ghost btn--sm" data-add-appt type="button">+ Atendimento</button>' : ''}
+      </div>
+      ${appts.length
+        ? `<ul class="cf-appt-list">${appts.map((a) => apptLineHTML(a, canClinical)).join('')}</ul>`
+        : '<p class="muted" style="margin:0.3rem 0 0">Sem atendimentos marcados.</p>'}
     </div>
   `;
-  document.body.appendChild(overlay);
-  document.body.classList.add('no-scroll');
-  overlay.querySelector('.modal__close').focus();
 
-  const close = () => {
-    overlay.remove();
-    document.body.classList.remove('no-scroll');
-    document.removeEventListener('keydown', onKey);
-  };
-  const onKey = (e) => { if (e.key === 'Escape') close(); };
-  document.addEventListener('keydown', onKey);
-  overlay.querySelector('.modal__close').addEventListener('click', close);
-  overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
+  // Expande/colapsa episódios localmente (sem perder estado entre re-render
+  // não é crítico aqui — todos começam abertos).
+  container.querySelector('[data-edit-avail]')?.addEventListener('click', () => openAvailabilityForm(playerId, rerender));
+  container.querySelector('[data-edit-history]')?.addEventListener('click', () => openHistoryForm(playerId, rerender));
+  container.querySelector('[data-add-episode]')?.addEventListener('click', () => openEpisodeForm({ playerId, onSaved: rerender }));
+  container.querySelector('[data-add-appt]')?.addEventListener('click', () => openAppointmentForm({ playerId, onSaved: rerender }));
 
-  const body = overlay.querySelector('[data-cf-body]');
-
-  function render() {
-    const p = state.players.find((x) => x.id === playerId);
-    if (!p) { close(); return; }
-    const team = teamById(p.team_id);
-    const active = activeEpisode(playerId);
-    const episodes = playerEpisodes(playerId);
-    const appts = playerAppointments(playerId);
-    const hist = playerMedicalHistory(playerId);
-
-    const initials = (p.name || '?')
-      .split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
-
-    body.innerHTML = `
-      <div class="pd-hero">
-        <span class="pd-avatar" aria-hidden="true">${esc(initials || '?')}</span>
-        <div class="pd-hero__info">
-          <strong class="pd-hero__name">${esc(p.name)}</strong>
-          <span class="muted pd-hero__meta">
-            ${p.number ? `Nº ${esc(p.number)}` : 'Sem número'}
-            ${p.position ? ` · ${esc(p.position)}` : ''}
-            ${team ? ` · ${esc(teamName(team))}` : ''}
-          </span>
-        </div>
-        <span class="badge badge--${active ? EPISODE_STATUS_BADGE[active.status] : 'ok'} pd-hero__review">
-          ${active ? esc(EPISODE_STATUS_LABEL[active.status]) : 'Apto'}
-        </span>
-      </div>
-
-      <div class="pd-grid">
-        ${dataItem('Ano de nascimento', p.birth_year)}
-        ${dataItem('Posição', p.position)}
-        ${dataItem('Contacto', p.guardian_contact)}
-        ${dataItem('Nº de federado', p.federation_number)}
-      </div>
-
-      <div class="pd-section">
-        <div class="cf-section-head">
-          <span class="pd-label">História clínica</span>
-          ${editable ? '<button class="btn btn--ghost btn--sm" data-edit-history type="button">Editar</button>' : ''}
-        </div>
-        ${hist && (hist.limitations || hist.past_injuries || hist.surgeries || hist.chronic_diseases || hist.medication)
-          ? `${fieldBlock('Limitações ao treino', hist.limitations)}
-             ${fieldBlock('Lesões', hist.past_injuries)}
-             ${fieldBlock('Cirurgias', hist.surgeries)}
-             ${fieldBlock('Doenças crónicas', hist.chronic_diseases)}
-             ${fieldBlock('Medicação', hist.medication)}`
-          : '<p class="muted" style="margin:0.3rem 0 0">Sem história clínica registada.</p>'}
-      </div>
-
-      <div class="pd-section">
-        <div class="cf-section-head">
-          <span class="pd-label">Episódios clínicos</span>
-          ${editable ? '<button class="btn btn--accent btn--sm" data-add-episode type="button">+ Episódio</button>' : ''}
-        </div>
-        ${episodes.length
-          ? `<div class="cf-episodes">${episodes.map((e) => episodeHTML(e, expanded.has(e.id), editable)).join('')}</div>`
-          : '<p class="muted" style="margin:0.3rem 0 0">Sem episódios registados.</p>'}
-      </div>
-
-      <div class="pd-section">
-        <div class="cf-section-head">
-          <span class="pd-label">Atendimentos</span>
-          ${editable ? '<button class="btn btn--ghost btn--sm" data-add-appt type="button">+ Atendimento</button>' : ''}
-        </div>
-        ${appts.length
-          ? `<ul class="cf-appt-list">${appts.map((a) => apptLineHTML(a, editable)).join('')}</ul>`
-          : '<p class="muted" style="margin:0.3rem 0 0">Sem atendimentos marcados.</p>'}
-      </div>
-
-      <div class="modal__actions">
-        <button class="btn btn--ghost" data-cf-close type="button">Fechar</button>
-      </div>
-    `;
-
-    wire();
-  }
-
-  function wire() {
-    body.querySelector('[data-cf-close]').addEventListener('click', close);
-    body.querySelector('[data-add-episode]')?.addEventListener('click', () =>
-      openEpisodeForm({ playerId, onSaved: render })
-    );
-    body.querySelector('[data-add-appt]')?.addEventListener('click', () =>
-      openAppointmentForm({ playerId, onSaved: render })
-    );
-    body.querySelector('[data-edit-history]')?.addEventListener('click', () =>
-      openHistoryForm(playerId, render)
-    );
-
-    body.querySelectorAll('[data-ep-toggle]').forEach((b) =>
-      b.addEventListener('click', () => {
-        const id = b.dataset.epToggle;
-        if (expanded.has(id)) expanded.delete(id); else expanded.add(id);
-        render();
-      })
-    );
-    body.querySelectorAll('[data-ep-edit]').forEach((b) =>
-      b.addEventListener('click', () => {
-        const ep = state.clinicalEpisodes.find((e) => e.id === b.dataset.epEdit);
-        openEpisodeForm({ playerId, episode: ep, onSaved: render });
-      })
-    );
-    body.querySelectorAll('[data-ep-del]').forEach((b) =>
-      b.addEventListener('click', () => removeEpisode(b.dataset.epDel, render))
-    );
-    body.querySelectorAll('[data-ep-session]').forEach((b) =>
-      b.addEventListener('click', () => openSessionForm({ episodeId: b.dataset.epSession, onSaved: render }))
-    );
-    body.querySelectorAll('[data-ep-appt]').forEach((b) =>
-      b.addEventListener('click', () =>
-        openAppointmentForm({ playerId, episodeId: b.dataset.epAppt, onSaved: render })
-      )
-    );
-    body.querySelectorAll('[data-session-del]').forEach((b) =>
-      b.addEventListener('click', () => removeSession(b.dataset.sessionDel, render))
-    );
-    body.querySelectorAll('[data-appt-edit]').forEach((b) =>
-      b.addEventListener('click', () => {
-        const ap = state.appointments.find((a) => a.id === b.dataset.apptEdit);
-        openAppointmentForm({ playerId, appointment: ap, onSaved: render });
-      })
-    );
-    body.querySelectorAll('[data-appt-del]').forEach((b) =>
-      b.addEventListener('click', () => removeAppointment(b.dataset.apptDel, render))
-    );
-  }
-
-  render();
+  container.querySelectorAll('[data-ep-edit]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const ep = state.clinicalEpisodes.find((e) => e.id === b.dataset.epEdit);
+      openEpisodeForm({ playerId, episode: ep, onSaved: rerender });
+    })
+  );
+  container.querySelectorAll('[data-ep-del]').forEach((b) =>
+    b.addEventListener('click', () => removeEpisode(b.dataset.epDel, rerender))
+  );
+  container.querySelectorAll('[data-ep-session]').forEach((b) =>
+    b.addEventListener('click', () => openSessionForm({ episodeId: b.dataset.epSession, onSaved: rerender }))
+  );
+  container.querySelectorAll('[data-ep-appt]').forEach((b) =>
+    b.addEventListener('click', () => openAppointmentForm({ playerId, episodeId: b.dataset.epAppt, onSaved: rerender }))
+  );
+  container.querySelectorAll('[data-session-del]').forEach((b) =>
+    b.addEventListener('click', () => removeSession(b.dataset.sessionDel, rerender))
+  );
+  container.querySelectorAll('[data-appt-edit]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const ap = state.appointments.find((a) => a.id === b.dataset.apptEdit);
+      openAppointmentForm({ playerId, appointment: ap, onSaved: rerender });
+    })
+  );
+  container.querySelectorAll('[data-appt-del]').forEach((b) =>
+    b.addEventListener('click', () => removeAppointment(b.dataset.apptDel, rerender))
+  );
 }
 
-function dataItem(label, value) {
-  return `
-    <div class="pd-item">
-      <span class="pd-label">${esc(label)}</span>
-      <span class="pd-value">${value ? esc(value) : '—'}</span>
-    </div>`;
+function fieldBlock(label, value) {
+  if (!value) return '';
+  return `<div class="pd-notes"><span class="pd-label">${esc(label)}</span><p>${esc(value)}</p></div>`;
 }
 
 function episodeHTML(ep, isOpen, editable) {
@@ -224,14 +145,13 @@ function episodeHTML(ep, isOpen, editable) {
   return `
     <article class="cf-episode">
       <div class="cf-episode__head">
-        <button class="cf-episode__toggle" data-ep-toggle="${ep.id}" type="button" aria-expanded="${isOpen}">
-          <span class="cf-episode__chevron">${isOpen ? '▾' : '▸'}</span>
+        <span class="cf-episode__toggle" style="cursor:default">
           <span>
             <span class="badge badge--${EPISODE_STATUS_BADGE[ep.status] || 'muted'}">${esc(EPISODE_STATUS_LABEL[ep.status] || ep.status)}</span>
             <strong style="margin-left:0.4rem">${esc(ep.title)}</strong>
             ${sub ? `<span class="muted cf-episode__sub">${esc(sub)}</span>` : ''}
           </span>
-        </button>
+        </span>
         ${editable
           ? `<div class="cell-actions">
                <button class="btn btn--ghost btn--sm" data-ep-edit="${ep.id}" type="button">Editar</button>
@@ -239,38 +159,40 @@ function episodeHTML(ep, isOpen, editable) {
              </div>`
           : ''}
       </div>
-      ${isOpen ? `
-        <div class="cf-episode__body">
-          <div class="pd-grid">
-            ${dataItem('Previsão de retorno', ep.expected_return ? fmtDate(ep.expected_return) : '')}
-            ${dataItem('Data de alta', ep.discharge_date ? fmtDate(ep.discharge_date) : '')}
-          </div>
-          ${fieldBlock('Avaliação inicial', ep.initial_assessment)}
-          ${fieldBlock('Diagnóstico funcional', ep.functional_diagnosis)}
-          ${fieldBlock('Plano de tratamento', ep.treatment_plan)}
-          ${fieldBlock('Restrições ao treino/jogo', ep.restrictions)}
-          ${fieldBlock('Evolução', ep.evolution)}
+      <div class="cf-episode__body">
+        <div class="pd-grid">
+          ${dataItem('Previsão de retorno', ep.expected_return ? fmtDate(ep.expected_return) : '')}
+          ${dataItem('Data de alta', ep.discharge_date ? fmtDate(ep.discharge_date) : '')}
+        </div>
+        ${fieldBlock('Avaliação inicial', ep.initial_assessment)}
+        ${fieldBlock('Diagnóstico funcional', ep.functional_diagnosis)}
+        ${fieldBlock('Plano de tratamento', ep.treatment_plan)}
+        ${fieldBlock('Restrições ao treino/jogo', ep.restrictions)}
+        ${fieldBlock('Evolução', ep.evolution)}
 
-          <div class="cf-section-head" style="margin-top:0.6rem">
-            <span class="pd-label">Sessões (${sessions.length})</span>
-            ${editable
-              ? `<div class="cell-actions">
-                   <button class="btn btn--ghost btn--sm" data-ep-session="${ep.id}" type="button">+ Sessão</button>
-                   <button class="btn btn--link btn--sm" data-ep-appt="${ep.id}" type="button">Marcar atendimento</button>
-                 </div>`
-              : ''}
-          </div>
-          ${sessions.length
-            ? `<ul class="cf-session-list">${sessions.map((s) => sessionLineHTML(s, editable)).join('')}</ul>`
-            : '<p class="muted" style="margin:0.3rem 0 0">Sem sessões registadas.</p>'}
-        </div>` : ''}
+        <div class="cf-section-head" style="margin-top:0.6rem">
+          <span class="pd-label">Sessões (${sessions.length})</span>
+          ${editable
+            ? `<div class="cell-actions">
+                 <button class="btn btn--ghost btn--sm" data-ep-session="${ep.id}" type="button">+ Sessão</button>
+                 <button class="btn btn--link btn--sm" data-ep-appt="${ep.id}" type="button">Marcar atendimento</button>
+               </div>`
+            : ''}
+        </div>
+        ${sessions.length
+          ? `<ul class="cf-session-list">${sessions.map((s) => sessionLineHTML(s, editable)).join('')}</ul>`
+          : '<p class="muted" style="margin:0.3rem 0 0">Sem sessões registadas.</p>'}
+      </div>
     </article>
   `;
 }
 
-function fieldBlock(label, value) {
-  if (!value) return '';
-  return `<div class="pd-notes"><span class="pd-label">${esc(label)}</span><p>${esc(value)}</p></div>`;
+function dataItem(label, value) {
+  return `
+    <div class="pd-item">
+      <span class="pd-label">${esc(label)}</span>
+      <span class="pd-value">${value ? esc(value) : '—'}</span>
+    </div>`;
 }
 
 function sessionLineHTML(s, editable) {
@@ -300,6 +222,32 @@ function apptLineHTML(a, editable) {
 }
 
 // --- Formulários ----------------------------------------------------------
+
+function openAvailabilityForm(playerId, onSaved) {
+  const av = playerAvailability(playerId) || {};
+  openModal({
+    title: 'Disponibilidade do atleta',
+    submitLabel: 'Guardar',
+    values: { status: 'apto', ...av },
+    fields: [
+      { name: 'status', label: 'Estado', type: 'select', options: AVAILABILITY_STATUSES },
+      { name: 'expected_return', label: 'Previsão de retorno', type: 'date' },
+      { name: 'limitations', label: 'Limitações ao treino (visível ao treinador)', type: 'textarea', full: true },
+    ],
+    onSubmit: async (values) => {
+      try {
+        await upsertByPlayer('athlete_availability', 'availability', playerId, {
+          status: values.status || 'apto',
+          expected_return: values.expected_return || null,
+          limitations: values.limitations?.trim() || null,
+        });
+        onSaved?.();
+      } catch (err) {
+        throw new Error(dbErrorMessage(err));
+      }
+    },
+  });
+}
 
 function openHistoryForm(playerId, onSaved) {
   const hist = playerMedicalHistory(playerId) || {};
@@ -402,20 +350,13 @@ function openSessionForm({ episodeId, onSaved }) {
 }
 
 // Formulário de atendimento, com aviso de conflito com treinos/jogos da equipa.
-// Modal próprio (não o genérico) para mostrar o aviso em tempo real.
 export function openAppointmentForm({ playerId, episodeId, appointment, onSaved }) {
   const existing = appointment || null;
   const player = state.players.find((p) => p.id === playerId);
   const episodes = playerEpisodes(playerId);
   const v = existing || {
-    type: 'tratamento',
-    date: '',
-    time: '',
-    end_time: '',
-    location: DEFAULT_LOCATION,
-    status: 'agendado',
-    episode_id: episodeId || '',
-    notes: '',
+    type: 'tratamento', date: '', time: '', end_time: '',
+    location: DEFAULT_LOCATION, status: 'agendado', episode_id: episodeId || '', notes: '',
   };
 
   const overlay = document.createElement('div');

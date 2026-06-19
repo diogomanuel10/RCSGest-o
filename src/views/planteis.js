@@ -8,7 +8,7 @@ import { openModal, confirmDialog } from '../modal.js';
 import { GENDERS, POSITIONS, COACH_ROLE_LABEL } from '../constants.js';
 import { canEdit } from '../permissions.js';
 import { parsePlayersFile, downloadPlayersTemplate } from '../players-xlsx.js';
-import { openPlayerDetail } from './player-detail.js';
+import { openAthleteProfile } from './athlete-profile.js';
 
 // Equipas expandidas (mostram os atletas). Mantido entre re-desenhos.
 const expanded = new Set();
@@ -59,7 +59,7 @@ export function renderPlanteis(container) {
     b.addEventListener('click', () => {
       const id = b.dataset.playerView;
       const teamId = b.dataset.team;
-      openPlayerDetail(id, canEdit('players') ? { onEdit: () => openPlayerForm(teamId, id) } : {});
+      openAthleteProfile(id, canEdit('players') ? { onEdit: () => openPlayerForm(teamId, id) } : {});
     })
   );
   container.querySelectorAll('[data-player-edit]').forEach((b) =>

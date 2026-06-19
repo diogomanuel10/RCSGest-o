@@ -275,6 +275,20 @@ export const PHASE_TYPE_BADGE = Object.fromEntries(
   PHASE_TYPES.map((p) => [p.key, p.badge])
 );
 
+// Disponibilidade do atleta para treino/jogo (resumo visível ao treinador).
+export const AVAILABILITY_STATUSES = [
+  { key: 'apto',         label: 'Apto',           badge: 'ok' },
+  { key: 'limitado',     label: 'Limitado',       badge: 'warn' },
+  { key: 'recuperacao',  label: 'Em recuperação', badge: 'info' },
+  { key: 'indisponivel', label: 'Indisponível',   badge: 'danger' },
+];
+export const AVAILABILITY_LABEL = Object.fromEntries(
+  AVAILABILITY_STATUSES.map((s) => [s.key, s.label])
+);
+export const AVAILABILITY_BADGE = Object.fromEntries(
+  AVAILABILITY_STATUSES.map((s) => [s.key, s.badge])
+);
+
 // --- Recrutamento: estados do funil ---
 export const PROSPECT_STATUSES = [
   { key: 'observado',  label: 'Observado',      badge: 'muted' },

@@ -1,9 +1,8 @@
-// Ficha de preparação física de um atleta.
+// Conteúdo da área de Preparação Física do perfil do atleta.
 //
-// Reúne: dados físicos (altura/peso/IMC/mão dominante), história clínica
-// (leitura — vinda da fisioterapia), avaliações físicas (antropometria e
-// testes ao longo da época) e o controlo de treino (treinos/faltas/tempo) e
-// minutos de jogo. Painel próprio que se re-desenha após cada operação.
+// Renderiza para um contentor (separador "Prep. física"): dados físicos
+// (altura/peso/IMC/mão dominante), história clínica (leitura — o preparador
+// consulta), avaliações físicas e o controlo de treino e minutos de jogo.
 
 import {
   state,
@@ -16,8 +15,6 @@ import {
 } from '../store.js';
 import { esc } from '../ui.js';
 import {
-  teamById,
-  teamName,
   physicalProfile,
   playerMedicalHistory,
   bmi,
@@ -41,153 +38,93 @@ const fmtDate = (d) =>
 
 const testName = (t) => (t.type === 'outro' && t.label ? t.label : PHYSICAL_TEST_LABEL[t.type] || t.type);
 
-export function openPhysicalFile(playerId) {
-  const player = state.players.find((p) => p.id === playerId);
-  if (!player) return;
-  const editable = canEdit('physical');
+// Renderiza a área de preparação física de um atleta no contentor indicado.
+export function renderPhysicalInto(container, playerId, { editable } = {}) {
+  const canPhysical = editable ?? canEdit('physical');
+  const rerender = () => renderPhysicalInto(container, playerId, { editable });
 
-  const overlay = document.createElement('div');
-  overlay.className = 'modal-overlay';
-  overlay.innerHTML = `
-    <div class="modal card clinical-file" role="dialog" aria-modal="true"
-         aria-label="Ficha física de ${esc(player.name)}" style="width:min(720px,96vw)">
-      <div class="modal__head">
-        <h2 class="section-title">Ficha de preparação física</h2>
-        <button class="modal__close" type="button" aria-label="Fechar">&times;</button>
+  const p = state.players.find((x) => x.id === playerId);
+  if (!p) return;
+  const prof = physicalProfile(playerId);
+  const hist = playerMedicalHistory(playerId);
+  const tests = playerTests(playerId);
+  const gym = playerGymStats(playerId);
+  const games = playerGameMinutes(playerId);
+  const imc = bmi(playerId);
+
+  container.innerHTML = `
+    <div class="pd-section">
+      <div class="cf-section-head">
+        <span class="pd-label">Dados físicos</span>
+        ${canPhysical ? '<button class="btn btn--ghost btn--sm" data-edit-profile type="button">Editar</button>' : ''}
       </div>
-      <div data-pf-body></div>
+      <div class="pd-grid">
+        ${dataItem('Altura', prof?.height_cm ? `${prof.height_cm} cm` : '')}
+        ${dataItem('Peso', prof?.weight_kg ? `${prof.weight_kg} kg` : '')}
+        ${dataItem('IMC', imc != null ? String(imc) : '')}
+        ${dataItem('Mão dominante', prof?.dominant_hand ? DOMINANT_HAND_LABEL[prof.dominant_hand] : '')}
+      </div>
+    </div>
+
+    <div class="pd-section">
+      <span class="pd-label">História clínica</span>
+      <p class="muted" style="margin:0.1rem 0 0.4rem;font-size:0.8rem">Gerida pela fisioterapia (leitura).</p>
+      ${hist && (hist.limitations || hist.past_injuries || hist.surgeries || hist.chronic_diseases || hist.medication)
+        ? `${fieldBlock('Limitações ao treino', hist.limitations)}
+           ${fieldBlock('Lesões', hist.past_injuries)}
+           ${fieldBlock('Cirurgias', hist.surgeries)}
+           ${fieldBlock('Doenças crónicas', hist.chronic_diseases)}
+           ${fieldBlock('Medicação', hist.medication)}`
+        : '<p class="muted" style="margin:0.2rem 0 0">Sem história clínica registada.</p>'}
+    </div>
+
+    <div class="pd-section">
+      <div class="cf-section-head">
+        <span class="pd-label">Avaliação física</span>
+        ${canPhysical ? '<button class="btn btn--accent btn--sm" data-add-test type="button">+ Avaliação</button>' : ''}
+      </div>
+      ${tests.length
+        ? `<table class="players-table">
+             <thead><tr><th>Data</th><th>Teste</th><th>Valor</th>${canPhysical ? '<th></th>' : ''}</tr></thead>
+             <tbody>${tests.map((t) => testRowHTML(t, canPhysical)).join('')}</tbody>
+           </table>`
+        : '<p class="muted" style="margin:0.3rem 0 0">Sem avaliações registadas.</p>'}
+    </div>
+
+    <div class="pd-section">
+      <span class="pd-label">Controlo de treino</span>
+      <div class="med-stats" style="margin:0.4rem 0 0.6rem">
+        <span class="badge badge--ok">${gym.treinos} treino${gym.treinos === 1 ? '' : 's'}</span>
+        <span class="badge badge--danger">${gym.faltas} falta${gym.faltas === 1 ? '' : 's'}</span>
+        <span class="badge badge--info">${Math.round(gym.minutos)} min de treino</span>
+        <span class="badge badge--warn">${games.total} min de jogo</span>
+      </div>
+      ${minutesEditorHTML(p, canPhysical)}
     </div>
   `;
-  document.body.appendChild(overlay);
-  document.body.classList.add('no-scroll');
-  overlay.querySelector('.modal__close').focus();
 
-  const close = () => {
-    overlay.remove();
-    if (!document.querySelector('.modal-overlay')) document.body.classList.remove('no-scroll');
-    document.removeEventListener('keydown', onKey);
-  };
-  const onKey = (e) => { if (e.key === 'Escape') close(); };
-  document.addEventListener('keydown', onKey);
-  overlay.querySelector('.modal__close').addEventListener('click', close);
-  overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
-
-  const body = overlay.querySelector('[data-pf-body]');
-
-  function render() {
-    const p = state.players.find((x) => x.id === playerId);
-    if (!p) { close(); return; }
-    const team = teamById(p.team_id);
-    const prof = physicalProfile(playerId);
-    const hist = playerMedicalHistory(playerId);
-    const tests = playerTests(playerId);
-    const gym = playerGymStats(playerId);
-    const games = playerGameMinutes(playerId);
-    const imc = bmi(playerId);
-
-    const initials = (p.name || '?')
-      .split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
-
-    body.innerHTML = `
-      <div class="pd-hero">
-        <span class="pd-avatar" aria-hidden="true">${esc(initials || '?')}</span>
-        <div class="pd-hero__info">
-          <strong class="pd-hero__name">${esc(p.name)}</strong>
-          <span class="muted pd-hero__meta">
-            ${p.number ? `Nº ${esc(p.number)}` : 'Sem número'}
-            ${p.position ? ` · ${esc(p.position)}` : ''}
-            ${team ? ` · ${esc(teamName(team))}` : ''}
-          </span>
-        </div>
-      </div>
-
-      <div class="pd-section">
-        <div class="cf-section-head">
-          <span class="pd-label">Dados físicos</span>
-          ${editable ? '<button class="btn btn--ghost btn--sm" data-edit-profile type="button">Editar</button>' : ''}
-        </div>
-        <div class="pd-grid">
-          ${dataItem('Altura', prof?.height_cm ? `${prof.height_cm} cm` : '')}
-          ${dataItem('Peso', prof?.weight_kg ? `${prof.weight_kg} kg` : '')}
-          ${dataItem('IMC', imc != null ? String(imc) : '')}
-          ${dataItem('Mão dominante', prof?.dominant_hand ? DOMINANT_HAND_LABEL[prof.dominant_hand] : '')}
-        </div>
-      </div>
-
-      <div class="pd-section">
-        <span class="pd-label">História clínica</span>
-        <p class="muted" style="margin:0.1rem 0 0.4rem;font-size:0.8rem">Gerida pela fisioterapia (leitura).</p>
-        ${hist && (hist.limitations || hist.past_injuries || hist.surgeries || hist.chronic_diseases || hist.medication)
-          ? `${fieldBlock('Limitações ao treino', hist.limitations)}
-             ${fieldBlock('Lesões', hist.past_injuries)}
-             ${fieldBlock('Cirurgias', hist.surgeries)}
-             ${fieldBlock('Doenças crónicas', hist.chronic_diseases)}
-             ${fieldBlock('Medicação', hist.medication)}`
-          : '<p class="muted" style="margin:0.2rem 0 0">Sem história clínica registada.</p>'}
-      </div>
-
-      <div class="pd-section">
-        <div class="cf-section-head">
-          <span class="pd-label">Avaliação física</span>
-          ${editable ? '<button class="btn btn--accent btn--sm" data-add-test type="button">+ Avaliação</button>' : ''}
-        </div>
-        ${tests.length
-          ? `<table class="players-table">
-               <thead><tr><th>Data</th><th>Teste</th><th>Valor</th>${editable ? '<th></th>' : ''}</tr></thead>
-               <tbody>${tests.map((t) => testRowHTML(t, editable)).join('')}</tbody>
-             </table>`
-          : '<p class="muted" style="margin:0.3rem 0 0">Sem avaliações registadas.</p>'}
-      </div>
-
-      <div class="pd-section">
-        <span class="pd-label">Controlo de treino</span>
-        <div class="med-stats" style="margin:0.4rem 0 0.6rem">
-          <span class="badge badge--ok">${gym.treinos} treino${gym.treinos === 1 ? '' : 's'}</span>
-          <span class="badge badge--danger">${gym.faltas} falta${gym.faltas === 1 ? '' : 's'}</span>
-          <span class="badge badge--info">${Math.round(gym.minutos)} min de treino</span>
-          <span class="badge badge--warn">${games.total} min de jogo</span>
-        </div>
-        ${minutesEditorHTML(p, games, editable)}
-      </div>
-
-      <div class="modal__actions">
-        <button class="btn btn--ghost" data-pf-close type="button">Fechar</button>
-      </div>
-    `;
-    wire();
-  }
-
-  function wire() {
-    body.querySelector('[data-pf-close]').addEventListener('click', close);
-    body.querySelector('[data-edit-profile]')?.addEventListener('click', () =>
-      openProfileForm(playerId, render)
-    );
-    body.querySelector('[data-add-test]')?.addEventListener('click', () =>
-      openTestForm({ playerId, onSaved: render })
-    );
-    body.querySelectorAll('[data-test-edit]').forEach((b) =>
-      b.addEventListener('click', () => {
-        const t = state.physicalTests.find((x) => x.id === b.dataset.testEdit);
-        openTestForm({ playerId, test: t, onSaved: render });
-      })
-    );
-    body.querySelectorAll('[data-test-del]').forEach((b) =>
-      b.addEventListener('click', () => removeTest(b.dataset.testDel, render))
-    );
-    body.querySelectorAll('[data-game-min]').forEach((inp) =>
-      inp.addEventListener('change', async () => {
-        const minutes = Math.max(0, parseInt(inp.value, 10) || 0);
-        try {
-          await upsertGameMinutes(inp.dataset.gameMin, playerId, minutes);
-          render();
-        } catch (err) {
-          alert(dbErrorMessage(err));
-        }
-      })
-    );
-  }
-
-  render();
+  container.querySelector('[data-edit-profile]')?.addEventListener('click', () => openProfileForm(playerId, rerender));
+  container.querySelector('[data-add-test]')?.addEventListener('click', () => openTestForm({ playerId, onSaved: rerender }));
+  container.querySelectorAll('[data-test-edit]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const t = state.physicalTests.find((x) => x.id === b.dataset.testEdit);
+      openTestForm({ playerId, test: t, onSaved: rerender });
+    })
+  );
+  container.querySelectorAll('[data-test-del]').forEach((b) =>
+    b.addEventListener('click', () => removeTest(b.dataset.testDel, rerender))
+  );
+  container.querySelectorAll('[data-game-min]').forEach((inp) =>
+    inp.addEventListener('change', async () => {
+      const minutes = Math.max(0, parseInt(inp.value, 10) || 0);
+      try {
+        await upsertGameMinutes(inp.dataset.gameMin, playerId, minutes);
+        rerender();
+      } catch (err) {
+        alert(dbErrorMessage(err));
+      }
+    })
+  );
 }
 
 function dataItem(label, value) {
@@ -220,9 +157,7 @@ function testRowHTML(t, editable) {
     </tr>`;
 }
 
-// Editor de minutos de jogo: últimos jogos da equipa do atleta com um campo de
-// minutos. Só editável por quem tem canEdit('physical').
-function minutesEditorHTML(player, games, editable) {
+function minutesEditorHTML(player, editable) {
   const now = new Date();
   const pastGames = state.events
     .filter((e) => e.type === 'jogo' && e.team_id === player.team_id && eventDateTime(e) <= now)
