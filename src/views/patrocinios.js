@@ -2,7 +2,7 @@
 // Cartões por nível (confirmados), tabela com filtros e CRUD.
 // Regra de negócio: para marcar como "Confirmado" é obrigatório ter nível.
 
-import { state, createRow, updateRow, deleteRow, dbErrorMessage } from '../store.js';
+import { state, createRow, updateRow, archiveRow, dbErrorMessage } from '../store.js';
 import { esc, euros, emptyHTML, paginate, paginationHTML, wirePagination, PAGE_SIZE } from '../ui.js';
 import { confirmedByTier } from '../compute.js';
 import { openModal, confirmDialog } from '../modal.js';
@@ -203,10 +203,13 @@ function openForm(id) {
 
 async function remove(id, container) {
   const s = state.sponsors.find((x) => x.id === id);
-  const ok = await confirmDialog(`Remover a empresa "${s?.name}"? Esta ação não pode ser anulada.`);
+  const ok = await confirmDialog(
+    `Arquivar a empresa "${s?.name}"? Fica no histórico e pode ser reposta nos Arquivados.`,
+    { confirmLabel: 'Arquivar', danger: false }
+  );
   if (!ok) return;
   try {
-    await deleteRow('sponsors', 'sponsors', id);
+    await archiveRow('sponsors', id);
   } catch (err) {
     alert(dbErrorMessage(err));
   }

@@ -1,6 +1,6 @@
 // Vista: Treinadores. Fichas com dados de contacto e as equipas que orientam.
 
-import { state, createRow, updateRow, deleteRow, dbErrorMessage } from '../store.js';
+import { state, createRow, updateRow, archiveRow, dbErrorMessage } from '../store.js';
 import { esc, emptyHTML, paginate, paginationHTML, wirePagination, PAGE_SIZE } from '../ui.js';
 import { teamName, coachTeams } from '../compute.js';
 import { openModal, confirmDialog } from '../modal.js';
@@ -127,10 +127,13 @@ async function remove(id) {
   const coach = state.coaches.find((c) => c.id === id);
   const n = coachTeams(id).length;
   const extra = n ? ` Deixa de constar nas ${n} equipa(s) que orienta.` : '';
-  const ok = await confirmDialog(`Remover o treinador "${coach?.name}"?${extra}`);
+  const ok = await confirmDialog(
+    `Arquivar o treinador "${coach?.name}"?${extra} Fica no histórico e pode ser reposto nos Arquivados.`,
+    { confirmLabel: 'Arquivar', danger: false }
+  );
   if (!ok) return;
   try {
-    await deleteRow('coaches', 'coaches', id);
+    await archiveRow('coaches', id);
   } catch (err) {
     alert(dbErrorMessage(err));
   }

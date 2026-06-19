@@ -180,6 +180,27 @@ alter table prospects add constraint prospects_status_check
   check (status in ('observado','contactado','negociacao','confirmado','inscrito','dispensado'));
 
 -- ---------------------------------------------------------------------
+-- Arquivo (soft-delete): nada é apagado, fica inativo para manter histórico
+-- ---------------------------------------------------------------------
+-- As entidades principais (e os eventos) ganham uma marca de arquivo
+-- (archived_at). Quando preenchida, o registo está "arquivado" (inativo): a
+-- aplicação esconde-o dos ecrãs normais mas mantém-no na base de dados. Só o
+-- coordenador pode arquivar ou repor (ver guard_archive + área "Arquivados").
+alter table teams     add column if not exists archived_at timestamptz;
+alter table players   add column if not exists archived_at timestamptz;
+alter table coaches   add column if not exists archived_at timestamptz;
+alter table sponsors  add column if not exists archived_at timestamptz;
+alter table events    add column if not exists archived_at timestamptz;
+alter table prospects add column if not exists archived_at timestamptz;
+
+create index if not exists idx_teams_archived     on teams     (archived_at);
+create index if not exists idx_players_archived    on players    (archived_at);
+create index if not exists idx_coaches_archived    on coaches    (archived_at);
+create index if not exists idx_sponsors_archived   on sponsors   (archived_at);
+create index if not exists idx_events_archived     on events     (archived_at);
+create index if not exists idx_prospects_archived  on prospects  (archived_at);
+
+-- ---------------------------------------------------------------------
 -- Índices úteis (consultas por equipa e ordenação por data)
 -- ---------------------------------------------------------------------
 create index if not exists idx_players_team     on players     (team_id);
@@ -280,6 +301,32 @@ set search_path = public
 as $$
   select role from public.profiles where id = auth.uid();
 $$;
+
+-- Arquivar/repor é uma DECISÃO: só o coordenador a pode tomar. Para atletas e
+-- recrutamentos o treinador tem escrita (edita/cria), por isso não basta o RLS
+-- da tabela — este trigger bloqueia qualquer alteração de archived_at feita por
+-- quem não é coordenador (impede arquivar e repor).
+create or replace function public.guard_archive()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if (new.archived_at is distinct from old.archived_at)
+     and coalesce(app_role(), '') <> 'coordenador' then
+    raise exception 'Apenas o coordenador pode arquivar ou repor registos.';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists guard_archive_players   on players;
+drop trigger if exists guard_archive_prospects on prospects;
+create trigger guard_archive_players  before update on players
+  for each row execute function public.guard_archive();
+create trigger guard_archive_prospects before update on prospects
+  for each row execute function public.guard_archive();
 
 -- Cria automaticamente um perfil (papel 'leitura') quando alguém se regista.
 create or replace function public.handle_new_user()

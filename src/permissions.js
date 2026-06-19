@@ -144,9 +144,26 @@ export function canAccess(key) {
   return currentPermissions().includes(key);
 }
 
-// Pode editar (criar/alterar/remover) uma dada entidade?
+// Pode editar (criar/alterar) uma dada entidade?
 export function canEdit(entity) {
   return (EDIT_ROLES[entity] || []).includes(currentRole());
+}
+
+// Arquivar/remover é uma DECISÃO — reservada ao coordenador para as entidades
+// principais (atletas, recrutamentos, equipas, treinadores, patrocínios,
+// eventos). O treinador edita atletas/recrutamentos mas não os arquiva. Para as
+// restantes entidades (sem arquivo) usa a mesma regra de edição.
+const DELETE_ROLES = {
+  players: ['coordenador'],
+  prospects: ['coordenador'],
+  teams: ['coordenador'],
+  coaches: ['coordenador'],
+  sponsors: ['coordenador'],
+  events: ['coordenador'],
+};
+export function canDelete(entity) {
+  if (DELETE_ROLES[entity]) return DELETE_ROLES[entity].includes(currentRole());
+  return canEdit(entity);
 }
 
 // Só o coordenador gere utilizadores e definições.

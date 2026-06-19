@@ -1,7 +1,7 @@
 // Vista: Calendário. Lista de eventos por ordem cronológica, com filtros
 // por tipo e por equipa, distinguindo eventos passados dos futuros.
 
-import { state, createRow, createRows, updateRow, deleteRow, dbErrorMessage } from '../store.js';
+import { state, createRow, createRows, updateRow, archiveRow, dbErrorMessage } from '../store.js';
 import { esc, emptyHTML, teamHue } from '../ui.js';
 import { eventDateTime, eventTimeRange, teamById, teamName } from '../compute.js';
 import { openModal, confirmDialog } from '../modal.js';
@@ -274,10 +274,13 @@ function openForm(id, prefillDate) {
 
 async function remove(id) {
   const ev = state.events.find((x) => x.id === id);
-  const ok = await confirmDialog(`Remover o evento "${ev?.title || EVENT_TYPE_LABEL[ev?.type]}"?`);
+  const ok = await confirmDialog(
+    `Arquivar o evento "${ev?.title || EVENT_TYPE_LABEL[ev?.type]}"? Fica no histórico e pode ser reposto nos Arquivados.`,
+    { confirmLabel: 'Arquivar', danger: false }
+  );
   if (!ok) return;
   try {
-    await deleteRow('events', 'events', id);
+    await archiveRow('events', id);
   } catch (err) {
     alert(dbErrorMessage(err));
   }
