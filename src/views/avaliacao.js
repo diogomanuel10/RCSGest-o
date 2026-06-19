@@ -6,12 +6,14 @@
 import { state, updateRow, dbErrorMessage } from '../store.js';
 import { esc, emptyHTML, paginate, paginationHTML, wirePagination, PAGE_SIZE } from '../ui.js';
 import { teamCoaches, teamName } from '../compute.js';
-import { REVIEW_STATUSES, REVIEW_LABEL } from '../constants.js';
+import { REVIEW_STATUSES, REVIEW_LABEL, POSITIONS } from '../constants.js';
 import { canEdit } from '../permissions.js';
 
 // Equipa selecionada (mantida entre re-desenhos).
 let selectedTeam = null;
 let page = 1;
+let positionFilter = '';
+let statusFilter = '';
 
 export function renderAvaliacao(container) {
   const editable = canEdit('players');
@@ -35,17 +37,23 @@ export function renderAvaliacao(container) {
   }
   const team = state.teams.find((t) => t.id === selectedTeam);
   const coachLabel = teamCoaches(team.id).map((c) => c.coach.name).join(', ');
-  const players = state.players
+  const allPlayers = state.players
     .filter((p) => p.team_id === selectedTeam)
     .sort((a, b) => (Number(a.number) || 999) - (Number(b.number) || 999));
 
+  // Contadores e progresso refletem sempre o plantel completo.
   const counts = { pendente: 0, mantem: 0, sai: 0 };
-  players.forEach((p) => {
+  allPlayers.forEach((p) => {
     counts[p.review_status || 'pendente']++;
   });
-  const total = players.length;
+  const total = allPlayers.length;
   const decided = counts.mantem + counts.sai;
   const pct = total ? Math.round((decided / total) * 100) : 0;
+
+  // A lista respeita os filtros de posição e de decisão.
+  const players = allPlayers
+    .filter((p) => !positionFilter || p.position === positionFilter)
+    .filter((p) => !statusFilter || (p.review_status || 'pendente') === statusFilter);
   const pg = paginate(players, page, PAGE_SIZE);
 
   container.innerHTML = `
@@ -74,6 +82,23 @@ export function renderAvaliacao(container) {
       ${summaryCard('Avaliados', `${decided}/${total}`, 'accent')}
     </section>
 
+    <div class="filter-bar">
+      <div class="field">
+        <label for="aval-pos">Posição</label>
+        <select id="aval-pos">
+          <option value="">Todas as posições</option>
+          ${POSITIONS.map((p) => `<option value="${esc(p)}" ${positionFilter === p ? 'selected' : ''}>${esc(p)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field">
+        <label for="aval-status">Decisão</label>
+        <select id="aval-status">
+          <option value="">Todas</option>
+          ${REVIEW_STATUSES.map((s) => `<option value="${s.key}" ${statusFilter === s.key ? 'selected' : ''}>${esc(s.label)}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+
     <section class="card">
       <div class="goal-card__header">
         <h2 class="section-title goal-card__title">${esc(teamName(team))}${coachLabel ? ` · ${esc(coachLabel)}` : ''}</h2>
@@ -85,13 +110,23 @@ export function renderAvaliacao(container) {
         players.length
           ? `<ul class="aval-list">${pg.items.map((p) => playerRow(p, editable)).join('')}</ul>
              ${paginationHTML({ ...pg, id: 'aval' })}`
-          : '<p class="muted" style="margin:0.6rem 0 0">Sem atletas nesta equipa.</p>'
+          : `<p class="muted" style="margin:0.6rem 0 0">${positionFilter || statusFilter ? 'Nenhum atleta corresponde ao filtro.' : 'Sem atletas nesta equipa.'}</p>`
       }
     </section>
   `;
 
   container.querySelector('#aval-team').addEventListener('change', (e) => {
     selectedTeam = e.target.value;
+    page = 1;
+    renderAvaliacao(container);
+  });
+  container.querySelector('#aval-pos')?.addEventListener('change', (e) => {
+    positionFilter = e.target.value;
+    page = 1;
+    renderAvaliacao(container);
+  });
+  container.querySelector('#aval-status')?.addEventListener('change', (e) => {
+    statusFilter = e.target.value;
     page = 1;
     renderAvaliacao(container);
   });

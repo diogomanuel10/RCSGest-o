@@ -170,10 +170,14 @@ create table if not exists prospects (
   contact        text,
   target_team_id uuid references teams(id) on delete set null,
   status         text not null default 'observado'
-                 check (status in ('observado','contactado','negociacao','confirmado','inscrito')),
+                 check (status in ('observado','contactado','negociacao','confirmado','inscrito','dispensado')),
   notes          text,
   created_at     timestamptz default now()
 );
+-- Atualiza a constraint em bases já existentes (inclui 'dispensado' — "não fica").
+alter table prospects drop constraint if exists prospects_status_check;
+alter table prospects add constraint prospects_status_check
+  check (status in ('observado','contactado','negociacao','confirmado','inscrito','dispensado'));
 
 -- ---------------------------------------------------------------------
 -- Índices úteis (consultas por equipa e ordenação por data)
@@ -407,16 +411,11 @@ create policy "write_editor" on players for all to authenticated
     OR (app_role() = 'treinador' AND team_id in (select trainer_team_ids()))
   );
 
--- EVENTOS: coordenador em todos; treinador só nos das SUAS equipas.
+-- EVENTOS: só o coordenador cria/edita/apaga eventos (treinos e jogos). O
+-- treinador continua a ver o calendário e a marcar presenças (ver attendances).
 create policy "write_editor" on events for all to authenticated
-  using (
-    app_role() = 'coordenador'
-    OR (app_role() = 'treinador' AND team_id in (select trainer_team_ids()))
-  )
-  with check (
-    app_role() = 'coordenador'
-    OR (app_role() = 'treinador' AND team_id in (select trainer_team_ids()))
-  );
+  using (app_role() = 'coordenador')
+  with check (app_role() = 'coordenador');
 
 -- PRESENÇAS: coordenador/treinador/leitura veem todas; atleta só as suas.
 -- Escrever: coordenador, ou treinador nas presenças de eventos das suas equipas.

@@ -9,10 +9,13 @@ import { ATTENDANCE_STATUSES, ATTENDANCE_LABEL, ATTENDANCE_BADGE } from '../cons
 import { canEdit } from '../permissions.js';
 
 let selectedEventId = null;
+let presTab = 'sessao'; // 'sessao' | 'resumo'
+let summaryTeamId = '';
 
 // Pré-seleciona uma sessão de treino (usado pelo atalho do Painel).
 export function setSelectedTraining(id) {
   selectedEventId = id;
+  presTab = 'sessao';
 }
 
 export function renderPresencas(container) {
@@ -33,6 +36,21 @@ export function renderPresencas(container) {
       </header>
       ${emptyHTML('Ainda não há treinos registados no Calendário.')}
     `;
+    return;
+  }
+
+  const tabBar = `
+    <div class="pres-tabs">
+      <button class="pres-tab${presTab === 'sessao' ? ' pres-tab--active' : ''}" data-tab="sessao" type="button">Por sessão</button>
+      <button class="pres-tab${presTab === 'resumo' ? ' pres-tab--active' : ''}" data-tab="resumo" type="button">Resumo global</button>
+    </div>
+  `;
+
+  if (presTab === 'resumo') {
+    renderSummary(container, tabBar);
+    container.querySelectorAll('[data-tab]').forEach((btn) =>
+      btn.addEventListener('click', () => { presTab = btn.dataset.tab; renderPresencas(container); })
+    );
     return;
   }
 
@@ -76,6 +94,8 @@ export function renderPresencas(container) {
         <p class="muted" style="margin:0;font-size:0.88rem">Registo de presenças nos treinos</p>
       </div>
     </header>
+
+    ${tabBar}
 
     <div class="presenca-picker card" style="margin-bottom:1.2rem">
       <div class="row row--between row--wrap" style="gap:0.8rem">
@@ -121,6 +141,10 @@ export function renderPresencas(container) {
       }
     </section>
   `;
+
+  container.querySelectorAll('[data-tab]').forEach((btn) =>
+    btn.addEventListener('click', () => { presTab = btn.dataset.tab; renderPresencas(container); })
+  );
 
   container.querySelector('#pres-event').addEventListener('change', (e) => {
     selectedEventId = e.target.value;
@@ -269,4 +293,111 @@ async function saveAttendance(playerId, values, container) {
   } catch (err) {
     alert(dbErrorMessage(err));
   }
+}
+
+function renderSummary(container, tabBar) {
+  const trainings = state.events.filter((e) => e.type === 'treino');
+
+  // Treinos por equipa
+  const sessionsByTeam = {};
+  trainings.forEach((t) => {
+    if (t.team_id) sessionsByTeam[t.team_id] = (sessionsByTeam[t.team_id] || 0) + 1;
+  });
+
+  // Presenças por atleta
+  const byPlayer = {};
+  state.attendances.forEach((a) => {
+    if (!byPlayer[a.player_id]) byPlayer[a.player_id] = { presente: 0, atraso: 0, justificado: 0, falta: 0 };
+    if (a.status) byPlayer[a.player_id][a.status] = (byPlayer[a.player_id][a.status] || 0) + 1;
+  });
+
+  const teams = state.teams.slice().sort((a, b) => teamName(a).localeCompare(teamName(b)));
+  const filteredTeams = summaryTeamId ? teams.filter((t) => t.id === summaryTeamId) : teams;
+
+  const rows = filteredTeams.flatMap((team) => {
+    const sessions = sessionsByTeam[team.id] || 0;
+    const players = state.players
+      .filter((p) => p.team_id === team.id)
+      .sort((a, b) => (Number(a.number) || 999) - (Number(b.number) || 999));
+    if (!players.length) return [];
+    return [
+      { type: 'team', team, sessions },
+      ...players.map((p) => {
+        const s = byPlayer[p.id] || { presente: 0, atraso: 0, justificado: 0, falta: 0 };
+        const attended = s.presente + s.atraso;
+        const pct = sessions ? Math.round((attended / sessions) * 100) : null;
+        return { type: 'player', player: p, sessions, s, attended, pct };
+      }),
+    ];
+  });
+
+  container.innerHTML = `
+    <header class="page-head">
+      <div>
+        <h1 class="section-title">Presenças</h1>
+        <p class="muted" style="margin:0;font-size:0.88rem">Registo de presenças nos treinos</p>
+      </div>
+    </header>
+
+    ${tabBar}
+
+    <div class="filter-bar">
+      <div class="field">
+        <label for="sum-team">Equipa</label>
+        <select id="sum-team">
+          <option value="">Todas as equipas</option>
+          ${teams.map((t) => `<option value="${t.id}" ${t.id === summaryTeamId ? 'selected' : ''}>${esc(teamName(t))}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+
+    <section class="card" style="padding:0;overflow:hidden">
+      <table class="pres-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Atleta</th>
+            <th title="Treinos realizados">Treinos</th>
+            <th title="Presente + a tempo">Presenças</th>
+            <th title="Chegou tarde">Atrasos</th>
+            <th title="Falta justificada">Justificadas</th>
+            <th title="Falta injustificada">Faltas</th>
+            <th>%</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.length ? rows.map((r) => {
+            if (r.type === 'team') {
+              return `<tr class="pres-table__team-row"><td colspan="8">${esc(teamName(r.team))} <span class="muted" style="font-weight:400">· ${r.sessions} treino${r.sessions !== 1 ? 's' : ''}</span></td></tr>`;
+            }
+            const { player: p, sessions, s, attended, pct } = r;
+            const pctClass = pct === null ? '' : pct >= 80 ? 'pres-pct--ok' : pct >= 50 ? 'pres-pct--warn' : 'pres-pct--bad';
+            return `
+              <tr>
+                <td class="muted">${esc(p.number || '—')}</td>
+                <td><strong>${esc(p.name)}</strong>${p.position ? `<br><span class="muted" style="font-size:0.78rem">${esc(p.position)}</span>` : ''}</td>
+                <td class="pres-table__num">${sessions}</td>
+                <td class="pres-table__num">${s.presente}</td>
+                <td class="pres-table__num">${s.atraso || 0}</td>
+                <td class="pres-table__num">${s.justificado || 0}</td>
+                <td class="pres-table__num">${s.falta || 0}</td>
+                <td class="pres-table__num"><span class="pres-pct ${pctClass}">${pct !== null ? pct + '%' : '—'}</span></td>
+              </tr>
+            `;
+          }).join('') : `<tr><td colspan="8" class="muted" style="text-align:center;padding:1.5rem">Sem dados de presença ainda.</td></tr>`}
+        </tbody>
+      </table>
+    </section>
+  `;
+
+  container.querySelectorAll('[data-tab]').forEach((btn) =>
+    btn.addEventListener('click', () => { presTab = btn.dataset.tab; renderPresencas(container); })
+  );
+  container.querySelector('#sum-team').addEventListener('change', (e) => {
+    summaryTeamId = e.target.value;
+    renderSummary(container, tabBar);
+    container.querySelectorAll('[data-tab]').forEach((b) =>
+      b.addEventListener('click', () => { presTab = b.dataset.tab; renderPresencas(container); })
+    );
+  });
 }

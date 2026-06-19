@@ -55,6 +55,15 @@ export function emptyHTML(message) {
   `;
 }
 
+// Matiz (HSL hue 0–359) estável derivada de um id — para dar a cada equipa
+// uma cor consistente (ex.: nos eventos do calendário).
+export function teamHue(id) {
+  const s = String(id || '');
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360;
+  return h;
+}
+
 // --- Paginação «Anterior / Seguinte» -------------------------------------
 // Padrão de uso nas vistas: manter a página atual numa variável do módulo,
 // fatiar a lista com paginate(), inserir paginationHTML() e ligar com

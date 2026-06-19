@@ -7,27 +7,57 @@ import { esc, emptyHTML } from '../ui.js';
 import { teamName } from '../compute.js';
 import { openModal, confirmDialog } from '../modal.js';
 import { canEdit } from '../permissions.js';
-import { PROSPECT_STATUSES, PROSPECT_LABEL, PROSPECT_BADGE, POSITIONS } from '../constants.js';
+import { PROSPECT_STATUSES, PROSPECT_REJECTED, PROSPECT_LABEL, PROSPECT_BADGE, POSITIONS } from '../constants.js';
+
+// Filtro de posição (estado local da vista).
+let positionFilter = '';
+
+// Colunas: funil linear + coluna terminal "Não fica".
+const COLUMNS = [...PROSPECT_STATUSES, PROSPECT_REJECTED];
+
+function visibleProspects(statusKey) {
+  return state.prospects
+    .filter((p) => p.status === statusKey)
+    .filter((p) => !positionFilter || p.position === positionFilter)
+    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+}
 
 export function renderRecrutamento(container) {
   const canWrite = canEdit('prospects');
-  const total = state.prospects.length;
+  const total = positionFilter
+    ? state.prospects.filter((p) => p.position === positionFilter).length
+    : state.prospects.length;
 
   container.innerHTML = `
     <header class="page-head">
       <div>
         <h1 class="section-title">Recrutamento</h1>
         <p class="muted" style="margin:0;font-size:0.88rem">
-          ${total} prospeto${total === 1 ? '' : 's'} no funil
+          ${total} prospeto${total === 1 ? '' : 's'}${positionFilter ? ` · ${esc(positionFilter)}` : ' no funil'}
         </p>
       </div>
       ${canWrite ? `<button class="btn btn--accent" id="add-prospect" type="button">+ Prospeto</button>` : ''}
     </header>
 
+    <div class="filter-bar">
+      <div class="field">
+        <label for="rec-pos">Posição</label>
+        <select id="rec-pos">
+          <option value="">Todas as posições</option>
+          ${POSITIONS.map((p) => `<option value="${esc(p)}" ${positionFilter === p ? 'selected' : ''}>${esc(p)}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+
     <div class="kanban" id="kanban-board">
-      ${PROSPECT_STATUSES.map((col) => columnHTML(col, canWrite)).join('')}
+      ${COLUMNS.map((col) => columnHTML(col, canWrite)).join('')}
     </div>
   `;
+
+  container.querySelector('#rec-pos')?.addEventListener('change', (e) => {
+    positionFilter = e.target.value;
+    renderRecrutamento(container);
+  });
 
   if (canWrite) {
     container.querySelector('#add-prospect').addEventListener('click', () => openProspectForm());
@@ -42,40 +72,48 @@ export function renderRecrutamento(container) {
   container.querySelectorAll('[data-prospect-move]').forEach((btn) =>
     btn.addEventListener('click', () => moveProspect(btn.dataset.prospectMove, btn.dataset.dir))
   );
+  container.querySelectorAll('[data-prospect-reject]').forEach((btn) =>
+    btn.addEventListener('click', () => setStatus(btn.dataset.prospectReject, 'dispensado'))
+  );
+  container.querySelectorAll('[data-prospect-restore]').forEach((btn) =>
+    btn.addEventListener('click', () => setStatus(btn.dataset.prospectRestore, 'observado'))
+  );
   container.querySelectorAll('[data-prospect-convert]').forEach((btn) =>
     btn.addEventListener('click', () => openConvertModal(btn.dataset.prospectConvert))
   );
 }
 
 function columnHTML(col, canWrite) {
-  const prospects = state.prospects
-    .filter((p) => p.status === col.key)
-    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-  const isFirst = col.key === PROSPECT_STATUSES[0].key;
-  const isLast  = col.key === PROSPECT_STATUSES[PROSPECT_STATUSES.length - 1].key;
+  const prospects = visibleProspects(col.key);
+  const rejected = col.key === PROSPECT_REJECTED.key;
 
   return `
-    <div class="kanban-col">
+    <div class="kanban-col${rejected ? ' kanban-col--rejected' : ''}">
       <div class="kanban-col__head">
         <span class="badge badge--${col.badge}">${esc(col.label)}</span>
         <span class="kanban-col__count">${prospects.length}</span>
       </div>
       <div class="kanban-col__body">
         ${prospects.length
-          ? prospects.map((p) => cardHTML(p, canWrite, isFirst, isLast)).join('')
+          ? prospects.map((p) => cardHTML(p, canWrite)).join('')
           : `<div class="kanban-empty">—</div>`}
       </div>
     </div>
   `;
 }
 
-function cardHTML(p, canWrite, isFirst, isLast) {
+function cardHTML(p, canWrite) {
   const team = p.target_team_id ? state.teams.find((t) => t.id === p.target_team_id) : null;
   const meta = [
     p.birth_year ? `Nasc. ${esc(p.birth_year)}` : '',
     p.position ? esc(p.position) : '',
     team ? esc(teamName(team)) : '',
   ].filter(Boolean).join(' · ');
+
+  const idx = PROSPECT_STATUSES.findIndex((s) => s.key === p.status);
+  const rejected = p.status === PROSPECT_REJECTED.key;
+  const isFirst = idx === 0;
+  const isConfirmed = p.status === 'confirmado';
 
   return `
     <div class="kanban-card">
@@ -84,6 +122,7 @@ function cardHTML(p, canWrite, isFirst, isLast) {
         ${canWrite ? `
           <div class="kanban-card__actions">
             <button class="btn btn--ghost btn--xs" data-prospect-edit="${p.id}" type="button" title="Editar">✎</button>
+            ${!rejected ? `<button class="btn btn--ghost btn--xs" data-prospect-reject="${p.id}" type="button" title="Não fica">⊘</button>` : ''}
             <button class="btn btn--danger btn--xs" data-prospect-del="${p.id}" type="button" title="Remover">×</button>
           </div>` : ''}
       </div>
@@ -92,10 +131,12 @@ function cardHTML(p, canWrite, isFirst, isLast) {
       ${p.notes ? `<p class="muted kanban-card__notes">${esc(p.notes)}</p>` : ''}
       ${canWrite ? `
         <div class="kanban-card__foot">
-          ${!isFirst ? `<button class="btn btn--ghost btn--xs" data-prospect-move="${p.id}" data-dir="prev" type="button">← Recuar</button>` : '<span></span>'}
-          ${isLast
-            ? `<button class="btn btn--primary btn--xs" data-prospect-convert="${p.id}" type="button">Inscrever no plantel</button>`
-            : `<button class="btn btn--ghost btn--xs" data-prospect-move="${p.id}" data-dir="next" type="button">Avançar →</button>`}
+          ${rejected
+            ? `<span></span><button class="btn btn--ghost btn--xs" data-prospect-restore="${p.id}" type="button">↩ Repor</button>`
+            : `${!isFirst ? `<button class="btn btn--ghost btn--xs" data-prospect-move="${p.id}" data-dir="prev" type="button">← Recuar</button>` : '<span></span>'}
+               ${isConfirmed
+                 ? `<button class="btn btn--primary btn--xs" data-prospect-convert="${p.id}" type="button">Inscrever na equipa</button>`
+                 : `<button class="btn btn--ghost btn--xs" data-prospect-move="${p.id}" data-dir="next" type="button">Avançar →</button>`}`}
         </div>` : ''}
     </div>
   `;
@@ -156,6 +197,16 @@ async function moveProspect(id, dir) {
   if (!next) return;
   try {
     await updateRow('prospects', 'prospects', id, { status: next.key });
+  } catch (err) {
+    alert(dbErrorMessage(err));
+  }
+}
+
+async function setStatus(id, status) {
+  const p = state.prospects.find((x) => x.id === id);
+  if (!p || p.status === status) return;
+  try {
+    await updateRow('prospects', 'prospects', id, { status });
   } catch (err) {
     alert(dbErrorMessage(err));
   }
