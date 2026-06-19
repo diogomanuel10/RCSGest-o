@@ -3324,29 +3324,31 @@ tbody tr:hover {
 }
 .search-icon {
   position: absolute;
-  left: 0.6rem;
-  width: 15px;
-  height: 15px;
+  left: 0.65rem;
+  width: 14px;
+  height: 14px;
   color: var(--text-muted);
   pointer-events: none;
   flex-shrink: 0;
+  opacity: 0.6;
 }
 .search-input {
   width: 100%;
-  background: rgba(255,255,255,0.09);
-  border: 1px solid rgba(255,255,255,0.12);
+  background: var(--bg);
+  border: 1px solid var(--border);
   border-radius: 20px;
-  color: #dce6f1;
+  color: var(--text);
   font-family: var(--font-body);
   font-size: 0.86rem;
   padding: 0.4rem 0.75rem 0.4rem 2rem;
   outline: none;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
 }
-.search-input::placeholder { color: rgba(200,218,236,0.45); }
+.search-input::placeholder { color: var(--text-muted); }
 .search-input:focus {
-  background: rgba(255,255,255,0.14);
-  border-color: rgba(255,255,255,0.28);
+  background: var(--surface);
+  border-color: var(--navy-300, #6b9ec7);
+  box-shadow: 0 0 0 3px rgba(20,59,97,0.1);
 }
 .search-input::-webkit-search-cancel-button { display: none; }
 .search-results {

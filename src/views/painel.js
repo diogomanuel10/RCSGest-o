@@ -22,7 +22,7 @@ import {
 } from '../compute.js';
 import { EVENT_TYPE_LABEL, EVENT_TYPE_BADGE } from '../constants.js';
 import { canEdit, canAccess } from '../permissions.js';
-import { setSelectedTraining } from './presencas.js';
+import { openQuickAttendance } from './presencas.js';
 import { openEventForm, openRecurrentTrainings } from './calendario.js';
 import { openSponsorForm } from './patrocinios.js';
 
@@ -130,12 +130,9 @@ export function renderPainel(container) {
     </section>` : ''}
   `;
 
-  // Atalho: pré-seleciona o treino e navega para a vista Presenças.
+  // Atalho: abre modal rápido de presenças diretamente do Painel.
   container.querySelectorAll('[data-mark-event]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      setSelectedTraining(btn.dataset.markEvent);
-      navTo('presencas');
-    });
+    btn.addEventListener('click', () => openQuickAttendance(btn.dataset.markEvent));
   });
 
   // Itens de ação: navegam para a secção respetiva.

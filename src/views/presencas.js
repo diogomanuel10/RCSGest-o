@@ -295,6 +295,126 @@ async function saveAttendance(playerId, values, container) {
   }
 }
 
+// Modal rápido de presenças — abre diretamente do Painel sem navegar para a vista.
+export function openQuickAttendance(eventId) {
+  const ev = state.events.find((e) => e.id === eventId);
+  if (!ev) return;
+  const team = teamById(ev.team_id);
+  const players = team
+    ? state.players
+        .filter((p) => p.team_id === team.id)
+        .sort((a, b) => (Number(a.number) || 999) - (Number(b.number) || 999))
+    : [];
+
+  const attendanceMap = {};
+  state.attendances.filter((a) => a.event_id === eventId).forEach((a) => {
+    attendanceMap[a.player_id] = a;
+  });
+
+  const dateStr = eventDateTime(ev).toLocaleDateString('pt-PT', {
+    weekday: 'long', day: '2-digit', month: 'long',
+  });
+  const range = eventTimeRange(ev);
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal card" role="dialog" aria-modal="true" aria-labelledby="qa-title" style="width:min(540px,96vw);max-height:90vh;display:flex;flex-direction:column">
+      <div class="modal__head">
+        <div>
+          <h2 class="section-title" id="qa-title">Marcar presenças</h2>
+          <p class="muted" style="margin:0;font-size:0.83rem">${esc(team ? teamName(team) + ' · ' : '')}${esc(dateStr)}${range ? ' · ' + esc(range) : ''}</p>
+        </div>
+        <button class="modal__close" type="button" aria-label="Fechar">&times;</button>
+      </div>
+      ${!players.length
+        ? '<p class="muted">Sem atletas nesta equipa.</p>'
+        : `<ul class="pres-list" style="flex:1;overflow-y:auto;margin:0 -1.2rem;padding:0 1.2rem">
+            ${players.map((p) => {
+              const att = attendanceMap[p.id];
+              const current = att?.status || null;
+              return `
+                <li class="pres-row pres-row--${current || 'none'}" data-player-row="${p.id}">
+                  <div class="aval-row__player">
+                    <span class="aval-row__num">${esc(p.number || '—')}</span>
+                    <span class="aval-row__name">${esc(p.name)}</span>
+                  </div>
+                  <div class="pres-actions">
+                    ${ATTENDANCE_STATUSES.map((s) => `
+                      <button type="button"
+                        class="pres-btn pres-btn--${s.key} ${current === s.key ? 'is-active' : ''}"
+                        data-qa-status="${s.key}" data-qa-player="${p.id}"
+                        title="${s.label}">${s.label}</button>`).join('')}
+                  </div>
+                </li>`;
+            }).join('')}
+           </ul>`}
+      <div id="qa-err" class="modal__error hidden" style="margin-top:0.5rem"></div>
+      <div class="modal__actions">
+        <button class="btn btn--ghost" id="qa-cancel" type="button">Fechar</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  document.body.classList.add('no-scroll');
+
+  const close = () => {
+    overlay.remove();
+    if (!document.querySelector('.modal-overlay')) document.body.classList.remove('no-scroll');
+    document.removeEventListener('keydown', onKey);
+  };
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  document.addEventListener('keydown', onKey);
+  overlay.querySelector('.modal__close').addEventListener('click', close);
+  overlay.querySelector('#qa-cancel').addEventListener('click', close);
+  overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
+
+  overlay.querySelectorAll('[data-qa-status]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const playerId = btn.dataset.qaPlayer;
+      const status = btn.dataset.qaStatus;
+      const errEl = overlay.querySelector('#qa-err');
+      errEl.classList.add('hidden');
+
+      if (status === 'justificado') {
+        const text = prompt('Motivo da justificação:') ?? '';
+        try {
+          await upsertAttendance(eventId, playerId, { status, justification: text || null });
+        } catch (err) {
+          errEl.textContent = dbErrorMessage(err);
+          errEl.classList.remove('hidden');
+          return;
+        }
+      } else if (status === 'atraso') {
+        const mins = parseInt(prompt('Minutos de atraso:') || '0', 10);
+        try {
+          await upsertAttendance(eventId, playerId, { status, minutes_late: mins > 0 ? mins : null });
+        } catch (err) {
+          errEl.textContent = dbErrorMessage(err);
+          errEl.classList.remove('hidden');
+          return;
+        }
+      } else {
+        try {
+          await upsertAttendance(eventId, playerId, { status });
+        } catch (err) {
+          errEl.textContent = dbErrorMessage(err);
+          errEl.classList.remove('hidden');
+          return;
+        }
+      }
+
+      // Atualiza estado visual do botão
+      const row = overlay.querySelector(`[data-player-row="${playerId}"]`);
+      if (row) {
+        ATTENDANCE_STATUSES.forEach((s) => row.querySelector(`[data-qa-status="${s.key}"]`)?.classList.remove('is-active'));
+        btn.classList.add('is-active');
+        row.className = `pres-row pres-row--${status}`;
+      }
+    });
+  });
+}
+
 function renderSummary(container, tabBar) {
   const trainings = state.events.filter((e) => e.type === 'treino');
 
