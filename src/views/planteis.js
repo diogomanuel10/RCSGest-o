@@ -5,7 +5,7 @@ import { state, createRow, createRows, updateRow, deleteRow, saveTeamCoaches, db
 import { esc, emptyHTML } from '../ui.js';
 import { teamName, teamCoaches, escaloes } from '../compute.js';
 import { openModal, confirmDialog } from '../modal.js';
-import { GENDERS, POSITIONS, COACH_ROLE_LABEL } from '../constants.js';
+import { POSITIONS, COACH_ROLE_LABEL } from '../constants.js';
 import { canEdit } from '../permissions.js';
 import { parsePlayersFile, downloadPlayersTemplate } from '../players-xlsx.js';
 import { openAthleteProfile } from './athlete-profile.js';
@@ -25,7 +25,7 @@ export function renderPlanteis(container) {
     </header>
     ${
       state.teams.length
-        ? `<div class="genders">${GENDERS.map((g) => genderColumnHTML(g, canTeams, canPlayers)).join('')}</div>`
+        ? `<div class="teams-list">${state.teams.map((t) => teamCardHTML(t, canTeams, canPlayers)).join('')}</div>`
         : emptyHTML('Ainda não há equipas.')
     }
   `;
@@ -68,20 +68,6 @@ export function renderPlanteis(container) {
   container.querySelectorAll('[data-player-del]').forEach((b) =>
     b.addEventListener('click', () => removePlayer(b.dataset.playerDel, container))
   );
-}
-
-function genderColumnHTML(g, canTeams, canPlayers) {
-  const teams = state.teams.filter((t) => t.gender === g.key);
-  return `
-    <section class="gender-col">
-      <h2 class="section-title gender-col__title">${g.label}</h2>
-      ${
-        teams.length
-          ? teams.map((t) => teamCardHTML(t, canTeams, canPlayers)).join('')
-          : `<p class="muted">Sem equipas ${g.label.toLowerCase()}.</p>`
-      }
-    </section>
-  `;
 }
 
 function teamCardHTML(team, canTeams, canPlayers) {
@@ -202,20 +188,12 @@ function openTeamForm(id) {
         <button class="modal__close" type="button" aria-label="Fechar">&times;</button>
       </div>
 
-      <div class="field-grid">
-        <div class="field">
-          <label for="team-escalao">Escalão *</label>
-          <select id="team-escalao" required>
-            <option value="" ${existing ? '' : 'selected'}>Escolhe…</option>
-            ${escalaoList.map((e) => `<option value="${esc(e)}" ${existing?.escalao === e ? 'selected' : ''}>${esc(e)}</option>`).join('')}
-          </select>
-        </div>
-        <div class="field">
-          <label for="team-gender">Género *</label>
-          <select id="team-gender" required>
-            ${GENDERS.map((g) => `<option value="${g.key}" ${existing?.gender === g.key ? 'selected' : ''}>${esc(g.label)}</option>`).join('')}
-          </select>
-        </div>
+      <div class="field field--full">
+        <label for="team-escalao">Escalão *</label>
+        <select id="team-escalao" required>
+          <option value="" ${existing ? '' : 'selected'}>Escolhe…</option>
+          ${escalaoList.map((e) => `<option value="${esc(e)}" ${existing?.escalao === e ? 'selected' : ''}>${esc(e)}</option>`).join('')}
+        </select>
       </div>
 
       <div class="field field--full">
@@ -282,15 +260,15 @@ function openTeamForm(id) {
 
   overlay.querySelector('#team-confirm').addEventListener('click', async () => {
     const escalao = overlay.querySelector('#team-escalao').value;
-    const gender = overlay.querySelector('#team-gender').value;
+    const gender = 'F'; // clube só feminino
     const principal = principalSel.value || null;
     const adjuntos = [...overlay.querySelectorAll('#team-adjuntos input:checked')]
       .map((chk) => chk.value)
       .filter((cid) => cid !== principal);
 
     errEl.classList.add('hidden');
-    if (!escalao || !gender) {
-      errEl.textContent = 'Escolhe o escalão e o género.';
+    if (!escalao) {
+      errEl.textContent = 'Escolhe o escalão.';
       errEl.classList.remove('hidden');
       return;
     }
