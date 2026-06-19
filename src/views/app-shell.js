@@ -7,8 +7,9 @@
 import { logoUrl } from '../ui.js';
 import { signOut } from '../auth.js';
 import { state, subscribe, loadAll } from '../store.js';
-import { loadingHTML, errorHTML } from '../ui.js';
+import { loadingHTML, errorHTML, esc } from '../ui.js';
 import { canManageSettings, canManageUsers, canAccess, ROLE_LABEL } from '../permissions.js';
+import { teamName } from '../compute.js';
 
 import { renderPainel } from './painel.js';
 import { renderPatrocinios } from './patrocinios.js';
@@ -70,7 +71,6 @@ const FOOTER = [
   { key: 'utilizadores', label: 'Utilizadores', icon: ICONS.utilizadores, render: renderUtilizadores, can: canManageUsers },
 ];
 
-const COLLAPSE_KEY = 'rcs-sidebar-collapsed';
 const isMobile = () => window.matchMedia('(max-width: 820px)').matches;
 
 let current = 'painel';
@@ -111,7 +111,13 @@ export async function renderAppShell(root, session) {
             <span>Real Clube Senhorense</span>
           </div>
         </div>
-        <div class="topbar__spacer"></div>
+        <div class="topbar__search" id="topbar-search">
+          <div class="search-wrap">
+            <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="search" class="search-input" id="search-input" placeholder="Pesquisar…" autocomplete="off" aria-label="Pesquisar atletas, treinadores…" />
+          </div>
+          <div class="search-results" id="search-results" hidden></div>
+        </div>
         <div class="topbar__account">
           <div class="topbar__user">
             <span class="topbar__email">${session.user.email}</span>
@@ -136,18 +142,9 @@ export async function renderAppShell(root, session) {
   const content = root.querySelector('#content');
   const sidebar = root.querySelector('#sidebar');
 
-  // --- Colapsar (desktop) / gaveta (telemóvel) ---
-  if (!isMobile() && localStorage.getItem(COLLAPSE_KEY) === '1') {
-    appRoot.classList.add('app--collapsed');
-  }
-
+  // --- Gaveta (telemóvel) ---
   function toggleMenu() {
-    if (isMobile()) {
-      appRoot.classList.toggle('app--drawer');
-    } else {
-      const collapsed = appRoot.classList.toggle('app--collapsed');
-      localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0');
-    }
+    if (isMobile()) appRoot.classList.toggle('app--drawer');
   }
   function closeDrawer() {
     appRoot.classList.remove('app--drawer');
@@ -240,6 +237,76 @@ export async function renderAppShell(root, session) {
     paint();
     content.scrollTop = 0;
   }
+
+  // --- Pesquisa global ---
+  const searchInput = root.querySelector('#search-input');
+  const searchResults = root.querySelector('#search-results');
+
+  function searchAll(q) {
+    const lq = q.toLowerCase().trim();
+    if (!lq) return [];
+    const results = [];
+
+    state.players
+      .filter((p) => p.name?.toLowerCase().includes(lq))
+      .slice(0, 5)
+      .forEach((p) => {
+        const team = state.teams.find((t) => t.id === p.team_id);
+        results.push({ label: p.name, meta: [p.position, team ? teamName(team) : ''].filter(Boolean).join(' · '), route: 'planteis', group: 'Atletas' });
+      });
+
+    state.coaches
+      .filter((c) => c.name?.toLowerCase().includes(lq))
+      .slice(0, 3)
+      .forEach((c) => results.push({ label: c.name, meta: 'Treinador/a', route: 'treinadores', group: 'Treinadores' }));
+
+    state.sponsors
+      ?.filter((s) => s.name?.toLowerCase().includes(lq))
+      .slice(0, 3)
+      .forEach((s) => results.push({ label: s.name, meta: s.contact || 'Patrocinador', route: 'patrocinios', group: 'Patrocínios' }));
+
+    return results.slice(0, 8);
+  }
+
+  function renderSearchResults(results) {
+    if (!results.length) {
+      searchResults.hidden = true;
+      return;
+    }
+    let html = '';
+    let lastGroup = '';
+    results.forEach((r, i) => {
+      if (r.group !== lastGroup) {
+        html += `<div class="search-group">${esc(r.group)}</div>`;
+        lastGroup = r.group;
+      }
+      html += `<button class="search-result" type="button" data-idx="${i}">${esc(r.label)}${r.meta ? `<span class="search-result__meta">${esc(r.meta)}</span>` : ''}</button>`;
+    });
+    searchResults.innerHTML = html;
+    searchResults.hidden = false;
+
+    searchResults.querySelectorAll('.search-result').forEach((btn) => {
+      btn.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        go(results[Number(btn.dataset.idx)].route);
+        searchInput.value = '';
+        searchResults.hidden = true;
+      });
+    });
+  }
+
+  searchInput.addEventListener('input', () => {
+    renderSearchResults(searchAll(searchInput.value));
+  });
+  searchInput.addEventListener('blur', () => {
+    setTimeout(() => { searchResults.hidden = true; }, 150);
+  });
+  searchInput.addEventListener('focus', () => {
+    if (searchInput.value) renderSearchResults(searchAll(searchInput.value));
+  });
+  searchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { searchInput.value = ''; searchResults.hidden = true; searchInput.blur(); }
+  });
 
   subscribe(() => paint());
 
