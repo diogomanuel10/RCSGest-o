@@ -3,7 +3,7 @@
 // e marcar individualmente como pago / não pago.
 
 import { state, generateQuotas, toggleQuota, dbErrorMessage } from '../store.js';
-import { esc, emptyHTML, euros } from '../ui.js';
+import { esc, emptyHTML, euros, paginate, paginationHTML, wirePagination, PAGE_SIZE } from '../ui.js';
 import { teamName } from '../compute.js';
 import { canEdit } from '../permissions.js';
 import { MONTHS } from '../constants.js';
@@ -14,6 +14,7 @@ const filters = {
   mes: now.getMonth() + 1,
   ano: now.getFullYear(),
 };
+let page = 1;
 
 export function renderQuotas(container) {
   const canWrite = canEdit('quotas');
@@ -61,6 +62,7 @@ export function renderQuotas(container) {
   const nSemRegisto = players.length - teamQuotas.length;
 
   const mesLabel = MONTHS[filters.mes - 1];
+  const pg = paginate(players, page, PAGE_SIZE);
 
   container.innerHTML = `
     <header class="page-head">
@@ -111,22 +113,31 @@ export function renderQuotas(container) {
       ${!players.length
         ? '<p class="muted" style="margin:0.5rem 0 0">Sem atletas nesta equipa.</p>'
         : `<ul class="quota-list">
-            ${players.map((p) => quotaRow(p, quotaMap[p.id], canWrite)).join('')}
-           </ul>`
+            ${pg.items.map((p) => quotaRow(p, quotaMap[p.id], canWrite)).join('')}
+           </ul>
+           ${paginationHTML({ ...pg, id: 'quotas' })}`
       }
     </section>
   `;
 
   container.querySelector('#q-team').addEventListener('change', (e) => {
     filters.team = e.target.value;
+    page = 1;
     renderQuotas(container);
   });
   container.querySelector('#q-mes').addEventListener('change', (e) => {
     filters.mes = Number(e.target.value);
+    page = 1;
     renderQuotas(container);
   });
   container.querySelector('#q-ano').addEventListener('change', (e) => {
     filters.ano = Number(e.target.value);
+    page = 1;
+    renderQuotas(container);
+  });
+
+  wirePagination(container, 'quotas', pg.page, pg.totalPages, (np) => {
+    page = np;
     renderQuotas(container);
   });
 

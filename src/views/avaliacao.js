@@ -4,13 +4,14 @@
 // ninguém — é só planeamento. O estado vive em players.review_status.
 
 import { state, updateRow, dbErrorMessage } from '../store.js';
-import { esc, emptyHTML } from '../ui.js';
+import { esc, emptyHTML, paginate, paginationHTML, wirePagination, PAGE_SIZE } from '../ui.js';
 import { teamCoaches, teamName } from '../compute.js';
 import { REVIEW_STATUSES, REVIEW_LABEL } from '../constants.js';
 import { canEdit } from '../permissions.js';
 
 // Equipa selecionada (mantida entre re-desenhos).
 let selectedTeam = null;
+let page = 1;
 
 export function renderAvaliacao(container) {
   const editable = canEdit('players');
@@ -45,6 +46,7 @@ export function renderAvaliacao(container) {
   const total = players.length;
   const decided = counts.mantem + counts.sai;
   const pct = total ? Math.round((decided / total) * 100) : 0;
+  const pg = paginate(players, page, PAGE_SIZE);
 
   container.innerHTML = `
     <header class="page-head">
@@ -81,7 +83,8 @@ export function renderAvaliacao(container) {
 
       ${
         players.length
-          ? `<ul class="aval-list">${players.map((p) => playerRow(p, editable)).join('')}</ul>`
+          ? `<ul class="aval-list">${pg.items.map((p) => playerRow(p, editable)).join('')}</ul>
+             ${paginationHTML({ ...pg, id: 'aval' })}`
           : '<p class="muted" style="margin:0.6rem 0 0">Sem atletas nesta equipa.</p>'
       }
     </section>
@@ -89,6 +92,12 @@ export function renderAvaliacao(container) {
 
   container.querySelector('#aval-team').addEventListener('change', (e) => {
     selectedTeam = e.target.value;
+    page = 1;
+    renderAvaliacao(container);
+  });
+
+  wirePagination(container, 'aval', pg.page, pg.totalPages, (np) => {
+    page = np;
     renderAvaliacao(container);
   });
 
