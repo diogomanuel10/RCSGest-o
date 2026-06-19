@@ -3245,3 +3245,38 @@ tbody tr:hover {
   max-height: 65vh;
   overflow-y: auto;
 }
+
+/* =====================================================================
+   Paginação «Anterior / Seguinte» + barra de filtros
+   ===================================================================== */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.9rem;
+  margin: 0.9rem 0 0.2rem;
+}
+.pagination__info {
+  font-size: 0.85rem;
+  min-width: 5.5rem;
+  text-align: center;
+}
+.pagination .btn[disabled] {
+  opacity: 0.45;
+  cursor: default;
+}
+/* Barra de filtros (pesquisa + selects) reutilizável */
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: flex-end;
+  margin-bottom: 0.9rem;
+}
+.filter-bar .field {
+  margin: 0;
+}
+.filter-bar .field--grow {
+  flex: 1;
+  min-width: 180px;
+}
