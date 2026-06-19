@@ -19,12 +19,24 @@ import {
   attendanceStats,
   equipmentNeedsAttention,
   trainingsToMark,
+  injuredCount,
+  upcomingAppointments,
+  apptDateTime,
+  activeEpisode,
 } from '../compute.js';
-import { EVENT_TYPE_LABEL, EVENT_TYPE_BADGE } from '../constants.js';
-import { canEdit, canAccess } from '../permissions.js';
+import {
+  EVENT_TYPE_LABEL,
+  EVENT_TYPE_BADGE,
+  APPOINTMENT_TYPE_LABEL,
+  APPOINTMENT_TYPE_BADGE,
+  EPISODE_STATUS_LABEL,
+  EPISODE_STATUS_BADGE,
+} from '../constants.js';
+import { canEdit, canAccess, isFisio, isPreparador } from '../permissions.js';
 import { openQuickAttendance } from './presencas.js';
 import { openEventForm, openRecurrentTrainings } from './calendario.js';
 import { openSponsorForm } from './patrocinios.js';
+import { openAthleteProfile } from './athlete-profile.js';
 
 const ICON_MONEY = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v12m-3-3.5c0 1.38 1.34 2.5 3 2.5s3-1.12 3-2.5c0-1.74-1.35-2.17-3-2.5C10.35 11.67 9 11.24 9 9.5 9 8.12 10.34 7 12 7s3 1.12 3 2.5"/></svg>`;
 
@@ -42,7 +54,17 @@ const ICON_SHIELD = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none"
 
 const ICON_BOX = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>`;
 
+const ICON_PULSE = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>`;
+
+const ICON_CALENDAR = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`;
+
+const ICON_DUMBBELL = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1"/><path d="m3 3 1 1"/><path d="m18 22 4-4"/><path d="m2 6 4-4"/><path d="m3 10 7-7"/><path d="m14 21 7-7"/></svg>`;
+
 export function renderPainel(container) {
+  // Painéis próprios para fisioterapeuta e preparador físico (resumo da sua área).
+  if (isFisio()) return renderFisioPainel(container);
+  if (isPreparador()) return renderPreparadorPainel(container);
+
   const raised = totalRaised();
   const goal = state.settings.goal || 0;
   const pct = goal > 0 ? Math.min(100, Math.round((raised / goal) * 100)) : 0;
@@ -369,5 +391,150 @@ function upcomingList(events) {
         })
         .join('')}
     </ul>
+  `;
+}
+
+// =========================================================================
+// Painel do Fisioterapeuta — resumo do Departamento Médico.
+// =========================================================================
+function renderFisioPainel(container) {
+  const injured = injuredCount();
+  const upcoming = upcomingAppointments(8);
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayAppts = state.appointments.filter(
+    (a) => a.status === 'agendado' && a.date === todayStr
+  ).length;
+
+  // Atletas com episódio em curso (ativo ou em recuperação), para a lista.
+  const recovering = state.players
+    .map((p) => ({ player: p, episode: activeEpisode(p.id) }))
+    .filter((x) => x.episode)
+    .sort((a, b) => (a.episode.status === 'ativo' ? 0 : 1) - (b.episode.status === 'ativo' ? 0 : 1));
+
+  const metrics = [
+    metricCard(ICON_PULSE, 'Em tratamento', injured, injured === 1 ? 'atleta com episódio ativo' : 'atletas com episódio ativo', injured > 0 ? 'accent' : 'green'),
+    metricCard(ICON_CALENDAR, 'Atendimentos hoje', todayAppts, todayAppts ? 'agendados para hoje' : 'nada agendado hoje', todayAppts ? 'blue' : 'purple'),
+    metricCard(ICON_CHECK, 'Próximos', upcoming.length, 'atendimentos por realizar', 'green'),
+  ];
+
+  container.innerHTML = `
+    <header class="page-head page-head--hero">
+      <div>
+        <h1 class="section-title">${esc(greeting())}${displayName() ? ', ' + esc(displayName()) : ''}</h1>
+        <p class="muted" style="margin:0;font-size:0.9rem">Resumo do Departamento Médico.</p>
+      </div>
+    </header>
+
+    <section class="cards-grid">${metrics.join('')}</section>
+
+    <section class="card">
+      <h2 class="section-title upcoming-card__title">Próximos atendimentos</h2>
+      ${upcoming.length ? `<ul class="today-list">${upcoming.map(apptRow).join('')}</ul>`
+        : '<p class="muted" style="margin:0.3rem 0 0">Sem atendimentos agendados.</p>'}
+    </section>
+
+    <section class="card">
+      <h2 class="section-title upcoming-card__title">Atletas em tratamento</h2>
+      ${recovering.length ? `<ul class="today-list">${recovering.map(injuredRow).join('')}</ul>`
+        : '<p class="muted" style="margin:0.3rem 0 0">Nenhum atleta com episódio em curso.</p>'}
+    </section>
+  `;
+
+  container.querySelectorAll('[data-open-athlete]').forEach((el) => {
+    const open = () => { if (el.dataset.openAthlete) openAthleteProfile(el.dataset.openAthlete, { tab: 'fisioterapia' }); };
+    el.addEventListener('click', open);
+    el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
+  });
+}
+
+function apptRow(a) {
+  const player = state.players.find((p) => p.id === a.player_id);
+  const dt = apptDateTime(a);
+  const dateLabel = dt.toLocaleDateString('pt-PT', { weekday: 'short', day: '2-digit', month: 'short' });
+  const time = a.time && /^\d{2}:\d{2}/.test(a.time) ? a.time.slice(0, 5) : '';
+  return `
+    <li class="today-item today-item--link" data-open-athlete="${player?.id || ''}" role="button" tabindex="0">
+      <span class="today-item__time">${esc(time || dateLabel)}</span>
+      <div class="today-item__body">
+        <span class="today-item__title">
+          <span class="badge badge--${APPOINTMENT_TYPE_BADGE[a.type] || 'muted'}">${esc(APPOINTMENT_TYPE_LABEL[a.type] || a.type)}</span>
+          ${esc(player?.name || 'Atleta')}
+        </span>
+        <span class="muted today-item__meta">${esc(time ? dateLabel : 'sem hora')}</span>
+      </div>
+    </li>
+  `;
+}
+
+function injuredRow({ player, episode }) {
+  return `
+    <li class="today-item today-item--link" data-open-athlete="${player.id}" role="button" tabindex="0">
+      <span class="today-item__time"><span class="badge badge--${EPISODE_STATUS_BADGE[episode.status] || 'muted'}">${esc(EPISODE_STATUS_LABEL[episode.status] || episode.status)}</span></span>
+      <div class="today-item__body">
+        <span class="today-item__title">${esc(player.name)}</span>
+        ${episode.title || episode.body_area ? `<span class="muted today-item__meta">${esc([episode.title, episode.body_area].filter(Boolean).join(' · '))}</span>` : ''}
+      </div>
+    </li>
+  `;
+}
+
+// =========================================================================
+// Painel do Preparador Físico — resumo da Preparação Física.
+// =========================================================================
+function renderPreparadorPainel(container) {
+  const now = new Date();
+  const athletes = state.players.length;
+  const upcomingGames = state.events
+    .filter((e) => e.type === 'jogo' && eventDateTime(e) >= now)
+    .sort((a, b) => eventDateTime(a) - eventDateTime(b))
+    .slice(0, 8);
+  const upcomingGym = state.gymSessions
+    .filter((s) => new Date(s.date + 'T00:00:00') >= new Date(now.toISOString().slice(0, 10)))
+    .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
+    .slice(0, 8);
+  const testsCount = state.physicalTests.length;
+
+  const metrics = [
+    metricCard(ICON_USERS, 'Atletas', athletes, `em ${state.teams.length} equipa${state.teams.length === 1 ? '' : 's'}`, 'green'),
+    metricCard(ICON_DUMBBELL, 'Treinos de ginásio', upcomingGym.length, upcomingGym.length ? 'agendados a seguir' : 'nada agendado', 'blue'),
+    metricCard(ICON_CHART, 'Avaliações físicas', testsCount, 'registadas no total', 'purple'),
+  ];
+
+  container.innerHTML = `
+    <header class="page-head page-head--hero">
+      <div>
+        <h1 class="section-title">${esc(greeting())}${displayName() ? ', ' + esc(displayName()) : ''}</h1>
+        <p class="muted" style="margin:0;font-size:0.9rem">Resumo da Preparação Física.</p>
+      </div>
+    </header>
+
+    <section class="cards-grid">${metrics.join('')}</section>
+
+    <section class="card">
+      <h2 class="section-title upcoming-card__title">Próximos treinos de ginásio</h2>
+      ${upcomingGym.length ? `<ul class="today-list">${upcomingGym.map(gymRow).join('')}</ul>`
+        : '<p class="muted" style="margin:0.3rem 0 0">Sem treinos de ginásio agendados.</p>'}
+    </section>
+
+    <section class="card">
+      <h2 class="section-title upcoming-card__title">Próximos jogos</h2>
+      ${upcomingGames.length ? upcomingList(upcomingGames)
+        : '<p class="muted" style="margin:0.3rem 0 0">Sem jogos agendados.</p>'}
+    </section>
+  `;
+}
+
+function gymRow(s) {
+  const team = teamById(s.team_id);
+  const dt = new Date(s.date + 'T00:00:00');
+  const dateLabel = dt.toLocaleDateString('pt-PT', { weekday: 'short', day: '2-digit', month: 'short' });
+  return `
+    <li class="today-item">
+      <span class="today-item__time">${esc(dateLabel)}</span>
+      <div class="today-item__body">
+        <span class="today-item__title">${esc(s.title || 'Treino de ginásio')}</span>
+        <span class="muted today-item__meta">${[team ? teamName(team) : '', s.duration_min ? s.duration_min + ' min' : ''].filter(Boolean).join(' · ') || '—'}</span>
+      </div>
+    </li>
   `;
 }

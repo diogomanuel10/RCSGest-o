@@ -130,6 +130,16 @@ export function canAccess(key) {
   if (key === 'medico') return role === 'fisioterapeuta';
   // A Preparação Física é exclusiva do coordenador e do preparador físico.
   if (key === 'fisica') return role === 'preparador';
+  // Fisio e preparador têm sempre o seu próprio Painel (resumo da sua área).
+  if (key === 'painel') {
+    if (role === 'fisioterapeuta' || role === 'preparador') return true;
+    return currentPermissions().includes('painel');
+  }
+  // A Avaliação de plantel (quem fica/mantém/sai) é uma decisão técnica e de
+  // direção — nunca acessível ao fisioterapeuta nem ao preparador físico.
+  if (key === 'avaliacao' && (role === 'fisioterapeuta' || role === 'preparador')) {
+    return false;
+  }
   if (!SECTION_KEYS.has(key)) return false; // portal e afins não se aplicam
   return currentPermissions().includes(key);
 }
