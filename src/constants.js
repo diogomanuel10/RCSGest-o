@@ -208,6 +208,73 @@ export const APPOINTMENT_STATUS_BADGE = Object.fromEntries(
   APPOINTMENT_STATUSES.map((s) => [s.key, s.badge])
 );
 
+// --- Preparação Física ---
+
+// Mão dominante do atleta.
+export const DOMINANT_HANDS = [
+  { key: 'direita',    label: 'Direita' },
+  { key: 'esquerda',   label: 'Esquerda' },
+  { key: 'ambidestra', label: 'Ambidestra' },
+];
+export const DOMINANT_HAND_LABEL = Object.fromEntries(
+  DOMINANT_HANDS.map((h) => [h.key, h.label])
+);
+
+// Tipos de teste/avaliação física (antropometria + performance). `unit` é a
+// unidade sugerida; `outro` permite etiqueta livre.
+export const PHYSICAL_TEST_TYPES = [
+  { key: 'massa_gorda',     label: '% Massa gorda',          unit: '%' },
+  { key: 'massa_muscular',  label: '% Massa muscular',       unit: '%' },
+  { key: 'imc',             label: 'IMC',                    unit: '' },
+  { key: '1rm_peso_morto',  label: '1RM Peso morto',         unit: 'kg' },
+  { key: '1rm_agachamento', label: '1RM Agachamento',        unit: 'kg' },
+  { key: '1rm_supino',      label: '1RM Supino',             unit: 'kg' },
+  { key: 'aperto_mao',      label: 'Aperto de mão (preensão)', unit: 'kg' },
+  { key: 'salto_bloco',     label: 'Salto em altura (bloco)', unit: 'cm' },
+  { key: 'cmj',             label: 'Salto CMJ',              unit: 'cm' },
+  { key: 'sprint_20m',      label: 'Sprint 20 m',            unit: 's' },
+  { key: 'outro',           label: 'Outro',                  unit: '' },
+];
+export const PHYSICAL_TEST_LABEL = Object.fromEntries(
+  PHYSICAL_TEST_TYPES.map((t) => [t.key, t.label])
+);
+export const PHYSICAL_TEST_UNIT = Object.fromEntries(
+  PHYSICAL_TEST_TYPES.map((t) => [t.key, t.unit])
+);
+
+// Objetivo dominante de um mesociclo / treino.
+export const TRAINING_OBJECTIVES = [
+  { key: 'forca',        label: 'Força' },
+  { key: 'potencia',     label: 'Potência' },
+  { key: 'hipertrofia',  label: 'Hipertrofia' },
+  { key: 'resistencia',  label: 'Resistência muscular' },
+  { key: 'velocidade',   label: 'Velocidade / agilidade' },
+  { key: 'tecnica',      label: 'Técnica' },
+  { key: 'prevencao',    label: 'Prevenção de lesões' },
+  { key: 'recuperacao',  label: 'Recuperação / regeneração' },
+  { key: 'outro',        label: 'Outro' },
+];
+export const TRAINING_OBJECTIVE_LABEL = Object.fromEntries(
+  TRAINING_OBJECTIVES.map((o) => [o.key, o.label])
+);
+
+// Tipos de fase do macrociclo (com cor/badge associada).
+export const PHASE_TYPES = [
+  { key: 'pre_epoca',   label: 'Pré-época',           badge: 'info' },
+  { key: 'competitiva', label: 'Período competitivo', badge: 'ok' },
+  { key: 'transicao',   label: 'Transição',           badge: 'warn' },
+  { key: 'paragem',     label: 'Paragem',             badge: 'muted' },
+  { key: 'off_season',  label: 'Off-season',          badge: 'muted' },
+  { key: 'fase',        label: 'Fase',                badge: 'info' },
+  { key: 'outro',       label: 'Outro',               badge: 'muted' },
+];
+export const PHASE_TYPE_LABEL = Object.fromEntries(
+  PHASE_TYPES.map((p) => [p.key, p.label])
+);
+export const PHASE_TYPE_BADGE = Object.fromEntries(
+  PHASE_TYPES.map((p) => [p.key, p.badge])
+);
+
 // --- Recrutamento: estados do funil ---
 export const PROSPECT_STATUSES = [
   { key: 'observado',  label: 'Observado',      badge: 'muted' },

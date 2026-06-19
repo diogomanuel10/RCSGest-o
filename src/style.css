@@ -3056,3 +3056,49 @@ tbody tr:hover {
   color: var(--warn);
   font-size: 0.85rem;
 }
+
+/* =====================================================================
+   Preparação Física
+   ===================================================================== */
+.pf-min-input {
+  width: 5.5rem;
+  text-align: right;
+}
+.pf-games {
+  margin-top: 0.4rem;
+}
+
+/* Macrociclo (fases da época) */
+.phase-track {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.phase-chip {
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  padding: 0.5rem 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.phase-chip--info   { border-left-color: var(--info, #2563eb); }
+.phase-chip--ok     { border-left-color: var(--ok, #16a34a); }
+.phase-chip--warn   { border-left-color: var(--warn); }
+.phase-chip--danger { border-left-color: var(--danger); }
+.phase-chip--muted  { border-left-color: var(--border); }
+.phase-chip__main {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.phase-chip__range,
+.phase-chip__notes {
+  font-size: 0.82rem;
+}
+.phase-chip .cell-actions {
+  margin-top: 0.2rem;
+}
