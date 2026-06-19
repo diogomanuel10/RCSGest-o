@@ -4,9 +4,9 @@
 
 import { state, createRow, updateRow, deleteRow, convertProspect, dbErrorMessage } from '../store.js';
 import { esc, emptyHTML } from '../ui.js';
-import { teamName } from '../compute.js';
+import { teamName, teamById, currentCoachEscaloes } from '../compute.js';
 import { openModal, confirmDialog } from '../modal.js';
-import { canEdit } from '../permissions.js';
+import { canEdit, isCoordenador } from '../permissions.js';
 import { PROSPECT_STATUSES, PROSPECT_REJECTED, PROSPECT_LABEL, PROSPECT_BADGE, POSITIONS } from '../constants.js';
 
 // Filtro de posição (estado local da vista).
@@ -15,8 +15,23 @@ let positionFilter = '';
 // Colunas: funil linear + coluna terminal "Não fica".
 const COLUMNS = [...PROSPECT_STATUSES, PROSPECT_REJECTED];
 
+// O treinador só vê os prospetos do(s) seu(s) escalão(ões): um prospeto
+// pertence a um escalão pela equipa-alvo. O coordenador vê tudo.
+function inMyScope(p) {
+  if (isCoordenador()) return true;
+  const escaloes = currentCoachEscaloes();
+  if (!escaloes.size) return false;
+  const team = p.target_team_id ? teamById(p.target_team_id) : null;
+  return !!team && escaloes.has(team.escalao);
+}
+
+// Prospetos que o utilizador atual pode ver (respeita o âmbito por escalão).
+function scopedProspects() {
+  return state.prospects.filter(inMyScope);
+}
+
 function visibleProspects(statusKey) {
-  return state.prospects
+  return scopedProspects()
     .filter((p) => p.status === statusKey)
     .filter((p) => !positionFilter || p.position === positionFilter)
     .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
@@ -24,9 +39,10 @@ function visibleProspects(statusKey) {
 
 export function renderRecrutamento(container) {
   const canWrite = canEdit('prospects');
+  const mine = scopedProspects();
   const total = positionFilter
-    ? state.prospects.filter((p) => p.position === positionFilter).length
-    : state.prospects.length;
+    ? mine.filter((p) => p.position === positionFilter).length
+    : mine.length;
 
   container.innerHTML = `
     <header class="page-head">
@@ -144,8 +160,10 @@ function cardHTML(p, canWrite) {
 
 function openProspectForm(id) {
   const existing = id ? state.prospects.find((p) => p.id === id) : null;
+  // O treinador só pode atribuir prospetos às equipas do(s) seu(s) escalão(ões).
+  const escaloes = isCoordenador() ? null : currentCoachEscaloes();
   const teamOptions = state.teams
-    .slice()
+    .filter((t) => !escaloes || escaloes.has(t.escalao))
     .sort((a, b) => teamName(a).localeCompare(teamName(b)))
     .map((t) => ({ key: t.id, label: teamName(t) }));
 
@@ -227,7 +245,10 @@ function openConvertModal(prospectId) {
   const p = state.prospects.find((x) => x.id === prospectId);
   if (!p) return;
 
-  const teams = state.teams.slice().sort((a, b) => teamName(a).localeCompare(teamName(b)));
+  const escaloes = isCoordenador() ? null : currentCoachEscaloes();
+  const teams = state.teams
+    .filter((t) => !escaloes || escaloes.has(t.escalao))
+    .sort((a, b) => teamName(a).localeCompare(teamName(b)));
   const defaultTeam = p.target_team_id || teams[0]?.id || '';
 
   const overlay = document.createElement('div');
