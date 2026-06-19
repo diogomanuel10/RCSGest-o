@@ -80,6 +80,8 @@ const EDIT_ROLES = {
   physical: ['coordenador', 'preparador'],
   // A história clínica é editada pela fisio/coordenador; o preparador só lê.
   medicalHistory: ['coordenador', 'fisioterapeuta'],
+  // Disponibilidade (estado + limitações) — definida pela fisio/coordenador.
+  availability: ['coordenador', 'fisioterapeuta'],
 };
 
 // Papel do utilizador atual (por omissão 'leitura' até o perfil carregar).

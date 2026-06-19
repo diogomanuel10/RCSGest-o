@@ -35,11 +35,12 @@ src/
     painel.js           Vista Painel
     patrocinios.js      Vista Patrocínios
     planteis.js         Vista Plantéis (CRUD + importar atletas via .xlsx)
+    athlete-profile.js  Perfil do Atleta (modal unificado com separadores)
     avaliacao.js        Vista Avaliação de plantel (Mantém/Sai/Pendente)
     medico.js           Vista Departamento Médico (atletas + agenda de fisioterapia)
-    clinical-file.js    Ficha clínica do atleta (episódios, sessões, atendimentos)
+    clinical-file.js    Área de Fisioterapia do perfil (episódios, sessões, atendimentos)
     preparacao.js       Vista Preparação Física (atletas + periodização + mapa de jogos)
-    physical-file.js    Ficha física do atleta (dados físicos, avaliações, controlo)
+    physical-file.js    Área de Prep. física do perfil (dados físicos, avaliações, controlo)
     calendario.js       Vista Calendário
     treinadores.js      Vista Treinadores
     definicoes.js       Vista Definições (época, meta, escalões, backup)
@@ -106,6 +107,23 @@ topo do módulo da vista.
   os perfis em `state.profiles`. A vista `utilizadores.js` permite ao
   coordenador mudar papéis. As entradas Definições e Utilizadores na barra
   lateral só aparecem ao coordenador.
+
+## Perfil do Atleta (vista unificada)
+
+- `athlete-profile.js` (`openAthleteProfile`) é o ponto único de entrada para
+  ver um atleta (abre dos Plantéis, do Dept. Médico e da Preparação Física).
+  Tem separadores mostrados conforme as permissões de quem vê:
+  - **Geral** — sempre. Dados pessoais, equipa, avaliação, **disponibilidade**
+    (estado + limitações ao treino, de `athlete_availability`), resumo de dados
+    físicos + última avaliação, presenças e quotas.
+  - **Fisioterapia** — só `canAccess('medico')` (coordenador + fisioterapeuta);
+    renderizada por `renderClinicalInto` (`clinical-file.js`).
+  - **Prep. física** — só `canAccess('fisica')` (coordenador + preparador);
+    renderizada por `renderPhysicalInto` (`physical-file.js`).
+- O **treinador** vê só o separador Geral, com o resumo de disponibilidade e
+  limitações (sem o detalhe clínico) e a última avaliação física —
+  `athlete_availability` e `physical_tests` têm leitura para a equipa técnica
+  (não para o atleta); o detalhe clínico continua reservado (`med_rw`).
 
 ## Regras de negócio
 

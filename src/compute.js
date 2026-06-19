@@ -319,6 +319,12 @@ export function playerMedicalHistory(playerId) {
   return state.medicalHistory.find((m) => m.player_id === playerId) || null;
 }
 
+// Disponibilidade do atleta (resumo visível à equipa técnica). null se nunca
+// foi definida (assume-se "apto" na interface).
+export function playerAvailability(playerId) {
+  return state.availability.find((a) => a.player_id === playerId) || null;
+}
+
 // Índice de massa corporal a partir do perfil físico (kg / m²). null se faltar
 // altura ou peso.
 export function bmi(playerId) {

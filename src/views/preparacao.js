@@ -38,7 +38,7 @@ import {
   PHASE_TYPE_BADGE,
 } from '../constants.js';
 import { canEdit } from '../permissions.js';
-import { openPhysicalFile } from './physical-file.js';
+import { openAthleteProfile } from './athlete-profile.js';
 
 let tab = 'atletas'; // 'atletas' | 'periodizacao' | 'jogos'
 let search = '';
@@ -153,7 +153,7 @@ function toggle(set, id) { if (set.has(id)) set.delete(id); else set.add(id); }
 
 function wireAthletes(container) {
   container.querySelectorAll('[data-pf-file]').forEach((b) =>
-    b.addEventListener('click', () => openPhysicalFile(b.dataset.pfFile))
+    b.addEventListener('click', () => openAthleteProfile(b.dataset.pfFile, { tab: 'fisica' }))
   );
 }
 

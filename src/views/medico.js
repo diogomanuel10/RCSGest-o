@@ -27,7 +27,8 @@ import {
 } from '../constants.js';
 import { canEdit } from '../permissions.js';
 import { openModal } from '../modal.js';
-import { openClinicalFile, openAppointmentForm } from './clinical-file.js';
+import { openAppointmentForm } from './clinical-file.js';
+import { openAthleteProfile } from './athlete-profile.js';
 
 let tab = 'atletas'; // 'atletas' | 'agenda'
 let search = '';
@@ -71,13 +72,13 @@ export function renderMedico(container) {
   container.querySelector('#med-add-appt')?.addEventListener('click', () => pickAthleteThenAppt(container));
   wireAthleteButtons(container);
   container.querySelectorAll('[data-appt-file]').forEach((b) =>
-    b.addEventListener('click', () => openClinicalFile(b.dataset.apptFile))
+    b.addEventListener('click', () => openAthleteProfile(b.dataset.apptFile, { tab: 'fisioterapia' }))
   );
 }
 
 function wireAthleteButtons(container) {
   container.querySelectorAll('[data-file]').forEach((b) =>
-    b.addEventListener('click', () => openClinicalFile(b.dataset.file))
+    b.addEventListener('click', () => openAthleteProfile(b.dataset.file, { tab: 'fisioterapia' }))
   );
 }
 

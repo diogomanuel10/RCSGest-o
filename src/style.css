@@ -3102,3 +3102,38 @@ tbody tr:hover {
 .phase-chip .cell-actions {
   margin-top: 0.2rem;
 }
+
+/* =====================================================================
+   Perfil do Atleta (modal com separadores)
+   ===================================================================== */
+.ap-head {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+.ap-tabs {
+  display: flex;
+  gap: 0.3rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0.8rem;
+  flex-wrap: wrap;
+}
+.ap-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 0.5rem 0.8rem;
+  cursor: pointer;
+  color: var(--text-muted);
+  font: inherit;
+  font-weight: 600;
+}
+.ap-tab:hover { color: var(--text); }
+.ap-tab--active {
+  color: var(--accent, #2563eb);
+  border-bottom-color: var(--accent, #2563eb);
+}
+.ap-body {
+  max-height: 65vh;
+  overflow-y: auto;
+}

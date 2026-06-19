@@ -33,6 +33,7 @@ export const state = {
   gymExercises: [],     // exercícios de cada treino
   gymAttendance: [],    // presenças nos treinos de ginásio
   gameMinutes: [],      // minutos de jogo por atleta
+  availability: [],     // disponibilidade do atleta (resumo p/ treinador)
   profile: null, // perfil do utilizador atual (com o papel/role)
   profiles: [], // todos os perfis (preenchido só se o utilizador for coordenador)
   loaded: false,
@@ -62,6 +63,7 @@ export function resetState() {
   state.gymExercises = [];
   state.gymAttendance = [];
   state.gameMinutes = [];
+  state.availability = [];
   state.profile = null;
   state.profiles = [];
   state.loaded = false;
@@ -102,7 +104,7 @@ export async function loadProfile() {
 // Vai buscar todas as tabelas em paralelo. Lança erro se alguma falhar.
 export async function loadAll() {
   const [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects, episodes, sessions, appointments,
-         physProfiles, medHistory, physTests, phases, mesocycles, gymSessions, gymExercises, gymAttendance, gameMinutes] =
+         physProfiles, medHistory, physTests, phases, mesocycles, gymSessions, gymExercises, gymAttendance, gameMinutes, availability] =
     await Promise.all([
       supabase.from('settings').select('*').eq('id', 1).maybeSingle(),
       supabase.from('coaches').select('*').order('name'),
@@ -129,10 +131,11 @@ export async function loadAll() {
       supabase.from('gym_exercises').select('*').order('position'),
       supabase.from('gym_attendance').select('*'),
       supabase.from('game_minutes').select('*'),
+      supabase.from('athlete_availability').select('*'),
     ]);
 
   for (const res of [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects, episodes, sessions, appointments,
-                     physProfiles, medHistory, physTests, phases, mesocycles, gymSessions, gymExercises, gymAttendance, gameMinutes]) {
+                     physProfiles, medHistory, physTests, phases, mesocycles, gymSessions, gymExercises, gymAttendance, gameMinutes, availability]) {
     if (res.error) throw res.error;
   }
 
@@ -159,6 +162,7 @@ export async function loadAll() {
   state.gymExercises     = gymExercises.data  || [];
   state.gymAttendance    = gymAttendance.data || [];
   state.gameMinutes      = gameMinutes.data   || [];
+  state.availability     = availability.data  || [];
 
   await loadProfile();
 
@@ -452,6 +456,7 @@ function cleanupPlayerClinical(playerId) {
   state.physicalTests = state.physicalTests.filter((t) => t.player_id !== playerId);
   state.gymAttendance = state.gymAttendance.filter((a) => a.player_id !== playerId);
   state.gameMinutes = state.gameMinutes.filter((g) => g.player_id !== playerId);
+  state.availability = state.availability.filter((a) => a.player_id !== playerId);
 }
 
 export async function deleteRow(table, collection, id) {
