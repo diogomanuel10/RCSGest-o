@@ -492,6 +492,7 @@ tbody tr:hover {
   display: flex;
   align-items: center;
   gap: 0.8rem;
+  margin-left: auto;
 }
 .topbar__user {
   display: flex;
@@ -3313,9 +3314,8 @@ tbody tr:hover {
    ========================================================================= */
 .topbar__search {
   position: relative;
-  flex: 1;
-  max-width: 360px;
-  margin: 0 0.75rem;
+  flex: 0 1 340px;
+  margin-left: 1.5rem;
 }
 .search-wrap {
   position: relative;
