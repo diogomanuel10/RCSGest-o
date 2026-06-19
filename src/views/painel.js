@@ -21,7 +21,7 @@ import {
   trainingsToMark,
 } from '../compute.js';
 import { EVENT_TYPE_LABEL, EVENT_TYPE_BADGE } from '../constants.js';
-import { canEdit } from '../permissions.js';
+import { canEdit, canAccess } from '../permissions.js';
 import { setSelectedTraining } from './presencas.js';
 import { openEventForm, openRecurrentTrainings } from './calendario.js';
 import { openSponsorForm } from './patrocinios.js';
@@ -62,6 +62,27 @@ export function renderPainel(container) {
   const today = todayEvents();
   const quick = quickActions();
 
+  // Só se mostram os indicadores das secções a que o utilizador tem acesso —
+  // um treinador não vê patrocínios, quotas, equipamentos nem treinadores.
+  const seeSpon = canAccess('patrocinios');
+  const seeQuotas = canAccess('quotas');
+  const seeEquip = canAccess('equipamentos');
+  const seeCoaches = canAccess('treinadores');
+  const seePlanteis = canAccess('planteis');
+  const seeAttendance = canAccess('presencas') || canAccess('estatisticas');
+  const seeCalendar = canAccess('calendario');
+
+  const metrics = [
+    seeSpon     && metricCard(ICON_MONEY, 'Angariado', euros(raised), `Meta: ${euros(goal)}`, 'accent'),
+    seeSpon     && metricCard(ICON_CHART, 'Em contacto', inProgress, 'patrocínios a decorrer', 'blue'),
+    seePlanteis && metricCard(ICON_USERS, 'Atletas', athletes, `em ${teamsCount} equipa${teamsCount === 1 ? '' : 's'}`, 'green'),
+    seeCoaches  && metricCard(ICON_COACH, 'Treinadores', coaches, 'na equipa técnica', 'purple'),
+    seeAttendance && metricCard(ICON_CHECK, 'Presenças', att.rate == null ? '—' : att.rate + '%', att.total ? `média em ${att.total} registo${att.total === 1 ? '' : 's'}` : 'ainda sem registos', 'green'),
+    seeQuotas   && metricCard(ICON_CARD, 'Em dívida', euros(owed.total), owed.count ? `${owed.count} quota${owed.count === 1 ? '' : 's'} por pagar` : 'tudo regularizado', owed.total > 0 ? 'accent' : 'blue'),
+    seePlanteis && metricCard(ICON_SHIELD, 'Equipas', teamsCount, 'plantéis ativos', 'blue'),
+    seeEquip    && metricCard(ICON_BOX, 'Equipamentos', state.equipment.length, equipReview ? `${equipReview} em mau estado` : 'inventário em dia', equipReview ? 'accent' : 'purple'),
+  ].filter(Boolean);
+
   container.innerHTML = `
     <header class="page-head page-head--hero">
       <div>
@@ -73,24 +94,12 @@ export function renderPainel(container) {
       `).join('')}</div>` : ''}
     </header>
 
-    ${today.length ? `<section class="card today-card">
+    ${today.length && seeCalendar ? `<section class="card today-card">
       <h2 class="section-title upcoming-card__title">Hoje</h2>
       <ul class="today-list">${today.map(todayRow).join('')}</ul>
     </section>` : ''}
 
-    <section class="cards-grid">
-      ${metricCard(ICON_MONEY, 'Angariado', euros(raised), `Meta: ${euros(goal)}`, 'accent')}
-      ${metricCard(ICON_CHART, 'Em contacto', inProgress, 'patrocínios a decorrer', 'blue')}
-      ${metricCard(ICON_USERS, 'Atletas', athletes, `em ${teamsCount} equipa${teamsCount === 1 ? '' : 's'}`, 'green')}
-      ${metricCard(ICON_COACH, 'Treinadores', coaches, 'na equipa técnica', 'purple')}
-    </section>
-
-    <section class="cards-grid">
-      ${metricCard(ICON_CHECK, 'Presenças', att.rate == null ? '—' : att.rate + '%', att.total ? `média em ${att.total} registo${att.total === 1 ? '' : 's'}` : 'ainda sem registos', 'green')}
-      ${metricCard(ICON_CARD, 'Em dívida', euros(owed.total), owed.count ? `${owed.count} quota${owed.count === 1 ? '' : 's'} por pagar` : 'tudo regularizado', owed.total > 0 ? 'accent' : 'blue')}
-      ${metricCard(ICON_SHIELD, 'Equipas', teamsCount, 'plantéis ativos', 'blue')}
-      ${metricCard(ICON_BOX, 'Equipamentos', state.equipment.length, equipReview ? `${equipReview} em mau estado` : 'inventário em dia', equipReview ? 'accent' : 'purple')}
-    </section>
+    ${metrics.length ? `<section class="cards-grid">${metrics.join('')}</section>` : ''}
 
     ${actions.length ? `<section class="card alerts-card">
       <h2 class="section-title upcoming-card__title">A precisar da tua atenção</h2>
@@ -102,7 +111,7 @@ export function renderPainel(container) {
       <ul class="mark-list">${toMark.map(markRow).join('')}</ul>
     </section>` : ''}
 
-    <section class="card goal-card">
+    ${seeSpon ? `<section class="card goal-card">
       <div class="goal-card__header">
         <h2 class="section-title goal-card__title">Meta de patrocínios</h2>
         <span class="goal-card__pct">${pct}%</span>
@@ -113,12 +122,12 @@ export function renderPainel(container) {
       <p class="muted goal-card__caption">
         ${euros(raised)} angariados de ${euros(goal)} na época ${esc(state.settings.season)}.
       </p>
-    </section>
+    </section>` : ''}
 
-    <section class="card">
+    ${seeCalendar ? `<section class="card">
       <h2 class="section-title upcoming-card__title">Próximos eventos</h2>
       ${upcoming.length ? upcomingList(upcoming) : '<p class="muted" style="margin:0.3rem 0 0">Sem eventos futuros agendados.</p>'}
-    </section>
+    </section>` : ''}
   `;
 
   // Atalho: pré-seleciona o treino e navega para a vista Presenças.
