@@ -3494,3 +3494,7 @@ tbody tr:hover {
   .arch-row { flex-wrap: wrap; }
   .arch-row__date { order: 3; }
 }
+
+/* Botão de notificações push ativo (sino na topbar) */
+.icon-btn--active { color: var(--gold, #F2B705); }
+.icon-btn--active:hover { color: var(--gold, #F2B705); }

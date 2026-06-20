@@ -520,6 +520,31 @@ create policy "profiles_manage" on profiles for all to authenticated
   using (app_role() = 'coordenador') with check (app_role() = 'coordenador');
 
 -- =====================================================================
+-- Notificações push (Web Push / PWA)
+-- =====================================================================
+-- Subscrições de push por dispositivo. Cada utilizador pode ter várias (um
+-- registo por navegador/telemóvel). O envio é feito pela Edge Function
+-- "send-push" com a chave privada VAPID (ver supabase/functions/send-push).
+create table if not exists push_subscriptions (
+  id           uuid primary key default gen_random_uuid(),
+  user_id      uuid references auth.users(id) on delete cascade,
+  endpoint     text not null unique,
+  subscription jsonb not null,
+  user_agent   text,
+  created_at   timestamptz default now()
+);
+create index if not exists idx_push_user on push_subscriptions (user_id);
+
+alter table push_subscriptions enable row level security;
+drop policy if exists "push_own" on push_subscriptions;
+-- Cada utilizador gere apenas as suas próprias subscrições. O envio corre do
+-- lado do servidor com a service role (ignora o RLS), por isso não é preciso
+-- dar leitura a mais ninguém aqui.
+create policy "push_own" on push_subscriptions for all to authenticated
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
+
+-- =====================================================================
 -- Departamento Médico / Fisioterapia
 -- =====================================================================
 -- Processo clínico digital do atleta. Cada atleta pode ter vários episódios

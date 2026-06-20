@@ -4,6 +4,8 @@ import { state, saveSettings, snapshot, replaceAllData, dbErrorMessage } from '.
 import { esc } from '../ui.js';
 import { escaloes } from '../compute.js';
 import { confirmDialog } from '../modal.js';
+import { ROLES } from '../permissions.js';
+import { pushSupported, sendBroadcast } from '../push.js';
 
 export function renderDefinicoes(container) {
   const { season, goal } = state.settings;
@@ -54,6 +56,35 @@ export function renderDefinicoes(container) {
       <div class="row" style="justify-content:flex-end">
         <button type="button" class="btn btn--primary" id="save-esc">Guardar escalões</button>
       </div>
+    </section>
+
+    <section class="card settings-card">
+      <h2 class="section-title settings-card__title">Notificações</h2>
+      <p class="muted" style="margin-top:0">
+        Envia uma notificação push para quem tiver as notificações ativadas (o
+        sino na barra de topo). Escolhe um grupo ou envia para todos.
+      </p>
+      <form id="notif-form">
+        <div class="field">
+          <label for="notif-title">Título</label>
+          <input type="text" id="notif-title" maxlength="80" required placeholder="ex.: Treino alterado" />
+        </div>
+        <div class="field">
+          <label for="notif-body">Mensagem</label>
+          <textarea id="notif-body" rows="2" maxlength="240" placeholder="ex.: O treino de sábado passou para as 10h."></textarea>
+        </div>
+        <div class="field">
+          <label for="notif-role">Destinatários</label>
+          <select id="notif-role">
+            <option value="">Todos</option>
+            ${ROLES.map((r) => `<option value="${esc(r.key)}">${esc(r.label)}</option>`).join('')}
+          </select>
+        </div>
+        <p class="settings-msg hidden" id="notif-msg"></p>
+        <div class="row" style="justify-content:flex-end">
+          <button type="submit" class="btn btn--primary" id="notif-send">Enviar</button>
+        </div>
+      </form>
     </section>
 
     <section class="card settings-card">
@@ -179,6 +210,33 @@ export function renderDefinicoes(container) {
     } finally {
       btn.disabled = false;
       btn.textContent = 'Guardar escalões';
+    }
+  });
+
+  // --- Enviar notificação ---
+  const notifForm = container.querySelector('#notif-form');
+  const notifMsg = container.querySelector('#notif-msg');
+  if (!pushSupported()) {
+    showMsg(notifMsg, 'Este dispositivo não suporta notificações, mas podes na mesma enviar para os outros.', 'info');
+  }
+  notifForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const title = container.querySelector('#notif-title').value.trim();
+    const body = container.querySelector('#notif-body').value.trim();
+    const role = container.querySelector('#notif-role').value;
+    if (!title) return;
+    const btn = container.querySelector('#notif-send');
+    btn.disabled = true;
+    btn.textContent = 'A enviar…';
+    try {
+      const res = await sendBroadcast({ title, body, roles: role ? [role] : undefined });
+      showMsg(notifMsg, `Enviada para ${res?.sent ?? 0} dispositivo(s).`, 'ok');
+      notifForm.reset();
+    } catch (err) {
+      showMsg(notifMsg, dbErrorMessage(err), 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Enviar';
     }
   });
 

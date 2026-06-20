@@ -22,6 +22,7 @@ src/
   store.js              Camada de dados: cache em memória, CRUD, backup, eventos
   compute.js            Cálculos derivados (totais, próximos eventos, nomes…)
   permissions.js        Papéis e capacidades (canEdit, canManageUsers…)
+  push.js               Notificações push: ativar/desativar + subscrição + envio
   constants.js          Valores partilhados (níveis, estados, escalões, etc.)
   ui.js                 Utilitários de UI (esc, euros, loading/erro/vazio, logo)
   modal.js              Modal de formulário reutilizável + diálogo de confirmação
@@ -47,8 +48,24 @@ src/
     utilizadores.js     Vista Utilizadores (gestão de papéis — só coordenador)
     arquivados.js       Vista Arquivados (registos inativos + repor — só coordenador)
 supabase/schema.sql     Tabelas, índices, RLS e dados iniciais (correr no Supabase)
-public/                 Ficheiros estáticos (modelo-atletas-rcs.xlsx)
+supabase/functions/send-push/  Edge Function que envia notificações push (+ README de setup)
+public/                 Ficheiros estáticos + PWA: manifest.webmanifest, sw.js,
+                        icon.svg, icon-maskable.svg, modelo-atletas-rcs.xlsx
 ```
+
+## PWA e notificações push
+
+- **PWA**: `index.html` liga o `manifest.webmanifest` e os ícones; `main.js`
+  regista `public/sw.js` (só em produção). O service worker faz cache do "app
+  shell" (offline + arranque rápido) e **nunca** mete em cache o Supabase (só
+  trata pedidos GET same-origin). Instalável em desktop e telemóvel.
+- **Push**: `src/push.js` ativa/desativa por dispositivo (sino na barra de topo),
+  subscreve no `PushManager` com a chave pública VAPID (`VITE_VAPID_PUBLIC_KEY`)
+  e guarda a subscrição em `push_subscriptions` (RLS: cada um só gere as suas).
+  O envio é feito pela Edge Function `send-push` (só coordenador; segmenta por
+  papel ou utilizadores). UI de envio em Definições → Notificações. Setup das
+  chaves/secrets em `supabase/functions/send-push/README.md`. iOS exige a app
+  instalada no ecrã principal (16.4+).
 
 ## Fluxo de arranque (`main.js`)
 

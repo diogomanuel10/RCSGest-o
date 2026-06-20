@@ -60,4 +60,17 @@ async function boot() {
   onAuthChange((session) => route(session));
 }
 
+// Regista o service worker (PWA: instalável, offline, base para as notificações
+// push). Só em produção (no dev do Vite o SW atrapalha o hot-reload).
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator) || import.meta.env.DEV) return;
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((err) => {
+      console.warn('Falha ao registar o service worker:', err);
+    });
+  });
+}
+
+registerServiceWorker();
 boot();
+

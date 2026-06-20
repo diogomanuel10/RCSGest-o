@@ -1,0 +1,28 @@
+{
+  "name": "Central RCS — Real Clube Senhorense",
+  "short_name": "Central RCS",
+  "description": "Gestão do Real Clube Senhorense: plantéis, calendário, presenças, departamento médico e preparação física.",
+  "lang": "pt-PT",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0E2740",
+  "theme_color": "#143B61",
+  "categories": ["sports", "productivity"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

@@ -10,6 +10,7 @@ import { state, subscribe, loadAll } from '../store.js';
 import { loadingHTML, errorHTML, esc } from '../ui.js';
 import { canManageSettings, canManageUsers, canAccess, ROLE_LABEL } from '../permissions.js';
 import { teamName } from '../compute.js';
+import { pushSupported, pushState, enablePush, disablePush } from '../push.js';
 
 import { renderPainel } from './painel.js';
 import { renderPatrocinios } from './patrocinios.js';
@@ -126,6 +127,10 @@ export async function renderAppShell(root, session) {
             <span class="topbar__email">${session.user.email}</span>
             <span class="badge badge--muted" id="role-badge">leitura</span>
           </div>
+          <button class="icon-btn" id="push-toggle" type="button" hidden
+                  aria-label="Notificações" title="Notificações">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          </button>
           <button class="btn btn--ghost btn--sm" id="logout" type="button">Sair</button>
         </div>
       </header>
@@ -156,6 +161,34 @@ export async function renderAppShell(root, session) {
   root.querySelector('#menu-toggle').addEventListener('click', toggleMenu);
   root.querySelector('#scrim').addEventListener('click', closeDrawer);
   root.querySelector('#logout').addEventListener('click', () => signOut());
+
+  // --- Notificações push ---
+  const pushBtn = root.querySelector('#push-toggle');
+  async function refreshPushBtn() {
+    if (!pushSupported()) { pushBtn.hidden = true; return; }
+    pushBtn.hidden = false;
+    const st = await pushState();
+    pushBtn.classList.toggle('icon-btn--active', st === 'enabled');
+    pushBtn.disabled = st === 'denied';
+    pushBtn.title =
+      st === 'enabled' ? 'Notificações ativadas (clica para desativar)'
+      : st === 'denied' ? 'Notificações bloqueadas no navegador'
+      : 'Ativar notificações';
+  }
+  pushBtn.addEventListener('click', async () => {
+    pushBtn.disabled = true;
+    try {
+      const st = await pushState();
+      if (st === 'enabled') await disablePush();
+      else await enablePush();
+    } catch (err) {
+      alert(err?.message || 'Não foi possível alterar as notificações.');
+    } finally {
+      pushBtn.disabled = false;
+      refreshPushBtn();
+    }
+  });
+  refreshPushBtn();
 
   window.addEventListener('resize', () => {
     if (!isMobile()) closeDrawer();
