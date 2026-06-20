@@ -3498,3 +3498,29 @@ tbody tr:hover {
 /* Botão de notificações push ativo (sino na topbar) */
 .icon-btn--active { color: var(--gold, #F2B705); }
 .icon-btn--active:hover { color: var(--gold, #F2B705); }
+
+/* =========================================================================
+   Tabelas responsivas — scroll horizontal em ecrãs pequenos
+   ========================================================================= */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+}
+.table-scroll > table { margin: 0; }
+/* Sombra subtil a indicar que há mais conteúdo para o lado */
+.table-scroll {
+  background:
+    linear-gradient(to right, var(--surface) 30%, rgba(255,255,255,0)) left center,
+    linear-gradient(to left, var(--surface) 30%, rgba(255,255,255,0)) right center,
+    radial-gradient(farthest-side at 0 50%, rgba(10,22,40,0.12), rgba(0,0,0,0)) left center,
+    radial-gradient(farthest-side at 100% 50%, rgba(10,22,40,0.12), rgba(0,0,0,0)) right center;
+  background-repeat: no-repeat;
+  background-size: 32px 100%, 32px 100%, 14px 100%, 14px 100%;
+  background-attachment: local, local, scroll, scroll;
+}
+/* Larguras mínimas para colunas não colapsarem (a tabela passa a fazer scroll) */
+@media (max-width: 640px) {
+  .med-table { min-width: 460px; }
+  .pres-table { min-width: 560px; }
+}

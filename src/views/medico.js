@@ -121,6 +121,7 @@ function athleteListHTML() {
   const pg = paginate(players, page, PAGE_SIZE);
 
   return `
+    <div class="table-scroll">
     <table class="players-table med-table">
       <thead><tr><th>Atleta</th><th>Equipa</th><th>Estado clínico</th><th></th></tr></thead>
       <tbody>
@@ -142,6 +143,7 @@ function athleteListHTML() {
         }).join('')}
       </tbody>
     </table>
+    </div>
     ${paginationHTML({ ...pg, id: 'med' })}
   `;
 }
