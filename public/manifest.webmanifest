@@ -1,0 +1,19 @@
+{
+  "name": "Central RCS",
+  "short_name": "Central RCS",
+  "description": "Painel de gestão do Real Clube Senhorense",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#143B61",
+  "theme_color": "#143B61",
+  "lang": "pt-PT",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
