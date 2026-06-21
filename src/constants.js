@@ -293,12 +293,12 @@ export const AVAILABILITY_BADGE = Object.fromEntries(
 
 // Categorias de tarefas/blocos num plano de treino.
 export const PLAN_CATEGORIES = [
-  { key: 'aquecimento', label: 'Aquecimento',    badge: 'warn' },
-  { key: 'tecnica',     label: 'Técnica',         badge: 'info' },
-  { key: 'tatica',      label: 'Tática',          badge: 'ok' },
-  { key: 'fisico',      label: 'Físico',          badge: 'info' },
-  { key: 'retorno',     label: 'Retorno à calma', badge: 'muted' },
-  { key: 'outro',       label: 'Outro',           badge: 'muted' },
+  { key: 'aquecimento', label: 'Aquecimento',       badge: 'warn' },
+  { key: 'tecnica',     label: 'Técnica',            badge: 'info' },
+  { key: 'tatica',      label: 'Tática',             badge: 'ok' },
+  { key: 'situacao',    label: 'Situação de jogo',   badge: 'danger' },
+  { key: 'retorno',     label: 'Retorno à calma',    badge: 'muted' },
+  { key: 'outro',       label: 'Outro',              badge: 'muted' },
 ];
 export const PLAN_CATEGORY_LABEL = Object.fromEntries(PLAN_CATEGORIES.map((c) => [c.key, c.label]));
 export const PLAN_CATEGORY_BADGE = Object.fromEntries(PLAN_CATEGORIES.map((c) => [c.key, c.badge]));

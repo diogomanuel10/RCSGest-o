@@ -1006,3 +1006,19 @@ create policy "te_write" on training_evaluations for all to authenticated
 create policy "tpe_write" on training_player_evals for all to authenticated
   using (app_role() in ('coordenador','treinador'))
   with check (app_role() in ('coordenador','treinador'));
+
+-- Colunas adicionadas à reformulação dos planos de treino (idempotent).
+alter table training_plans
+  add column if not exists material text;
+
+alter table training_plan_items
+  add column if not exists organization text,
+  add column if not exists objective     text,
+  add column if not exists reps          text;
+
+-- Atualiza a constraint de categoria: substitui 'fisico' por 'situacao'.
+alter table training_plan_items
+  drop constraint if exists training_plan_items_category_check;
+alter table training_plan_items
+  add constraint training_plan_items_category_check
+  check (category in ('aquecimento','tecnica','tatica','situacao','retorno','outro'));
