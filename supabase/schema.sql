@@ -870,3 +870,139 @@ where not exists (select 1 from profiles p where p.id = u.id);
 -- basta voltar a correr esta linha após o registo, ou registar primeiro.
 update profiles set role = 'coordenador'
 where email = 'diomanuel10@gmail.com';
+
+-- =====================================================================
+-- Planos de treino e avaliações pós treino
+-- =====================================================================
+-- O plano de treino está associado 1:1 a um evento de tipo 'treino'.
+-- Contém o objetivo, notas gerais e uma lista ordenada de tarefas/blocos.
+-- A avaliação pós treino (também 1:1 com o evento) guarda a nota global
+-- do treinador e, opcionalmente, avaliações individuais por atleta.
+
+-- Plano de treino (1:1 com um evento treino).
+create table if not exists training_plans (
+  id         uuid primary key default gen_random_uuid(),
+  event_id   uuid not null references events(id) on delete cascade,
+  objective  text,
+  notes      text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  constraint training_plans_event_id_key unique (event_id)
+);
+
+-- Tarefas/blocos de trabalho de um plano de treino.
+create table if not exists training_plan_items (
+  id           uuid primary key default gen_random_uuid(),
+  plan_id      uuid not null references training_plans(id) on delete cascade,
+  position     integer not null default 0,
+  category     text not null default 'outro'
+               check (category in ('aquecimento','tecnica','tatica','fisico','retorno','outro')),
+  name         text not null,
+  duration_min integer,
+  description  text,
+  created_at   timestamptz default now()
+);
+
+-- Avaliação geral pós treino (1:1 com o evento).
+create table if not exists training_evaluations (
+  id             uuid primary key default gen_random_uuid(),
+  event_id       uuid not null references events(id) on delete cascade,
+  overall_rating integer check (overall_rating between 1 and 5),
+  notes          text,
+  created_at     timestamptz default now(),
+  updated_at     timestamptz default now(),
+  constraint training_evaluations_event_id_key unique (event_id)
+);
+
+-- Avaliação individual por atleta (dentro de uma avaliação de treino).
+create table if not exists training_player_evals (
+  id            uuid primary key default gen_random_uuid(),
+  evaluation_id uuid not null references training_evaluations(id) on delete cascade,
+  player_id     uuid not null references players(id) on delete cascade,
+  effort_rating integer check (effort_rating between 1 and 5),
+  notes         text,
+  constraint training_player_evals_uq unique (evaluation_id, player_id)
+);
+
+create index if not exists idx_training_plans_event   on training_plans        (event_id);
+create index if not exists idx_training_items_plan    on training_plan_items   (plan_id);
+create index if not exists idx_training_evals_event   on training_evaluations  (event_id);
+create index if not exists idx_training_pevals_eval   on training_player_evals (evaluation_id);
+create index if not exists idx_training_pevals_player on training_player_evals (player_id);
+
+alter table training_plans        enable row level security;
+alter table training_plan_items   enable row level security;
+alter table training_evaluations  enable row level security;
+alter table training_player_evals enable row level security;
+
+drop policy if exists "tp_read"   on training_plans;
+drop policy if exists "tp_write"  on training_plans;
+drop policy if exists "tpi_read"  on training_plan_items;
+drop policy if exists "tpi_write" on training_plan_items;
+drop policy if exists "te_read"   on training_evaluations;
+drop policy if exists "te_write"  on training_evaluations;
+drop policy if exists "tpe_read"  on training_player_evals;
+drop policy if exists "tpe_write" on training_player_evals;
+
+-- LEITURA: todos exceto atleta.
+create policy "tp_read" on training_plans for select to authenticated
+  using (app_role() <> 'atleta');
+create policy "tpi_read" on training_plan_items for select to authenticated
+  using (app_role() <> 'atleta');
+create policy "te_read" on training_evaluations for select to authenticated
+  using (app_role() <> 'atleta');
+create policy "tpe_read" on training_player_evals for select to authenticated
+  using (app_role() <> 'atleta');
+
+-- ESCRITA: coordenador (todos os treinos) ou treinador (treinos das suas equipas).
+create policy "tp_write" on training_plans for all to authenticated
+  using (
+    app_role() = 'coordenador'
+    OR (app_role() = 'treinador' AND event_id in (
+      select id from events where team_id in (select trainer_team_ids())
+    ))
+  )
+  with check (
+    app_role() = 'coordenador'
+    OR (app_role() = 'treinador' AND event_id in (
+      select id from events where team_id in (select trainer_team_ids())
+    ))
+  );
+
+create policy "tpi_write" on training_plan_items for all to authenticated
+  using (
+    app_role() = 'coordenador'
+    OR (app_role() = 'treinador' AND plan_id in (
+      select tp.id from training_plans tp
+      join events e on e.id = tp.event_id
+      where e.team_id in (select trainer_team_ids())
+    ))
+  )
+  with check (
+    app_role() = 'coordenador'
+    OR (app_role() = 'treinador' AND plan_id in (
+      select tp.id from training_plans tp
+      join events e on e.id = tp.event_id
+      where e.team_id in (select trainer_team_ids())
+    ))
+  );
+
+create policy "te_write" on training_evaluations for all to authenticated
+  using (
+    app_role() = 'coordenador'
+    OR (app_role() = 'treinador' AND event_id in (
+      select id from events where team_id in (select trainer_team_ids())
+    ))
+  )
+  with check (
+    app_role() = 'coordenador'
+    OR (app_role() = 'treinador' AND event_id in (
+      select id from events where team_id in (select trainer_team_ids())
+    ))
+  );
+
+-- Avaliação por atleta: escrita para coordenador e treinador (o RLS das
+-- training_evaluations já garante que o treinador só avalia os seus treinos).
+create policy "tpe_write" on training_player_evals for all to authenticated
+  using (app_role() in ('coordenador','treinador'))
+  with check (app_role() in ('coordenador','treinador'));

@@ -289,6 +289,20 @@ export const AVAILABILITY_BADGE = Object.fromEntries(
   AVAILABILITY_STATUSES.map((s) => [s.key, s.badge])
 );
 
+// --- Planos de treino ---
+
+// Categorias de tarefas/blocos num plano de treino.
+export const PLAN_CATEGORIES = [
+  { key: 'aquecimento', label: 'Aquecimento',    badge: 'warn' },
+  { key: 'tecnica',     label: 'Técnica',         badge: 'info' },
+  { key: 'tatica',      label: 'Tática',          badge: 'ok' },
+  { key: 'fisico',      label: 'Físico',          badge: 'info' },
+  { key: 'retorno',     label: 'Retorno à calma', badge: 'muted' },
+  { key: 'outro',       label: 'Outro',           badge: 'muted' },
+];
+export const PLAN_CATEGORY_LABEL = Object.fromEntries(PLAN_CATEGORIES.map((c) => [c.key, c.label]));
+export const PLAN_CATEGORY_BADGE = Object.fromEntries(PLAN_CATEGORIES.map((c) => [c.key, c.badge]));
+
 // --- Recrutamento: estados do funil ---
 // Estados lineares do funil (avançar/recuar entre eles).
 export const PROSPECT_STATUSES = [

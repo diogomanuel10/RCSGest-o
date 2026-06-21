@@ -83,6 +83,8 @@ const EDIT_ROLES = {
   medicalHistory: ['coordenador', 'fisioterapeuta'],
   // Disponibilidade (estado + limitações) — definida pela fisio/coordenador.
   availability: ['coordenador', 'fisioterapeuta'],
+  // Planos de treino e avaliações pós treino: coordenador e treinador.
+  training_plans: ['coordenador', 'treinador'],
 };
 
 // Papel do utilizador atual (por omissão 'leitura' até o perfil carregar).

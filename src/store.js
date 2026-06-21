@@ -34,6 +34,10 @@ export const state = {
   gymAttendance: [],    // presenças nos treinos de ginásio
   gameMinutes: [],      // minutos de jogo por atleta
   availability: [],     // disponibilidade do atleta (resumo p/ treinador)
+  trainingPlans: [],      // planos de treino (1:1 com evento treino)
+  trainingPlanItems: [],  // tarefas/blocos de cada plano
+  trainingEvaluations: [], // avaliações pós treino (1:1 com evento treino)
+  trainingPlayerEvals: [], // avaliações individuais por atleta
   profile: null, // perfil do utilizador atual (com o papel/role)
   profiles: [], // todos os perfis (preenchido só se o utilizador for coordenador)
   // Registos arquivados (inativos), só carregados para o coordenador — usados
@@ -68,6 +72,10 @@ export function resetState() {
   state.gymAttendance = [];
   state.gameMinutes = [];
   state.availability = [];
+  state.trainingPlans = [];
+  state.trainingPlanItems = [];
+  state.trainingEvaluations = [];
+  state.trainingPlayerEvals = [];
   state.profile = null;
   state.profiles = [];
   state.archived = { teams: [], players: [], coaches: [], sponsors: [], events: [], prospects: [] };
@@ -109,7 +117,8 @@ export async function loadProfile() {
 // Vai buscar todas as tabelas em paralelo. Lança erro se alguma falhar.
 export async function loadAll() {
   const [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects, episodes, sessions, appointments,
-         physProfiles, medHistory, physTests, phases, mesocycles, gymSessions, gymExercises, gymAttendance, gameMinutes, availability] =
+         physProfiles, medHistory, physTests, phases, mesocycles, gymSessions, gymExercises, gymAttendance, gameMinutes, availability,
+         trainingPlans, trainingPlanItems, trainingEvaluations, trainingPlayerEvals] =
     await Promise.all([
       supabase.from('settings').select('*').eq('id', 1).maybeSingle(),
       // Só registos ativos (archived_at nulo). Os arquivados carregam-se à parte
@@ -139,10 +148,16 @@ export async function loadAll() {
       supabase.from('gym_attendance').select('*'),
       supabase.from('game_minutes').select('*'),
       supabase.from('athlete_availability').select('*'),
+      // Planos de treino e avaliações pós treino.
+      supabase.from('training_plans').select('*').order('created_at'),
+      supabase.from('training_plan_items').select('*').order('position'),
+      supabase.from('training_evaluations').select('*').order('created_at'),
+      supabase.from('training_player_evals').select('*'),
     ]);
 
   for (const res of [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects, episodes, sessions, appointments,
-                     physProfiles, medHistory, physTests, phases, mesocycles, gymSessions, gymExercises, gymAttendance, gameMinutes, availability]) {
+                     physProfiles, medHistory, physTests, phases, mesocycles, gymSessions, gymExercises, gymAttendance, gameMinutes, availability,
+                     trainingPlans, trainingPlanItems, trainingEvaluations, trainingPlayerEvals]) {
     if (res.error) throw res.error;
   }
 
@@ -170,6 +185,10 @@ export async function loadAll() {
   state.gymAttendance    = gymAttendance.data || [];
   state.gameMinutes      = gameMinutes.data   || [];
   state.availability     = availability.data  || [];
+  state.trainingPlans      = trainingPlans.data      || [];
+  state.trainingPlanItems  = trainingPlanItems.data  || [];
+  state.trainingEvaluations = trainingEvaluations.data || [];
+  state.trainingPlayerEvals = trainingPlayerEvals.data || [];
 
   // Coerência da cache: com pais arquivados (ex.: uma equipa), os filhos que os
   // referenciam não devem aparecer nos ecrãs ativos.
@@ -213,6 +232,16 @@ function pruneOrphans() {
 
   // Ligações treinador<->equipa cujo treinador foi arquivado.
   state.teamCoaches = state.teamCoaches.filter((tc) => coachIds.has(tc.coach_id) && teamIds.has(tc.team_id));
+
+  // Planos de treino e avaliações de eventos arquivados saem da cache ativa.
+  state.trainingPlans = state.trainingPlans.filter((p) => eventIds.has(p.event_id));
+  const planIds = new Set(state.trainingPlans.map((p) => p.id));
+  state.trainingPlanItems = state.trainingPlanItems.filter((i) => planIds.has(i.plan_id));
+  state.trainingEvaluations = state.trainingEvaluations.filter((e) => eventIds.has(e.event_id));
+  const evalIds = new Set(state.trainingEvaluations.map((e) => e.id));
+  state.trainingPlayerEvals = state.trainingPlayerEvals.filter(
+    (e) => evalIds.has(e.evaluation_id) && playerIds.has(e.player_id)
+  );
 }
 
 // Carrega os registos arquivados (só para o coordenador, que tem a área
@@ -611,7 +640,73 @@ export async function deleteRow(table, collection, id) {
       if (s.mesocycle_id === id) s.mesocycle_id = null;
     });
   }
+  // Apagar um plano de treino leva as suas tarefas (cascade).
+  if (collection === 'trainingPlans') {
+    state.trainingPlanItems = state.trainingPlanItems.filter((i) => i.plan_id !== id);
+  }
+  // Apagar uma avaliação leva as avaliações individuais (cascade).
+  if (collection === 'trainingEvaluations') {
+    state.trainingPlayerEvals = state.trainingPlayerEvals.filter((e) => e.evaluation_id !== id);
+  }
   notify();
+}
+
+// --- Planos de treino e avaliações pós treino ----------------------------
+
+// Cria ou atualiza o plano de treino de um evento (chave única event_id).
+export async function upsertTrainingPlan(eventId, values) {
+  const { data, error } = await supabase
+    .from('training_plans')
+    .upsert(
+      { event_id: eventId, ...values, updated_at: new Date().toISOString() },
+      { onConflict: 'event_id' }
+    )
+    .select()
+    .single();
+  if (error) throw error;
+  const i = state.trainingPlans.findIndex((p) => p.event_id === eventId);
+  if (i !== -1) state.trainingPlans[i] = data;
+  else state.trainingPlans.push(data);
+  notify();
+  return data;
+}
+
+// Cria ou atualiza a avaliação pós treino de um evento (chave única event_id).
+export async function upsertTrainingEvaluation(eventId, values) {
+  const { data, error } = await supabase
+    .from('training_evaluations')
+    .upsert(
+      { event_id: eventId, ...values, updated_at: new Date().toISOString() },
+      { onConflict: 'event_id' }
+    )
+    .select()
+    .single();
+  if (error) throw error;
+  const i = state.trainingEvaluations.findIndex((e) => e.event_id === eventId);
+  if (i !== -1) state.trainingEvaluations[i] = data;
+  else state.trainingEvaluations.push(data);
+  notify();
+  return data;
+}
+
+// Cria ou atualiza a avaliação individual de um atleta numa avaliação de treino.
+export async function upsertPlayerEval(evaluationId, playerId, values) {
+  const { data, error } = await supabase
+    .from('training_player_evals')
+    .upsert(
+      { evaluation_id: evaluationId, player_id: playerId, ...values },
+      { onConflict: 'evaluation_id,player_id' }
+    )
+    .select()
+    .single();
+  if (error) throw error;
+  const i = state.trainingPlayerEvals.findIndex(
+    (e) => e.evaluation_id === evaluationId && e.player_id === playerId
+  );
+  if (i !== -1) state.trainingPlayerEvals[i] = data;
+  else state.trainingPlayerEvals.push(data);
+  notify();
+  return data;
 }
 
 // --- Definições (linha única) --------------------------------------------
