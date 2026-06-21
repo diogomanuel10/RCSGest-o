@@ -34,6 +34,7 @@ import {
 } from '../constants.js';
 import { canEdit, canAccess, isFisio, isPreparador } from '../permissions.js';
 import { openQuickAttendance } from './presencas.js';
+import { openTrainingPlan } from './training-plan.js';
 import { openEventForm, openRecurrentTrainings } from './calendario.js';
 import { openSponsorForm } from './patrocinios.js';
 import { openAthleteProfile } from './athlete-profile.js';
@@ -155,6 +156,11 @@ export function renderPainel(container) {
   // Atalho: abre modal rápido de presenças diretamente do Painel.
   container.querySelectorAll('[data-mark-event]').forEach((btn) => {
     btn.addEventListener('click', () => openQuickAttendance(btn.dataset.markEvent));
+  });
+
+  // Atalho: abre o plano de treino do evento diretamente do Painel.
+  container.querySelectorAll('[data-plan-event]').forEach((btn) => {
+    btn.addEventListener('click', () => openTrainingPlan(btn.dataset.planEvent));
   });
 
   // Itens de ação: navegam para a secção respetiva.
@@ -340,8 +346,11 @@ function markRow({ event, total, marked, isToday }) {
         <span class="mark-item__title">${esc(team ? teamName(team) : (event.title || 'Treino'))}</span>
         <span class="muted mark-item__sub">${esc(sub)}</span>
       </div>
-      <button class="btn btn--accent btn--sm" data-mark-event="${event.id}" type="button"
-              ${total ? '' : 'disabled'}>Marcar</button>
+      <div style="display:flex;gap:0.4rem;align-items:center;flex-shrink:0">
+        <button class="btn btn--ghost btn--sm" data-plan-event="${event.id}" type="button">Plano</button>
+        <button class="btn btn--accent btn--sm" data-mark-event="${event.id}" type="button"
+                ${total ? '' : 'disabled'}>Marcar</button>
+      </div>
     </li>
   `;
 }
