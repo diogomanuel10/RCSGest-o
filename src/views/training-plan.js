@@ -1,7 +1,7 @@
 // Modal de plano de treino + avaliação pós treino.
 // Abre a partir do Painel (secção "Presenças por marcar"), associado 1:1
 // a um evento de tipo 'treino'. Tem dois separadores:
-//   • Plano de treino  — objetivo, notas e lista ordenada de tarefas/blocos.
+//   • Plano de treino  — material, objetivo, notas e blocos de trabalho ordenados.
 //   • Avaliação pós treino — nota geral do treinador + avaliação por atleta.
 
 import {
@@ -22,6 +22,15 @@ import { eventTimeRange, teamById, teamName } from '../compute.js';
 
 const STAR_ON  = '#f59e0b';
 const STAR_OFF = 'var(--muted,#9ca3af)';
+
+// Devolve a duração do evento em minutos, ou null se não tiver hora de início/fim.
+function eventDurationMin(event) {
+  if (!event?.time || !event?.end_time) return null;
+  const [sh, sm] = event.time.split(':').map(Number);
+  const [eh, em] = event.end_time.split(':').map(Number);
+  const diff = (eh * 60 + em) - (sh * 60 + sm);
+  return diff > 0 ? diff : null;
+}
 
 // Abre o modal do plano de treino para o evento indicado.
 export function openTrainingPlan(eventId) {
@@ -106,7 +115,8 @@ function buildShell(event) {
 // =========================================================================
 
 function paintPlanTab(body, eventId) {
-  const plan = state.trainingPlans.find((p) => p.event_id === eventId);
+  const event = state.events.find((e) => e.id === eventId);
+  const plan  = state.trainingPlans.find((p) => p.event_id === eventId);
   const items = plan
     ? state.trainingPlanItems
         .filter((i) => i.plan_id === plan.id)
@@ -116,9 +126,12 @@ function paintPlanTab(body, eventId) {
 
   body.innerHTML = `
     <div style="padding:1rem 1.25rem">
+      ${renderTotalizer(items, event)}
       ${renderPlanHeader(plan, canWrite)}
       ${renderItemList(items, canWrite)}
-      ${canWrite ? `<button class="btn btn--primary btn--sm" data-add-item type="button">+ Adicionar tarefa</button>` : ''}
+      ${canWrite
+        ? `<button class="btn btn--primary btn--sm" data-add-item type="button">+ Adicionar exercício</button>`
+        : ''}
     </div>
   `;
 
@@ -129,8 +142,12 @@ function paintPlanTab(body, eventId) {
       title: plan ? 'Editar cabeçalho do plano' : 'Definir objetivo do treino',
       fields: [
         {
+          name: 'material', label: 'Material necessário', type: 'text', full: true,
+          placeholder: 'Ex.: Bolas, coletes, cones, antenas…',
+        },
+        {
           name: 'objective', label: 'Objetivo do treino', type: 'text', full: true,
-          placeholder: 'Ex.: Trabalho de passe e bloco',
+          placeholder: 'Ex.: Trabalho de receção e finalização',
         },
         {
           name: 'notes', label: 'Notas gerais', type: 'textarea', full: true,
@@ -138,13 +155,14 @@ function paintPlanTab(body, eventId) {
         },
       ],
       values: plan
-        ? { objective: plan.objective || '', notes: plan.notes || '' }
+        ? { material: plan.material || '', objective: plan.objective || '', notes: plan.notes || '' }
         : {},
       submitLabel: 'Guardar',
       async onSubmit(vals) {
         await upsertTrainingPlan(eventId, {
+          material:  vals.material.trim()  || null,
           objective: vals.objective.trim() || null,
-          notes: vals.notes.trim() || null,
+          notes:     vals.notes.trim()     || null,
         });
         paintPlanTab(body, eventId);
       },
@@ -162,11 +180,48 @@ function paintPlanTab(body, eventId) {
 
   body.querySelectorAll('[data-delete-item]').forEach((btn) => {
     btn.addEventListener('click', async () => {
-      if (!(await confirmDialog('Remover esta tarefa do plano?', { confirmLabel: 'Remover', danger: true }))) return;
+      if (!(await confirmDialog('Remover este exercício do plano?', { confirmLabel: 'Remover', danger: true }))) return;
       await deleteRow('training_plan_items', 'trainingPlanItems', btn.dataset.deleteItem);
       paintPlanTab(body, eventId);
     });
   });
+}
+
+// Totalizador de duração: soma dos blocos vs. duração real do treino.
+function renderTotalizer(items, event) {
+  const planned  = items.reduce((s, i) => s + (i.duration_min || 0), 0);
+  const treino   = eventDurationMin(event);
+
+  if (!planned && !treino) return '';
+
+  let barHtml = '';
+  let pctLabel = '';
+  if (treino) {
+    const pct   = Math.min(100, Math.round((planned / treino) * 100));
+    const over  = planned > treino;
+    const near  = pct >= 85;
+    const color = over ? 'var(--danger,#ef4444)' : near ? 'var(--gold,#f59e0b)' : 'var(--accent,#3b82f6)';
+    pctLabel = `<span style="font-size:0.8rem;font-weight:600;color:${color}">${pct}%${over ? ' — acima do tempo' : ''}</span>`;
+    barHtml  = `
+      <div style="margin-top:0.45rem;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+        <div style="height:100%;width:${pct}%;background:${color};border-radius:3px;transition:width .3s"></div>
+      </div>`;
+  }
+
+  return `
+    <div style="margin-bottom:1rem;padding:0.65rem 0.9rem;
+                background:var(--surface-2,var(--surface));border-radius:0.5rem;
+                border:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.25rem">
+        <span style="font-size:0.85rem">
+          Total previsto: <strong>${planned} min</strong>
+          ${treino ? `<span class="muted"> | Treino: ${treino} min</span>` : ''}
+        </span>
+        ${pctLabel}
+      </div>
+      ${barHtml}
+    </div>
+  `;
 }
 
 function renderPlanHeader(plan, canWrite) {
@@ -178,11 +233,18 @@ function renderPlanHeader(plan, canWrite) {
          </div>`
       : `<p class="muted" style="margin:0 0 1rem">Ainda sem plano para este treino.</p>`;
   }
-  const hasContent = plan.objective || plan.notes;
+  const hasContent = plan.material || plan.objective || plan.notes;
   return `
     <div class="card" style="padding:0.85rem 1rem;margin-bottom:1rem;background:var(--surface-2,var(--surface))">
+      ${plan.material
+        ? `<p style="margin:0${(plan.objective || plan.notes) ? ' 0 0.25rem' : ''}">
+             <strong>Material:</strong> ${esc(plan.material)}
+           </p>`
+        : ''}
       ${plan.objective
-        ? `<p style="margin:0${plan.notes ? ' 0 0.25rem' : ''}"><strong>Objetivo:</strong> ${esc(plan.objective)}</p>`
+        ? `<p style="margin:0${plan.notes ? ' 0 0.25rem' : ''}">
+             <strong>Objetivo:</strong> ${esc(plan.objective)}
+           </p>`
         : ''}
       ${plan.notes
         ? `<p class="muted" style="margin:0;font-size:0.9rem;white-space:pre-wrap">${esc(plan.notes)}</p>`
@@ -197,32 +259,43 @@ function renderPlanHeader(plan, canWrite) {
 
 function renderItemList(items, canWrite) {
   if (!items.length) {
-    return `<p class="muted" style="margin:0 0 1rem">Sem tarefas no plano.</p>`;
+    return `<p class="muted" style="margin:0 0 1rem">Sem exercícios no plano.</p>`;
   }
   return `
     <ul style="list-style:none;padding:0;margin:0 0 1rem">
-      ${items.map((item) => `
-        <li style="display:flex;align-items:flex-start;gap:0.75rem;padding:0.65rem 0;border-bottom:1px solid var(--border)">
-          <span class="badge badge--${PLAN_CATEGORY_BADGE[item.category] || 'muted'}"
-                style="white-space:nowrap;flex-shrink:0;margin-top:0.15rem">
-            ${esc(PLAN_CATEGORY_LABEL[item.category] || item.category)}
-          </span>
-          <div style="flex:1;min-width:0">
-            <strong>${esc(item.name)}</strong>${item.duration_min
-              ? ` <span class="muted">(${item.duration_min} min)</span>`
-              : ''}
-            ${item.description
-              ? `<p class="muted" style="margin:0.15rem 0 0;font-size:0.85rem;white-space:pre-wrap">${esc(item.description)}</p>`
-              : ''}
-          </div>
-          ${canWrite ? `
-            <div style="display:flex;gap:0.25rem;flex-shrink:0">
-              <button class="btn btn--ghost btn--sm" data-edit-item="${item.id}" type="button" aria-label="Editar tarefa">✏</button>
-              <button class="btn btn--ghost btn--sm" data-delete-item="${item.id}" type="button" aria-label="Remover tarefa">✕</button>
+      ${items.map((item) => {
+        const meta = [
+          item.organization ? `Organização: ${esc(item.organization)}` : '',
+          item.objective    ? `Objetivo: ${esc(item.objective)}`    : '',
+          item.reps         ? `Reps: ${esc(item.reps)}`             : '',
+        ].filter(Boolean).join(' · ');
+        return `
+          <li style="display:flex;align-items:flex-start;gap:0.75rem;padding:0.65rem 0;
+                     border-bottom:1px solid var(--border)">
+            <span class="badge badge--${PLAN_CATEGORY_BADGE[item.category] || 'muted'}"
+                  style="white-space:nowrap;flex-shrink:0;margin-top:0.15rem">
+              ${esc(PLAN_CATEGORY_LABEL[item.category] || item.category)}
+            </span>
+            <div style="flex:1;min-width:0">
+              <strong>${esc(item.name)}</strong>${item.duration_min
+                ? ` <span class="muted">(${item.duration_min} min)</span>`
+                : ''}
+              ${meta
+                ? `<p style="margin:0.15rem 0 0;font-size:0.82rem;color:var(--muted-fg,var(--muted))">${meta}</p>`
+                : ''}
+              ${item.description
+                ? `<p class="muted" style="margin:0.15rem 0 0;font-size:0.85rem;white-space:pre-wrap">${esc(item.description)}</p>`
+                : ''}
             </div>
-          ` : ''}
-        </li>
-      `).join('')}
+            ${canWrite ? `
+              <div style="display:flex;gap:0.25rem;flex-shrink:0">
+                <button class="btn btn--ghost btn--sm" data-edit-item="${item.id}" type="button" aria-label="Editar exercício">✏</button>
+                <button class="btn btn--ghost btn--sm" data-delete-item="${item.id}" type="button" aria-label="Remover exercício">✕</button>
+              </div>
+            ` : ''}
+          </li>
+        `;
+      }).join('')}
     </ul>
   `;
 }
@@ -233,41 +306,59 @@ function openItemModal({ body, eventId, plan, items, item = null }) {
     : (items.length ? Math.max(...items.map((i) => i.position)) + 1 : 0);
 
   openModal({
-    title: item ? 'Editar tarefa' : 'Adicionar tarefa',
+    title: item ? 'Editar exercício' : 'Adicionar exercício',
     fields: [
       {
         name: 'category', label: 'Categoria', type: 'select', required: true,
         options: PLAN_CATEGORIES, default: 'outro',
       },
       {
-        name: 'name', label: 'Nome da tarefa', type: 'text', required: true, full: true,
-        placeholder: 'Ex.: Aquecimento 10 min',
+        name: 'name', label: 'Nome do exercício', type: 'text', required: true, full: true,
+        placeholder: 'Ex.: Receção-ataque em 6×6',
       },
       { name: 'duration_min', label: 'Duração (min)', type: 'number', placeholder: 'Ex.: 15' },
       {
-        name: 'description', label: 'Descrição', type: 'textarea', full: true,
-        placeholder: 'Detalhes do exercício ou bloco de trabalho…',
+        name: 'organization', label: 'Organização', type: 'text', full: true,
+        placeholder: 'Ex.: Pares, Grupos de 3, 6×6, equipa completa…',
+      },
+      {
+        name: 'objective', label: 'Objetivo', type: 'text', full: true,
+        placeholder: 'Ex.: Passe, receção, bloco, finalização…',
+      },
+      {
+        name: 'reps', label: 'Repetições / séries', type: 'text',
+        placeholder: 'Ex.: 3×10, 5 min, 2 séries',
+      },
+      {
+        name: 'description', label: 'Descrição / notas', type: 'textarea', full: true,
+        placeholder: 'Variantes, progressões, pontos de atenção…',
       },
     ],
     values: item
       ? {
-          category: item.category,
-          name: item.name,
+          category:     item.category,
+          name:         item.name,
           duration_min: item.duration_min ?? '',
-          description: item.description ?? '',
+          organization: item.organization ?? '',
+          objective:    item.objective    ?? '',
+          reps:         item.reps         ?? '',
+          description:  item.description  ?? '',
         }
       : {},
     submitLabel: item ? 'Guardar' : 'Adicionar',
     async onSubmit(vals) {
-      if (!vals.name.trim()) throw new Error('O nome da tarefa é obrigatório.');
+      if (!vals.name.trim()) throw new Error('O nome do exercício é obrigatório.');
       const planRecord = plan || (await upsertTrainingPlan(eventId, {}));
       const data = {
-        plan_id: planRecord.id,
-        category: vals.category || 'outro',
-        name: vals.name.trim(),
-        duration_min: vals.duration_min ? parseInt(vals.duration_min, 10) : null,
-        description: vals.description.trim() || null,
-        position: nextPos,
+        plan_id:      planRecord.id,
+        category:     vals.category     || 'outro',
+        name:         vals.name.trim(),
+        duration_min: vals.duration_min  ? parseInt(vals.duration_min, 10) : null,
+        organization: vals.organization?.trim() || null,
+        objective:    vals.objective?.trim()    || null,
+        reps:         vals.reps?.trim()         || null,
+        description:  vals.description?.trim()  || null,
+        position:     nextPos,
       };
       if (item) {
         await updateRow('training_plan_items', 'trainingPlanItems', item.id, data);
