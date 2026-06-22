@@ -40,7 +40,14 @@ export function renderEncomendas(container) {
   const team = teams.find((t) => t.id === selectedTeam);
   const players = state.players
     .filter((p) => p.team_id === selectedTeam)
-    .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    .sort((a, b) => {
+      const na = parseInt(a.number, 10);
+      const nb = parseInt(b.number, 10);
+      if (!isNaN(na) && !isNaN(nb)) return na - nb;
+      if (!isNaN(na)) return -1;
+      if (!isNaN(nb)) return 1;
+      return (a.name || '').localeCompare(b.name || '');
+    });
 
   const editable = canEdit('sizes');
 
@@ -112,6 +119,7 @@ function renderTamanhos(players, team, editable) {
       <table class="data-table enc-table">
         <thead>
           <tr>
+            <th class="enc-col-num">Nº</th>
             <th class="enc-col-player">Atleta</th>
             ${EQUIPMENT_ARTICLES.map((a) => `<th class="enc-col-art">${esc(a.label)}</th>`).join('')}
             ${editable ? '<th></th>' : ''}
@@ -123,9 +131,9 @@ function renderTamanhos(players, team, editable) {
             const hasAny = EQUIPMENT_ARTICLES.some((a) => sizes[a.key]);
             return `
               <tr class="${hasAny ? '' : 'enc-row--empty'}">
+                <td class="enc-col-num">${p.number ? `<span class="badge badge--num">${esc(p.number)}</span>` : '<span class="muted">—</span>'}</td>
                 <td class="enc-col-player">
                   <span class="enc-player-name">${esc(p.name)}</span>
-                  ${p.number ? `<span class="muted enc-player-num">Nº${esc(p.number)}</span>` : ''}
                 </td>
                 ${EQUIPMENT_ARTICLES.map((a) => `
                   <td class="enc-col-art enc-col-art--val">
@@ -156,8 +164,8 @@ function renderTamanhos(players, team, editable) {
         return `
           <div class="card enc-card${hasAny ? '' : ' enc-card--empty'}">
             <div class="enc-card-head">
+              ${p.number ? `<span class="badge badge--num">${esc(p.number)}</span>` : ''}
               <span class="enc-player-name">${esc(p.name)}</span>
-              ${p.number ? `<span class="muted enc-player-num">Nº${esc(p.number)}</span>` : ''}
               ${editable ? `<button class="btn btn--ghost btn--sm enc-card-edit" data-edit-sizes="${p.id}" type="button">${hasAny ? 'Editar' : 'Preencher'}</button>` : ''}
             </div>
             <dl class="enc-card-dl">
