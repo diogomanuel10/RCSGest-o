@@ -71,7 +71,7 @@ const NAV = [
   { key: 'treinadores',  label: 'Treinadores',   icon: ICONS.treinadores,  render: renderTreinadores },
   { key: 'recrutamento', label: 'Recrutamento',  icon: ICONS.recrutamento, render: renderRecrutamento },
   { key: 'financeiro',   label: 'Financeiro',    icon: ICONS.financeiro,   render: renderFinanceiro },
-  { key: 'encomendas',   label: 'Encomendas',    icon: ICONS.encomendas,   render: renderEncomendas },
+  { key: 'encomendas',   label: 'Encomendas',    icon: ICONS.encomendas,   render: renderEncomendas, wide: true },
 ];
 
 const FOOTER = [
@@ -233,6 +233,7 @@ export async function renderAppShell(root, session) {
 
     const view = allRoutes().find((n) => n.key === current) || allowed[0];
     setActive();
+    content.classList.toggle('content__inner--wide', !!view.wide);
     try {
       view.render(content);
     } catch (err) {
