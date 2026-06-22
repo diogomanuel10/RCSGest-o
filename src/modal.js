@@ -28,6 +28,9 @@ function fieldHTML(field, value) {
       ? `<option value="" ${v ? '' : 'selected'}>${esc(field.placeholder)}</option>`
       : '';
     control = `<select id="${id}" name="${field.name}" ${required}>${placeholder}${opts}</select>`;
+  } else if (field.type === 'file') {
+    control = `<input type="file" id="${id}" name="${field.name}" ${required}
+      accept="${esc(field.accept || '*/*')}" style="padding:0.25rem 0" />`;
   } else {
     const type = field.type || 'text';
     control = `<input type="${type}" id="${id}" name="${field.name}" ${required}

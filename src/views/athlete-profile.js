@@ -35,9 +35,10 @@ import {
   PHYSICAL_TEST_LABEL,
   PHYSICAL_TEST_UNIT,
 } from '../constants.js';
-import { canAccess } from '../permissions.js';
+import { canAccess, canEdit } from '../permissions.js';
 import { renderClinicalInto } from './clinical-file.js';
 import { renderPhysicalInto } from './physical-file.js';
+import { renderDocumentsInto } from './documents-section.js';
 
 const fmtDate = (d) =>
   d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-PT', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
@@ -130,7 +131,7 @@ function headMeta(player) {
 
 // --- Separador Geral ------------------------------------------------------
 
-function renderGeral(container, playerId) {
+function renderGeral(container, playerId, _opts = {}) {
   const player = state.players.find((p) => p.id === playerId);
   const team = teamById(player.team_id);
   const coaches = team ? teamCoaches(team.id) : [];
@@ -211,7 +212,12 @@ function renderGeral(container, playerId) {
            <ul class="pd-quota-list">${quotas.list.slice(0, 8).map(quotaLine).join('')}</ul>`
         : '<p class="muted" style="margin:0.3rem 0 0">Sem quotas registadas.</p>'}
     </div>
+
+    ${canEdit('documents') ? '<div id="ap-docs-placeholder"></div>' : ''}
   `;
+
+  const docsEl = container.querySelector('#ap-docs-placeholder');
+  if (docsEl) renderDocumentsInto(docsEl, playerId);
 }
 
 function lastTestLabel(t) {

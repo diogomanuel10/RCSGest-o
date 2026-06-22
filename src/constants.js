@@ -304,6 +304,15 @@ export const PLAN_CATEGORY_LABEL = Object.fromEntries(PLAN_CATEGORIES.map((c) =>
 export const PLAN_CATEGORY_BADGE = Object.fromEntries(PLAN_CATEGORIES.map((c) => [c.key, c.badge]));
 
 // --- Recrutamento: estados do funil ---
+// --- Documentos do atleta ---
+
+export const DOCUMENT_TYPES = [
+  { key: 'exame_medico', label: 'Exame Médico',      icon: '🩺', hasExpiry: true  },
+  { key: 'seguro',       label: 'Seguro',             icon: '🛡️', hasExpiry: true  },
+  { key: 'cc',           label: 'Fotocópia do CC',   icon: '🪪', hasExpiry: false },
+];
+export const DOC_TYPE_LABEL = Object.fromEntries(DOCUMENT_TYPES.map((d) => [d.key, d.label]));
+
 // --- Tamanhos de equipamento ---
 
 export const TEXT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
