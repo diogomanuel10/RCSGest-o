@@ -304,6 +304,25 @@ export const PLAN_CATEGORY_LABEL = Object.fromEntries(PLAN_CATEGORIES.map((c) =>
 export const PLAN_CATEGORY_BADGE = Object.fromEntries(PLAN_CATEGORIES.map((c) => [c.key, c.badge]));
 
 // --- Recrutamento: estados do funil ---
+// --- Tamanhos de equipamento ---
+
+export const TEXT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
+
+// Artigos de equipamento com o tipo de tamanho:
+//   'text' = XS–XXL (select)  |  'free' = texto livre (numérico, ex.: meias)
+export const EQUIPMENT_ARTICLES = [
+  { key: 'camisola',        label: 'Camisola',               type: 'text' },
+  { key: 'camisola_alt',    label: 'Camisola Alternativa',   type: 'text' },
+  { key: 'calcoes',         label: 'Calções',                type: 'text' },
+  { key: 'meias',           label: 'Meias',                  type: 'free' },
+  { key: 'casaco_treino',   label: 'Casaco Fato de Treino',  type: 'text' },
+  { key: 'calca_treino',    label: 'Calça Fato de Treino',   type: 'text' },
+  { key: 'mochila',         label: 'Mochila',                type: 'text' },
+  { key: 'blusao',          label: 'Blusão',                 type: 'text' },
+  { key: 'camisola_treino', label: 'Camisola de Treino',     type: 'text' },
+];
+export const ARTICLE_LABEL = Object.fromEntries(EQUIPMENT_ARTICLES.map((a) => [a.key, a.label]));
+
 // --- Convocatórias ---
 
 export const SQUAD_STATUSES = [

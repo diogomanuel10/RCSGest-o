@@ -1,0 +1,254 @@
+// Vista: Encomendas de Equipamento.
+// Dois separadores:
+//   1. Tamanhos por atleta — tabela por equipa, editável pelo coordenador.
+//   2. Resumo para encomenda — agrega os tamanhos de cada artigo da equipa.
+
+import { state, upsertPlayerSizes, dbErrorMessage } from '../store.js';
+import { esc, emptyHTML } from '../ui.js';
+import { teamName } from '../compute.js';
+import { openModal } from '../modal.js';
+import {
+  EQUIPMENT_ARTICLES,
+  ARTICLE_LABEL,
+  TEXT_SIZES,
+} from '../constants.js';
+import { canEdit } from '../permissions.js';
+
+let selectedTeam = '';
+let tab = 'tamanhos'; // 'tamanhos' | 'resumo'
+
+export function renderEncomendas(container) {
+  const teams = state.teams.slice().sort((a, b) => teamName(a).localeCompare(teamName(b)));
+
+  if (!teams.length) {
+    container.innerHTML = `
+      <header class="page-head">
+        <div>
+          <h1 class="section-title">Encomendas</h1>
+          <p class="muted" style="margin:0;font-size:0.88rem">Tamanhos de equipamento por atleta</p>
+        </div>
+      </header>
+      ${emptyHTML('Ainda não há equipas registadas. Começa pelos Plantéis.')}
+    `;
+    return;
+  }
+
+  if (!selectedTeam || !teams.some((t) => t.id === selectedTeam)) {
+    selectedTeam = teams[0].id;
+  }
+
+  const team = teams.find((t) => t.id === selectedTeam);
+  const players = state.players
+    .filter((p) => p.team_id === selectedTeam)
+    .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+  const editable = canEdit('sizes');
+
+  container.innerHTML = `
+    <header class="page-head">
+      <div>
+        <h1 class="section-title">Encomendas</h1>
+        <p class="muted" style="margin:0;font-size:0.88rem">Tamanhos de equipamento por atleta</p>
+      </div>
+    </header>
+
+    <div class="card" style="margin-bottom:1rem">
+      <div class="filters" style="margin:0;padding:0;background:none;border:none">
+        <div>
+          <label for="enc-team">Equipa</label>
+          <select id="enc-team">
+            ${teams.map((t) => `
+              <option value="${t.id}" ${t.id === selectedTeam ? 'selected' : ''}>${esc(teamName(t))}</option>
+            `).join('')}
+          </select>
+        </div>
+        <div class="pres-tabs" style="align-self:flex-end">
+          <button class="pres-tab${tab === 'tamanhos' ? ' pres-tab--active' : ''}" data-tab="tamanhos" type="button">Tamanhos</button>
+          <button class="pres-tab${tab === 'resumo' ? ' pres-tab--active' : ''}" data-tab="resumo" type="button">Resumo encomenda</button>
+        </div>
+      </div>
+    </div>
+
+    ${tab === 'tamanhos'
+      ? renderTamanhos(players, team, editable)
+      : renderResumo(players, team)}
+  `;
+
+  container.querySelector('#enc-team').addEventListener('change', (e) => {
+    selectedTeam = e.target.value;
+    renderEncomendas(container);
+  });
+  container.querySelectorAll('[data-tab]').forEach((btn) => {
+    btn.addEventListener('click', () => { tab = btn.dataset.tab; renderEncomendas(container); });
+  });
+  container.querySelectorAll('[data-edit-sizes]').forEach((btn) => {
+    btn.addEventListener('click', () => openSizesModal(btn.dataset.editSizes, container));
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Separador 1: tamanhos por atleta
+// ---------------------------------------------------------------------------
+
+function renderTamanhos(players, team, editable) {
+  if (!players.length) return emptyHTML('Esta equipa não tem atletas registadas.');
+
+  const filled = players.filter((p) => state.playerSizes.some((s) => s.player_id === p.id)).length;
+  const pct = Math.round((filled / players.length) * 100);
+
+  return `
+    <div class="card" style="margin-bottom:0.8rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+      <span class="muted" style="font-size:0.88rem">
+        ${filled} de ${players.length} atleta${players.length !== 1 ? 's' : ''} com tamanhos preenchidos
+      </span>
+      <div class="enc-progress">
+        <div class="enc-progress__bar" style="width:${pct}%"></div>
+      </div>
+      <span class="muted" style="font-size:0.88rem">${pct}%</span>
+    </div>
+
+    <div class="card" style="overflow-x:auto">
+      <table class="data-table enc-table">
+        <thead>
+          <tr>
+            <th style="min-width:140px">Atleta</th>
+            ${EQUIPMENT_ARTICLES.map((a) => `<th style="min-width:80px;text-align:center">${esc(a.label)}</th>`).join('')}
+            ${editable ? '<th></th>' : ''}
+          </tr>
+        </thead>
+        <tbody>
+          ${players.map((p) => {
+            const sizes = state.playerSizes.find((s) => s.player_id === p.id) || {};
+            const hasAny = EQUIPMENT_ARTICLES.some((a) => sizes[a.key]);
+            return `
+              <tr class="${hasAny ? '' : 'enc-row--empty'}">
+                <td>
+                  <span class="enc-player-name">${esc(p.name)}</span>
+                  ${p.number ? `<span class="muted enc-player-num">Nº${esc(p.number)}</span>` : ''}
+                </td>
+                ${EQUIPMENT_ARTICLES.map((a) => `
+                  <td style="text-align:center">
+                    ${sizes[a.key]
+                      ? `<span class="badge badge--info">${esc(sizes[a.key])}</span>`
+                      : '<span class="muted enc-empty">—</span>'}
+                  </td>
+                `).join('')}
+                ${editable ? `
+                  <td class="row-actions">
+                    <button class="btn btn--ghost btn--sm" data-edit-sizes="${p.id}" type="button">
+                      ${hasAny ? 'Editar' : 'Preencher'}
+                    </button>
+                  </td>
+                ` : ''}
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+// ---------------------------------------------------------------------------
+// Separador 2: resumo para encomenda
+// ---------------------------------------------------------------------------
+
+function renderResumo(players, team) {
+  if (!players.length) return emptyHTML('Esta equipa não tem atletas registadas.');
+
+  const sizesMap = {};
+  state.playerSizes.forEach((s) => { sizesMap[s.player_id] = s; });
+
+  const withSizes = players.filter((p) => sizesMap[p.id]);
+  const sem = players.length - withSizes.length;
+
+  return `
+    ${sem > 0 ? `
+      <div class="alert alert--warn" style="margin-bottom:0.9rem">
+        ⚠️ ${sem} atleta${sem !== 1 ? 's' : ''} ainda não tem tamanhos preenchidos — o resumo pode estar incompleto.
+      </div>
+    ` : ''}
+
+    <div class="enc-resumo-grid">
+      ${EQUIPMENT_ARTICLES.map((article) => {
+        const counts = {};
+        players.forEach((p) => {
+          const v = sizesMap[p.id]?.[article.key];
+          if (v) counts[v] = (counts[v] || 0) + 1;
+        });
+        const entries = Object.entries(counts).sort(([a], [b]) => sizeSort(a, b, article.type));
+        const total = entries.reduce((s, [, n]) => s + n, 0);
+
+        return `
+          <div class="card enc-resumo-card">
+            <h3 class="enc-resumo-title">${esc(article.label)}</h3>
+            ${entries.length
+              ? `<ul class="enc-resumo-list">
+                  ${entries.map(([size, count]) => `
+                    <li class="enc-resumo-row">
+                      <span class="badge badge--info enc-resumo-size">${esc(size)}</span>
+                      <span class="enc-resumo-count">${count}×</span>
+                      <div class="enc-resumo-bar-wrap">
+                        <div class="enc-resumo-bar" style="width:${Math.round((count / total) * 100)}%"></div>
+                      </div>
+                    </li>
+                  `).join('')}
+                </ul>
+                <p class="muted enc-resumo-total">Total: ${total} unidade${total !== 1 ? 's' : ''}</p>`
+              : `<p class="muted" style="margin:0.4rem 0 0;font-size:0.85rem">Sem tamanhos registados.</p>`}
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+// Ordenação de tamanhos: XS < S < M < L < XL < XXL; numérico natural; resto alfabético.
+const SIZE_ORDER = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
+function sizeSort(a, b, type) {
+  if (type === 'text') {
+    const ia = SIZE_ORDER.indexOf(a);
+    const ib = SIZE_ORDER.indexOf(b);
+    if (ia !== -1 && ib !== -1) return ia - ib;
+    if (ia !== -1) return -1;
+    if (ib !== -1) return 1;
+  }
+  return a.localeCompare(b, 'pt', { numeric: true });
+}
+
+// ---------------------------------------------------------------------------
+// Modal de edição de tamanhos de um atleta
+// ---------------------------------------------------------------------------
+
+function openSizesModal(playerId, container) {
+  const player = state.players.find((p) => p.id === playerId);
+  if (!player) return;
+  const existing = state.playerSizes.find((s) => s.player_id === playerId) || {};
+
+  openModal({
+    title: `Tamanhos — ${player.name}`,
+    submitLabel: 'Guardar',
+    values: existing,
+    fields: EQUIPMENT_ARTICLES.map((a) => ({
+      name: a.key,
+      label: a.label,
+      ...(a.type === 'text'
+        ? {
+            type: 'select',
+            placeholder: '— Não definido —',
+            options: TEXT_SIZES.map((s) => ({ key: s, label: s })),
+          }
+        : {
+            type: 'text',
+            placeholder: 'ex.: 36-38',
+          }),
+    })),
+    onSubmit: async (values) => {
+      const payload = {};
+      EQUIPMENT_ARTICLES.forEach((a) => {
+        payload[a.key] = values[a.key] || null;
+      });
+      await upsertPlayerSizes(playerId, payload);
+    },
+  });
+}

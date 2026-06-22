@@ -1024,7 +1024,40 @@ alter table training_plan_items
   check (category in ('aquecimento','tecnica','tatica','situacao','retorno','outro'));
 
 -- =====================================================================
--- Convocatórias
+-- Tamanhos de equipamento por atleta
+-- =====================================================================
+-- Uma linha por atleta com os tamanhos de cada artigo de equipamento.
+-- Só o coordenador edita; a equipa técnica pode consultar.
+
+create table if not exists player_sizes (
+  player_id       uuid primary key references players(id) on delete cascade,
+  camisola        text,   -- principal: XS/S/M/L/XL/XXL
+  camisola_alt    text,   -- alternativa: XS/S/M/L/XL/XXL
+  calcoes         text,   -- XS/S/M/L/XL/XXL
+  meias           text,   -- numérico (ex.: 35-38)
+  casaco_treino   text,   -- XS/S/M/L/XL/XXL
+  calca_treino    text,   -- XS/S/M/L/XL/XXL
+  mochila         text,   -- XS/S/M/L/XL/XXL ou "Única"
+  blusao          text,   -- XS/S/M/L/XL/XXL
+  camisola_treino text,   -- XS/S/M/L/XL/XXL
+  notes           text,
+  updated_at      timestamptz default now()
+);
+
+create index if not exists idx_player_sizes_player on player_sizes (player_id);
+alter table player_sizes enable row level security;
+
+drop policy if exists "sizes_read"  on player_sizes;
+drop policy if exists "sizes_write" on player_sizes;
+
+-- Leitura: toda a equipa técnica (não ao atleta, que não precisa de ver isto).
+create policy "sizes_read" on player_sizes for select to authenticated
+  using (app_role() <> 'atleta');
+
+-- Escrita: só o coordenador.
+create policy "sizes_write" on player_sizes for all to authenticated
+  using (app_role() = 'coordenador')
+  with check (app_role() = 'coordenador');
 -- =====================================================================
 -- Lista de atletas convocados para um jogo. A convocatória está ligada
 -- 1:1 a um evento do tipo 'jogo'. Cada atleta pode estar convocado,
