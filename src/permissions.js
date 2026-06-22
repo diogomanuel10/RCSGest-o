@@ -29,7 +29,6 @@ export const SECTIONS = [
   { key: 'treinadores',  label: 'Treinadores' },
   { key: 'recrutamento', label: 'Recrutamento' },
   { key: 'financeiro',   label: 'Financeiro' },
-  { key: 'encomendas',   label: 'Encomendas' },
 ];
 const SECTION_KEYS = new Set(SECTIONS.map((s) => s.key));
 
@@ -150,6 +149,8 @@ export function canAccess(key) {
   if (key === 'avaliacao' && (role === 'fisioterapeuta' || role === 'preparador')) {
     return false;
   }
+  // Encomendas: exclusivo do coordenador (não configurável).
+  if (key === 'encomendas') return false;
   if (!SECTION_KEYS.has(key)) return false; // portal e afins não se aplicam
   return currentPermissions().includes(key);
 }
