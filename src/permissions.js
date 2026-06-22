@@ -92,6 +92,8 @@ const EDIT_ROLES = {
   finances: ['coordenador'],
   // Tamanhos de equipamento: só o coordenador edita.
   sizes: ['coordenador'],
+  // Documentos dos atletas: coordenador + fisioterapeuta + preparador.
+  documents: ['coordenador', 'fisioterapeuta', 'preparador'],
 };
 
 // Papel do utilizador atual (por omissão 'leitura' até o perfil carregar).

@@ -39,6 +39,7 @@ export const state = {
   trainingEvaluations: [], // avaliações pós treino (1:1 com evento treino)
   trainingPlayerEvals: [], // avaliações individuais por atleta
   playerSizes: [],        // tamanhos de equipamento por atleta
+  playerDocuments: [],    // documentos (exame médico, seguro, CC)
   squads: [],             // convocatórias (1:1 com evento jogo)
   squadPlayers: [],       // atletas em cada convocatória
   financialEntries: [],   // receitas e despesas do clube
@@ -81,6 +82,7 @@ export function resetState() {
   state.trainingEvaluations = [];
   state.trainingPlayerEvals = [];
   state.playerSizes = [];
+  state.playerDocuments = [];
   state.squads = [];
   state.squadPlayers = [];
   state.financialEntries = [];
@@ -127,7 +129,7 @@ export async function loadAll() {
   const [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects, episodes, sessions, appointments,
          physProfiles, medHistory, physTests, phases, mesocycles, gymSessions, gymExercises, gymAttendance, gameMinutes, availability,
          trainingPlans, trainingPlanItems, trainingEvaluations, trainingPlayerEvals,
-         playerSizes, squads, squadPlayers, financialEntries] =
+         playerDocuments, playerSizes, squads, squadPlayers, financialEntries] =
     await Promise.all([
       supabase.from('settings').select('*').eq('id', 1).maybeSingle(),
       // Só registos ativos (archived_at nulo). Os arquivados carregam-se à parte
@@ -162,6 +164,8 @@ export async function loadAll() {
       supabase.from('training_plan_items').select('*').order('position'),
       supabase.from('training_evaluations').select('*').order('created_at'),
       supabase.from('training_player_evals').select('*'),
+      // Documentos dos atletas.
+      supabase.from('player_documents').select('*'),
       // Tamanhos de equipamento.
       supabase.from('player_sizes').select('*'),
       // Convocatórias.
@@ -174,7 +178,7 @@ export async function loadAll() {
   for (const res of [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects, episodes, sessions, appointments,
                      physProfiles, medHistory, physTests, phases, mesocycles, gymSessions, gymExercises, gymAttendance, gameMinutes, availability,
                      trainingPlans, trainingPlanItems, trainingEvaluations, trainingPlayerEvals,
-                     playerSizes, squads, squadPlayers, financialEntries]) {
+                     playerDocuments, playerSizes, squads, squadPlayers, financialEntries]) {
     if (res.error) throw res.error;
   }
 
@@ -206,6 +210,7 @@ export async function loadAll() {
   state.trainingPlanItems  = trainingPlanItems.data  || [];
   state.trainingEvaluations = trainingEvaluations.data || [];
   state.trainingPlayerEvals = trainingPlayerEvals.data || [];
+  state.playerDocuments = playerDocuments.data  || [];
   state.playerSizes     = playerSizes.data     || [];
   state.squads          = squads.data          || [];
   state.squadPlayers    = squadPlayers.data    || [];
@@ -264,6 +269,8 @@ function pruneOrphans() {
     (e) => evalIds.has(e.evaluation_id) && playerIds.has(e.player_id)
   );
 
+  // Documentos: só de atletas ativos.
+  state.playerDocuments = state.playerDocuments.filter((d) => playerIds.has(d.player_id));
   // Tamanhos de equipamento: só para atletas ativos.
   state.playerSizes = state.playerSizes.filter((s) => playerIds.has(s.player_id));
 
@@ -738,6 +745,58 @@ export async function upsertPlayerEval(evaluationId, playerId, values) {
   else state.trainingPlayerEvals.push(data);
   notify();
   return data;
+}
+
+// --- Documentos dos atletas ----------------------------------------------
+
+export async function uploadPlayerDocument(playerId, docType, file, expiresAt) {
+  const ext = file.name.split('.').pop();
+  const ts = Date.now();
+  const path = `${playerId}/${docType}/${ts}.${ext}`;
+
+  const { error: storageErr } = await supabase.storage
+    .from('player-docs')
+    .upload(path, file, { upsert: false });
+  if (storageErr) throw storageErr;
+
+  const { data, error } = await supabase
+    .from('player_documents')
+    .insert({
+      player_id:    playerId,
+      doc_type:     docType,
+      storage_path: path,
+      filename:     file.name,
+      expires_at:   expiresAt || null,
+      uploaded_by:  (await supabase.auth.getUser()).data.user?.id,
+    })
+    .select()
+    .single();
+  if (error) {
+    // Limpa o ficheiro do storage se o insert falhou.
+    await supabase.storage.from('player-docs').remove([path]);
+    throw error;
+  }
+  state.playerDocuments.push(data);
+  notify();
+  return data;
+}
+
+export async function deletePlayerDocument(docId) {
+  const doc = state.playerDocuments.find((d) => d.id === docId);
+  if (!doc) return;
+  await supabase.storage.from('player-docs').remove([doc.storage_path]);
+  const { error } = await supabase.from('player_documents').delete().eq('id', docId);
+  if (error) throw error;
+  state.playerDocuments = state.playerDocuments.filter((d) => d.id !== docId);
+  notify();
+}
+
+export async function getDocumentSignedUrl(storagePath) {
+  const { data, error } = await supabase.storage
+    .from('player-docs')
+    .createSignedUrl(storagePath, 3600);
+  if (error) throw error;
+  return data.signedUrl;
 }
 
 // --- Tamanhos de equipamento ---------------------------------------------

@@ -1024,6 +1024,69 @@ alter table training_plan_items
   check (category in ('aquecimento','tecnica','tatica','situacao','retorno','outro'));
 
 -- =====================================================================
+-- Documentos do atleta (Storage + metadados)
+-- =====================================================================
+-- Os ficheiros ficam num bucket privado do Supabase Storage ("player-docs").
+-- Esta tabela guarda os metadados; o storage_path é o caminho dentro do bucket.
+
+-- Bucket privado (sem custo no plano gratuito, limite 1 GB total).
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'player-docs',
+  'player-docs',
+  false,
+  10485760,  -- 10 MB por ficheiro
+  array['application/pdf','image/jpeg','image/png','image/webp']
+)
+on conflict (id) do nothing;
+
+-- Políticas de acesso ao bucket (Storage RLS).
+drop policy if exists "player_docs_read"   on storage.objects;
+drop policy if exists "player_docs_write"  on storage.objects;
+drop policy if exists "player_docs_delete" on storage.objects;
+
+create policy "player_docs_read" on storage.objects for select to authenticated
+  using (
+    bucket_id = 'player-docs'
+    and app_role() in ('coordenador','fisioterapeuta','preparador')
+  );
+create policy "player_docs_write" on storage.objects for insert to authenticated
+  with check (
+    bucket_id = 'player-docs'
+    and app_role() in ('coordenador','fisioterapeuta','preparador')
+  );
+create policy "player_docs_delete" on storage.objects for delete to authenticated
+  using (
+    bucket_id = 'player-docs'
+    and app_role() in ('coordenador','fisioterapeuta','preparador')
+  );
+
+-- Metadados dos documentos.
+create table if not exists player_documents (
+  id            uuid primary key default gen_random_uuid(),
+  player_id     uuid not null references players(id) on delete cascade,
+  doc_type      text not null check (doc_type in ('exame_medico','seguro','cc')),
+  storage_path  text not null,
+  filename      text not null,
+  expires_at    date,                -- validade (exame médico, seguro)
+  uploaded_by   uuid references auth.users(id) on delete set null,
+  created_at    timestamptz default now()
+);
+
+create index if not exists idx_player_docs_player on player_documents (player_id);
+alter table player_documents enable row level security;
+
+drop policy if exists "pdocs_read"  on player_documents;
+drop policy if exists "pdocs_write" on player_documents;
+
+create policy "pdocs_read" on player_documents for select to authenticated
+  using (app_role() in ('coordenador','fisioterapeuta','preparador'));
+
+create policy "pdocs_write" on player_documents for all to authenticated
+  using  (app_role() in ('coordenador','fisioterapeuta','preparador'))
+  with check (app_role() in ('coordenador','fisioterapeuta','preparador'));
+
+-- =====================================================================
 -- Tamanhos de equipamento por atleta
 -- =====================================================================
 -- Uma linha por atleta com os tamanhos de cada artigo de equipamento.
