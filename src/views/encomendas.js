@@ -107,12 +107,13 @@ function renderTamanhos(players, team, editable) {
       <span class="muted" style="font-size:0.88rem">${pct}%</span>
     </div>
 
-    <div class="card" style="overflow-x:auto">
+    <!-- Tabela (desktop) -->
+    <div class="enc-table-wrap card">
       <table class="data-table enc-table">
         <thead>
           <tr>
-            <th style="min-width:140px">Atleta</th>
-            ${EQUIPMENT_ARTICLES.map((a) => `<th style="min-width:80px;text-align:center">${esc(a.label)}</th>`).join('')}
+            <th class="enc-col-player">Atleta</th>
+            ${EQUIPMENT_ARTICLES.map((a) => `<th class="enc-col-art">${esc(a.label)}</th>`).join('')}
             ${editable ? '<th></th>' : ''}
           </tr>
         </thead>
@@ -122,12 +123,12 @@ function renderTamanhos(players, team, editable) {
             const hasAny = EQUIPMENT_ARTICLES.some((a) => sizes[a.key]);
             return `
               <tr class="${hasAny ? '' : 'enc-row--empty'}">
-                <td>
+                <td class="enc-col-player">
                   <span class="enc-player-name">${esc(p.name)}</span>
                   ${p.number ? `<span class="muted enc-player-num">Nº${esc(p.number)}</span>` : ''}
                 </td>
                 ${EQUIPMENT_ARTICLES.map((a) => `
-                  <td style="text-align:center">
+                  <td class="enc-col-art enc-col-art--val">
                     ${sizes[a.key]
                       ? `<span class="badge badge--info">${esc(sizes[a.key])}</span>`
                       : '<span class="muted enc-empty">—</span>'}
@@ -145,6 +146,31 @@ function renderTamanhos(players, team, editable) {
           }).join('')}
         </tbody>
       </table>
+    </div>
+
+    <!-- Cards (mobile) -->
+    <div class="enc-cards">
+      ${players.map((p) => {
+        const sizes = state.playerSizes.find((s) => s.player_id === p.id) || {};
+        const hasAny = EQUIPMENT_ARTICLES.some((a) => sizes[a.key]);
+        return `
+          <div class="card enc-card${hasAny ? '' : ' enc-card--empty'}">
+            <div class="enc-card-head">
+              <span class="enc-player-name">${esc(p.name)}</span>
+              ${p.number ? `<span class="muted enc-player-num">Nº${esc(p.number)}</span>` : ''}
+              ${editable ? `<button class="btn btn--ghost btn--sm enc-card-edit" data-edit-sizes="${p.id}" type="button">${hasAny ? 'Editar' : 'Preencher'}</button>` : ''}
+            </div>
+            <dl class="enc-card-dl">
+              ${EQUIPMENT_ARTICLES.map((a) => `
+                <div class="enc-card-dl-row">
+                  <dt>${esc(a.label)}</dt>
+                  <dd>${sizes[a.key] ? `<span class="badge badge--info">${esc(sizes[a.key])}</span>` : '<span class="muted">—</span>'}</dd>
+                </div>
+              `).join('')}
+            </dl>
+          </div>
+        `;
+      }).join('')}
     </div>
   `;
 }
