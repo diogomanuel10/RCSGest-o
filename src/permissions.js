@@ -28,6 +28,7 @@ export const SECTIONS = [
   { key: 'equipamentos', label: 'Equipamentos' },
   { key: 'treinadores',  label: 'Treinadores' },
   { key: 'recrutamento', label: 'Recrutamento' },
+  { key: 'financeiro',   label: 'Financeiro' },
 ];
 const SECTION_KEYS = new Set(SECTIONS.map((s) => s.key));
 
@@ -85,6 +86,10 @@ const EDIT_ROLES = {
   availability: ['coordenador', 'fisioterapeuta'],
   // Planos de treino e avaliações pós treino: coordenador e treinador.
   training_plans: ['coordenador', 'treinador'],
+  // Convocatórias: coordenador e treinador (o treinador só nas suas equipas — RLS).
+  squads: ['coordenador', 'treinador'],
+  // Gestão financeira: só o coordenador.
+  finances: ['coordenador'],
 };
 
 // Papel do utilizador atual (por omissão 'leitura' até o perfil carregar).

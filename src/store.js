@@ -38,6 +38,9 @@ export const state = {
   trainingPlanItems: [],  // tarefas/blocos de cada plano
   trainingEvaluations: [], // avaliações pós treino (1:1 com evento treino)
   trainingPlayerEvals: [], // avaliações individuais por atleta
+  squads: [],             // convocatórias (1:1 com evento jogo)
+  squadPlayers: [],       // atletas em cada convocatória
+  financialEntries: [],   // receitas e despesas do clube
   profile: null, // perfil do utilizador atual (com o papel/role)
   profiles: [], // todos os perfis (preenchido só se o utilizador for coordenador)
   // Registos arquivados (inativos), só carregados para o coordenador — usados
@@ -76,6 +79,9 @@ export function resetState() {
   state.trainingPlanItems = [];
   state.trainingEvaluations = [];
   state.trainingPlayerEvals = [];
+  state.squads = [];
+  state.squadPlayers = [];
+  state.financialEntries = [];
   state.profile = null;
   state.profiles = [];
   state.archived = { teams: [], players: [], coaches: [], sponsors: [], events: [], prospects: [] };
@@ -118,7 +124,8 @@ export async function loadProfile() {
 export async function loadAll() {
   const [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects, episodes, sessions, appointments,
          physProfiles, medHistory, physTests, phases, mesocycles, gymSessions, gymExercises, gymAttendance, gameMinutes, availability,
-         trainingPlans, trainingPlanItems, trainingEvaluations, trainingPlayerEvals] =
+         trainingPlans, trainingPlanItems, trainingEvaluations, trainingPlayerEvals,
+         squads, squadPlayers, financialEntries] =
     await Promise.all([
       supabase.from('settings').select('*').eq('id', 1).maybeSingle(),
       // Só registos ativos (archived_at nulo). Os arquivados carregam-se à parte
@@ -153,11 +160,17 @@ export async function loadAll() {
       supabase.from('training_plan_items').select('*').order('position'),
       supabase.from('training_evaluations').select('*').order('created_at'),
       supabase.from('training_player_evals').select('*'),
+      // Convocatórias.
+      supabase.from('squads').select('*'),
+      supabase.from('squad_players').select('*'),
+      // Gestão financeira.
+      supabase.from('financial_entries').select('*').order('date', { ascending: false }),
     ]);
 
   for (const res of [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects, episodes, sessions, appointments,
                      physProfiles, medHistory, physTests, phases, mesocycles, gymSessions, gymExercises, gymAttendance, gameMinutes, availability,
-                     trainingPlans, trainingPlanItems, trainingEvaluations, trainingPlayerEvals]) {
+                     trainingPlans, trainingPlanItems, trainingEvaluations, trainingPlayerEvals,
+                     squads, squadPlayers, financialEntries]) {
     if (res.error) throw res.error;
   }
 
@@ -189,6 +202,9 @@ export async function loadAll() {
   state.trainingPlanItems  = trainingPlanItems.data  || [];
   state.trainingEvaluations = trainingEvaluations.data || [];
   state.trainingPlayerEvals = trainingPlayerEvals.data || [];
+  state.squads          = squads.data          || [];
+  state.squadPlayers    = squadPlayers.data    || [];
+  state.financialEntries = financialEntries.data || [];
 
   // Coerência da cache: com pais arquivados (ex.: uma equipa), os filhos que os
   // referenciam não devem aparecer nos ecrãs ativos.
@@ -241,6 +257,13 @@ function pruneOrphans() {
   const evalIds = new Set(state.trainingEvaluations.map((e) => e.id));
   state.trainingPlayerEvals = state.trainingPlayerEvals.filter(
     (e) => evalIds.has(e.evaluation_id) && playerIds.has(e.player_id)
+  );
+
+  // Convocatórias: só para jogos ativos e atletas ativos.
+  state.squads = state.squads.filter((s) => eventIds.has(s.event_id));
+  const squadIds = new Set(state.squads.map((s) => s.id));
+  state.squadPlayers = state.squadPlayers.filter(
+    (sp) => squadIds.has(sp.squad_id) && playerIds.has(sp.player_id)
   );
 }
 
@@ -707,6 +730,58 @@ export async function upsertPlayerEval(evaluationId, playerId, values) {
   else state.trainingPlayerEvals.push(data);
   notify();
   return data;
+}
+
+// --- Convocatórias -------------------------------------------------------
+
+// Garante que existe uma convocatória para o evento e devolve-a.
+export async function ensureSquad(eventId) {
+  let squad = state.squads.find((s) => s.event_id === eventId);
+  if (!squad) {
+    const { data, error } = await supabase
+      .from('squads')
+      .upsert({ event_id: eventId }, { onConflict: 'event_id' })
+      .select()
+      .single();
+    if (error) throw error;
+    squad = data;
+    if (!state.squads.some((s) => s.id === squad.id)) state.squads.push(squad);
+  }
+  return squad;
+}
+
+// Adiciona ou atualiza um atleta na convocatória de um jogo.
+export async function upsertSquadPlayer(squadId, playerId, status) {
+  const { data, error } = await supabase
+    .from('squad_players')
+    .upsert(
+      { squad_id: squadId, player_id: playerId, status },
+      { onConflict: 'squad_id,player_id' }
+    )
+    .select()
+    .single();
+  if (error) throw error;
+  const i = state.squadPlayers.findIndex(
+    (sp) => sp.squad_id === squadId && sp.player_id === playerId
+  );
+  if (i !== -1) state.squadPlayers[i] = data;
+  else state.squadPlayers.push(data);
+  notify();
+  return data;
+}
+
+// Remove um atleta da convocatória.
+export async function removeSquadPlayer(squadId, playerId) {
+  const { error } = await supabase
+    .from('squad_players')
+    .delete()
+    .eq('squad_id', squadId)
+    .eq('player_id', playerId);
+  if (error) throw error;
+  state.squadPlayers = state.squadPlayers.filter(
+    (sp) => !(sp.squad_id === squadId && sp.player_id === playerId)
+  );
+  notify();
 }
 
 // --- Definições (linha única) --------------------------------------------

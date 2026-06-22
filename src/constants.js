@@ -304,6 +304,46 @@ export const PLAN_CATEGORY_LABEL = Object.fromEntries(PLAN_CATEGORIES.map((c) =>
 export const PLAN_CATEGORY_BADGE = Object.fromEntries(PLAN_CATEGORIES.map((c) => [c.key, c.badge]));
 
 // --- Recrutamento: estados do funil ---
+// --- Convocatórias ---
+
+export const SQUAD_STATUSES = [
+  { key: 'convocado', label: 'Convocado', badge: 'info' },
+  { key: 'titular',   label: 'Titular',   badge: 'ok' },
+  { key: 'suplente',  label: 'Suplente',  badge: 'warn' },
+];
+export const SQUAD_STATUS_LABEL = Object.fromEntries(SQUAD_STATUSES.map((s) => [s.key, s.label]));
+export const SQUAD_STATUS_BADGE = Object.fromEntries(SQUAD_STATUSES.map((s) => [s.key, s.badge]));
+
+// --- Gestão financeira ---
+
+export const FINANCIAL_ENTRY_TYPES = [
+  { key: 'receita', label: 'Receita', badge: 'ok' },
+  { key: 'despesa', label: 'Despesa', badge: 'danger' },
+];
+export const FINANCIAL_TYPE_LABEL = Object.fromEntries(FINANCIAL_ENTRY_TYPES.map((t) => [t.key, t.label]));
+export const FINANCIAL_TYPE_BADGE = Object.fromEntries(FINANCIAL_ENTRY_TYPES.map((t) => [t.key, t.badge]));
+
+export const EXPENSE_CATEGORIES = [
+  'Material desportivo',
+  'Deslocações',
+  'Arbitragem',
+  'Seguros',
+  'Formação',
+  'Instalações',
+  'Administrativo',
+  'Outro',
+];
+
+export const INCOME_CATEGORIES = [
+  'Quotas',
+  'Patrocínios',
+  'Venda de material',
+  'Eventos',
+  'Subsídios',
+  'Outro',
+];
+
+// --- Recrutamento: estados do funil ---
 // Estados lineares do funil (avançar/recuar entre eles).
 export const PROSPECT_STATUSES = [
   { key: 'observado',  label: 'Observado',      badge: 'muted' },
