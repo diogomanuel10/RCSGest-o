@@ -3581,9 +3581,11 @@ tbody tr:hover {
 .enc-table-wrap {
   overflow-x: auto;
 }
-.enc-col-player { min-width: 150px; position: sticky; left: 0; background: var(--surface); z-index: 1; }
+.enc-col-num    { width: 52px; text-align: center; position: sticky; left: 0; background: var(--surface); z-index: 1; }
+.enc-col-player { min-width: 150px; position: sticky; left: 52px; background: var(--surface); z-index: 1; }
 .enc-col-art    { min-width: 82px; text-align: center; white-space: nowrap; }
 .enc-col-art--val { text-align: center; }
+.badge--num     { background: var(--navy-100); color: var(--navy-700); font-weight: 700; min-width: 2rem; text-align: center; }
 
 .enc-table th,
 .enc-table td { white-space: nowrap; }
