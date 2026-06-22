@@ -3494,3 +3494,79 @@ tbody tr:hover {
   .arch-row { flex-wrap: wrap; }
   .arch-row__date { order: 3; }
 }
+
+/* =====================================================================
+   Convocatórias
+   ===================================================================== */
+.modal--wide { max-width: 680px; }
+
+.squad-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-height: 55vh;
+  overflow-y: auto;
+}
+.squad-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.squad-row__num {
+  flex: none;
+  width: 2rem;
+  font-weight: 700;
+  color: var(--navy);
+  text-align: right;
+}
+.squad-row__info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.squad-row__name { font-weight: 600; }
+.squad-row__actions {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.squad-row__status { flex: none; }
+.squad-remove { opacity: 0.6; }
+.squad-remove:hover { opacity: 1; color: var(--danger); }
+
+/* =====================================================================
+   Portal do atleta — destaques (disponibilidade + convocatória)
+   ===================================================================== */
+.portal-highlights {
+  display: flex;
+  gap: 0.9rem;
+  margin-bottom: 0.2rem;
+  flex-wrap: wrap;
+}
+.portal-highlight {
+  flex: 1 1 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.8rem 1rem;
+}
+.portal-highlight__label {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.portal-highlight__badge { align-self: flex-start; }
+.portal-highlight__note {
+  margin: 0;
+  font-size: 0.83rem;
+  color: var(--text-muted);
+}

@@ -327,6 +327,56 @@ function toMinutes(t) {
   return (h || 0) * 60 + (m || 0);
 }
 
+// --- Gestão financeira ---------------------------------------------------
+
+// Resumo financeiro: total de receitas, despesas e saldo.
+export function financialSummary() {
+  let income = 0;
+  let expenses = 0;
+  state.financialEntries.forEach((e) => {
+    const v = Number(e.amount) || 0;
+    if (e.type === 'receita') income += v;
+    else expenses += v;
+  });
+  return { income, expenses, balance: income - expenses };
+}
+
+// --- Convocatórias -------------------------------------------------------
+
+// Devolve o estado de convocatória de um atleta para um evento específico,
+// ou null se não estiver convocado.
+export function playerSquadStatus(playerId, eventId) {
+  const squad = state.squads.find((s) => s.event_id === eventId);
+  if (!squad) return null;
+  const sp = state.squadPlayers.find(
+    (p) => p.squad_id === squad.id && p.player_id === playerId
+  );
+  return sp ? sp.status : null;
+}
+
+// Próximo jogo ao qual o atleta está convocado (ou null se nenhum).
+export function nextPlayerSquadEvent(playerId) {
+  const now = new Date();
+  const mySquadIds = new Set(
+    state.squadPlayers
+      .filter((sp) => sp.player_id === playerId)
+      .map((sp) => sp.squad_id)
+  );
+  const myEventIds = new Set(
+    state.squads.filter((s) => mySquadIds.has(s.id)).map((s) => s.event_id)
+  );
+  const upcoming = state.events
+    .filter((e) => e.type === 'jogo' && myEventIds.has(e.id) && eventDateTime(e) >= now)
+    .sort((a, b) => eventDateTime(a) - eventDateTime(b));
+  if (!upcoming.length) return null;
+  const ev = upcoming[0];
+  const squad = state.squads.find((s) => s.event_id === ev.id);
+  const sp = state.squadPlayers.find(
+    (p) => p.squad_id === squad.id && p.player_id === playerId
+  );
+  return { event: ev, status: sp?.status || 'convocado' };
+}
+
 // --- Preparação Física ---------------------------------------------------
 
 export function physicalProfile(playerId) {

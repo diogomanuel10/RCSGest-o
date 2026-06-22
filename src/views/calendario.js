@@ -2,6 +2,7 @@
 // por tipo e por equipa, distinguindo eventos passados dos futuros.
 
 import { state, createRow, createRows, updateRow, archiveRow, dbErrorMessage } from '../store.js';
+import { openSquadModal } from './convocatorias.js';
 import { esc, emptyHTML, teamHue } from '../ui.js';
 import { eventDateTime, eventTimeRange, teamById, teamName } from '../compute.js';
 import { openModal, confirmDialog } from '../modal.js';
@@ -12,7 +13,7 @@ import {
   DEFAULT_LOCATION,
   WEEKDAYS,
 } from '../constants.js';
-import { canEdit } from '../permissions.js';
+import { canEdit, canAccess } from '../permissions.js';
 
 const filters = { type: '', team: '' };
 let calView = 'lista'; // 'lista' | 'grelha'
@@ -62,6 +63,7 @@ export function renderCalendario(container) {
   container.querySelector('#grid-today')?.addEventListener('click', () => { gridMonth = new Date(); renderCalendario(container); });
   container.querySelectorAll('[data-edit]').forEach((b) => b.addEventListener('click', () => openForm(b.dataset.edit)));
   container.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => remove(b.dataset.del)));
+  container.querySelectorAll('[data-squad]').forEach((b) => b.addEventListener('click', () => openSquadModal(b.dataset.squad)));
   container.querySelectorAll('[data-new-day]').forEach((b) => b.addEventListener('click', () => openForm(null, b.dataset.newDay)));
 }
 
@@ -205,6 +207,12 @@ function eventRow(ev, isPast, editable) {
   const hue = team ? teamHue(team.id) : null;
   const accent = hue != null ? ` style="border-left:4px solid hsl(${hue} 55% 45%);padding-left:0.7rem"` : '';
 
+  const canSquad = canEdit('squads') && ev.type === 'jogo' && ev.team_id;
+  const squad = state.squads.find((s) => s.event_id === ev.id);
+  const nConvocados = squad
+    ? state.squadPlayers.filter((sp) => sp.squad_id === squad.id).length
+    : 0;
+
   return `
     <div class="event-row ${isPast ? 'event-row--past' : ''}"${accent}>
       <div class="event-row__when">
@@ -216,15 +224,17 @@ function eventRow(ev, isPast, editable) {
           <span class="badge badge--${EVENT_TYPE_BADGE[ev.type] || 'muted'}" style="margin-right:0.4rem">${esc(EVENT_TYPE_LABEL[ev.type] || ev.type)}</span>${esc(ev.title || EVENT_TYPE_LABEL[ev.type] || 'Evento')}
         </div>
         ${meta ? `<span class="event-row__meta">${meta}</span>` : ''}
+        ${ev.type === 'jogo' && nConvocados > 0
+          ? `<span class="badge badge--info" style="margin-top:0.3rem;display:inline-block">${nConvocados} convocado${nConvocados !== 1 ? 's' : ''}</span>`
+          : ''}
       </div>
-      ${
-        editable
-          ? `<div class="cell-actions">
-        <button class="btn btn--ghost btn--sm" data-edit="${ev.id}" type="button">Editar</button>
-        <button class="btn btn--danger btn--sm" data-del="${ev.id}" type="button">Remover</button>
-      </div>`
-          : ''
-      }
+      <div class="cell-actions">
+        ${canSquad ? `<button class="btn btn--ghost btn--sm" data-squad="${ev.id}" type="button">Convocar</button>` : ''}
+        ${editable
+          ? `<button class="btn btn--ghost btn--sm" data-edit="${ev.id}" type="button">Editar</button>
+             <button class="btn btn--danger btn--sm" data-del="${ev.id}" type="button">Remover</button>`
+          : ''}
+      </div>
     </div>
   `;
 }

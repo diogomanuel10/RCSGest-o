@@ -12,12 +12,17 @@ import {
   teamName,
   playerAttendanceStats,
   playerQuotas,
+  nextPlayerSquadEvent,
 } from '../compute.js';
 import {
   EVENT_TYPE_LABEL,
   EVENT_TYPE_BADGE,
   ATTENDANCE_STATUSES,
   MONTHS,
+  SQUAD_STATUS_LABEL,
+  SQUAD_STATUS_BADGE,
+  AVAILABILITY_LABEL,
+  AVAILABILITY_BADGE,
 } from '../constants.js';
 
 export function renderPortal(container) {
@@ -42,6 +47,8 @@ export function renderPortal(container) {
   const upcoming = upcomingEvents(8);
   const att = playerAttendanceStats(me.id);
   const quotas = playerQuotas(me.id);
+  const nextSquad = nextPlayerSquadEvent(me.id);
+  const availability = state.availability.find((a) => a.player_id === me.id);
 
   const greeting = greet();
   const first = (me.name || '').split(/\s+/)[0] || '';
@@ -52,9 +59,39 @@ export function renderPortal(container) {
         <h1 class="section-title">${esc(greeting)}${first ? ', ' + esc(first) : ''}</h1>
         <p class="muted" style="margin:0;font-size:0.9rem">
           ${team ? esc(teamName(team)) : 'Sem equipa atribuída'}${me.number ? ` · Nº ${esc(me.number)}` : ''}
+          ${me.position ? ` · ${esc(me.position)}` : ''}
         </p>
       </div>
     </header>
+
+    ${(availability || nextSquad) ? `
+    <div class="portal-highlights">
+      ${availability ? `
+        <div class="card portal-highlight">
+          <span class="portal-highlight__label">Disponibilidade</span>
+          <span class="badge badge--${AVAILABILITY_BADGE[availability.status] || 'muted'} portal-highlight__badge">
+            ${esc(AVAILABILITY_LABEL[availability.status] || availability.status)}
+          </span>
+          ${availability.limitations ? `<p class="muted portal-highlight__note">${esc(availability.limitations)}</p>` : ''}
+          ${availability.expected_return ? `<p class="muted portal-highlight__note">Retorno previsto: ${new Date(availability.expected_return + 'T00:00').toLocaleDateString('pt-PT', { day: '2-digit', month: 'long' })}</p>` : ''}
+        </div>
+      ` : ''}
+      ${nextSquad ? `
+        <div class="card portal-highlight">
+          <span class="portal-highlight__label">Próximo jogo</span>
+          <span class="badge badge--${SQUAD_STATUS_BADGE[nextSquad.status] || 'info'} portal-highlight__badge">
+            ${esc(SQUAD_STATUS_LABEL[nextSquad.status] || nextSquad.status)}
+          </span>
+          <p class="muted portal-highlight__note">
+            ${nextSquad.event.date
+              ? new Date(nextSquad.event.date + 'T00:00').toLocaleDateString('pt-PT', { weekday: 'long', day: '2-digit', month: 'long' })
+              : '—'}
+            ${nextSquad.event.opponent ? ` · vs ${esc(nextSquad.event.opponent)}` : ''}
+          </p>
+        </div>
+      ` : ''}
+    </div>
+    ` : ''}
 
     <section class="card">
       <h2 class="section-title upcoming-card__title">Próximos treinos e jogos</h2>

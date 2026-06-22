@@ -1022,3 +1022,122 @@ alter table training_plan_items
 alter table training_plan_items
   add constraint training_plan_items_category_check
   check (category in ('aquecimento','tecnica','tatica','situacao','retorno','outro'));
+
+-- =====================================================================
+-- Convocatórias
+-- =====================================================================
+-- Lista de atletas convocados para um jogo. A convocatória está ligada
+-- 1:1 a um evento do tipo 'jogo'. Cada atleta pode estar convocado,
+-- ser titular ou suplente.
+
+create table if not exists squads (
+  id         uuid primary key default gen_random_uuid(),
+  event_id   uuid not null references events(id) on delete cascade,
+  notes      text,
+  created_at timestamptz default now(),
+  unique (event_id)
+);
+
+create table if not exists squad_players (
+  id         uuid primary key default gen_random_uuid(),
+  squad_id   uuid not null references squads(id)   on delete cascade,
+  player_id  uuid not null references players(id) on delete cascade,
+  status     text not null default 'convocado'
+             check (status in ('convocado','titular','suplente')),
+  created_at timestamptz default now(),
+  unique (squad_id, player_id)
+);
+
+create index if not exists idx_squads_event         on squads        (event_id);
+create index if not exists idx_squad_players_squad  on squad_players (squad_id);
+create index if not exists idx_squad_players_player on squad_players (player_id);
+
+alter table squads        enable row level security;
+alter table squad_players enable row level security;
+
+drop policy if exists "squads_read"  on squads;
+drop policy if exists "squads_write" on squads;
+drop policy if exists "sp_read"      on squad_players;
+drop policy if exists "sp_write"     on squad_players;
+
+-- Leitura: todos exceto atleta (o atleta vê via squad_players abaixo).
+create policy "squads_read" on squads for select to authenticated
+  using (
+    app_role() <> 'atleta'
+    OR event_id in (select id from events where team_id = athlete_team_id())
+  );
+
+-- Leitura dos atletas da convocatória: equipa técnica vê tudo; atleta só
+-- verifica se está convocado (para o seu portal pessoal).
+create policy "sp_read" on squad_players for select to authenticated
+  using (
+    app_role() <> 'atleta'
+    OR player_id = athlete_player_id()
+  );
+
+-- Escrita: coordenador (todos os jogos) ou treinador (jogos das suas equipas).
+create policy "squads_write" on squads for all to authenticated
+  using (
+    app_role() = 'coordenador'
+    OR (app_role() = 'treinador' AND event_id in (
+      select id from events where team_id in (select trainer_team_ids())
+    ))
+  )
+  with check (
+    app_role() = 'coordenador'
+    OR (app_role() = 'treinador' AND event_id in (
+      select id from events where team_id in (select trainer_team_ids())
+    ))
+  );
+
+create policy "sp_write" on squad_players for all to authenticated
+  using (
+    app_role() = 'coordenador'
+    OR (app_role() = 'treinador' AND squad_id in (
+      select s.id from squads s
+      join events e on e.id = s.event_id
+      where e.team_id in (select trainer_team_ids())
+    ))
+  )
+  with check (
+    app_role() = 'coordenador'
+    OR (app_role() = 'treinador' AND squad_id in (
+      select s.id from squads s
+      join events e on e.id = s.event_id
+      where e.team_id in (select trainer_team_ids())
+    ))
+  );
+
+-- =====================================================================
+-- Gestão Financeira
+-- =====================================================================
+-- Registo de receitas e despesas do clube (além dos patrocínios).
+-- Só o coordenador cria/edita; o papel 'leitura' pode consultar.
+
+create table if not exists financial_entries (
+  id          uuid primary key default gen_random_uuid(),
+  type        text not null check (type in ('receita','despesa')),
+  category    text not null,
+  description text not null,
+  amount      numeric(10,2) not null default 0,
+  date        date not null,
+  notes       text,
+  created_at  timestamptz default now()
+);
+
+create index if not exists idx_fin_entries_date on financial_entries (date);
+create index if not exists idx_fin_entries_type on financial_entries (type);
+
+alter table financial_entries enable row level security;
+
+drop policy if exists "fin_read"  on financial_entries;
+drop policy if exists "fin_write" on financial_entries;
+
+-- Leitura: todos exceto atleta.
+create policy "fin_read" on financial_entries for select to authenticated
+  using (app_role() <> 'atleta');
+
+-- Escrita: só coordenador.
+create policy "fin_write" on financial_entries for all to authenticated
+  using (app_role() = 'coordenador')
+  with check (app_role() = 'coordenador');
