@@ -38,6 +38,7 @@ export const state = {
   trainingPlanItems: [],  // tarefas/blocos de cada plano
   trainingEvaluations: [], // avaliações pós treino (1:1 com evento treino)
   trainingPlayerEvals: [], // avaliações individuais por atleta
+  playerSizes: [],        // tamanhos de equipamento por atleta
   squads: [],             // convocatórias (1:1 com evento jogo)
   squadPlayers: [],       // atletas em cada convocatória
   financialEntries: [],   // receitas e despesas do clube
@@ -79,6 +80,7 @@ export function resetState() {
   state.trainingPlanItems = [];
   state.trainingEvaluations = [];
   state.trainingPlayerEvals = [];
+  state.playerSizes = [];
   state.squads = [];
   state.squadPlayers = [];
   state.financialEntries = [];
@@ -125,7 +127,7 @@ export async function loadAll() {
   const [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects, episodes, sessions, appointments,
          physProfiles, medHistory, physTests, phases, mesocycles, gymSessions, gymExercises, gymAttendance, gameMinutes, availability,
          trainingPlans, trainingPlanItems, trainingEvaluations, trainingPlayerEvals,
-         squads, squadPlayers, financialEntries] =
+         playerSizes, squads, squadPlayers, financialEntries] =
     await Promise.all([
       supabase.from('settings').select('*').eq('id', 1).maybeSingle(),
       // Só registos ativos (archived_at nulo). Os arquivados carregam-se à parte
@@ -160,6 +162,8 @@ export async function loadAll() {
       supabase.from('training_plan_items').select('*').order('position'),
       supabase.from('training_evaluations').select('*').order('created_at'),
       supabase.from('training_player_evals').select('*'),
+      // Tamanhos de equipamento.
+      supabase.from('player_sizes').select('*'),
       // Convocatórias.
       supabase.from('squads').select('*'),
       supabase.from('squad_players').select('*'),
@@ -170,7 +174,7 @@ export async function loadAll() {
   for (const res of [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects, episodes, sessions, appointments,
                      physProfiles, medHistory, physTests, phases, mesocycles, gymSessions, gymExercises, gymAttendance, gameMinutes, availability,
                      trainingPlans, trainingPlanItems, trainingEvaluations, trainingPlayerEvals,
-                     squads, squadPlayers, financialEntries]) {
+                     playerSizes, squads, squadPlayers, financialEntries]) {
     if (res.error) throw res.error;
   }
 
@@ -202,6 +206,7 @@ export async function loadAll() {
   state.trainingPlanItems  = trainingPlanItems.data  || [];
   state.trainingEvaluations = trainingEvaluations.data || [];
   state.trainingPlayerEvals = trainingPlayerEvals.data || [];
+  state.playerSizes     = playerSizes.data     || [];
   state.squads          = squads.data          || [];
   state.squadPlayers    = squadPlayers.data    || [];
   state.financialEntries = financialEntries.data || [];
@@ -258,6 +263,9 @@ function pruneOrphans() {
   state.trainingPlayerEvals = state.trainingPlayerEvals.filter(
     (e) => evalIds.has(e.evaluation_id) && playerIds.has(e.player_id)
   );
+
+  // Tamanhos de equipamento: só para atletas ativos.
+  state.playerSizes = state.playerSizes.filter((s) => playerIds.has(s.player_id));
 
   // Convocatórias: só para jogos ativos e atletas ativos.
   state.squads = state.squads.filter((s) => eventIds.has(s.event_id));
@@ -728,6 +736,25 @@ export async function upsertPlayerEval(evaluationId, playerId, values) {
   );
   if (i !== -1) state.trainingPlayerEvals[i] = data;
   else state.trainingPlayerEvals.push(data);
+  notify();
+  return data;
+}
+
+// --- Tamanhos de equipamento ---------------------------------------------
+
+export async function upsertPlayerSizes(playerId, values) {
+  const { data, error } = await supabase
+    .from('player_sizes')
+    .upsert(
+      { player_id: playerId, ...values, updated_at: new Date().toISOString() },
+      { onConflict: 'player_id' }
+    )
+    .select()
+    .single();
+  if (error) throw error;
+  const i = state.playerSizes.findIndex((s) => s.player_id === playerId);
+  if (i !== -1) state.playerSizes[i] = data;
+  else state.playerSizes.push(data);
   notify();
   return data;
 }
