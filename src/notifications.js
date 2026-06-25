@@ -160,20 +160,21 @@ export async function requestPermission() {
 async function _showOsNotification(notif) {
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
   try {
+    const opts = {
+      body:     notif.body,
+      icon:     '/logo-192.png',
+      badge:    '/logo-192.png',
+      data:     notif.data,
+      tag:      `${notif.type}_${notif.id}`,
+      renotify: false,
+    };
     if ('serviceWorker' in navigator) {
       const reg = await navigator.serviceWorker.ready;
-      await reg.showNotification(notif.title, {
-        body:     notif.body,
-        icon:     '/logo.svg',
-        badge:    '/logo.svg',
-        data:     notif.data,
-        tag:      `${notif.type}_${notif.id}`,
-        renotify: false,
-      });
+      await reg.showNotification(notif.title, opts);
     } else {
-      new Notification(notif.title, { body: notif.body, icon: '/logo.svg' });
+      new Notification(notif.title, opts);
     }
-  } catch {
-    // Silenciar: a permissão pode ter sido revogada entretanto.
+  } catch (err) {
+    console.warn('[RCS] Notificação nativa falhou:', err);
   }
 }
