@@ -162,6 +162,8 @@ async function _showOsNotification(notif) {
   try {
     const opts = {
       body:     notif.body,
+      icon:     '/logo-192.png',
+      badge:    '/logo-192.png',
       data:     notif.data,
       tag:      `${notif.type}_${notif.id}`,
       renotify: false,
