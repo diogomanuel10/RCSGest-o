@@ -13,11 +13,9 @@ self.addEventListener('push', (e) => {
 
   e.waitUntil(
     self.registration.showNotification(payload.title || 'Central RCS', {
-      body:     payload.body  || '',
-      icon:     '/logo.svg',
-      badge:    '/logo.svg',
-      data:     payload.data  || {},
-      tag:      payload.tag   || 'rcs-notif',
+      body:     payload.body || '',
+      data:     payload.data || {},
+      tag:      payload.tag  || 'rcs-notif',
       renotify: false,
     })
   );
