@@ -155,6 +155,58 @@ export async function requestPermission() {
   return Notification.requestPermission();
 }
 
+// --- Web Push (VAPID) — necessário para iOS em segundo plano -----------
+
+function _urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+}
+
+// Subscreve o Web Push e guarda o endpoint na BD.
+// Só faz algo se o browser suportar PushManager e a permissão estiver concedida.
+export async function subscribeWebPush() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  if (Notification.permission !== 'granted') return;
+
+  const vapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+  if (!vapidKey) {
+    console.warn('[RCS] VITE_VAPID_PUBLIC_KEY não definida — Web Push desativado.');
+    return;
+  }
+
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly:      true,
+      applicationServerKey: _urlBase64ToUint8Array(vapidKey),
+    });
+    const json = sub.toJSON();
+    await supabase.from('push_subscriptions').upsert({
+      endpoint: json.endpoint,
+      p256dh:   json.keys?.p256dh,
+      auth_key: json.keys?.auth,
+    }, { onConflict: 'user_id,endpoint' });
+  } catch (err) {
+    console.warn('[RCS] Web Push subscribe falhou:', err);
+  }
+}
+
+// Remove a subscrição Web Push do dispositivo atual e da BD.
+export async function unsubscribeWebPush() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (!sub) return;
+    await supabase.from('push_subscriptions').delete().eq('endpoint', sub.endpoint);
+    await sub.unsubscribe();
+  } catch (err) {
+    console.warn('[RCS] Web Push unsubscribe falhou:', err);
+  }
+}
+
 // Mostra uma notificação nativa do sistema operativo (quando o browser
 // está em segundo plano ou o ecrã está bloqueado).
 async function _showOsNotification(notif) {

@@ -13,7 +13,7 @@ import { teamName } from '../compute.js';
 import {
   loadNotifications, getNotifications, getUnreadCount,
   onNotificationChange, markRead, markAllRead,
-  subscribeRealtime, requestPermission,
+  subscribeRealtime, requestPermission, subscribeWebPush,
   checkMissingAttendances,
 } from '../notifications.js';
 
@@ -463,7 +463,12 @@ export async function renderAppShell(root, session) {
 
     enableBtn.addEventListener('click', async () => {
       const result = await requestPermission();
-      if (result === 'granted' || result === 'denied') permDiv.hidden = true;
+      if (result === 'granted') {
+        permDiv.hidden = true;
+        subscribeWebPush().catch((e) => console.warn('Web Push:', e));
+      } else if (result === 'denied') {
+        permDiv.hidden = true;
+      }
     });
 
     // Reagir a mudanças no inbox (Realtime + operações locais).
@@ -478,6 +483,12 @@ export async function renderAppShell(root, session) {
 
     await loadNotifications();
     subscribeRealtime();
+
+    // Se o utilizador já concedeu permissão (sessão anterior), garantir
+    // que a subscrição Web Push está registada neste dispositivo.
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      subscribeWebPush().catch((e) => console.warn('Web Push:', e));
+    }
 
     // Verificar presenças em falta (só coordenador; treinadores recebem
     // o lembrete 10 min antes via Edge Function agendada).
