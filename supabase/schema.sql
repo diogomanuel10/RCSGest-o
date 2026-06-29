@@ -1237,3 +1237,46 @@ create policy "fin_read" on financial_entries for select to authenticated
 create policy "fin_write" on financial_entries for all to authenticated
   using (app_role() = 'coordenador')
   with check (app_role() = 'coordenador');
+
+-- ---------------------------------------------------------------------
+-- Planos de Jogo
+-- ---------------------------------------------------------------------
+
+create table if not exists game_plans (
+  id                  uuid primary key default gen_random_uuid(),
+  opponent            text,
+  game_date           date,
+  formation           text,
+  reception_system    text,
+  system_notes        text,
+  defense_system      text,
+  block_notes         text,
+  field_defense_notes text,
+  sideout_notes       text,
+  transition_notes    text,
+  serve_type          text,
+  serve_zone_notes    text,
+  rotation_weak       text,
+  rotation_strong     text,
+  scout_strengths     text,
+  scout_weaknesses    text,
+  scout_patterns      text,
+  free_notes          text,
+  created_at          timestamptz default now()
+);
+
+create index if not exists idx_game_plans_date on game_plans (game_date desc);
+
+alter table game_plans enable row level security;
+
+drop policy if exists "gp_read"  on game_plans;
+drop policy if exists "gp_write" on game_plans;
+
+-- Leitura: todos exceto atleta e leitura.
+create policy "gp_read" on game_plans for select to authenticated
+  using (app_role() in ('coordenador', 'treinador', 'fisioterapeuta', 'preparador'));
+
+-- Escrita: coordenador e treinador.
+create policy "gp_write" on game_plans for all to authenticated
+  using (app_role() in ('coordenador', 'treinador'))
+  with check (app_role() in ('coordenador', 'treinador'));

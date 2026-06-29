@@ -43,6 +43,7 @@ export const state = {
   squads: [],             // convocatórias (1:1 com evento jogo)
   squadPlayers: [],       // atletas em cada convocatória
   financialEntries: [],   // receitas e despesas do clube
+  gamePlans: [],          // planos de jogo táticos
   profile: null, // perfil do utilizador atual (com o papel/role)
   profiles: [], // todos os perfis (preenchido só se o utilizador for coordenador)
   // Registos arquivados (inativos), só carregados para o coordenador — usados
@@ -86,6 +87,7 @@ export function resetState() {
   state.squads = [];
   state.squadPlayers = [];
   state.financialEntries = [];
+  state.gamePlans = [];
   state.profile = null;
   state.profiles = [];
   state.archived = { teams: [], players: [], coaches: [], sponsors: [], events: [], prospects: [] };
@@ -129,7 +131,7 @@ export async function loadAll() {
   const [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects, episodes, sessions, appointments,
          physProfiles, medHistory, physTests, phases, mesocycles, gymSessions, gymExercises, gymAttendance, gameMinutes, availability,
          trainingPlans, trainingPlanItems, trainingEvaluations, trainingPlayerEvals,
-         playerDocuments, playerSizes, squads, squadPlayers, financialEntries] =
+         playerDocuments, playerSizes, squads, squadPlayers, financialEntries, gamePlans] =
     await Promise.all([
       supabase.from('settings').select('*').eq('id', 1).maybeSingle(),
       // Só registos ativos (archived_at nulo). Os arquivados carregam-se à parte
@@ -173,12 +175,14 @@ export async function loadAll() {
       supabase.from('squad_players').select('*'),
       // Gestão financeira.
       supabase.from('financial_entries').select('*').order('date', { ascending: false }),
+      // Planos de jogo.
+      supabase.from('game_plans').select('*').order('game_date', { ascending: false }),
     ]);
 
   for (const res of [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects, episodes, sessions, appointments,
                      physProfiles, medHistory, physTests, phases, mesocycles, gymSessions, gymExercises, gymAttendance, gameMinutes, availability,
                      trainingPlans, trainingPlanItems, trainingEvaluations, trainingPlayerEvals,
-                     playerDocuments, playerSizes, squads, squadPlayers, financialEntries]) {
+                     playerDocuments, playerSizes, squads, squadPlayers, financialEntries, gamePlans]) {
     if (res.error) throw res.error;
   }
 
@@ -215,6 +219,7 @@ export async function loadAll() {
   state.squads          = squads.data          || [];
   state.squadPlayers    = squadPlayers.data    || [];
   state.financialEntries = financialEntries.data || [];
+  state.gamePlans        = gamePlans.data        || [];
 
   // Coerência da cache: com pais arquivados (ex.: uma equipa), os filhos que os
   // referenciam não devem aparecer nos ecrãs ativos.

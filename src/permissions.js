@@ -29,6 +29,7 @@ export const SECTIONS = [
   { key: 'treinadores',  label: 'Treinadores' },
   { key: 'recrutamento', label: 'Recrutamento' },
   { key: 'financeiro',   label: 'Financeiro' },
+  { key: 'plano-jogo',  label: 'Plano de Jogo' },
 ];
 const SECTION_KEYS = new Set(SECTIONS.map((s) => s.key));
 
@@ -90,6 +91,8 @@ const EDIT_ROLES = {
   squads: ['coordenador', 'treinador'],
   // Gestão financeira: só o coordenador.
   finances: ['coordenador'],
+  // Planos de jogo: coordenador e treinador.
+  game_plans: ['coordenador', 'treinador'],
   // Tamanhos de equipamento: só o coordenador edita.
   sizes: ['coordenador'],
   // Documentos dos atletas: coordenador + fisioterapeuta + preparador.
