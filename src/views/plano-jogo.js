@@ -1,17 +1,18 @@
 // Vista: Plano de Jogo.
-// Formulário tático estruturado para preparação de jogos. Permite criar,
-// listar, editar, exportar e acompanhar o progresso de preenchimento.
+// Formulário tático estruturado para preparação de jogos. Cada plano fica
+// associado a uma equipa; o treinador só vê os planos das suas equipas
+// (garantido pelo RLS + filtro de UI). O coordenador vê todos.
 
 import { state, createRow, updateRow, dbErrorMessage } from '../store.js';
 import { esc, emptyHTML } from '../ui.js';
-import { confirmDialog } from '../modal.js';
-import { canEdit } from '../permissions.js';
+import { canEdit, isCoordenador } from '../permissions.js';
+import { teamName } from '../compute.js';
 
 // Estado local de UI (persiste entre re-desenhos).
 let viewMode = 'list'; // 'list' | 'form'
 let editingId = null;
 
-// Campos do formulário para o cálculo da barra de progresso.
+// Campos do formulário para o cálculo da barra de progresso (team_id excluído).
 const FORM_FIELDS = [
   'opponent', 'game_date', 'formation', 'reception_system', 'system_notes',
   'defense_system', 'block_notes', 'field_defense_notes', 'sideout_notes',
@@ -21,12 +22,23 @@ const FORM_FIELDS = [
 ];
 const TOTAL_FIELDS = FORM_FIELDS.length;
 
-// Valores actuais do formulário em memória (para não perder ao re-desenhar).
 let formData = {};
 
 function resetForm() {
   formData = {};
   editingId = null;
+}
+
+// Devolve as equipas que o utilizador atual pode gerir.
+// Coordenador → todas. Treinador → as equipas ligadas ao seu registo de coach.
+function myTeams() {
+  if (isCoordenador()) return state.teams;
+  const coachRecord = state.coaches.find((c) => c.user_id === state.profile?.id);
+  if (!coachRecord) return [];
+  const myTeamIds = new Set(
+    state.teamCoaches.filter((tc) => tc.coach_id === coachRecord.id).map((tc) => tc.team_id)
+  );
+  return state.teams.filter((t) => myTeamIds.has(t.id));
 }
 
 function countFilled(data) {
@@ -75,6 +87,16 @@ function renderForm(container) {
   const plan = editingId ? (state.gamePlans || []).find((p) => p.id === editingId) : null;
   const d = plan || formData;
   const filled = countFilled(d);
+  const teams = myTeams();
+
+  const teamSelect = `
+    <div class="field">
+      <label for="f-team">Equipa <span aria-hidden="true">*</span></label>
+      <select id="f-team" name="team_id" required>
+        <option value="">Seleccionar equipa…</option>
+        ${teams.map((t) => `<option value="${esc(t.id)}"${d.team_id === t.id ? ' selected' : ''}>${esc(teamName(t))}</option>`).join('')}
+      </select>
+    </div>`;
 
   container.innerHTML = `
     <header class="page-head">
@@ -86,6 +108,7 @@ function renderForm(container) {
 
     <form id="plan-form" novalidate>
       ${section('1. Meta', 'sec-meta', `
+        ${teamSelect}
         <div class="form-row">
           <div class="field">
             <label for="f-opponent">Adversário</label>
@@ -210,7 +233,6 @@ function renderForm(container) {
 
   const form = container.querySelector('#plan-form');
 
-  // Actualiza a barra de progresso em tempo real.
   form.addEventListener('input', () => {
     const data = collectFormData(form);
     const f = countFilled(data);
@@ -233,7 +255,12 @@ function renderForm(container) {
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const values = collectFormData(form);
+    const teamId = new FormData(form).get('team_id');
 
+    if (!teamId) {
+      alert('Selecciona a equipa antes de guardar.');
+      return;
+    }
     if (!values.opponent?.trim()) {
       alert('O adversário é obrigatório.');
       return;
@@ -242,10 +269,11 @@ function renderForm(container) {
     const btn = form.querySelector('[type="submit"]');
     btn.disabled = true;
     try {
+      const payload = { ...values, team_id: teamId };
       if (editingId) {
-        await updateRow('game_plans', 'gamePlans', editingId, values);
+        await updateRow('game_plans', 'gamePlans', editingId, payload);
       } else {
-        await createRow('game_plans', 'gamePlans', values);
+        await createRow('game_plans', 'gamePlans', payload);
       }
       viewMode = 'list';
       resetForm();
@@ -267,9 +295,11 @@ function collectFormData(form) {
 }
 
 function exportTxt(plan) {
+  const team = state.teams.find((t) => t.id === plan.team_id);
   const lines = [
     'PLANO DE JOGO',
     '='.repeat(40),
+    `Equipa:     ${team ? teamName(team) : '—'}`,
     `Adversário: ${plan.opponent || '—'}`,
     `Data:       ${formatDate(plan.game_date)}`,
     '',
@@ -323,12 +353,14 @@ function renderPlanList(container) {
           const filled = countFilled(p);
           const pct = Math.round((filled / TOTAL_FIELDS) * 100);
           const barColor = pct >= 80 ? 'var(--ok, #16a34a)' : pct >= 40 ? 'var(--warn, #d97706)' : 'var(--border)';
+          const team = state.teams.find((t) => t.id === p.team_id);
           return `
           <div class="plan-card card" data-id="${esc(p.id)}">
             <div class="plan-card__head">
               <div>
                 <strong class="plan-card__opponent">${esc(p.opponent || '(sem adversário)')}</strong>
                 <span class="muted">${formatDate(p.game_date)}</span>
+                ${team ? `<span class="badge badge--muted" style="margin-left:0.4rem">${esc(teamName(team))}</span>` : ''}
               </div>
               <div class="plan-card__actions">
                 <button class="btn btn--ghost btn--sm btn-export" data-id="${esc(p.id)}" type="button" title="Exportar .txt">

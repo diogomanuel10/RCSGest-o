@@ -1244,6 +1244,7 @@ create policy "fin_write" on financial_entries for all to authenticated
 
 create table if not exists game_plans (
   id                  uuid primary key default gen_random_uuid(),
+  team_id             uuid references teams(id) on delete set null,
   opponent            text,
   game_date           date,
   formation           text,
@@ -1272,11 +1273,50 @@ alter table game_plans enable row level security;
 drop policy if exists "gp_read"  on game_plans;
 drop policy if exists "gp_write" on game_plans;
 
--- Leitura: todos exceto atleta e leitura.
+-- Leitura: coordenador vê todos; treinador só vê os das suas equipas.
 create policy "gp_read" on game_plans for select to authenticated
-  using (app_role() in ('coordenador', 'treinador', 'fisioterapeuta', 'preparador'));
+  using (
+    app_role() = 'coordenador'
+    or (
+      app_role() = 'treinador'
+      and (
+        team_id is null
+        or team_id in (
+          select tc.team_id from team_coaches tc
+          join coaches c on c.id = tc.coach_id
+          where c.user_id = auth.uid()
+        )
+      )
+    )
+  );
 
--- Escrita: coordenador e treinador.
+-- Escrita: coordenador e treinador (nas suas equipas — RLS garante).
 create policy "gp_write" on game_plans for all to authenticated
-  using (app_role() in ('coordenador', 'treinador'))
-  with check (app_role() in ('coordenador', 'treinador'));
+  using (
+    app_role() = 'coordenador'
+    or (
+      app_role() = 'treinador'
+      and (
+        team_id is null
+        or team_id in (
+          select tc.team_id from team_coaches tc
+          join coaches c on c.id = tc.coach_id
+          where c.user_id = auth.uid()
+        )
+      )
+    )
+  )
+  with check (
+    app_role() = 'coordenador'
+    or (
+      app_role() = 'treinador'
+      and (
+        team_id is null
+        or team_id in (
+          select tc.team_id from team_coaches tc
+          join coaches c on c.id = tc.coach_id
+          where c.user_id = auth.uid()
+        )
+      )
+    )
+  );
