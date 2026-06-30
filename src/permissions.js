@@ -20,6 +20,7 @@ export const SECTIONS = [
   { key: 'painel',       label: 'Painel' },
   { key: 'patrocinios',  label: 'Patrocínios' },
   { key: 'planteis',     label: 'Plantéis' },
+  { key: 'avaliacao',    label: 'Avaliação' },
   { key: 'calendario',   label: 'Calendário' },
   { key: 'presencas',    label: 'Presenças' },
   { key: 'estatisticas', label: 'Estatísticas' },
@@ -36,6 +37,7 @@ const SECTION_KEYS = new Set(SECTIONS.map((s) => s.key));
 // ferramentas operacionais das suas equipas (limitadas pelo RLS às dele).
 export const DEFAULT_TRAINER_SECTIONS = [
   'planteis',
+  'avaliacao',
   'calendario',
   'presencas',
   'estatisticas',
@@ -146,6 +148,11 @@ export function canAccess(key) {
   if (key === 'painel') {
     if (role === 'fisioterapeuta' || role === 'preparador') return true;
     return currentPermissions().includes('painel');
+  }
+  // A Avaliação de plantel (quem fica/mantém/sai) é uma decisão técnica e de
+  // direção — nunca acessível ao fisioterapeuta nem ao preparador físico.
+  if (key === 'avaliacao' && (role === 'fisioterapeuta' || role === 'preparador')) {
+    return false;
   }
   // Encomendas: exclusivo do coordenador (não configurável).
   if (key === 'encomendas') return false;

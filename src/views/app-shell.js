@@ -19,6 +19,7 @@ import {
 
 import { renderPainel } from './painel.js';
 import { renderPlanteis } from './planteis.js';
+import { renderAvaliacao } from './avaliacao.js';
 import { renderCalendario } from './calendario.js';
 import { renderPresencas } from './presencas.js';
 import { renderQuotas } from './quotas.js';
@@ -65,6 +66,7 @@ const NAV = [
   { key: 'portal',       label: 'A minha página', icon: ICONS.portal,      render: renderPortal },
   { key: 'painel',       label: 'Painel',        icon: ICONS.painel,       render: renderPainel },
   { key: 'planteis',     label: 'Plantéis',      icon: ICONS.planteis,     render: renderPlanteis },
+  { key: 'avaliacao',    label: 'Avaliação',     icon: ICONS.avaliacao,    render: renderAvaliacao },
   { key: 'calendario',   label: 'Calendário',    icon: ICONS.calendario,   render: renderCalendario },
   { key: 'presencas',    label: 'Presenças',     icon: ICONS.presencas,    render: renderPresencas },
   { key: 'estatisticas', label: 'Estatísticas',  icon: ICONS.estatisticas, render: renderEstatisticas },
