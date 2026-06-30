@@ -30,6 +30,14 @@ export function renderDefinicoes(container) {
             <label for="goal">Meta da época (€)</label>
             <input type="number" id="goal" name="goal" value="${esc(goal)}" min="0" step="100" required />
           </div>
+          <div class="field">
+            <label for="review_deadline">Prazo de avaliação de plantel</label>
+            <input type="date" id="review_deadline" name="review_deadline"
+                   value="${esc(state.settings.review_deadline || '')}" />
+            <p class="field__hint muted" style="margin:0.25rem 0 0;font-size:0.82rem">
+              Após esta data, só o coordenador pode alterar as decisões.
+            </p>
+          </div>
         </div>
         <p class="settings-msg hidden" id="settings-msg"></p>
         <div class="row" style="justify-content:flex-end">
@@ -56,11 +64,13 @@ export function renderDefinicoes(container) {
       </div>
     </section>
 
-    <section class="card settings-card">
-      <h2 class="section-title settings-card__title">Cópia de segurança</h2>
-      <p class="muted">
-        Exporta todos os dados (patrocínios, plantéis, calendário e treinadores)
-        para um ficheiro <code>.json</code>, ou importa um backup anterior.
+    <details class="card settings-card">
+      <summary class="section-title settings-card__title" style="cursor:pointer;list-style:none">
+        Cópia de segurança
+        <span class="muted" style="font-size:0.82rem;font-weight:normal;margin-left:0.5rem">▸ avançado</span>
+      </summary>
+      <p class="muted" style="margin-top:0.75rem">
+        Exporta todos os dados para um ficheiro <code>.json</code>, ou importa um backup anterior.
       </p>
       <div class="row row--wrap" style="gap:0.6rem">
         <button class="btn btn--ghost" id="export-btn" type="button">Exportar backup</button>
@@ -71,7 +81,7 @@ export function renderDefinicoes(container) {
       <p class="muted settings-warn">
         ⚠ A importação <strong>substitui</strong> todos os dados atuais pelos do ficheiro.
       </p>
-    </section>
+    </details>
     </div>
   `;
 
@@ -87,6 +97,7 @@ export function renderDefinicoes(container) {
       await saveSettings({
         season: form.season.value.trim(),
         goal: parseInt(form.goal.value, 10) || 0,
+        review_deadline: form.review_deadline.value || null,
       });
       showMsg(settingsMsg, 'Definições guardadas.', 'ok');
     } catch (err) {
