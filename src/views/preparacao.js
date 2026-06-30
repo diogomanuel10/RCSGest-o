@@ -40,7 +40,7 @@ import {
 import { canEdit } from '../permissions.js';
 import { openAthleteProfile } from './athlete-profile.js';
 
-let tab = 'atletas'; // 'atletas' | 'periodizacao' | 'jogos'
+let tab = 'atletas'; // 'atletas' | 'jogos'
 let search = '';
 let page = 1;
 let selectedTeam = '';
@@ -68,11 +68,10 @@ export function renderPreparacao(container) {
       <h1 class="section-title">Preparação Física</h1>
       <div class="cal-toggle" role="group" aria-label="Separador">
         <button class="cal-toggle__btn ${tab === 'atletas' ? 'cal-toggle__btn--active' : ''}" data-tab="atletas" type="button">Atletas</button>
-        <button class="cal-toggle__btn ${tab === 'periodizacao' ? 'cal-toggle__btn--active' : ''}" data-tab="periodizacao" type="button">Periodização</button>
         <button class="cal-toggle__btn ${tab === 'jogos' ? 'cal-toggle__btn--active' : ''}" data-tab="jogos" type="button">Mapa de jogos</button>
       </div>
     </header>
-    ${tab === 'atletas' ? renderAtletas() : tab === 'periodizacao' ? renderPeriodizacao(editable) : renderJogos()}
+    ${tab === 'atletas' ? renderAtletas() : renderJogos()}
   `;
 
   container.querySelectorAll('[data-tab]').forEach((b) =>
@@ -97,53 +96,6 @@ export function renderPreparacao(container) {
     selectedTeam = e.target.value;
     renderPreparacao(container);
   });
-
-  // --- Periodização: fases ---
-  container.querySelector('[data-add-phase]')?.addEventListener('click', () => openPhaseForm(container));
-  container.querySelectorAll('[data-phase-edit]').forEach((b) =>
-    b.addEventListener('click', () => openPhaseForm(container, b.dataset.phaseEdit))
-  );
-  container.querySelectorAll('[data-phase-del]').forEach((b) =>
-    b.addEventListener('click', () => removeRow('training_phases', 'phases', b.dataset.phaseDel, 'Remover esta fase?'))
-  );
-
-  // --- Periodização: mesociclos ---
-  container.querySelector('[data-add-meso]')?.addEventListener('click', () => openMesoForm(container));
-  container.querySelectorAll('[data-meso-toggle]').forEach((b) =>
-    b.addEventListener('click', () => { toggle(openMeso, b.dataset.mesoToggle); renderPreparacao(container); })
-  );
-  container.querySelectorAll('[data-meso-edit]').forEach((b) =>
-    b.addEventListener('click', () => openMesoForm(container, b.dataset.mesoEdit))
-  );
-  container.querySelectorAll('[data-meso-del]').forEach((b) =>
-    b.addEventListener('click', () => removeRow('mesocycles', 'mesocycles', b.dataset.mesoDel, 'Remover este mesociclo? Os treinos ficam sem mesociclo.'))
-  );
-  container.querySelectorAll('[data-add-session]').forEach((b) =>
-    b.addEventListener('click', () => openSessionForm(container, { mesocycleId: b.dataset.addSession || null }))
-  );
-
-  // --- Periodização: treinos ---
-  container.querySelectorAll('[data-session-toggle]').forEach((b) =>
-    b.addEventListener('click', () => { toggle(openSession, b.dataset.sessionToggle); renderPreparacao(container); })
-  );
-  container.querySelectorAll('[data-session-edit]').forEach((b) =>
-    b.addEventListener('click', () => openSessionForm(container, { sessionId: b.dataset.sessionEdit }))
-  );
-  container.querySelectorAll('[data-session-del]').forEach((b) =>
-    b.addEventListener('click', () => removeRow('gym_sessions', 'gymSessions', b.dataset.sessionDel, 'Remover este treino e os seus exercícios?'))
-  );
-  container.querySelectorAll('[data-add-ex]').forEach((b) =>
-    b.addEventListener('click', () => openExerciseForm(b.dataset.addEx))
-  );
-  container.querySelectorAll('[data-ex-edit]').forEach((b) =>
-    b.addEventListener('click', () => openExerciseForm(b.dataset.session, b.dataset.exEdit))
-  );
-  container.querySelectorAll('[data-ex-del]').forEach((b) =>
-    b.addEventListener('click', () => removeRow('gym_exercises', 'gymExercises', b.dataset.exDel, 'Remover este exercício?'))
-  );
-  container.querySelectorAll('[data-attend]').forEach((b) =>
-    b.addEventListener('click', () => openAttendanceModal(b.dataset.attend))
-  );
 
   // --- Mapa de jogos ---
   container.querySelector('#jogos-prev')?.addEventListener('click', () => { jogosMonth = new Date(jogosMonth.getFullYear(), jogosMonth.getMonth() - 1, 1); renderPreparacao(container); });

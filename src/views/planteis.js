@@ -5,7 +5,7 @@ import { state, createRow, createRows, updateRow, archiveRow, saveTeamCoaches, d
 import { esc, emptyHTML, paginate, paginationHTML, wirePagination, PAGE_SIZE } from '../ui.js';
 import { teamName, teamCoaches, escaloes, currentCoach, coachTeams } from '../compute.js';
 import { openModal, confirmDialog } from '../modal.js';
-import { POSITIONS, COACH_ROLE_LABEL } from '../constants.js';
+import { POSITIONS, COACH_ROLE_LABEL, REVIEW_STATUSES, REVIEW_LABEL } from '../constants.js';
 import { canEdit, canDelete, isCoordenador } from '../permissions.js';
 import { parsePlayersFile, downloadPlayersTemplate } from '../players-xlsx.js';
 import { openAthleteProfile } from './athlete-profile.js';
@@ -16,6 +16,20 @@ const expanded = new Set();
 let search = '';
 let positionFilter = '';
 const teamPage = new Map(); // team_id -> página atual dos atletas
+
+// Avaliação de plantel: prazo e editabilidade.
+function reviewDeadline() {
+  const d = state.settings.review_deadline;
+  return d ? new Date(d + 'T23:59:59') : null;
+}
+function reviewOpen() {
+  const dl = reviewDeadline();
+  if (!dl) return true;
+  return new Date() <= dl;
+}
+function canVote() {
+  return canEdit('players') && (isCoordenador() || reviewOpen());
+}
 
 // Equipas visíveis ao utilizador atual. O coordenador vê todas; o treinador
 // (e qualquer outro papel ligado a uma ficha de treinador) só vê as suas.
@@ -51,11 +65,25 @@ export function renderPlanteis(container) {
   // Com filtro ativo, mostram-se só as equipas com atletas correspondentes.
   const teams = myTeams.filter((t) => !filtering || filteredPlayers(t.id).length);
 
+  const dl = reviewDeadline();
+  const dlFmt = dl ? dl.toLocaleDateString('pt-PT', { day: '2-digit', month: 'long', year: 'numeric' }) : null;
+  const open = reviewOpen();
+  const reviewBanner = canEdit('players') && dlFmt ? `
+    <div class="review-banner ${open ? 'review-banner--open' : 'review-banner--closed'}">
+      ${open
+        ? `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          Avaliação de plantel aberta até <strong>${dlFmt}</strong>`
+        : `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+          Votação encerrada em <strong>${dlFmt}</strong>${isCoordenador() ? ' — só tu podes ainda alterar decisões.' : '.'}`
+      }
+    </div>` : '';
+
   container.innerHTML = `
     <header class="page-head">
       <h1 class="section-title">Plantéis</h1>
       ${canTeams ? '<button class="btn btn--accent" id="add-team" type="button">+ Equipa</button>' : ''}
     </header>
+    ${reviewBanner}
     ${myTeams.length ? filterBarHTML() : ''}
     ${
       !myTeams.length
@@ -128,6 +156,9 @@ export function renderPlanteis(container) {
   container.querySelectorAll('[data-player-del]').forEach((b) =>
     b.addEventListener('click', () => removePlayer(b.dataset.playerDel, container))
   );
+  container.querySelectorAll('[data-review-player]').forEach((b) =>
+    b.addEventListener('click', () => setReviewStatus(b.dataset.reviewPlayer, b.dataset.reviewStatus))
+  );
 }
 
 // Barra de filtros (pesquisa por nome + posição).
@@ -147,6 +178,22 @@ function filterBarHTML() {
       </div>
     </div>
   `;
+}
+
+function reviewCountersHTML(teamId) {
+  const all = state.players.filter((p) => p.team_id === teamId);
+  if (!all.length) return '';
+  const counts = { pendente: 0, mantem: 0, sai: 0 };
+  all.forEach((p) => { counts[p.review_status || 'pendente']++; });
+  const decided = counts.mantem + counts.sai;
+  const pct = Math.round((decided / all.length) * 100);
+  return `
+    <div class="review-counters">
+      <span class="review-counter review-counter--mantem" title="Mantêm">${counts.mantem} mantêm</span>
+      <span class="review-counter review-counter--sai" title="Saem">${counts.sai} saem</span>
+      <span class="review-counter review-counter--pendente" title="Pendentes">${counts.pendente} pend.</span>
+      <span class="review-counter review-counter--pct">${pct}%</span>
+    </div>`;
 }
 
 function teamCardHTML(team, canTeams, canPlayers, canRemovePlayers, filtering = false) {
@@ -176,6 +223,7 @@ function teamCardHTML(team, canTeams, canPlayers, canRemovePlayers, filtering = 
             </span>
           </span>
         </button>
+        ${canEdit('players') ? reviewCountersHTML(team.id) : ''}
         ${
           canTeams
             ? `<div class="cell-actions">
@@ -365,6 +413,8 @@ function playerCardHTML(p, teamId, canPlayers, canRemovePlayers) {
   const initials = (p.name || '?')
     .split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
   const meta = [p.position, p.birth_year].filter(Boolean).map(esc).join(' · ') || 'Sem posição';
+  const current = p.review_status || 'pendente';
+  const voting = canVote();
   return `
     <article class="player-card">
       <button class="player-card__main" data-player-view="${p.id}" data-team="${teamId}" type="button">
@@ -375,20 +425,34 @@ function playerCardHTML(p, teamId, canPlayers, canRemovePlayers) {
           <span class="player-card__meta muted">${meta}</span>
         </span>
       </button>
-      ${
-        canPlayers || canRemovePlayers
-          ? `<div class="player-card__actions">
-               ${canPlayers ? `<button class="icon-btn" data-team="${teamId}" data-player-edit="${p.id}" type="button" aria-label="Editar atleta" title="Editar">
-                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-               </button>` : ''}
-               ${canRemovePlayers ? `<button class="icon-btn icon-btn--danger" data-player-del="${p.id}" type="button" aria-label="Arquivar atleta" title="Arquivar">
-                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8"/><path d="M10 12h4"/></svg>
-               </button>` : ''}
+      <div class="player-card__actions">
+        ${voting
+          ? `<div class="aval-seg aval-seg--inline" role="group" aria-label="Avaliação de ${esc(p.name)}">
+               ${REVIEW_STATUSES.map((s) => `<button type="button"
+                 class="aval-seg__btn aval-seg__btn--${s.key}${current === s.key ? ' is-active' : ''}"
+                 data-review-player="${p.id}" data-review-status="${s.key}">${esc(s.label)}</button>`).join('')}
              </div>`
-          : ''
-      }
+          : `<span class="badge badge--${current === 'mantem' ? 'ok' : current === 'sai' ? 'danger' : 'muted'}">${esc(REVIEW_LABEL[current])}</span>`
+        }
+        ${canPlayers ? `<button class="icon-btn" data-team="${teamId}" data-player-edit="${p.id}" type="button" aria-label="Editar atleta" title="Editar">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+        </button>` : ''}
+        ${canRemovePlayers ? `<button class="icon-btn icon-btn--danger" data-player-del="${p.id}" type="button" aria-label="Arquivar atleta" title="Arquivar">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8"/><path d="M10 12h4"/></svg>
+        </button>` : ''}
+      </div>
     </article>
   `;
+}
+
+async function setReviewStatus(playerId, status) {
+  const player = state.players.find((p) => p.id === playerId);
+  if (!player || player.review_status === status) return;
+  try {
+    await updateRow('players', 'players', playerId, { review_status: status });
+  } catch (err) {
+    alert(dbErrorMessage(err));
+  }
 }
 
 function openPlayerForm(teamId, playerId) {
