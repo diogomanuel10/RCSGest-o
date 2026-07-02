@@ -2750,6 +2750,33 @@ tbody tr:hover {
 .cal-grid__ev.badge--warn   { background: var(--warn-bg);   color: var(--warn); }
 .cal-grid__ev.badge--muted  { background: var(--surface-2); color: var(--text-muted); border: 1px solid var(--border); }
 
+/* Célula clicável (abre o detalhe do dia). */
+.cal-grid__cell--clickable {
+  cursor: pointer;
+}
+.cal-grid__cell--clickable:hover {
+  background: rgba(242, 183, 5, 0.08);
+}
+.cal-grid__cell--clickable:focus-visible {
+  outline: 2px solid var(--yellow-600);
+  outline-offset: -2px;
+}
+.cal-grid__more {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--navy-300);
+  padding: 0.05rem 0.4rem;
+}
+
+/* Lista de eventos no modal de detalhe do dia. */
+.cal-day-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
 @media (max-width: 640px) {
   .cal-grid__cell {
     min-height: 60px;
@@ -3636,6 +3663,7 @@ tbody tr:hover {
 .enc-table td { white-space: nowrap; }
 
 .enc-player-name { font-weight: 600; display: block; }
+.enc-jersey-name { display: block; font-size: 0.76rem; margin-top: 0.1rem; }
 .enc-player-num  { font-size: 0.78rem; }
 .enc-empty       { font-size: 0.85rem; }
 .enc-row--empty td { opacity: 0.55; }

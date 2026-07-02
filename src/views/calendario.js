@@ -6,14 +6,41 @@ import { openSquadModal } from './convocatorias.js';
 import { esc, emptyHTML, teamHue } from '../ui.js';
 import { eventDateTime, eventTimeRange, teamById, teamName } from '../compute.js';
 import { openModal, confirmDialog } from '../modal.js';
+import { openAthleteProfile } from './athlete-profile.js';
 import {
   EVENT_TYPES,
   EVENT_TYPE_LABEL,
   EVENT_TYPE_BADGE,
+  APPOINTMENT_TYPE_LABEL,
+  APPOINTMENT_STATUS_LABEL,
   DEFAULT_LOCATION,
   WEEKDAYS,
 } from '../constants.js';
 import { canEdit, canAccess } from '../permissions.js';
+
+// Nº máximo de eventos mostrados numa célula da grelha antes de resumir com
+// "+N mais" (clicando no dia abre-se o detalhe completo).
+const GRID_CELL_LIMIT = 4;
+
+// Converte um atendimento de fisioterapia num "evento" para o calendário.
+// São só de leitura aqui (geridos no Departamento Médico).
+function apptToEvent(a) {
+  const player = state.players.find((p) => p.id === a.player_id);
+  return {
+    id: `appt-${a.id}`,
+    _appt: true,
+    playerId: a.player_id,
+    type: 'fisioterapia',
+    apptType: a.type,
+    status: a.status,
+    title: player ? player.name : 'Atendimento',
+    date: a.date,
+    time: a.time,
+    end_time: null,
+    team_id: player ? player.team_id : null,
+    location: a.location,
+  };
+}
 
 const filters = { type: '', team: '' };
 let calView = 'lista'; // 'lista' | 'grelha'
@@ -21,9 +48,16 @@ let gridMonth = new Date(); // mês exibido na grelha
 
 export function renderCalendario(container) {
   const editable = canEdit('events');
+  const showAppts = canAccess('medico');
   const now = new Date();
 
-  const events = state.events
+  // Junta os atendimentos de fisioterapia (só visíveis a quem acede ao
+  // Departamento Médico) aos eventos normais do calendário.
+  const apptEvents = showAppts
+    ? state.appointments.filter((a) => a.status !== 'cancelado').map(apptToEvent)
+    : [];
+
+  const events = [...state.events, ...apptEvents]
     .filter(
       (e) =>
         (!filters.type || e.type === filters.type) &&
@@ -49,7 +83,7 @@ export function renderCalendario(container) {
       </div>
     </header>
 
-    ${calView === 'grelha' ? renderGrid(events, editable) : renderLista(events, future, past, editable)}
+    ${calView === 'grelha' ? renderGrid(events, editable) : renderLista(events, future, past, editable, showAppts)}
   `;
 
   container.querySelector('#add-event')?.addEventListener('click', () => openForm());
@@ -64,10 +98,17 @@ export function renderCalendario(container) {
   container.querySelectorAll('[data-edit]').forEach((b) => b.addEventListener('click', () => openForm(b.dataset.edit)));
   container.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => remove(b.dataset.del)));
   container.querySelectorAll('[data-squad]').forEach((b) => b.addEventListener('click', () => openSquadModal(b.dataset.squad)));
-  container.querySelectorAll('[data-new-day]').forEach((b) => b.addEventListener('click', () => openForm(null, b.dataset.newDay)));
+  container.querySelectorAll('[data-new-day]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); openForm(null, b.dataset.newDay); }));
+  container.querySelectorAll('[data-appt]').forEach((b) => b.addEventListener('click', () => openAthleteProfile(b.dataset.appt, { tab: 'fisioterapia' })));
+  container.querySelectorAll('[data-day]').forEach((cell) => {
+    cell.addEventListener('click', () => openDayModal(cell.dataset.day, editable));
+    cell.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDayModal(cell.dataset.day, editable); }
+    });
+  });
 }
 
-function renderLista(events, future, past, editable) {
+function renderLista(events, future, past, editable, showAppts) {
   return `
     <section class="card">
       <div class="filters">
@@ -76,6 +117,7 @@ function renderLista(events, future, past, editable) {
           <select id="f-type">
             <option value="">Todos</option>
             ${EVENT_TYPES.map((t) => `<option value="${t.key}" ${filters.type === t.key ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}
+            ${showAppts ? `<option value="fisioterapia" ${filters.type === 'fisioterapia' ? 'selected' : ''}>Fisioterapia</option>` : ''}
           </select>
         </div>
         <div>
@@ -151,14 +193,24 @@ function renderGrid(allEvents, editable) {
               if (!cell) return `<div class="cal-grid__cell cal-grid__cell--empty"></div>`;
               const isToday = cell.dateStr === todayStr;
               const isPast = cell.dateStr < todayStr;
+              const hasEvents = cell.events.length > 0;
               return `
-                <div class="cal-grid__cell${isToday ? ' cal-grid__cell--today' : ''}${isPast ? ' cal-grid__cell--past' : ''}">
+                <div class="cal-grid__cell${isToday ? ' cal-grid__cell--today' : ''}${isPast ? ' cal-grid__cell--past' : ''}${hasEvents ? ' cal-grid__cell--clickable' : ''}"${hasEvents ? ` data-day="${cell.dateStr}" role="button" tabindex="0" title="Ver o dia ${cell.day}"` : ''}>
                   <div class="cal-grid__day-head">
                     <span class="cal-grid__day-num${isToday ? ' cal-grid__day-num--today' : ''}">${cell.day}</span>
                     ${editable ? `<button class="cal-grid__add" data-new-day="${cell.dateStr}" type="button" title="Novo evento">+</button>` : ''}
                   </div>
                   <div class="cal-grid__events">
-                    ${cell.events.slice(0, 3).map((ev) => {
+                    ${cell.events.slice(0, GRID_CELL_LIMIT).map((ev) => {
+                      if (ev._appt) {
+                        const time = ev.time ? ev.time.slice(0, 5) : '';
+                        const full = ['Fisioterapia', APPOINTMENT_TYPE_LABEL[ev.apptType] || '', ev.title, time]
+                          .filter(Boolean).join(' · ');
+                        return `
+                      <div class="cal-grid__ev" style="background:hsl(275 60% 93%);border-left:3px solid hsl(275 55% 52%);color:#1f2937" title="${esc(full)}">
+                        ${time ? `<span class="cal-grid__ev-time">${esc(time)}</span> ` : ''}🩺 ${esc(ev.title.slice(0, 14))}${ev.title.length > 14 ? '…' : ''}
+                      </div>`;
+                      }
                       const evTeam = teamById(ev.team_id);
                       // Etiqueta da grelha: identifica a equipa (escalão) do
                       // treino/jogo; sem equipa, mostra o título ou o tipo.
@@ -177,7 +229,7 @@ function renderGrid(allEvents, editable) {
                         ${time ? `<span class="cal-grid__ev-time">${esc(time)}</span> ` : ''}${esc(label.slice(0, 16))}${label.length > 16 ? '…' : ''}
                       </div>`;
                     }).join('')}
-                    ${cell.events.length > 3 ? `<span class="muted" style="font-size:0.7rem">+${cell.events.length - 3} mais</span>` : ''}
+                    ${cell.events.length > GRID_CELL_LIMIT ? `<span class="cal-grid__more">+${cell.events.length - GRID_CELL_LIMIT} mais</span>` : ''}
                   </div>
                 </div>
               `;
@@ -189,6 +241,7 @@ function renderGrid(allEvents, editable) {
 }
 
 function eventRow(ev, isPast, editable) {
+  if (ev._appt) return apptEventRow(ev, isPast);
   const dt = eventDateTime(ev);
   const team = teamById(ev.team_id);
   const dateStr = dt.toLocaleDateString('pt-PT', {
@@ -234,6 +287,91 @@ function eventRow(ev, isPast, editable) {
           ? `<button class="btn btn--ghost btn--sm" data-edit="${ev.id}" type="button">Editar</button>
              <button class="btn btn--danger btn--sm" data-del="${ev.id}" type="button">Remover</button>`
           : ''}
+      </div>
+    </div>
+  `;
+}
+
+// Detalhe de um dia: abre-se ao clicar numa célula da grelha (útil quando há
+// muitos eventos e a célula só mostra os primeiros). Lista todos os eventos e
+// atendimentos do dia, com as mesmas ações da vista Lista.
+function openDayModal(dateStr, editable) {
+  const showAppts = canAccess('medico');
+  const apptEvents = showAppts
+    ? state.appointments.filter((a) => a.status !== 'cancelado' && a.date === dateStr).map(apptToEvent)
+    : [];
+  const dayEvents = [...state.events.filter((e) => e.date === dateStr), ...apptEvents]
+    .filter(
+      (e) =>
+        (!filters.type || e.type === filters.type) &&
+        (!filters.team || e.team_id === filters.team)
+    )
+    .sort((a, b) => eventDateTime(a) - eventDateTime(b));
+
+  const d = new Date(dateStr + 'T00:00:00');
+  const heading = d.toLocaleDateString('pt-PT', {
+    weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
+  });
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal card" role="dialog" aria-modal="true" aria-labelledby="day-title" style="width:min(560px,96vw)">
+      <div class="modal__head">
+        <h2 id="day-title" style="text-transform:capitalize">${esc(heading)}</h2>
+        <button class="modal__close" type="button" aria-label="Fechar">&times;</button>
+      </div>
+      <div class="cal-day-list">
+        ${dayEvents.length
+          ? dayEvents.map((e) => eventRow(e, false, editable)).join('')
+          : emptyHTML('Sem eventos neste dia.')}
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  document.body.classList.add('no-scroll');
+
+  const close = () => {
+    overlay.remove();
+    document.body.classList.remove('no-scroll');
+  };
+  overlay.querySelector('.modal__close').addEventListener('click', close);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+  // As ações fecham o detalhe primeiro para que o modal/diálogo seguinte
+  // fique por cima sem sobreposições.
+  overlay.querySelectorAll('[data-edit]').forEach((b) => b.addEventListener('click', () => { close(); openForm(b.dataset.edit); }));
+  overlay.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => { close(); remove(b.dataset.del); }));
+  overlay.querySelectorAll('[data-squad]').forEach((b) => b.addEventListener('click', () => { close(); openSquadModal(b.dataset.squad); }));
+  overlay.querySelectorAll('[data-appt]').forEach((b) => b.addEventListener('click', () => { close(); openAthleteProfile(b.dataset.appt, { tab: 'fisioterapia' }); }));
+}
+
+// Linha (vista Lista) de um atendimento de fisioterapia. Só de leitura — abre
+// a ficha clínica do atleta.
+function apptEventRow(ev, isPast) {
+  const team = teamById(ev.team_id);
+  const dt = eventDateTime(ev);
+  const dateStr = dt.toLocaleDateString('pt-PT', { weekday: 'short', day: '2-digit', month: 'short' });
+  const meta = [
+    team ? teamName(team) : '',
+    ev.location ? esc(ev.location) : '',
+  ].filter(Boolean).join(' · ');
+
+  return `
+    <div class="event-row ${isPast ? 'event-row--past' : ''}" style="border-left:4px solid hsl(275 55% 52%);padding-left:0.7rem">
+      <div class="event-row__when">
+        <span class="event-row__date">${esc(dateStr)}</span>
+        <span class="event-row__time muted">${ev.time ? esc(ev.time.slice(0, 5)) : '—'}</span>
+      </div>
+      <div class="event-row__main">
+        <div class="event-row__title">
+          <span class="badge" style="margin-right:0.4rem;background:hsl(275 60% 94%);color:hsl(275 45% 35%)">🩺 ${esc(APPOINTMENT_TYPE_LABEL[ev.apptType] || 'Fisioterapia')}</span>${esc(ev.title)}
+          <span class="muted" style="margin-left:0.4rem;font-size:0.82rem">${esc(APPOINTMENT_STATUS_LABEL[ev.status] || ev.status)}</span>
+        </div>
+        ${meta ? `<span class="event-row__meta">${meta}</span>` : ''}
+      </div>
+      <div class="cell-actions">
+        <button class="btn btn--ghost btn--sm" data-appt="${ev.playerId}" type="button">Ficha clínica</button>
       </div>
     </div>
   `;
