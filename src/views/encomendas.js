@@ -13,6 +13,7 @@ import {
   TEXT_SIZES,
 } from '../constants.js';
 import { canEdit } from '../permissions.js';
+import { exportEncomendaXLSX } from '../encomendas-xlsx.js';
 
 let selectedTeam = '';
 let tab = 'tamanhos'; // 'tamanhos' | 'resumo'
@@ -57,6 +58,7 @@ export function renderEncomendas(container) {
         <h1 class="section-title">Encomendas</h1>
         <p class="muted" style="margin:0;font-size:0.88rem">Tamanhos de equipamento por atleta</p>
       </div>
+      <button class="btn btn--ghost" id="enc-export" type="button" title="Exportar a encomenda desta equipa">⬇ Exportar Excel</button>
     </header>
 
     <div class="card" style="margin-bottom:1rem">
@@ -84,6 +86,9 @@ export function renderEncomendas(container) {
   container.querySelector('#enc-team').addEventListener('change', (e) => {
     selectedTeam = e.target.value;
     renderEncomendas(container);
+  });
+  container.querySelector('#enc-export').addEventListener('click', (e) => {
+    handleExport(e.currentTarget, team, players);
   });
   container.querySelectorAll('[data-tab]').forEach((btn) => {
     btn.addEventListener('click', () => { tab = btn.dataset.tab; renderEncomendas(container); });
@@ -134,6 +139,7 @@ function renderTamanhos(players, team, editable) {
                 <td class="enc-col-num">${p.number ? `<span class="badge badge--num">${esc(p.number)}</span>` : '<span class="muted">—</span>'}</td>
                 <td class="enc-col-player">
                   <span class="enc-player-name">${esc(p.name)}</span>
+                  ${jerseyNameHTML(sizes)}
                 </td>
                 ${EQUIPMENT_ARTICLES.map((a) => `
                   <td class="enc-col-art enc-col-art--val">
@@ -168,6 +174,7 @@ function renderTamanhos(players, team, editable) {
               <span class="enc-player-name">${esc(p.name)}</span>
               ${editable ? `<button class="btn btn--ghost btn--sm enc-card-edit" data-edit-sizes="${p.id}" type="button">${hasAny ? 'Editar' : 'Preencher'}</button>` : ''}
             </div>
+            ${jerseyNameHTML(sizes)}
             <dl class="enc-card-dl">
               ${EQUIPMENT_ARTICLES.map((a) => `
                 <div class="enc-card-dl-row">
@@ -181,6 +188,18 @@ function renderTamanhos(players, team, editable) {
       }).join('')}
     </div>
   `;
+}
+
+// Linha com o(s) nome(s) a estampar na camisola. Mostra a alternativa só
+// quando difere da principal.
+function jerseyNameHTML(sizes) {
+  const main = (sizes.nome_camisola || '').trim();
+  const alt = (sizes.nome_camisola_alt || '').trim();
+  if (!main && !alt) return '';
+  const parts = [];
+  if (main) parts.push(`👕 ${esc(main)}`);
+  if (alt && alt !== main) parts.push(`alt: ${esc(alt)}`);
+  return `<span class="enc-jersey-name muted">${parts.join(' · ')}</span>`;
 }
 
 // ---------------------------------------------------------------------------
@@ -251,6 +270,30 @@ function sizeSort(a, b, type) {
 }
 
 // ---------------------------------------------------------------------------
+// Exportar a encomenda (.xlsx)
+// ---------------------------------------------------------------------------
+
+async function handleExport(btn, team, players) {
+  if (!players.length) {
+    alert('Esta equipa não tem atletas para exportar.');
+    return;
+  }
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'A exportar…';
+  try {
+    const sizesById = {};
+    state.playerSizes.forEach((s) => { sizesById[s.player_id] = s; });
+    await exportEncomendaXLSX({ teamLabel: teamName(team), players, sizesById });
+  } catch (err) {
+    alert(dbErrorMessage(err) || 'Não foi possível gerar o ficheiro.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Modal de edição de tamanhos de um atleta
 // ---------------------------------------------------------------------------
 
@@ -259,26 +302,40 @@ function openSizesModal(playerId, container) {
   if (!player) return;
   const existing = state.playerSizes.find((s) => s.player_id === playerId) || {};
 
+  // Nome a estampar: por omissão o nome do atleta (pode ser alterado).
+  const values = {
+    ...existing,
+    nome_camisola: existing.nome_camisola ?? player.name ?? '',
+    nome_camisola_alt: existing.nome_camisola_alt ?? player.name ?? '',
+  };
+
   openModal({
     title: `Tamanhos — ${player.name}`,
     submitLabel: 'Guardar',
-    values: existing,
-    fields: EQUIPMENT_ARTICLES.map((a) => ({
-      name: a.key,
-      label: a.label,
-      ...(a.type === 'text'
-        ? {
-            type: 'select',
-            placeholder: '— Não definido —',
-            options: TEXT_SIZES.map((s) => ({ key: s, label: s })),
-          }
-        : {
-            type: 'text',
-            placeholder: 'ex.: 36-38',
-          }),
-    })),
+    values,
+    fields: [
+      { name: 'nome_camisola', label: 'Nome na camisola', type: 'text', placeholder: 'Nome a estampar' },
+      { name: 'nome_camisola_alt', label: 'Nome na camisola alternativa', type: 'text', placeholder: 'Nome a estampar' },
+      ...EQUIPMENT_ARTICLES.map((a) => ({
+        name: a.key,
+        label: a.label,
+        ...(a.type === 'text'
+          ? {
+              type: 'select',
+              placeholder: '— Não definido —',
+              options: TEXT_SIZES.map((s) => ({ key: s, label: s })),
+            }
+          : {
+              type: 'text',
+              placeholder: 'ex.: 36-38',
+            }),
+      })),
+    ],
     onSubmit: async (values) => {
-      const payload = {};
+      const payload = {
+        nome_camisola: values.nome_camisola?.trim() || null,
+        nome_camisola_alt: values.nome_camisola_alt?.trim() || null,
+      };
       EQUIPMENT_ARTICLES.forEach((a) => {
         payload[a.key] = values[a.key] || null;
       });

@@ -1107,6 +1107,11 @@ create table if not exists player_sizes (
   updated_at      timestamptz default now()
 );
 
+-- Nomes a estampar na camisola (principal e alternativa). Texto livre —
+-- por omissão o nome do atleta, mas podem diferir (alcunha, apelido, etc.).
+alter table player_sizes add column if not exists nome_camisola     text;
+alter table player_sizes add column if not exists nome_camisola_alt text;
+
 create index if not exists idx_player_sizes_player on player_sizes (player_id);
 alter table player_sizes enable row level security;
 
