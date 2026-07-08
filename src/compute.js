@@ -495,6 +495,76 @@ export function gamesInMonth(teamId, year, month) {
     .sort((a, b) => eventDateTime(a) - eventDateTime(b));
 }
 
+// --- Objetivos / KPIs ----------------------------------------------------
+
+// Percentagem de atletas com a avaliação já decidida (mantém/sai) — o resto
+// está 'pendente'. 0 se não houver atletas.
+function reviewDecidedPct() {
+  const total = state.players.length;
+  if (!total) return 0;
+  return Math.round(((total - pendingReviews()) / total) * 100);
+}
+
+// Indicadores automáticos disponíveis: cada um sabe calcular o seu valor
+// atual a partir do `state`. Para juntar mais no futuro, basta acrescentar uma
+// entrada aqui (chave estável guardada em objectives.metric, etiqueta, unidade
+// e a função que devolve o valor).
+export const OBJECTIVE_METRICS = [
+  {
+    key: 'total_raised',
+    label: 'Total angariado',
+    unit: '€',
+    value: () => totalRaised(),
+  },
+  {
+    key: 'attendance_rate',
+    label: 'Taxa de presenças',
+    unit: '%',
+    value: () => attendanceStats().rate ?? 0,
+  },
+  {
+    key: 'review_decided',
+    label: 'Avaliação decidida',
+    unit: '%',
+    value: () => reviewDecidedPct(),
+  },
+  {
+    key: 'financial_balance',
+    label: 'Saldo financeiro',
+    unit: '€',
+    value: () => financialSummary().balance,
+  },
+];
+
+const OBJECTIVE_METRIC_BY_KEY = Object.fromEntries(
+  OBJECTIVE_METRICS.map((m) => [m.key, m])
+);
+
+// Etiqueta legível de um indicador automático (ou a própria chave se não for
+// conhecido, para não rebentar com dados antigos).
+export function objectiveMetricLabel(key) {
+  return OBJECTIVE_METRIC_BY_KEY[key]?.label || key || '';
+}
+
+// Valor atual de um indicador automático; null se a chave for desconhecida.
+export function objectiveMetricValue(key) {
+  const m = OBJECTIVE_METRIC_BY_KEY[key];
+  return m ? Number(m.value()) || 0 : null;
+}
+
+// Estado de progresso de um objetivo. Para os automáticos o valor atual vem
+// dos dados; para os manuais vem do campo `current`. Devolve o valor atual, o
+// alvo, a percentagem (0–100, limitada) e se já foi atingido.
+export function objectiveProgress(obj) {
+  const target = Number(obj.target) || 0;
+  const current =
+    obj.kind === 'auto'
+      ? objectiveMetricValue(obj.metric) ?? 0
+      : Number(obj.current) || 0;
+  const pct = target > 0 ? Math.min(100, Math.max(0, Math.round((current / target) * 100))) : 0;
+  return { current, target, pct, reached: target > 0 && current >= target };
+}
+
 // Quotas de UM atleta. Devolve { list, owed, owedCount, paidCount }.
 // `list` ordenada da mais recente para a mais antiga.
 export function playerQuotas(playerId) {

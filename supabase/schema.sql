@@ -1325,3 +1325,41 @@ create policy "gp_write" on game_plans for all to authenticated
       )
     )
   );
+
+-- =====================================================================
+-- Objetivos / KPIs
+-- =====================================================================
+-- Metas da época com barra de progresso. Dois tipos:
+--   'manual' — o valor atual (current) é atualizado à mão pelo coordenador;
+--   'auto'   — o valor atual é calculado pela app a partir dos dados
+--              (compute.OBJECTIVE_METRICS); `metric` diz qual o indicador.
+-- `target` é o alvo; `unit` é a etiqueta da unidade (ex.: '€', '%'). Todos os
+-- papéis (exceto atleta) consultam; só o coordenador cria/edita.
+
+create table if not exists objectives (
+  id          uuid primary key default gen_random_uuid(),
+  title       text not null,
+  description text,
+  kind        text not null default 'manual' check (kind in ('manual','auto')),
+  metric      text,
+  target      numeric not null default 0,
+  current     numeric not null default 0,
+  unit        text default '',
+  created_at  timestamptz default now()
+);
+
+create index if not exists idx_objectives_created on objectives (created_at);
+
+alter table objectives enable row level security;
+
+drop policy if exists "obj_read"  on objectives;
+drop policy if exists "obj_write" on objectives;
+
+-- Leitura: todos exceto atleta.
+create policy "obj_read" on objectives for select to authenticated
+  using (app_role() <> 'atleta');
+
+-- Escrita: só coordenador.
+create policy "obj_write" on objectives for all to authenticated
+  using (app_role() = 'coordenador')
+  with check (app_role() = 'coordenador');
