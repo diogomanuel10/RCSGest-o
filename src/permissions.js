@@ -91,6 +91,8 @@ const EDIT_ROLES = {
   squads: ['coordenador', 'treinador'],
   // Gestão financeira: só o coordenador.
   finances: ['coordenador'],
+  // Objetivos / KPIs: todos consultam; só o coordenador cria/edita.
+  objectives: ['coordenador'],
   // Planos de jogo: coordenador e treinador.
   game_plans: ['coordenador', 'treinador'],
   // Tamanhos de equipamento: só o coordenador edita.
@@ -156,6 +158,9 @@ export function canAccess(key) {
   }
   // Encomendas: exclusivo do coordenador (não configurável).
   if (key === 'encomendas') return false;
+  // Objetivos / KPIs: visíveis a toda a equipa técnica (não ao atleta, já
+  // tratado acima). Transparência para todos; edição só do coordenador.
+  if (key === 'objetivos') return true;
   if (!SECTION_KEYS.has(key)) return false; // portal e afins não se aplicam
   return currentPermissions().includes(key);
 }
