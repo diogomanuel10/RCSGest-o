@@ -2,7 +2,8 @@
 // É o primeiro ecrã: nada da aplicação é visível sem sessão.
 
 import { signIn, signUp, authErrorMessage } from '../auth.js';
-import { logoUrl } from '../ui.js';
+import { esc } from '../ui.js';
+import { logoSrc, branding } from '../branding.js';
 
 export function renderLogin(root, onSuccess) {
   let mode = 'login'; // 'login' | 'register'
@@ -10,12 +11,13 @@ export function renderLogin(root, onSuccess) {
 
   function draw() {
     const isLogin = mode === 'login';
+    const b = branding();
     root.innerHTML = `
       <main class="login">
         <form class="card login__card" id="login-form" novalidate>
-          <img class="login__logo" src="${logoUrl}" alt="Real Clube Senhorense" width="84" height="84" />
-          <h1 class="section-title login__title">Central RCS</h1>
-          <p class="muted login__subtitle">Gestão do Real Clube Senhorense</p>
+          <img class="login__logo" src="${esc(logoSrc())}" alt="${esc(b.club_name)}" width="84" height="84" />
+          <h1 class="section-title login__title">${esc(b.app_name)}</h1>
+          <p class="muted login__subtitle">${esc(b.motto)}</p>
 
           <div class="login__tabs" role="tablist">
             <button type="button" class="login__tab ${isLogin ? 'login__tab--active' : ''}"

@@ -4,7 +4,7 @@
 // barra lateral colapsável (em desktop vira um "rail" só de ícones; em
 // telemóvel vira uma gaveta sobreposta) e da área de conteúdo.
 
-import { logoUrl } from '../ui.js';
+import { logoSrc, branding } from '../branding.js';
 import { signOut } from '../auth.js';
 import { state, subscribe, loadAll } from '../store.js';
 import { loadingHTML, errorHTML, esc } from '../ui.js';
@@ -124,10 +124,10 @@ export async function renderAppShell(root, session) {
           </svg>
         </button>
         <div class="topbar__brand">
-          <img src="${logoUrl}" alt="" width="36" height="36" />
+          <img src="${esc(logoSrc())}" alt="" width="36" height="36" />
           <div>
-            <strong>Central RCS</strong>
-            <span>Real Clube Senhorense</span>
+            <strong>${esc(branding().app_name)}</strong>
+            <span>${esc(branding().club_name)}</span>
           </div>
         </div>
         <div class="topbar__search" id="topbar-search">
