@@ -728,6 +728,12 @@ create table if not exists game_minutes (
   unique (event_id, player_id)
 );
 
+-- Garantir team_id nas tabelas de periodização em bases de dados que as
+-- criaram antes de a coluna existir (evita falhas nos índices/políticas abaixo).
+alter table training_phases add column if not exists team_id uuid references teams(id) on delete cascade;
+alter table mesocycles      add column if not exists team_id uuid references teams(id) on delete cascade;
+alter table gym_sessions    add column if not exists team_id uuid references teams(id) on delete cascade;
+
 create index if not exists idx_phys_tests_player on physical_tests (player_id);
 create index if not exists idx_phys_tests_date   on physical_tests (date);
 create index if not exists idx_phases_team       on training_phases (team_id);
@@ -1280,6 +1286,11 @@ create table if not exists game_plans (
   free_notes          text,
   created_at          timestamptz default now()
 );
+
+-- team_id foi acrescentado a game_plans depois de a tabela já existir; garante
+-- a coluna em bases de dados antigas (senão as políticas abaixo, que usam
+-- team_id, falham ao re-correr o esquema com "column team_id does not exist").
+alter table game_plans add column if not exists team_id uuid references teams(id) on delete set null;
 
 create index if not exists idx_game_plans_date on game_plans (game_date desc);
 
