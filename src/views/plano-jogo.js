@@ -5,7 +5,7 @@
 
 import { state, createRow, updateRow, dbErrorMessage } from '../store.js';
 import { esc, emptyHTML } from '../ui.js';
-import { canEdit, isCoordenador } from '../permissions.js';
+import { canEdit, isClubWide } from '../permissions.js';
 import { teamName } from '../compute.js';
 
 // Estado local de UI (persiste entre re-desenhos).
@@ -32,7 +32,7 @@ function resetForm() {
 // Devolve as equipas que o utilizador atual pode gerir.
 // Coordenador → todas. Treinador → as equipas ligadas ao seu registo de coach.
 function myTeams() {
-  if (isCoordenador()) return state.teams;
+  if (isClubWide()) return state.teams;
   const coachRecord = state.coaches.find((c) => c.user_id === state.profile?.id);
   if (!coachRecord) return [];
   const myTeamIds = new Set(

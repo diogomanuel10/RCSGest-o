@@ -86,12 +86,26 @@ topo do módulo da vista.
 ## Permissões (papéis)
 
 - Cada utilizador tem um perfil na tabela `profiles` com um `role`:
-  `coordenador` (tudo), `treinador` (edita Plantéis e marca presenças; vê o
+  `coordenador` (tudo), `direcao` (órgão diretivo: supervisão de todo o clube +
+  gestão de patrocínios, financeiro e definições — sem trabalho técnico nem
+  gestão de utilizadores), `treinador` (edita Plantéis e marca presenças; vê o
   Calendário mas só o coordenador cria/edita eventos),
-  `fisioterapeuta` (Departamento Médico + calendário de treinos),
+  `seccionista` (secretariado da secção: gestão administrativa de atletas,
+  quotas, equipamentos e recrutamento; acessos por secção configuráveis como o
+  `leitura`), `fisioterapeuta` (Departamento Médico + calendário de treinos),
   `preparador` (preparador físico: Preparação Física + mapa de jogos),
   `atleta` (portal pessoal) ou `leitura` (só vê). Quem se regista começa em
   `leitura`.
+- A **Direção** (`direcao`) vê todas as secções de gestão e técnicas (exceto o
+  detalhe confidencial do Dept. Médico e da Prep. Física, as Encomendas e o
+  portal do atleta) e edita a área de gestão (`sponsors`, `finances`,
+  `settings`); não arquiva/repõe registos nem gere utilizadores (fica no
+  coordenador). O **Seccionista** (`seccionista`) tem acessos por secção
+  escolhidos pelo coordenador (como o `leitura`) e escreve, ao nível do clube,
+  nas entidades administrativas (`players`, `quotas`, `equipment`, `prospects`,
+  `sizes`); não arquiva registos (decisão do coordenador). `isClubWide()` em
+  `permissions.js` marca os papéis que veem todas as equipas/escalões (todos
+  menos o treinador e o atleta).
 - O **Departamento Médico** (`medico`) não é uma secção configurável: é
   exclusivo do coordenador e do fisioterapeuta (ver `canAccess` em
   `permissions.js`). Os dados clínicos têm o seu próprio RLS (`med_rw`):

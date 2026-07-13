@@ -5,7 +5,9 @@ import { state } from './store.js';
 
 export const ROLES = [
   { key: 'coordenador', label: 'Coordenador', desc: 'Acesso total' },
+  { key: 'direcao', label: 'Direção', desc: 'Supervisão do clube + gestão (patrocínios, financeiro, definições)' },
   { key: 'treinador', label: 'Treinador', desc: 'Edita plantéis e calendário das suas equipas' },
+  { key: 'seccionista', label: 'Seccionista', desc: 'Secretariado da secção (acessos configuráveis pelo coordenador)' },
   { key: 'fisioterapeuta', label: 'Fisioterapeuta', desc: 'Departamento médico e calendário de treinos' },
   { key: 'preparador', label: 'Preparador físico', desc: 'Preparação física, periodização e controlo' },
   { key: 'leitura', label: 'Leitura', desc: 'Apenas consulta' },
@@ -59,21 +61,35 @@ export const DEFAULT_PREP_SECTIONS = [
   'planteis',
 ];
 
+// Acessos sugeridos por omissão ao definir alguém como seccionista. O
+// secretariado da secção trata sobretudo da parte administrativa (atletas,
+// quotas, equipamentos e recrutamento); o coordenador ajusta depois.
+export const DEFAULT_SECCIONISTA_SECTIONS = [
+  'planteis',
+  'quotas',
+  'equipamentos',
+  'recrutamento',
+];
+
 // Que papéis podem ESCREVER em cada entidade (alinhado com o RLS do schema.sql).
 // Nota: para players/events/attendances o treinador só escreve nas SUAS
 // equipas — essa restrição por equipa é imposta pelo RLS, não aqui.
 const EDIT_ROLES = {
-  settings: ['coordenador'],
+  // A Direção trata da gestão do clube: definições, patrocínios e financeiro.
+  settings: ['coordenador', 'direcao'],
   coaches: ['coordenador'],
-  sponsors: ['coordenador'],
-  quotas: ['coordenador'],
-  equipment: ['coordenador'],
+  sponsors: ['coordenador', 'direcao'],
+  // O seccionista faz a gestão administrativa da secção (quotas, equipamentos,
+  // atletas, recrutamento e tamanhos) — sempre ao nível do clube (sem âmbito
+  // por equipa). Alinhado com o RLS do schema.sql.
+  quotas: ['coordenador', 'seccionista'],
+  equipment: ['coordenador', 'seccionista'],
   teams: ['coordenador'],
-  players: ['coordenador', 'treinador'],
+  players: ['coordenador', 'treinador', 'seccionista'],
   // Calendário: só o coordenador cria/edita/apaga eventos (treinos e jogos).
   events: ['coordenador'],
   attendances: ['coordenador', 'treinador'],
-  prospects: ['coordenador', 'treinador'],
+  prospects: ['coordenador', 'treinador', 'seccionista'],
   // Departamento médico: dados clínicos e atendimentos só do coordenador e
   // do fisioterapeuta (alinhado com a política "med_rw" do RLS).
   clinical: ['coordenador', 'fisioterapeuta'],
@@ -89,14 +105,14 @@ const EDIT_ROLES = {
   training_plans: ['coordenador', 'treinador'],
   // Convocatórias: coordenador e treinador (o treinador só nas suas equipas — RLS).
   squads: ['coordenador', 'treinador'],
-  // Gestão financeira: só o coordenador.
-  finances: ['coordenador'],
+  // Gestão financeira: coordenador e direção.
+  finances: ['coordenador', 'direcao'],
   // Objetivos / KPIs: todos consultam; só o coordenador cria/edita.
   objectives: ['coordenador'],
   // Planos de jogo: coordenador e treinador.
   game_plans: ['coordenador', 'treinador'],
-  // Tamanhos de equipamento: só o coordenador edita.
-  sizes: ['coordenador'],
+  // Tamanhos de equipamento: coordenador e seccionista.
+  sizes: ['coordenador', 'seccionista'],
   // Documentos dos atletas: coordenador + fisioterapeuta + preparador.
   documents: ['coordenador', 'fisioterapeuta', 'preparador'],
 };
@@ -126,6 +142,23 @@ export function isPreparador() {
   return currentRole() === 'preparador';
 }
 
+export function isDirecao() {
+  return currentRole() === 'direcao';
+}
+
+export function isSeccionista() {
+  return currentRole() === 'seccionista';
+}
+
+// Papéis com âmbito de CLUBE — veem todas as equipas/escalões, como o
+// coordenador. Só o treinador está limitado às suas equipas; o atleta tem
+// apenas o seu portal. Usado nas vistas com filtro por equipa (plantéis,
+// recrutamento, plano de jogo) para não restringir quem não é treinador.
+export function isClubWide() {
+  const role = currentRole();
+  return role !== 'treinador' && role !== 'atleta';
+}
+
 // Lista de secções que o utilizador atual pode ver (configurada pelo
 // coordenador). Vazia se ainda não tiver acesso a nada.
 export function currentPermissions() {
@@ -141,6 +174,13 @@ export function canAccess(key) {
   const role = currentRole();
   if (role === 'coordenador') return key !== 'portal';
   if (role === 'atleta') return key === 'portal';
+  // Direção: supervisão de todo o clube. Vê todas as secções (gestão e
+  // técnicas), exceto o detalhe confidencial do Departamento Médico e da
+  // Preparação Física, as Encomendas (exclusivo do coordenador) e o portal
+  // pessoal do atleta.
+  if (role === 'direcao') {
+    return !['portal', 'medico', 'fisica', 'encomendas'].includes(key);
+  }
   // O Departamento Médico é exclusivo do coordenador e do fisioterapeuta
   // (não é uma secção configurável para treinador/leitura).
   if (key === 'medico') return role === 'fisioterapeuta';
@@ -179,7 +219,8 @@ const DELETE_ROLES = {
   prospects: ['coordenador'],
   teams: ['coordenador'],
   coaches: ['coordenador'],
-  sponsors: ['coordenador'],
+  // A direção gere os patrocínios de ponta a ponta (inclui arquivar/repor).
+  sponsors: ['coordenador', 'direcao'],
   events: ['coordenador'],
 };
 export function canDelete(entity) {
@@ -187,10 +228,16 @@ export function canDelete(entity) {
   return canEdit(entity);
 }
 
-// Só o coordenador gere utilizadores e definições.
+// Só o coordenador gere utilizadores (papéis, vínculos e acessos).
 export function canManageUsers() {
   return isCoordenador();
 }
+// Definições (época, meta, escalões, personalização): coordenador e direção.
 export function canManageSettings() {
+  return isCoordenador() || isDirecao();
+}
+// Arquivar/repor registos é uma decisão exclusiva do coordenador (alinhado com
+// o trigger guard_archive). A vista Arquivados fica-lhe reservada.
+export function canRestore() {
   return isCoordenador();
 }
