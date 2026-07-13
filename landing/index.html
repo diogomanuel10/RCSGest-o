@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Rumia — Gestão desportiva para clubes</title>
+<meta name="description" content="A tua gestão desportiva, simples. Plantéis, calendário, presenças, departamento médico, preparação física, finanças e patrocínios — todo o clube numa só plataforma." />
+<meta name="theme-color" content="#143b61" />
+
+<!-- Open Graph (partilha em redes sociais) -->
+<meta property="og:title" content="Rumia — Gestão desportiva para clubes" />
+<meta property="og:description" content="Todo o teu clube numa só plataforma. A tua gestão desportiva, simples." />
+<meta property="og:type" content="website" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+<style>
+  /* =====================================================================
+     Rumia — Landing page
+     Identidade: azul-marinho + amarelo (constantes); neutros por tema.
+     ===================================================================== */
+  :root {
+    --navy: #143b61;
+    --navy-700: #0f2e4b;
+    --navy-500: #1e5080;
+    --yellow: #f2b705;
+    --yellow-600: #d39f00;
+
+    --ink: #16202e;
+    --muted: #566579;
+    --paper: #f4f7fc;
+    --surface: #ffffff;
+    --surface-2: #eef3fa;
+    --border: #e0e7f1;
+    --ring: rgba(20, 59, 97, 0.14);
+
+    --radius: 16px;
+    --radius-sm: 10px;
+    --shadow: 0 4px 14px rgba(20, 59, 97, 0.08), 0 1px 3px rgba(20, 59, 97, 0.06);
+    --shadow-lg: 0 30px 60px rgba(15, 46, 75, 0.18), 0 12px 24px rgba(15, 46, 75, 0.1);
+
+    --font-display: 'Barlow Semi Condensed', system-ui, sans-serif;
+    --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+
+    --maxw: 1140px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #e9eff7;
+      --muted: #9db0c6;
+      --paper: #0b1622;
+      --surface: #12233a;
+      --surface-2: #0f1d30;
+      --border: #22374f;
+      --ring: rgba(0, 0, 0, 0.4);
+      --shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+      --shadow-lg: 0 30px 60px rgba(0, 0, 0, 0.5), 0 12px 24px rgba(0, 0, 0, 0.35);
+    }
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    * { animation: none !important; transition: none !important; }
+  }
+
+  body {
+    margin: 0;
+    font-family: var(--font-body);
+    color: var(--ink);
+    background: var(--paper);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3 {
+    font-family: var(--font-display);
+    line-height: 1.08;
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  a { color: inherit; text-decoration: none; }
+  img, svg { display: block; }
+
+  .wrap { width: 100%; max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
+
+  .eyebrow {
+    font-family: var(--font-display);
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--yellow-600);
+  }
+  .eyebrow--light { color: var(--yellow); }
+
+  /* --- Botões --- */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 1.02rem;
+    letter-spacing: 0.01em;
+    padding: 0.85rem 1.5rem;
+    border-radius: var(--radius-sm);
+    border: 1.5px solid transparent;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  }
+  .btn:focus-visible { outline: 3px solid var(--yellow); outline-offset: 2px; }
+  .btn--primary { background: var(--yellow); color: #10233b; box-shadow: 0 6px 18px rgba(242, 183, 5, 0.35); }
+  .btn--primary:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(242, 183, 5, 0.45); }
+  .btn--ghost { background: transparent; color: var(--ink); border-color: var(--border); }
+  .btn--ghost:hover { border-color: var(--navy-500); transform: translateY(-2px); }
+  .btn--on-navy { background: transparent; color: #fff; border-color: rgba(255, 255, 255, 0.35); }
+  .btn--on-navy:hover { background: rgba(255, 255, 255, 0.1); transform: translateY(-2px); }
+
+  /* --- Barra de navegação --- */
+  header.nav {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: color-mix(in srgb, var(--paper) 88%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav__inner {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    height: 68px;
+  }
+  .brand { display: flex; align-items: center; gap: 0.6rem; font-family: var(--font-display); font-weight: 700; font-size: 1.35rem; letter-spacing: 0.02em; }
+  .brand .emblem { width: 34px; height: 34px; }
+  .nav__links { display: flex; gap: 1.6rem; margin-left: auto; font-weight: 500; font-size: 0.96rem; }
+  .nav__links a { color: var(--muted); transition: color 0.15s ease; }
+  .nav__links a:hover { color: var(--ink); }
+  .nav__cta { display: flex; gap: 0.7rem; align-items: center; }
+  .nav__cta .btn { padding: 0.6rem 1.1rem; font-size: 0.95rem; }
+  @media (max-width: 860px) {
+    .nav__links { display: none; }
+  }
+  @media (max-width: 520px) {
+    .nav__cta .btn--ghost { display: none; }
+  }
+
+  /* --- Hero --- */
+  .hero {
+    position: relative;
+    background:
+      radial-gradient(1200px 500px at 78% -10%, rgba(242, 183, 5, 0.16), transparent 60%),
+      linear-gradient(160deg, var(--navy) 0%, var(--navy-700) 100%);
+    color: #eaf1f9;
+    overflow: hidden;
+  }
+  .hero__grid {
+    display: grid;
+    grid-template-columns: 1.05fr 0.95fr;
+    gap: 3rem;
+    align-items: center;
+    padding: 5.5rem 0 6rem;
+  }
+  .hero h1 {
+    font-size: clamp(2.6rem, 5.5vw, 4.1rem);
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.01em;
+    margin: 1rem 0 1.2rem;
+  }
+  .hero h1 .accent { color: var(--yellow); }
+  .hero p.lead {
+    font-size: 1.18rem;
+    color: #bcd0e6;
+    max-width: 34ch;
+    margin: 0 0 2rem;
+  }
+  .hero__actions { display: flex; gap: 0.9rem; flex-wrap: wrap; }
+  .hero__note { margin-top: 1.3rem; font-size: 0.9rem; color: #94aecb; }
+  @media (max-width: 900px) {
+    .hero__grid { grid-template-columns: 1fr; gap: 2.5rem; padding: 4rem 0 4.5rem; }
+    .hero p.lead { max-width: none; }
+  }
+
+  /* Janela do produto (mock em CSS) */
+  .window {
+    background: var(--surface);
+    border-radius: 14px;
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    transform: perspective(1600px) rotateY(-9deg) rotateX(3deg);
+    transition: transform 0.4s ease;
+  }
+  .window:hover { transform: perspective(1600px) rotateY(-3deg) rotateX(1deg); }
+  @media (max-width: 900px) { .window { transform: none; } .window:hover { transform: none; } }
+  .window__bar { display: flex; align-items: center; gap: 0.7rem; padding: 0.7rem 1rem; background: var(--navy); border-bottom: 1px solid rgba(255,255,255,0.08); }
+  .window__bar .dot { width: 11px; height: 11px; border-radius: 50%; }
+  .window__bar .dot:nth-child(1) { background: #ff5f57; }
+  .window__bar .dot:nth-child(2) { background: #febc2e; }
+  .window__bar .dot:nth-child(3) { background: #28c840; }
+  .window__bar .title { margin-left: 0.4rem; font-size: 0.82rem; color: #b9cbe0; font-family: var(--font-display); letter-spacing: 0.03em; }
+  .window__body { display: grid; grid-template-columns: 128px 1fr; min-height: 300px; color: var(--ink); }
+  .mock-side { background: var(--surface-2); border-right: 1px solid var(--border); padding: 0.9rem 0.7rem; display: flex; flex-direction: column; gap: 0.35rem; }
+  .mock-side .item { font-size: 0.78rem; color: var(--muted); padding: 0.4rem 0.55rem; border-radius: 7px; display: flex; align-items: center; gap: 0.45rem; }
+  .mock-side .item.active { background: var(--navy); color: #fff; font-weight: 600; }
+  .mock-side .item .ic { width: 13px; height: 13px; border-radius: 4px; background: currentColor; opacity: 0.6; flex: 0 0 auto; }
+  .mock-main { padding: 1.1rem 1.2rem; }
+  .mock-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; margin-bottom: 1rem; }
+  .stat { background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px; padding: 0.6rem 0.7rem; }
+  .stat .n { font-family: var(--font-display); font-weight: 700; font-size: 1.35rem; color: var(--navy); }
+  html[data-nav] .stat .n { color: var(--navy); }
+  @media (prefers-color-scheme: dark) { .stat .n { color: var(--yellow); } }
+  .stat .l { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+  .mock-row { display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 0; border-top: 1px solid var(--border); font-size: 0.82rem; }
+  .mock-row:first-of-type { border-top: none; }
+  .mock-row .av { width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg, var(--navy-500), var(--navy)); flex: 0 0 auto; }
+  .mock-row .nm { font-weight: 500; }
+  .mock-row .pill { margin-left: auto; font-size: 0.68rem; font-weight: 600; padding: 0.15rem 0.5rem; border-radius: 999px; }
+  .pill--ok { background: #dcfce7; color: #15803d; }
+  .pill--warn { background: #fef3c7; color: #b45309; }
+  .pill--info { background: #dbeafe; color: #1d4ed8; }
+
+  /* --- Faixa de confiança --- */
+  .trust { background: var(--surface); border-bottom: 1px solid var(--border); }
+  .trust__inner { display: flex; align-items: center; justify-content: center; gap: 1.2rem 2.5rem; flex-wrap: wrap; padding: 1.4rem 0; color: var(--muted); font-size: 0.95rem; text-align: center; }
+  .trust__inner strong { color: var(--ink); font-weight: 600; }
+
+  /* --- Secções --- */
+  section { padding: 5.5rem 0; }
+  /* Compensa a barra fixa (68px) quando se salta por âncora, para o título não
+     ficar escondido por baixo dela. */
+  #funcionalidades, #papeis, #precos, #faq, #contacto, #topo { scroll-margin-top: 84px; }
+  .section-head { max-width: 640px; margin: 0 auto 3rem; text-align: center; }
+  .section-head h2 { font-size: clamp(2rem, 3.6vw, 2.8rem); font-weight: 700; margin: 0.8rem 0 0.8rem; letter-spacing: -0.01em; }
+  .section-head p { color: var(--muted); font-size: 1.1rem; margin: 0; }
+
+  /* --- Funcionalidades --- */
+  .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.1rem; }
+  @media (max-width: 900px) { .features { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 600px) { .features { grid-template-columns: 1fr; } }
+  .feature {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  }
+  .feature:hover { transform: translateY(-4px); box-shadow: var(--shadow); border-color: var(--navy-500); }
+  .feature__ic {
+    width: 44px; height: 44px; border-radius: 11px;
+    display: grid; place-items: center; margin-bottom: 1rem;
+    background: var(--surface-2); color: var(--navy);
+    border: 1px solid var(--border);
+  }
+  @media (prefers-color-scheme: dark) { .feature__ic { color: var(--yellow); } }
+  .feature__ic svg { width: 22px; height: 22px; }
+  .feature h3 { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.35rem; }
+  .feature p { color: var(--muted); font-size: 0.95rem; margin: 0; }
+
+  /* --- Destaques (alternado) --- */
+  .highlight { background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  .highlight__row { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; align-items: center; }
+  .highlight__row + .highlight__row { margin-top: 4.5rem; }
+  .highlight__row.rev .txt { order: 2; }
+  @media (max-width: 860px) {
+    .highlight__row, .highlight__row.rev { grid-template-columns: 1fr; gap: 1.5rem; }
+    .highlight__row.rev .txt { order: 0; }
+  }
+  .highlight h3 { font-size: clamp(1.7rem, 3vw, 2.2rem); font-weight: 700; margin: 0.7rem 0 0.8rem; }
+  .highlight p { color: var(--muted); font-size: 1.05rem; margin: 0 0 1rem; }
+  .checklist { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.6rem; }
+  .checklist li { display: flex; gap: 0.6rem; align-items: flex-start; font-size: 0.98rem; }
+  .checklist .tick { flex: 0 0 auto; width: 22px; height: 22px; border-radius: 50%; background: var(--navy); color: #fff; display: grid; place-items: center; font-size: 0.7rem; margin-top: 0.15rem; }
+
+  /* Cartão de papéis (visual do destaque) */
+  .roles { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.4rem; display: flex; flex-direction: column; gap: 0.6rem; }
+  .role { display: flex; align-items: center; gap: 0.8rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0.7rem 0.9rem; }
+  .role .tag { font-family: var(--font-display); font-weight: 700; width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; color: #fff; background: var(--navy); flex: 0 0 auto; }
+  .role .who { font-weight: 600; font-size: 0.95rem; }
+  .role .sees { font-size: 0.82rem; color: var(--muted); }
+
+  /* Cartão de personalização (white-label) */
+  .brandcard { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.4rem; }
+  .brandcard .swatches { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+  .brandcard .sw { width: 42px; height: 42px; border-radius: 10px; border: 1px solid var(--border); }
+  .brandcard .previews { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem; }
+  .miniapp { border: 1px solid var(--border); border-radius: 11px; overflow: hidden; background: var(--surface); }
+  .miniapp .top { height: 34px; display: flex; align-items: center; gap: 0.4rem; padding: 0 0.6rem; color: #fff; font-family: var(--font-display); font-weight: 700; font-size: 0.8rem; letter-spacing: 0.04em; }
+  .miniapp .em { width: 16px; height: 16px; border-radius: 50%; border: 2px solid; }
+  .miniapp .content { padding: 0.6rem; display: flex; flex-direction: column; gap: 0.35rem; }
+  .miniapp .bar { height: 8px; border-radius: 4px; background: var(--surface-2); }
+  .miniapp .bar.short { width: 60%; }
+
+  /* --- Preços --- */
+  .pricing { background: var(--paper); }
+  .plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.3rem; align-items: stretch; }
+  @media (max-width: 900px) { .plans { grid-template-columns: 1fr; max-width: 420px; margin: 0 auto; } }
+  .plan {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 2rem 1.7rem;
+    display: flex;
+    flex-direction: column;
+  }
+  .plan--featured {
+    border: 2px solid var(--navy);
+    box-shadow: var(--shadow-lg);
+    position: relative;
+  }
+  .plan__badge {
+    position: absolute; top: -13px; left: 50%; transform: translateX(-50%);
+    background: var(--yellow); color: #10233b;
+    font-family: var(--font-display); font-weight: 700; font-size: 0.78rem;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    padding: 0.3rem 0.9rem; border-radius: 999px;
+  }
+  .plan__name { font-family: var(--font-display); font-weight: 700; font-size: 1.5rem; }
+  .plan__desc { color: var(--muted); font-size: 0.92rem; min-height: 2.6em; margin: 0.3rem 0 1.1rem; }
+  .plan__price { font-family: var(--font-display); font-weight: 700; font-size: 3rem; line-height: 1; color: var(--ink); }
+  .plan__price .per { font-size: 1rem; font-weight: 500; color: var(--muted); font-family: var(--font-body); }
+  .plan__list { list-style: none; padding: 0; margin: 1.4rem 0 1.8rem; display: flex; flex-direction: column; gap: 0.65rem; font-size: 0.94rem; }
+  .plan__list li { display: flex; gap: 0.55rem; align-items: flex-start; }
+  .plan__list .tick { color: var(--navy); font-weight: 700; flex: 0 0 auto; }
+  @media (prefers-color-scheme: dark) { .plan__list .tick { color: var(--yellow); } }
+  .plan .btn { width: 100%; justify-content: center; margin-top: auto; }
+  .pricing__note { text-align: center; color: var(--muted); font-size: 0.9rem; margin-top: 1.6rem; }
+
+  /* --- FAQ --- */
+  .faq { max-width: 780px; margin: 0 auto; display: flex; flex-direction: column; gap: 0.8rem; }
+  details.qa {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 0.4rem 1.2rem;
+  }
+  details.qa summary {
+    cursor: pointer;
+    list-style: none;
+    padding: 0.9rem 0;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 1.12rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+  }
+  details.qa summary::-webkit-details-marker { display: none; }
+  details.qa summary::after { content: '+'; font-size: 1.5rem; color: var(--navy-500); font-weight: 400; transition: transform 0.2s ease; }
+  details.qa[open] summary::after { transform: rotate(45deg); }
+  details.qa p { margin: 0 0 1rem; color: var(--muted); }
+
+  /* --- CTA final --- */
+  .final {
+    background:
+      radial-gradient(900px 400px at 20% 120%, rgba(242, 183, 5, 0.18), transparent 60%),
+      linear-gradient(160deg, var(--navy) 0%, var(--navy-700) 100%);
+    color: #fff;
+    text-align: center;
+  }
+  .final h2 { font-size: clamp(2rem, 4vw, 3rem); font-weight: 700; color: #fff; margin-bottom: 1rem; }
+  .final p { color: #bcd0e6; font-size: 1.15rem; max-width: 46ch; margin: 0 auto 2rem; }
+  .final__actions { display: flex; gap: 0.9rem; justify-content: center; flex-wrap: wrap; }
+
+  /* --- Rodapé --- */
+  footer.site {
+    background: var(--navy-700);
+    color: #a9c0da;
+    padding: 3rem 0 2.5rem;
+  }
+  .footer__inner { display: flex; justify-content: space-between; align-items: center; gap: 1.5rem; flex-wrap: wrap; }
+  .footer__brand { display: flex; align-items: center; gap: 0.6rem; color: #fff; font-family: var(--font-display); font-weight: 700; font-size: 1.2rem; }
+  .footer__brand .emblem { width: 28px; height: 28px; }
+  .footer__links { display: flex; gap: 1.4rem; font-size: 0.92rem; }
+  .footer__links a:hover { color: #fff; }
+  .footer__legal { width: 100%; border-top: 1px solid rgba(255,255,255,0.1); margin-top: 2rem; padding-top: 1.5rem; font-size: 0.85rem; color: #7f9bba; }
+
+  /* --- Revelação ao rolar ---
+     Conteúdo visível por omissão; o estado "escondido" só é aplicado quando o
+     JS ativa a animação (classe reveal-on no <html>). Assim, sem JS ou com
+     "movimento reduzido", nada fica escondido. */
+  html.reveal-on .reveal { opacity: 0; transform: translateY(18px); transition: opacity 0.6s ease, transform 0.6s ease; }
+  html.reveal-on .reveal.in { opacity: 1; transform: none; }
+  @media (prefers-reduced-motion: reduce) { html.reveal-on .reveal { opacity: 1; transform: none; } }
+</style>
+</head>
+<body>
+
+<!-- Emblema reutilizável (símbolo SVG) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="rumia-emblem" viewBox="0 0 64 64">
+    <circle cx="32" cy="32" r="30" fill="#143B61" stroke="#F2B705" stroke-width="3" />
+    <g fill="none" stroke="#F2B705" stroke-width="2.2" stroke-linecap="round">
+      <circle cx="32" cy="27" r="15" stroke="#F4F7FA" stroke-width="2" />
+      <path d="M32 12 C 24 20, 22 32, 26 42" />
+      <path d="M32 12 C 40 20, 42 32, 38 42" />
+      <path d="M18 22 C 28 26, 38 26, 47 21" />
+    </g>
+    <text x="32" y="55" text-anchor="middle" font-family="'Barlow Semi Condensed', sans-serif" font-weight="700" font-size="9.5" letter-spacing="0.8" fill="#F2B705">RUMIA</text>
+  </symbol>
+</svg>
+
+<!-- ================= NAV ================= -->
+<header class="nav">
+  <div class="wrap nav__inner">
+    <a class="brand" href="#topo" aria-label="Rumia — início">
+      <svg class="emblem" aria-hidden="true"><use href="#rumia-emblem" /></svg>
+      Rumia
+    </a>
+    <nav class="nav__links" aria-label="Principal">
+      <a href="#funcionalidades">Funcionalidades</a>
+      <a href="#papeis">Como funciona</a>
+      <a href="#precos">Preços</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <div class="nav__cta">
+      <a class="btn btn--ghost" href="#contacto">Entrar</a>
+      <a class="btn btn--primary" href="#precos">Começar</a>
+    </div>
+  </div>
+</header>
+
+<a id="topo"></a>
+
+<!-- ================= HERO ================= -->
+<section class="hero">
+  <div class="wrap hero__grid">
+    <div>
+      <span class="eyebrow eyebrow--light">Gestão desportiva para clubes</span>
+      <h1>Todo o teu clube numa <span class="accent">só plataforma</span>.</h1>
+      <p class="lead">Plantéis, calendário, presenças, departamento médico, preparação física, finanças e patrocínios — reunidos, com cada pessoa a ver só o que precisa.</p>
+      <div class="hero__actions">
+        <a class="btn btn--primary" href="#precos">Ver planos</a>
+        <a class="btn btn--on-navy" href="#contacto">Pedir demonstração</a>
+      </div>
+      <p class="hero__note">Sem instalações. Funciona no telemóvel, tablet e computador.</p>
+    </div>
+
+    <div class="window reveal" aria-hidden="true">
+      <div class="window__bar">
+        <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+        <span class="title">Rumia · Painel</span>
+      </div>
+      <div class="window__body">
+        <div class="mock-side">
+          <span class="item active"><span class="ic"></span>Painel</span>
+          <span class="item"><span class="ic"></span>Plantéis</span>
+          <span class="item"><span class="ic"></span>Calendário</span>
+          <span class="item"><span class="ic"></span>Dept. Médico</span>
+          <span class="item"><span class="ic"></span>Prep. Física</span>
+          <span class="item"><span class="ic"></span>Financeiro</span>
+        </div>
+        <div class="mock-main">
+          <div class="mock-stats">
+            <div class="stat"><div class="n">128</div><div class="l">Atletas</div></div>
+            <div class="stat"><div class="n">9</div><div class="l">Equipas</div></div>
+            <div class="stat"><div class="n">14</div><div class="l">Jogos</div></div>
+          </div>
+          <div class="mock-row"><span class="av"></span><span class="nm">Beatriz Faria</span><span class="pill pill--ok">Apto</span></div>
+          <div class="mock-row"><span class="av"></span><span class="nm">Rui Tavares</span><span class="pill pill--warn">Limitado</span></div>
+          <div class="mock-row"><span class="av"></span><span class="nm">Mariana Sá</span><span class="pill pill--info">Em recuperação</span></div>
+          <div class="mock-row"><span class="av"></span><span class="nm">Diogo Nunes</span><span class="pill pill--ok">Apto</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= FAIXA DE CONFIANÇA ================= -->
+<div class="trust">
+  <div class="wrap trust__inner">
+    <span>Feito para <strong>voleibol</strong> — pronto para qualquer modalidade coletiva.</span>
+    <span>Dados <strong>seguros</strong> na cloud, com cópias de segurança.</span>
+    <span><strong>Personalizável</strong> com a marca do teu clube.</span>
+  </div>
+</div>
+
+<!-- ================= FUNCIONALIDADES ================= -->
+<section id="funcionalidades">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <span class="eyebrow">Tudo num só sítio</span>
+      <h2>O que andava espalhado, agora reunido</h2>
+      <p>Cada área do clube com a sua ferramenta — ligadas entre si, sem folhas de cálculo perdidas.</p>
+    </div>
+    <div class="features">
+      <div class="feature reveal">
+        <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+        <h3>Plantéis & atletas</h3>
+        <p>Equipas por escalão, fichas completas, importação de atletas por Excel e avaliação de plantel para a época seguinte.</p>
+      </div>
+      <div class="feature reveal">
+        <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+        <h3>Calendário & convocatórias</h3>
+        <p>Treinos e jogos organizados por equipa, com convocatórias, plano de jogo e mapa de jogos sempre atualizado.</p>
+      </div>
+      <div class="feature reveal">
+        <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg></div>
+        <h3>Presenças</h3>
+        <p>Marcação rápida de presenças e faltas, com lembretes ao treinador e estatísticas por atleta.</p>
+      </div>
+      <div class="feature reveal">
+        <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
+        <h3>Departamento médico</h3>
+        <p>Processo clínico digital: episódios, sessões de fisioterapia, atendimentos agendados e estado de disponibilidade.</p>
+      </div>
+      <div class="feature reveal">
+        <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
+        <h3>Preparação física</h3>
+        <p>Periodização (macro e mesociclos), treinos de ginásio, testes físicos e controlo de minutos de jogo.</p>
+      </div>
+      <div class="feature reveal">
+        <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+        <h3>Financeiro & quotas</h3>
+        <p>Receitas e despesas, quotas mensais por atleta e uma visão clara das contas do clube.</p>
+      </div>
+      <div class="feature reveal">
+        <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>
+        <h3>Patrocínios</h3>
+        <p>Funil de contactos, níveis de patrocínio e meta da época com o total angariado sempre à vista.</p>
+      </div>
+      <div class="feature reveal">
+        <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg></div>
+        <h3>Recrutamento</h3>
+        <p>Funil de prospetos observados a confirmados, com conversão direta em atleta do plantel.</p>
+      </div>
+      <div class="feature reveal">
+        <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div>
+        <h3>Portal do atleta</h3>
+        <p>Cada atleta com a sua página pessoal: convocatórias, presenças, quotas e disponibilidade.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= DESTAQUES ================= -->
+<div class="highlight" id="papeis">
+  <div class="wrap" style="padding-top:5.5rem;padding-bottom:5.5rem">
+
+    <div class="highlight__row reveal">
+      <div class="txt">
+        <span class="eyebrow">Papéis & permissões</span>
+        <h3>Cada pessoa vê só o que precisa</h3>
+        <p>Do coordenador ao atleta, cada papel tem o seu acesso. A informação sensível fica reservada a quem a deve ver — garantido pela base de dados, não só pela interface.</p>
+        <ul class="checklist">
+          <li><span class="tick">✓</span> Coordenador com visão total do clube</li>
+          <li><span class="tick">✓</span> Treinador restrito às suas equipas</li>
+          <li><span class="tick">✓</span> Fisioterapeuta e preparador com áreas próprias</li>
+          <li><span class="tick">✓</span> Atleta com o seu portal pessoal</li>
+        </ul>
+      </div>
+      <div class="roles" aria-hidden="true">
+        <div class="role"><span class="tag">C</span><div><div class="who">Coordenador</div><div class="sees">Tudo: gestão, finanças, utilizadores</div></div></div>
+        <div class="role"><span class="tag" style="background:#1e5080">T</span><div><div class="who">Treinador</div><div class="sees">Plantéis e presenças das suas equipas</div></div></div>
+        <div class="role"><span class="tag" style="background:#2563eb">F</span><div><div class="who">Fisioterapeuta</div><div class="sees">Departamento médico</div></div></div>
+        <div class="role"><span class="tag" style="background:#16a34a">P</span><div><div class="who">Preparador</div><div class="sees">Preparação física e mapa de jogos</div></div></div>
+        <div class="role"><span class="tag" style="background:#d39f00">A</span><div><div class="who">Atleta</div><div class="sees">A sua página pessoal</div></div></div>
+      </div>
+    </div>
+
+    <div class="highlight__row rev reveal">
+      <div class="txt">
+        <span class="eyebrow">Marca própria</span>
+        <h3>A tua identidade, não a nossa</h3>
+        <p>A Rumia veste a camisola do teu clube. Define o nome, o lema, as cores e o emblema — e toda a aplicação passa a falar a tua língua visual. Um produto, muitos clubes.</p>
+        <ul class="checklist">
+          <li><span class="tick">✓</span> Cores principais e de destaque</li>
+          <li><span class="tick">✓</span> Emblema do clube</li>
+          <li><span class="tick">✓</span> Nome e lema personalizados</li>
+        </ul>
+      </div>
+      <div class="brandcard" aria-hidden="true">
+        <div class="swatches">
+          <span class="sw" style="background:#143b61"></span>
+          <span class="sw" style="background:#f2b705"></span>
+          <span class="sw" style="background:#7a1f2b"></span>
+          <span class="sw" style="background:#1f7a4d"></span>
+          <span class="sw" style="background:#4b2e83"></span>
+        </div>
+        <div class="previews">
+          <div class="miniapp">
+            <div class="top" style="background:#143b61"><span class="em" style="border-color:#f2b705"></span>O teu clube</div>
+            <div class="content"><span class="bar"></span><span class="bar short"></span><span class="bar"></span></div>
+          </div>
+          <div class="miniapp">
+            <div class="top" style="background:#7a1f2b"><span class="em" style="border-color:#e8b4bc"></span>Outro clube</div>
+            <div class="content"><span class="bar"></span><span class="bar short"></span><span class="bar"></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ================= PREÇOS ================= -->
+<!--
+  ┌──────────────────────────────────────────────────────────────────┐
+  │  ATENÇÃO: os preços abaixo são VALORES DE EXEMPLO.                 │
+  │  Ajusta os montantes e o que cada plano inclui ao teu modelo de   │
+  │  negócio antes de publicar. Procura por "/mês" e pela lista de    │
+  │  cada .plan para editar.                                          │
+  └──────────────────────────────────────────────────────────────────┘
+-->
+<section class="pricing" id="precos">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <span class="eyebrow">Preços simples</span>
+      <h2>Um plano para cada fase do clube</h2>
+      <p>Sem fidelização. Escolhe o que precisas hoje e sobe de plano quando o clube crescer.</p>
+    </div>
+    <div class="plans">
+      <div class="plan reveal">
+        <div class="plan__name">Base</div>
+        <p class="plan__desc">O essencial para pôr o clube em ordem.</p>
+        <div class="plan__price">19€<span class="per"> /mês</span></div>
+        <ul class="plan__list">
+          <li><span class="tick">✓</span> Plantéis e fichas de atleta</li>
+          <li><span class="tick">✓</span> Calendário e presenças</li>
+          <li><span class="tick">✓</span> Quotas mensais</li>
+          <li><span class="tick">✓</span> Até 2 escalões</li>
+        </ul>
+        <a class="btn btn--ghost" href="#contacto">Começar</a>
+      </div>
+
+      <div class="plan plan--featured reveal">
+        <span class="plan__badge">Mais popular</span>
+        <div class="plan__name">Clube</div>
+        <p class="plan__desc">Para clubes com equipa técnica e médica.</p>
+        <div class="plan__price">39€<span class="per"> /mês</span></div>
+        <ul class="plan__list">
+          <li><span class="tick">✓</span> Tudo do plano Base</li>
+          <li><span class="tick">✓</span> Departamento médico</li>
+          <li><span class="tick">✓</span> Preparação física</li>
+          <li><span class="tick">✓</span> Convocatórias e estatísticas</li>
+          <li><span class="tick">✓</span> Escalões ilimitados</li>
+        </ul>
+        <a class="btn btn--primary" href="#contacto">Escolher Clube</a>
+      </div>
+
+      <div class="plan reveal">
+        <div class="plan__name">Pro</div>
+        <p class="plan__desc">Gestão completa, com a tua marca.</p>
+        <div class="plan__price">69€<span class="per"> /mês</span></div>
+        <ul class="plan__list">
+          <li><span class="tick">✓</span> Tudo do plano Clube</li>
+          <li><span class="tick">✓</span> Financeiro e patrocínios</li>
+          <li><span class="tick">✓</span> Plano de jogo e objetivos</li>
+          <li><span class="tick">✓</span> Personalização com a tua marca</li>
+          <li><span class="tick">✓</span> Suporte prioritário</li>
+        </ul>
+        <a class="btn btn--ghost" href="#contacto">Falar connosco</a>
+      </div>
+    </div>
+    <p class="pricing__note">Precisas de algo à medida (federação, vários clubes)? <a href="#contacto" style="color:var(--navy-500);font-weight:600">Fala connosco</a>.</p>
+  </div>
+</section>
+
+<!-- ================= FAQ ================= -->
+<section id="faq">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <span class="eyebrow">Dúvidas</span>
+      <h2>Perguntas frequentes</h2>
+    </div>
+    <div class="faq reveal">
+      <details class="qa">
+        <summary>A Rumia serve para outras modalidades além do voleibol?</summary>
+        <p>Sim. Foi desenhada a pensar no voleibol, mas a estrutura — equipas, escalões, calendário, presenças, departamento médico — aplica-se a qualquer modalidade coletiva.</p>
+      </details>
+      <details class="qa">
+        <summary>Posso personalizar com a marca do meu clube?</summary>
+        <p>Podes. O coordenador define o nome, o lema, as cores e o emblema, e toda a aplicação passa a mostrar a identidade do teu clube.</p>
+      </details>
+      <details class="qa">
+        <summary>Os meus dados estão seguros?</summary>
+        <p>Sim. Cada pessoa entra com a sua conta e só acede ao que o seu papel permite — uma regra imposta na própria base de dados. Podes exportar uma cópia de segurança de todos os dados a qualquer momento.</p>
+      </details>
+      <details class="qa">
+        <summary>Preciso de instalar alguma coisa?</summary>
+        <p>Não. A Rumia funciona no navegador, no telemóvel, tablet ou computador. Pode ser adicionada ao ecrã inicial como uma app.</p>
+      </details>
+      <details class="qa">
+        <summary>Como começo?</summary>
+        <p>Escolhe um plano ou pede uma demonstração. Ajudamos a colocar o teu clube a funcionar, incluindo a importação dos atletas que já tens em Excel.</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ================= CTA FINAL ================= -->
+<section class="final" id="contacto">
+  <div class="wrap">
+    <h2>Pronto para simplificar a gestão do teu clube?</h2>
+    <p>Marca uma demonstração de 20 minutos e mostramos-te a Rumia com dados de exemplo.</p>
+    <div class="final__actions">
+      <!-- Substitui pelo teu email/formulário de contacto real -->
+      <a class="btn btn--primary" href="mailto:ola@rumia.pt?subject=Quero%20conhecer%20a%20Rumia">Pedir demonstração</a>
+      <a class="btn btn--on-navy" href="#precos">Ver planos</a>
+    </div>
+  </div>
+</section>
+
+<!-- ================= RODAPÉ ================= -->
+<footer class="site">
+  <div class="wrap">
+    <div class="footer__inner">
+      <div class="footer__brand">
+        <svg class="emblem" aria-hidden="true"><use href="#rumia-emblem" /></svg>
+        Rumia
+      </div>
+      <nav class="footer__links" aria-label="Rodapé">
+        <a href="#funcionalidades">Funcionalidades</a>
+        <a href="#precos">Preços</a>
+        <a href="#faq">FAQ</a>
+        <a href="mailto:ola@rumia.pt">Contacto</a>
+      </nav>
+    </div>
+    <div class="footer__legal">
+      © <span id="ano">2026</span> Rumia · A tua gestão desportiva, simples.
+    </div>
+  </div>
+</footer>
+
+<script>
+  // Ano automático no rodapé.
+  document.getElementById('ano').textContent = new Date().getFullYear();
+
+  // Revelação suave ao rolar (respeita "movimento reduzido").
+  const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!prefersReduced && 'IntersectionObserver' in window) {
+    // Só agora se ativa o estado escondido — o conteúdo já está visível se
+    // chegámos aqui sem JS ou sem suporte.
+    document.documentElement.classList.add('reveal-on');
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((e) => {
+        if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+      });
+    }, { threshold: 0.12 });
+    document.querySelectorAll('.reveal').forEach((el) => io.observe(el));
+  }
+</script>
+</body>
+</html>
