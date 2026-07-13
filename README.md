@@ -1,7 +1,8 @@
-# Central RCS
+# Rumia
 
-Painel de gestão do **Real Clube Senhorense** (clube de voleibol fundado em
-2002, com sede no Pavilhão Municipal da Senhora da Hora, Matosinhos).
+Plataforma de **gestão desportiva para clubes**. Cada clube personaliza a sua
+identidade (nome, lema, cores e emblema) nas Definições — ver a secção
+_Personalização_ em [`CLAUDE.md`](CLAUDE.md).
 
 Reúne num só sítio o que andava espalhado: **patrocínios, plantéis, calendário
 e treinadores**, com login e dados guardados numa base de dados Supabase.

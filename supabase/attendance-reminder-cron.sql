@@ -1,5 +1,5 @@
 -- =====================================================================
--- Central RCS — Lembrete de presenças (pg_cron, sem Edge Function)
+-- Rumia — Lembrete de presenças (pg_cron, sem Edge Function)
 -- =====================================================================
 -- Corre este ficheiro no SQL Editor do Supabase.
 -- Pode ser corrido várias vezes sem problema.

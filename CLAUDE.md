@@ -1,4 +1,4 @@
-# CLAUDE.md — Arquitetura da Central RCS
+# CLAUDE.md — Arquitetura da Rumia
 
 Guia para quem (humano ou IA) trabalhar neste projeto. Para instruções de
 instalação e setup, ver [`README.md`](README.md).
@@ -47,7 +47,7 @@ src/
     utilizadores.js     Vista Utilizadores (gestão de papéis — só coordenador)
     arquivados.js       Vista Arquivados (registos inativos + repor — só coordenador)
 supabase/schema.sql     Tabelas, índices, RLS e dados iniciais (correr no Supabase)
-public/                 Ficheiros estáticos (modelo-atletas-rcs.xlsx)
+public/                 Ficheiros estáticos (modelo-atletas-rumia.xlsx)
 ```
 
 ## Fluxo de arranque (`main.js`)

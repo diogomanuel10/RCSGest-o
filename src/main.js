@@ -1,4 +1,4 @@
-// Ponto de entrada da Central RCS.
+// Ponto de entrada da Rumia.
 //
 // Fluxo de arranque:
 //   1. Sem variáveis do Supabase -> ecrã de ajuda.

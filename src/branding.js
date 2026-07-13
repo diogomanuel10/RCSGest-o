@@ -13,12 +13,13 @@ import defaultLogoUrl from './assets/logo.svg';
 
 const STORAGE_KEY = 'rcs.branding';
 
-// Valores por omissão (a marca original do Real Clube Senhorense). Servem de
-// recurso de segurança quando algo está vazio ou inválido.
+// Valores por omissão (a marca do produto, Rumia). Servem de recurso de
+// segurança quando algo está vazio ou inválido, e são o que um clube novo vê
+// antes de personalizar.
 export const DEFAULT_BRANDING = {
-  club_name: 'Real Clube Senhorense',
-  app_name: 'Central RCS',
-  motto: 'Gestão do Real Clube Senhorense',
+  club_name: 'Rumia',
+  app_name: 'Rumia',
+  motto: 'A tua gestão desportiva, simples',
   brand_primary: '#143b61',
   brand_accent: '#f2b705',
   logo: null,

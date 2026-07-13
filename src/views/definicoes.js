@@ -63,17 +63,17 @@ export function renderDefinicoes(container) {
           <div class="field">
             <label for="app_name">Nome da aplicação</label>
             <input type="text" id="app_name" name="app_name" maxlength="40"
-                   value="${esc(b.app_name)}" placeholder="Central RCS" />
+                   value="${esc(b.app_name)}" placeholder="Rumia" />
           </div>
           <div class="field">
             <label for="club_name">Nome do clube</label>
             <input type="text" id="club_name" name="club_name" maxlength="80"
-                   value="${esc(b.club_name)}" placeholder="Real Clube Senhorense" />
+                   value="${esc(b.club_name)}" placeholder="O nome do teu clube" />
           </div>
           <div class="field field--full">
             <label for="motto">Lema do clube</label>
             <input type="text" id="motto" name="motto" maxlength="120"
-                   value="${esc(b.motto)}" placeholder="Gestão do Real Clube Senhorense" />
+                   value="${esc(b.motto)}" placeholder="A tua gestão desportiva, simples" />
           </div>
           <div class="field">
             <label for="brand_primary">Cor principal</label>
@@ -356,7 +356,7 @@ export function renderDefinicoes(container) {
     const a = document.createElement('a');
     const stamp = new Date().toISOString().slice(0, 10);
     a.href = url;
-    a.download = `central-rcs-backup-${stamp}.json`;
+    a.download = `rumia-backup-${stamp}.json`;
     a.click();
     URL.revokeObjectURL(url);
   });
@@ -376,7 +376,7 @@ export function renderDefinicoes(container) {
       return;
     }
     if (!backup || typeof backup !== 'object' || !('sponsors' in backup)) {
-      showMsg(backupMsg, 'O ficheiro não parece ser um backup da Central RCS.', 'error');
+      showMsg(backupMsg, 'O ficheiro não parece ser um backup da Rumia.', 'error');
       return;
     }
 

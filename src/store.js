@@ -1,4 +1,4 @@
-// Camada de dados da Central RCS.
+// Camada de dados da Rumia.
 //
 // Responsável por: ir buscar tudo ao Supabase uma vez, manter uma cópia em
 // memória (cache), oferecer operações de criar/editar/remover e avisar as

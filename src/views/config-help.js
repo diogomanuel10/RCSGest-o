@@ -8,8 +8,8 @@ export function renderConfigHelp(root) {
   root.innerHTML = `
     <main class="config-help">
       <div class="card config-help__card">
-        <img class="config-help__logo" src="${logoUrl}" alt="Real Clube Senhorense" width="72" height="72" />
-        <h1 class="section-title">Central RCS</h1>
+        <img class="config-help__logo" src="${logoUrl}" alt="Rumia" width="72" height="72" />
+        <h1 class="section-title">Rumia</h1>
         <p class="muted">Falta ligar a aplicação ao Supabase.</p>
 
         <ol class="config-help__steps">
