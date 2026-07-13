@@ -6,7 +6,7 @@ import { state, createRow, updateRow, archiveRow, convertProspect, dbErrorMessag
 import { esc, emptyHTML } from '../ui.js';
 import { teamName, teamById, currentCoachEscaloes, escaloes as getEscaloes } from '../compute.js';
 import { openModal, confirmDialog } from '../modal.js';
-import { canEdit, canDelete, isCoordenador } from '../permissions.js';
+import { canEdit, canDelete, isCoordenador, isClubWide } from '../permissions.js';
 import { PROSPECT_STATUSES, PROSPECT_REJECTED, PROSPECT_LABEL, PROSPECT_BADGE, POSITIONS } from '../constants.js';
 
 // Filtros locais da vista.
@@ -19,7 +19,7 @@ const COLUMNS = [...PROSPECT_STATUSES, PROSPECT_REJECTED];
 // O treinador só vê os prospetos do(s) seu(s) escalão(ões): um prospeto
 // pertence a um escalão pela equipa-alvo. O coordenador vê tudo.
 function inMyScope(p) {
-  if (isCoordenador()) return true;
+  if (isClubWide()) return true;
   const escaloes = currentCoachEscaloes();
   if (!escaloes.size) return false;
   const team = p.target_team_id ? teamById(p.target_team_id) : null;
@@ -57,7 +57,7 @@ export function renderRecrutamento(container) {
     .length;
   // Escalões disponíveis: só o coordenador vê todos; treinador já está limitado
   // pelo scope, por isso mostramos apenas os escalões presentes nos prospetos visíveis.
-  const escalaoOptions = isCoordenador()
+  const escalaoOptions = isClubWide()
     ? getEscaloes()
     : [...new Set(mine.map(prospectEscalao).filter(Boolean))];
 
@@ -189,7 +189,7 @@ function cardHTML(p, canWrite, canConvert, canRemove) {
 function openProspectForm(id) {
   const existing = id ? state.prospects.find((p) => p.id === id) : null;
   // O treinador só pode atribuir prospetos às equipas do(s) seu(s) escalão(ões).
-  const escaloes = isCoordenador() ? null : currentCoachEscaloes();
+  const escaloes = isClubWide() ? null : currentCoachEscaloes();
   const teamOptions = state.teams
     .filter((t) => !escaloes || escaloes.has(t.escalao))
     .sort((a, b) => teamName(a).localeCompare(teamName(b)))
@@ -276,7 +276,7 @@ function openConvertModal(prospectId) {
   const p = state.prospects.find((x) => x.id === prospectId);
   if (!p) return;
 
-  const escaloes = isCoordenador() ? null : currentCoachEscaloes();
+  const escaloes = isClubWide() ? null : currentCoachEscaloes();
   const teams = state.teams
     .filter((t) => !escaloes || escaloes.has(t.escalao))
     .sort((a, b) => teamName(a).localeCompare(teamName(b)));

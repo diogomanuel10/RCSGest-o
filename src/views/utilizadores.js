@@ -12,7 +12,7 @@ import {
   dbErrorMessage,
 } from '../store.js';
 import { esc, emptyHTML } from '../ui.js';
-import { ROLES, ROLE_LABEL, SECTIONS, DEFAULT_TRAINER_SECTIONS, DEFAULT_FISIO_SECTIONS, DEFAULT_PREP_SECTIONS, isCoordenador } from '../permissions.js';
+import { ROLES, ROLE_LABEL, SECTIONS, DEFAULT_TRAINER_SECTIONS, DEFAULT_FISIO_SECTIONS, DEFAULT_PREP_SECTIONS, DEFAULT_SECCIONISTA_SECTIONS, isCoordenador } from '../permissions.js';
 import { teamName, teamById } from '../compute.js';
 
 export function renderUtilizadores(container) {
@@ -92,6 +92,11 @@ export function renderUtilizadores(container) {
         // secções de apoio (calendário/mapa de jogos, plantéis).
         if (role === 'preparador' && !hadPerms) {
           await updateProfilePermissions(id, [...DEFAULT_PREP_SECTIONS]);
+        }
+        // O seccionista tem acessos configuráveis; sugere as secções
+        // administrativas de base se ainda não tiver nada definido.
+        if (role === 'seccionista' && !hadPerms) {
+          await updateProfilePermissions(id, [...DEFAULT_SECCIONISTA_SECTIONS]);
         }
         const updated = state.profiles.find((p) => p.id === id);
         // Reconstrói o vínculo e os acessos para o novo papel.

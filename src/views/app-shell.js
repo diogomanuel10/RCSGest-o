@@ -8,7 +8,7 @@ import { logoSrc, branding } from '../branding.js';
 import { signOut } from '../auth.js';
 import { state, subscribe, loadAll } from '../store.js';
 import { loadingHTML, errorHTML, esc } from '../ui.js';
-import { canManageSettings, canManageUsers, canAccess, ROLE_LABEL } from '../permissions.js';
+import { canManageSettings, canManageUsers, canRestore, canAccess, ROLE_LABEL } from '../permissions.js';
 import { teamName } from '../compute.js';
 import {
   loadNotifications, getNotifications, getUnreadCount,
@@ -85,7 +85,7 @@ const NAV = [
 ];
 
 const FOOTER = [
-  { key: 'arquivados',   label: 'Arquivados',   icon: ICONS.arquivados,   render: renderArquivados,   can: canManageSettings },
+  { key: 'arquivados',   label: 'Arquivados',   icon: ICONS.arquivados,   render: renderArquivados,   can: canRestore },
   { key: 'definicoes',   label: 'Definições',   icon: ICONS.definicoes,   render: renderDefinicoes,   can: canManageSettings },
   { key: 'utilizadores', label: 'Utilizadores', icon: ICONS.utilizadores, render: renderUtilizadores, can: canManageUsers },
 ];

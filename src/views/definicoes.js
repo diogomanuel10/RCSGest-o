@@ -2,6 +2,7 @@
 
 import { state, saveSettings, snapshot, replaceAllData, dbErrorMessage } from '../store.js';
 import { esc } from '../ui.js';
+import { isCoordenador } from '../permissions.js';
 import { escaloes } from '../compute.js';
 import { confirmDialog } from '../modal.js';
 import { branding, logoSrc, defaultLogo, parseHex, DEFAULT_BRANDING } from '../branding.js';
@@ -133,6 +134,7 @@ export function renderDefinicoes(container) {
       </div>
     </section>
 
+    ${isCoordenador() ? `
     <details class="card settings-card">
       <summary class="section-title settings-card__title" style="cursor:pointer;list-style:none">
         Cópia de segurança
@@ -150,7 +152,7 @@ export function renderDefinicoes(container) {
       <p class="muted settings-warn">
         ⚠ A importação <strong>substitui</strong> todos os dados atuais pelos do ficheiro.
       </p>
-    </details>
+    </details>` : ''}
     </div>
   `;
 
@@ -348,8 +350,8 @@ export function renderDefinicoes(container) {
     }
   });
 
-  // --- Exportar ---
-  container.querySelector('#export-btn').addEventListener('click', () => {
+  // --- Exportar --- (a cópia de segurança é exclusiva do coordenador)
+  container.querySelector('#export-btn')?.addEventListener('click', () => {
     const data = JSON.stringify(snapshot(), null, 2);
     const blob = new Blob([data], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -363,7 +365,7 @@ export function renderDefinicoes(container) {
 
   // --- Importar ---
   const backupMsg = container.querySelector('#backup-msg');
-  container.querySelector('#import-file').addEventListener('change', async (e) => {
+  container.querySelector('#import-file')?.addEventListener('change', async (e) => {
     const file = e.target.files?.[0];
     e.target.value = ''; // permite reimportar o mesmo ficheiro
     if (!file) return;

@@ -278,21 +278,26 @@ $$;
 -- ---------------------------------------------------------------------
 -- Cada utilizador tem um perfil com um papel:
 --   'coordenador' -> faz tudo (inclui gerir utilizadores e definições)
+--   'direcao'     -> supervisão do clube + gestão (patrocínios, financeiro,
+--                    definições); não mexe no trabalho técnico nem gere utilizadores
 --   'treinador'   -> edita Plantéis e Calendário; vê o resto
+--   'seccionista' -> secretariado da secção: gestão administrativa (atletas,
+--                    quotas, equipamentos, recrutamento); acessos configuráveis
 --   'leitura'     -> só vê
 create table if not exists profiles (
   id         uuid primary key references auth.users(id) on delete cascade,
   email      text,
   role       text not null default 'leitura'
-             check (role in ('coordenador','treinador','leitura','atleta','fisioterapeuta','preparador')),
+             check (role in ('coordenador','treinador','leitura','atleta','fisioterapeuta','preparador','seccionista','direcao')),
   created_at timestamptz default now()
 );
 
--- Acrescenta os papéis 'atleta', 'fisioterapeuta' e 'preparador' (preparador
--- físico) à restrição para tabelas profiles já criadas.
+-- Acrescenta os papéis 'atleta', 'fisioterapeuta', 'preparador' (preparador
+-- físico), 'seccionista' (secretariado da secção) e 'direcao' (órgão diretivo)
+-- à restrição para tabelas profiles já criadas.
 alter table profiles drop constraint if exists profiles_role_check;
 alter table profiles add constraint profiles_role_check
-  check (role in ('coordenador','treinador','leitura','atleta','fisioterapeuta','preparador'));
+  check (role in ('coordenador','treinador','leitura','atleta','fisioterapeuta','preparador','seccionista','direcao'));
 
 -- Acessos por secção configuráveis pelo coordenador (treinador/leitura).
 -- Lista de chaves de secção que o utilizador pode VER (ex.: ["planteis",
@@ -417,19 +422,20 @@ create policy "read_all" on sponsors for select to authenticated using (
   app_role() <> 'atleta'
 );
 
--- Equipas: coordenador, leitura, fisioterapeuta e preparador físico veem
--- todas; treinador as suas; atleta a sua.
+-- Equipas: coordenador, direção, seccionista, leitura, fisioterapeuta e
+-- preparador físico veem todas; treinador as suas; atleta a sua.
 create policy "read_all" on teams for select to authenticated using (
-  app_role() in ('coordenador', 'leitura', 'fisioterapeuta', 'preparador')
+  app_role() in ('coordenador', 'direcao', 'seccionista', 'leitura', 'fisioterapeuta', 'preparador')
   OR id in (select trainer_team_ids())
   OR id = athlete_team_id()
 );
 
--- Atletas: coordenador, leitura, fisioterapeuta e preparador físico todos (o
--- departamento médico e a preparação física precisam da lista completa);
--- treinador os das suas equipas; atleta só o seu próprio registo.
+-- Atletas: coordenador, direção, seccionista, leitura, fisioterapeuta e
+-- preparador físico todos (o departamento médico e a preparação física
+-- precisam da lista completa); treinador os das suas equipas; atleta só o seu
+-- próprio registo.
 create policy "read_all" on players for select to authenticated using (
-  app_role() in ('coordenador', 'leitura', 'fisioterapeuta', 'preparador')
+  app_role() in ('coordenador', 'direcao', 'seccionista', 'leitura', 'fisioterapeuta', 'preparador')
   OR team_id in (select trainer_team_ids())
   OR id = athlete_player_id()
 );
@@ -438,33 +444,37 @@ create policy "read_all" on players for select to authenticated using (
 -- preparador vê o calendário/mapa de jogos para a periodização); treinador e
 -- atleta os da(s) sua(s) equipa(s); eventos sem equipa (clube) visíveis a todos.
 create policy "read_all" on events for select to authenticated using (
-  app_role() in ('coordenador', 'leitura', 'fisioterapeuta', 'preparador')
+  app_role() in ('coordenador', 'direcao', 'seccionista', 'leitura', 'fisioterapeuta', 'preparador')
   OR team_id is null
   OR team_id in (select trainer_team_ids())
   OR team_id = athlete_team_id()
 );
 
--- ESCRITA só coordenador: definições, treinadores e patrocínios.
+-- ESCRITA: treinadores só o coordenador. Definições e patrocínios são geridos
+-- pelo coordenador e pela direção.
 create policy "write_coord" on settings for all to authenticated
-  using (app_role() = 'coordenador') with check (app_role() = 'coordenador');
+  using (app_role() in ('coordenador','direcao'))
+  with check (app_role() in ('coordenador','direcao'));
 create policy "write_coord" on coaches for all to authenticated
   using (app_role() = 'coordenador') with check (app_role() = 'coordenador');
 create policy "write_coord" on sponsors for all to authenticated
-  using (app_role() = 'coordenador') with check (app_role() = 'coordenador');
+  using (app_role() in ('coordenador','direcao'))
+  with check (app_role() in ('coordenador','direcao'));
 
 -- EQUIPAS: gestão de equipas é só do coordenador (criar/editar/remover).
 create policy "write_editor" on teams for all to authenticated
   using (app_role() = 'coordenador')
   with check (app_role() = 'coordenador');
 
--- ATLETAS: coordenador em todos; treinador só nos das SUAS equipas.
+-- ATLETAS: coordenador e seccionista em todos (o seccionista faz a gestão
+-- administrativa da secção); treinador só nos das SUAS equipas.
 create policy "write_editor" on players for all to authenticated
   using (
-    app_role() = 'coordenador'
+    app_role() in ('coordenador','seccionista')
     OR (app_role() = 'treinador' AND team_id in (select trainer_team_ids()))
   )
   with check (
-    app_role() = 'coordenador'
+    app_role() in ('coordenador','seccionista')
     OR (app_role() = 'treinador' AND team_id in (select trainer_team_ids()))
   );
 
@@ -499,14 +509,16 @@ create policy "read_all" on quotas for select to authenticated using (
   app_role() <> 'atleta' OR player_id = athlete_player_id()
 );
 create policy "write_coord" on quotas for all to authenticated
-  using (app_role() = 'coordenador') with check (app_role() = 'coordenador');
+  using (app_role() in ('coordenador','seccionista'))
+  with check (app_role() in ('coordenador','seccionista'));
 
 -- EQUIPAMENTOS: ocultos ao atleta; escrever só coordenador.
 create policy "read_all" on equipment for select to authenticated using (
   app_role() <> 'atleta'
 );
 create policy "write_coord" on equipment for all to authenticated
-  using (app_role() = 'coordenador') with check (app_role() = 'coordenador');
+  using (app_role() in ('coordenador','seccionista'))
+  with check (app_role() in ('coordenador','seccionista'));
 
 -- TREINADORES POR EQUIPA: ler todos; atribuir treinadores a equipas é só do
 -- coordenador (faz parte da gestão de equipas).
@@ -515,13 +527,13 @@ create policy "write_editor" on team_coaches for all to authenticated
   using (app_role() = 'coordenador')
   with check (app_role() = 'coordenador');
 
--- RECRUTAMENTO: oculto ao atleta; escrever coordenador ou treinador.
+-- RECRUTAMENTO: oculto ao atleta; escrever coordenador, treinador ou seccionista.
 create policy "read_all" on prospects for select to authenticated using (
   app_role() <> 'atleta'
 );
 create policy "write_editor" on prospects for all to authenticated
-  using (app_role() in ('coordenador','treinador'))
-  with check (app_role() in ('coordenador','treinador'));
+  using (app_role() in ('coordenador','treinador','seccionista'))
+  with check (app_role() in ('coordenador','treinador','seccionista'));
 
 -- PERFIS: cada um vê o seu; o coordenador vê e gere todos.
 create policy "profiles_read" on profiles for select to authenticated
@@ -1138,10 +1150,10 @@ drop policy if exists "sizes_write" on player_sizes;
 create policy "sizes_read" on player_sizes for select to authenticated
   using (app_role() <> 'atleta');
 
--- Escrita: só o coordenador.
+-- Escrita: coordenador e seccionista (gestão administrativa de equipamento).
 create policy "sizes_write" on player_sizes for all to authenticated
-  using (app_role() = 'coordenador')
-  with check (app_role() = 'coordenador');
+  using (app_role() in ('coordenador','seccionista'))
+  with check (app_role() in ('coordenador','seccionista'));
 -- =====================================================================
 -- Lista de atletas convocados para um jogo. A convocatória está ligada
 -- 1:1 a um evento do tipo 'jogo'. Cada atleta pode estar convocado,
@@ -1254,10 +1266,10 @@ drop policy if exists "fin_write" on financial_entries;
 create policy "fin_read" on financial_entries for select to authenticated
   using (app_role() <> 'atleta');
 
--- Escrita: só coordenador.
+-- Escrita: coordenador e direção.
 create policy "fin_write" on financial_entries for all to authenticated
-  using (app_role() = 'coordenador')
-  with check (app_role() = 'coordenador');
+  using (app_role() in ('coordenador','direcao'))
+  with check (app_role() in ('coordenador','direcao'));
 
 -- ---------------------------------------------------------------------
 -- Planos de Jogo
