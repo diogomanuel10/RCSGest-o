@@ -1,7 +1,7 @@
 {
-  "name": "Central RCS",
-  "short_name": "Central RCS",
-  "description": "Painel de gestão do Real Clube Senhorense",
+  "name": "Rumia",
+  "short_name": "Rumia",
+  "description": "Rumia — a tua gestão desportiva, simples",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#143B61",

@@ -1,5 +1,5 @@
 -- =====================================================================
--- Central RCS — Notificações para Treinadores
+-- Rumia — Notificações para Treinadores
 -- =====================================================================
 -- Corre DEPOIS de ter corrido notifications.sql.
 -- Pode ser corrido várias vezes sem problema.

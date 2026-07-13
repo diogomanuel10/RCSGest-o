@@ -1,5 +1,5 @@
 -- =====================================================================
--- Central RCS — Sistema de Notificações
+-- Rumia — Sistema de Notificações
 -- =====================================================================
 -- Corre este ficheiro no SQL Editor do Supabase.
 -- Pode ser corrido várias vezes sem problema (usa IF NOT EXISTS / OR REPLACE).

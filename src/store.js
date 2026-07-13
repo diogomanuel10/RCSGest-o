@@ -1,4 +1,4 @@
-// Camada de dados da Central RCS.
+// Camada de dados da Rumia.
 //
 // Responsável por: ir buscar tudo ao Supabase uma vez, manter uma cópia em
 // memória (cache), oferecer operações de criar/editar/remover e avisar as
@@ -7,6 +7,7 @@
 // Modelo: clube único, dados partilhados — não há filtros por utilizador.
 
 import { supabase } from './supabase.js';
+import { applyBranding } from './branding.js';
 
 // Estado em memória. As vistas leem daqui após o carregamento inicial.
 export const state = {
@@ -191,6 +192,9 @@ export async function loadAll() {
   }
 
   if (settings.data) state.settings = settings.data;
+  // Aplica a marca do clube (cores, emblema, textos) assim que as definições
+  // chegam da BD.
+  applyBranding(state.settings);
   state.coaches     = coaches.data     || [];
   state.teams       = teams.data       || [];
   state.players     = players.data     || [];
@@ -890,6 +894,8 @@ export async function saveSettings(values) {
     .single();
   if (error) throw error;
   state.settings = data;
+  // Reaplica a marca — cobre qualquer alteração de cores/emblema/textos.
+  applyBranding(state.settings);
   notify();
   return data;
 }
@@ -918,9 +924,17 @@ export async function replaceAllData(backup) {
 
   // Definições (linha única).
   if (backup.settings) {
-    const { season, goal, escaloes } = backup.settings;
+    const { season, goal, escaloes, club_name, app_name, motto,
+            brand_primary, brand_accent, logo } = backup.settings;
     const values = { season, goal };
     if (Array.isArray(escaloes)) values.escaloes = escaloes;
+    // Marca do clube (se o backup a trouxer).
+    if (club_name !== undefined) values.club_name = club_name;
+    if (app_name !== undefined) values.app_name = app_name;
+    if (motto !== undefined) values.motto = motto;
+    if (brand_primary !== undefined) values.brand_primary = brand_primary;
+    if (brand_accent !== undefined) values.brand_accent = brand_accent;
+    if (logo !== undefined) values.logo = logo;
     await saveSettings(values);
   }
 

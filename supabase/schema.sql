@@ -1,5 +1,5 @@
 -- =====================================================================
--- Central RCS — Esquema da base de dados (Supabase / PostgreSQL)
+-- Rumia — Esquema da base de dados (Supabase / PostgreSQL)
 -- =====================================================================
 -- Como usar:
 --   1. Abre o teu projeto Supabase -> SQL Editor -> New query.
@@ -27,6 +27,16 @@ create table if not exists settings (
 -- de definições. Adicionado por ALTER para quem já tinha a tabela criada.
 alter table settings add column if not exists escaloes jsonb not null default
   '["Minis","Infantis","Iniciados","Juvenis","Juniores","Seniores"]'::jsonb;
+
+-- Personalização da marca (white-label): nome, lema, cores e emblema do clube.
+-- O emblema é guardado como data URL (imagem pequena). Editável só pelo
+-- coordenador (política write_coord).
+alter table settings add column if not exists app_name     text not null default 'Rumia';
+alter table settings add column if not exists club_name    text not null default 'Rumia';
+alter table settings add column if not exists motto        text not null default 'A tua gestão desportiva, simples';
+alter table settings add column if not exists brand_primary text not null default '#143b61';
+alter table settings add column if not exists brand_accent  text not null default '#f2b705';
+alter table settings add column if not exists logo         text;
 
 -- Treinadores.
 create table if not exists coaches (

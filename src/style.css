@@ -1,6 +1,6 @@
 /* =========================================================================
-   Central RCS — Design System
-   Identidade ligada ao voleibol: azul-marinho + amarelo de bola.
+   Rumia — Design System
+   Identidade base: azul-marinho + amarelo (personalizável por clube).
    ========================================================================= */
 
 :root {
@@ -1877,6 +1877,32 @@ tbody tr:hover {
 }
 .settings-card {
   margin-bottom: 0;
+}
+/* Cartão de personalização: ocupa a linha toda da grelha de definições. */
+.settings-card--wide {
+  grid-column: 1 / -1;
+}
+/* Par cor + hex lado a lado (seletor de cor + caixa de texto). */
+.color-field {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.color-field input[type='color'] {
+  width: 44px;
+  height: 40px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.color-field input[type='text'] {
+  flex: 1;
+  min-width: 0;
+  text-transform: uppercase;
+  font-family: var(--font-body);
 }
 .settings-card__title {
   font-size: 1.05rem;

@@ -1,9 +1,9 @@
 {
-  "name": "central-rcs",
+  "name": "rumia",
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Central RCS — painel de gestão do Real Clube Senhorense (voleibol)",
+  "description": "Rumia — gestão desportiva para clubes",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

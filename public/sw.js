@@ -1,4 +1,4 @@
-// Service worker da Central RCS.
+// Service worker da Rumia.
 // Sem caching (conteúdo sempre fresco), com suporte a Web Push para
 // notificações nativas quando o browser/app está fechado.
 
@@ -12,7 +12,7 @@ self.addEventListener('push', (e) => {
   try { payload = e.data.json(); } catch { return; }
 
   e.waitUntil(
-    self.registration.showNotification(payload.title || 'Central RCS', {
+    self.registration.showNotification(payload.title || 'Rumia', {
       body:     payload.body || '',
       icon:     '/logo-192.png',
       badge:    '/logo-192.png',

@@ -4,9 +4,15 @@ import { state, saveSettings, snapshot, replaceAllData, dbErrorMessage } from '.
 import { esc } from '../ui.js';
 import { escaloes } from '../compute.js';
 import { confirmDialog } from '../modal.js';
+import { branding, logoSrc, defaultLogo, parseHex, DEFAULT_BRANDING } from '../branding.js';
+
+// Limite do emblema guardado (data URL na linha de definições). Mantém a linha
+// pequena e o carregamento rápido.
+const MAX_LOGO_BYTES = 256 * 1024;
 
 export function renderDefinicoes(container) {
   const { season, goal } = state.settings;
+  const b = branding();
 
   container.innerHTML = `
     <header class="page-head">
@@ -42,6 +48,69 @@ export function renderDefinicoes(container) {
         <p class="settings-msg hidden" id="settings-msg"></p>
         <div class="row" style="justify-content:flex-end">
           <button type="submit" class="btn btn--primary" id="save-settings">Guardar</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="card settings-card settings-card--wide">
+      <h2 class="section-title settings-card__title">Personalização</h2>
+      <p class="muted" style="margin-top:0">
+        A identidade do clube na aplicação: nome, lema, cores e emblema. Muda
+        aqui para dar a cara do teu clube a toda a plataforma.
+      </p>
+      <form id="brand-form">
+        <div class="field-grid">
+          <div class="field">
+            <label for="app_name">Nome da aplicação</label>
+            <input type="text" id="app_name" name="app_name" maxlength="40"
+                   value="${esc(b.app_name)}" placeholder="Rumia" />
+          </div>
+          <div class="field">
+            <label for="club_name">Nome do clube</label>
+            <input type="text" id="club_name" name="club_name" maxlength="80"
+                   value="${esc(b.club_name)}" placeholder="O nome do teu clube" />
+          </div>
+          <div class="field field--full">
+            <label for="motto">Lema do clube</label>
+            <input type="text" id="motto" name="motto" maxlength="120"
+                   value="${esc(b.motto)}" placeholder="A tua gestão desportiva, simples" />
+          </div>
+          <div class="field">
+            <label for="brand_primary">Cor principal</label>
+            <div class="color-field">
+              <input type="color" id="brand_primary" name="brand_primary"
+                     value="${esc(b.brand_primary)}" aria-label="Cor principal" />
+              <input type="text" id="brand_primary_hex" value="${esc(b.brand_primary)}"
+                     maxlength="7" spellcheck="false" aria-label="Cor principal (hex)" />
+            </div>
+          </div>
+          <div class="field">
+            <label for="brand_accent">Cor de destaque</label>
+            <div class="color-field">
+              <input type="color" id="brand_accent" name="brand_accent"
+                     value="${esc(b.brand_accent)}" aria-label="Cor de destaque" />
+              <input type="text" id="brand_accent_hex" value="${esc(b.brand_accent)}"
+                     maxlength="7" spellcheck="false" aria-label="Cor de destaque (hex)" />
+            </div>
+          </div>
+          <div class="field field--full">
+            <label>Emblema do clube</label>
+            <div class="row row--wrap" style="align-items:center;gap:0.8rem">
+              <img id="logo-preview" src="${esc(logoSrc())}" alt="Emblema atual"
+                   width="64" height="64"
+                   style="border-radius:12px;background:var(--surface-2);padding:4px;object-fit:contain" />
+              <label class="btn btn--ghost" for="logo-file" style="cursor:pointer">Escolher imagem</label>
+              <input type="file" id="logo-file" accept="image/png,image/jpeg,image/svg+xml,image/webp" class="hidden" />
+              <button type="button" class="btn btn--ghost btn--sm" id="logo-reset">Repor original</button>
+            </div>
+            <p class="field__hint muted" style="margin:0.4rem 0 0;font-size:0.82rem">
+              PNG, SVG, JPG ou WebP até 256 KB. Ideal: quadrado, fundo transparente.
+            </p>
+          </div>
+        </div>
+        <p class="settings-msg hidden" id="brand-msg"></p>
+        <div class="row" style="justify-content:flex-end">
+          <button type="submit" class="btn btn--primary" id="save-brand">Guardar personalização</button>
         </div>
       </form>
     </section>
@@ -105,6 +174,92 @@ export function renderDefinicoes(container) {
     } finally {
       btn.disabled = false;
       btn.textContent = 'Guardar';
+    }
+  });
+
+  // --- Personalização (marca) ---
+  const brandForm = container.querySelector('#brand-form');
+  const brandMsg = container.querySelector('#brand-msg');
+  const logoPreview = container.querySelector('#logo-preview');
+  // Emblema pendente: undefined = sem alteração; null = repor original;
+  // string = novo data URL.
+  let pendingLogo;
+
+  // Mantém o seletor de cor e a caixa hex sincronizados nos dois sentidos.
+  function bindColorPair(colorId, hexId) {
+    const color = container.querySelector(`#${colorId}`);
+    const hex = container.querySelector(`#${hexId}`);
+    color.addEventListener('input', () => { hex.value = color.value; });
+    hex.addEventListener('input', () => {
+      const v = hex.value.trim();
+      if (parseHex(v)) color.value = v.length === 4
+        ? '#' + v.slice(1).split('').map((c) => c + c).join('')
+        : v;
+    });
+  }
+  bindColorPair('brand_primary', 'brand_primary_hex');
+  bindColorPair('brand_accent', 'brand_accent_hex');
+
+  container.querySelector('#logo-file').addEventListener('change', async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      showMsg(brandMsg, 'O ficheiro tem de ser uma imagem.', 'error');
+      return;
+    }
+    if (file.size > MAX_LOGO_BYTES) {
+      showMsg(brandMsg, 'A imagem é demasiado grande (máx. 256 KB).', 'error');
+      return;
+    }
+    try {
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      });
+      pendingLogo = dataUrl;
+      logoPreview.src = dataUrl;
+      brandMsg.classList.add('hidden');
+    } catch {
+      showMsg(brandMsg, 'Não foi possível ler a imagem.', 'error');
+    }
+  });
+
+  container.querySelector('#logo-reset').addEventListener('click', () => {
+    pendingLogo = null; // repor o emblema de origem ao guardar
+    logoPreview.src = defaultLogo;
+    brandMsg.classList.add('hidden');
+  });
+
+  brandForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const primary = container.querySelector('#brand_primary_hex').value.trim();
+    const accent = container.querySelector('#brand_accent_hex').value.trim();
+    if (!parseHex(primary) || !parseHex(accent)) {
+      showMsg(brandMsg, 'As cores têm de estar em formato hexadecimal (ex.: #143b61).', 'error');
+      return;
+    }
+    const values = {
+      app_name: brandForm.app_name.value.trim() || DEFAULT_BRANDING.app_name,
+      club_name: brandForm.club_name.value.trim() || DEFAULT_BRANDING.club_name,
+      motto: brandForm.motto.value.trim() || DEFAULT_BRANDING.motto,
+      brand_primary: primary,
+      brand_accent: accent,
+    };
+    if (pendingLogo !== undefined) values.logo = pendingLogo; // string ou null
+    const btn = container.querySelector('#save-brand');
+    btn.disabled = true;
+    btn.textContent = 'A guardar…';
+    try {
+      await saveSettings(values);
+      showMsg(brandMsg, 'Personalização guardada.', 'ok');
+    } catch (err) {
+      showMsg(brandMsg, dbErrorMessage(err), 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Guardar personalização';
     }
   });
 
@@ -201,7 +356,7 @@ export function renderDefinicoes(container) {
     const a = document.createElement('a');
     const stamp = new Date().toISOString().slice(0, 10);
     a.href = url;
-    a.download = `central-rcs-backup-${stamp}.json`;
+    a.download = `rumia-backup-${stamp}.json`;
     a.click();
     URL.revokeObjectURL(url);
   });
@@ -221,7 +376,7 @@ export function renderDefinicoes(container) {
       return;
     }
     if (!backup || typeof backup !== 'object' || !('sponsors' in backup)) {
-      showMsg(backupMsg, 'O ficheiro não parece ser um backup da Central RCS.', 'error');
+      showMsg(backupMsg, 'O ficheiro não parece ser um backup da Rumia.', 'error');
       return;
     }
 

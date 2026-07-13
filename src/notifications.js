@@ -1,4 +1,4 @@
-// Sistema de notificações da Central RCS.
+// Sistema de notificações da Rumia.
 //
 // Responsável por: carregar o inbox do coordenador, subscrever o canal
 // Realtime para atualizações em tempo real, mostrar notificações nativas

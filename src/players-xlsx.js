@@ -104,5 +104,5 @@ export async function downloadPlayersTemplate() {
   ];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Atletas');
-  XLSX.writeFile(wb, 'modelo-atletas-rcs.xlsx');
+  XLSX.writeFile(wb, 'modelo-atletas-rumia.xlsx');
 }
