@@ -176,9 +176,17 @@ export function orgAccess() {
 
 // --- Onboarding / convites (multi-tenant) --------------------------------
 
+// Duração (dias) do período de demonstração de um clube novo. Muda aqui para
+// ajustar quanto tempo um treinador pode experimentar a app.
+export const TRIAL_DAYS = 7;
+
 // Cria um clube novo e torna o utilizador atual coordenador (RPC no Supabase).
-export async function createClub(name) {
-  const { data, error } = await supabase.rpc('create_club', { p_name: name });
+// Arranca em período de demonstração de TRIAL_DAYS dias.
+export async function createClub(name, trialDays = TRIAL_DAYS) {
+  const { data, error } = await supabase.rpc('create_club', {
+    p_name: name,
+    p_trial_days: trialDays,
+  });
   if (error) throw error;
   await loadProfile();
   return data;

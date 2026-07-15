@@ -252,7 +252,7 @@ $$;
 
 -- Cria um clube novo e torna o utilizador atual o seu coordenador. Usado no
 -- onboarding de quem se regista sem convite. Arranca em período de demonstração.
-create or replace function public.create_club(p_name text, p_trial_days int default 14)
+create or replace function public.create_club(p_name text, p_trial_days int default 7)
 returns uuid
 language plpgsql
 security definer

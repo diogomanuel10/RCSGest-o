@@ -4,7 +4,7 @@
 // cria o seu clube e torna-se coordenador. Quem chega por convite não vê este
 // ecrã — o convite é resgatado automaticamente no arranque (ver app-shell).
 
-import { createClub, dbErrorMessage } from '../store.js';
+import { createClub, dbErrorMessage, TRIAL_DAYS } from '../store.js';
 import { signOut } from '../auth.js';
 import { esc } from '../ui.js';
 import { logoSrc, branding } from '../branding.js';
@@ -19,8 +19,8 @@ export function renderOnboarding(root, onDone) {
         <img class="login__logo" src="${esc(logoSrc())}" alt="" width="72" height="72" />
         <h1 class="section-title login__title">Bem-vindo à ${esc(b.app_name)}</h1>
         <p class="muted login__subtitle">
-          Cria o teu clube para começar. Terás um período de demonstração
-          gratuito e poderás convidar os teus treinadores.
+          Cria o teu clube para começar. Tens <strong>${TRIAL_DAYS} dias</strong>
+          gratuitos para experimentar tudo, e podes convidar os teus treinadores.
         </p>
 
         <div class="field">
