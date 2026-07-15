@@ -23,10 +23,22 @@ export async function signIn(email, password) {
 // Cria uma conta nova com email + password.
 // Devolve { needsConfirmation } — true quando o Supabase exige confirmação
 // por email antes de a sessão ficar ativa.
+//
+// `emailRedirectTo` fixa o destino do link de confirmação na origem da própria
+// app (mantendo um eventual ?invite=…), em vez de depender do Site URL do
+// painel do Supabase. Se o Site URL estiver mal configurado (a apontar para o
+// URL da API do Supabase), o link de confirmação aterra na API sem `apikey` e
+// mostra "No API key found in request" — impedindo o utilizador de confirmar.
 export async function signUp(email, password) {
   const { data, error } = await supabase.auth.signUp({
     email: email.trim(),
     password,
+    options: {
+      emailRedirectTo:
+        typeof window !== 'undefined'
+          ? window.location.origin + window.location.search
+          : undefined,
+    },
   });
   if (error) throw error;
   // Sem sessão imediata => a conta requer confirmação por email.
