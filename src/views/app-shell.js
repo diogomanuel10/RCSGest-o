@@ -10,14 +10,6 @@ import { state, subscribe, loadAll, loadProfile, orgAccess, redeemInvitation } f
 import { loadingHTML, errorHTML, esc } from '../ui.js';
 import { renderOnboarding } from './onboarding.js';
 import { renderSubscriptionBlocked } from './subscription-blocked.js';
-import { cycleTheme, getTheme } from '../theme.js';
-
-// Ícone + rótulo do botão de tema conforme o estado (claro/escuro/automático).
-const THEME_UI = {
-  light: { label: 'Tema claro', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>' },
-  dark: { label: 'Tema escuro', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>' },
-  auto: { label: 'Tema automático', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor" stroke="none"/></svg>' },
-};
 import { canManageSettings, canManageUsers, canRestore, canAccess, ROLE_LABEL } from '../permissions.js';
 import { teamName } from '../compute.js';
 import {
@@ -217,10 +209,6 @@ export async function renderAppShell(root, session) {
             <span class="topbar__email">${session.user.email}</span>
             <span class="badge badge--muted" id="role-badge">leitura</span>
           </div>
-          <button class="btn btn--ghost btn--icon btn--sm" id="theme-toggle" type="button"
-                  aria-label="${THEME_UI[getTheme()].label}" title="${THEME_UI[getTheme()].label}">
-            ${THEME_UI[getTheme()].icon}
-          </button>
           <button class="btn btn--ghost btn--sm" id="logout" type="button">Sair</button>
         </div>
       </header>
@@ -251,14 +239,6 @@ export async function renderAppShell(root, session) {
   root.querySelector('#menu-toggle').addEventListener('click', toggleMenu);
   root.querySelector('#scrim').addEventListener('click', closeDrawer);
   root.querySelector('#logout').addEventListener('click', () => signOut());
-
-  const themeBtn = root.querySelector('#theme-toggle');
-  themeBtn?.addEventListener('click', () => {
-    const t = cycleTheme();
-    themeBtn.innerHTML = THEME_UI[t].icon;
-    themeBtn.setAttribute('aria-label', THEME_UI[t].label);
-    themeBtn.setAttribute('title', THEME_UI[t].label);
-  });
 
   window.addEventListener('resize', () => {
     if (!isMobile()) closeDrawer();

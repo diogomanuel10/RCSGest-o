@@ -56,57 +56,6 @@
   color-scheme: light;
 }
 
-/* --- Tema escuro -------------------------------------------------------
-   Redefine só os tokens de "chão" (fundos, texto, bordas, estados, sombras).
-   As cores da marca (--navy*/--yellow*) vêm de branding.js, já cientes do tema.
-   Aplica-se por prefers-color-scheme (modo 'auto') E por data-theme="dark"
-   (escolha explícita); o data-theme="light" força claro mesmo com SO escuro. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    --bg: #0e141b;
-    --surface: #161d27;
-    --surface-2: #1e2733;
-    --border: #2b3644;
-    --text: #e6ebf2;
-    --text-muted: #93a1b3;
-    --gold-light: rgba(193, 154, 43, 0.16);
-    --silver-light: rgba(139, 151, 163, 0.15);
-    --bronze-light: rgba(176, 106, 59, 0.18);
-    --ok-bg: rgba(22, 163, 74, 0.20);
-    --warn-bg: rgba(217, 119, 6, 0.20);
-    --danger-bg: rgba(220, 38, 38, 0.24);
-    --info-bg: rgba(37, 99, 235, 0.24);
-    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
-    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.4);
-    --shadow: 0 4px 8px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
-    --shadow-md: 0 10px 20px rgba(0, 0, 0, 0.55), 0 4px 8px rgba(0, 0, 0, 0.4);
-    --shadow-lg: 0 24px 40px rgba(0, 0, 0, 0.6), 0 10px 20px rgba(0, 0, 0, 0.45);
-    color-scheme: dark;
-  }
-}
-
-:root[data-theme='dark'] {
-  --bg: #0e141b;
-  --surface: #161d27;
-  --surface-2: #1e2733;
-  --border: #2b3644;
-  --text: #e6ebf2;
-  --text-muted: #93a1b3;
-  --gold-light: rgba(193, 154, 43, 0.16);
-  --silver-light: rgba(139, 151, 163, 0.15);
-  --bronze-light: rgba(176, 106, 59, 0.18);
-  --ok-bg: rgba(22, 163, 74, 0.20);
-  --warn-bg: rgba(217, 119, 6, 0.20);
-  --danger-bg: rgba(220, 38, 38, 0.24);
-  --info-bg: rgba(37, 99, 235, 0.24);
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow: 0 4px 8px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 10px 20px rgba(0, 0, 0, 0.55), 0 4px 8px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 24px 40px rgba(0, 0, 0, 0.6), 0 10px 20px rgba(0, 0, 0, 0.45);
-  color-scheme: dark;
-}
-
 /* --- Reset leve --- */
 *,
 *::before,
