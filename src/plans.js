@@ -44,7 +44,7 @@ export const PLANS = [
   {
     key: 'essencial', name: 'Essencial', order: 3,
     desc: 'Gestão do clube com ficha de sócio, material e documentos.',
-    sections: ['quotas', 'equipamentos', 'documentos'],
+    sections: ['quotas', 'equipamentos', 'encomendas', 'documentos'],
     limits: { escaloes: null, users: 5 },
   },
   {
