@@ -9,7 +9,10 @@
 // pintar o ecrã de login (que corre sem sessão, logo sem acesso à BD) já com a
 // identidade do clube, em vez do arranque genérico.
 
-import defaultLogoUrl from './assets/logo.svg';
+// Logótipo por omissão da aplicação. O ficheiro vive em `public/logo.png` e é
+// servido diretamente em `/logo.png` (não precisa de import/bundling). É o que
+// aparece antes de um clube personalizar o seu emblema.
+const defaultLogoUrl = '/logo.png';
 
 const STORAGE_KEY = 'rcs.branding';
 

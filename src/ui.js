@@ -1,8 +1,7 @@
 // Pequenos utilitários de interface partilhados por várias vistas.
 
-import logoUrl from './assets/logo.svg';
-
-export { logoUrl };
+// Logótipo por omissão da aplicação (ficheiro em public/, servido em /logo.png).
+export const logoUrl = '/logo.png';
 
 // Escapa texto para inserção segura em HTML (evita partir o layout com < > & ").
 export function esc(value) {
