@@ -10,6 +10,7 @@ import { isConfigured } from './supabase.js';
 import { getSession, onAuthChange } from './auth.js';
 import { resetState } from './store.js';
 import { applyCachedBranding } from './branding.js';
+import { applyTheme } from './theme.js';
 import { renderConfigHelp } from './views/config-help.js';
 import { renderLogin } from './views/login.js';
 import { renderAppShell } from './views/app-shell.js';
@@ -60,6 +61,7 @@ async function boot() {
   // Aplica a última marca conhecida já no arranque, para que o ecrã de login
   // (sem sessão, sem acesso à BD) surja com a identidade do clube.
   applyCachedBranding();
+  applyTheme();
   captureInviteToken();
 
   if (!isConfigured) {

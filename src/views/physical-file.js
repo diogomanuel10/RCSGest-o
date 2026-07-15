@@ -84,10 +84,10 @@ export function renderPhysicalInto(container, playerId, { editable } = {}) {
         ${canPhysical ? '<button class="btn btn--accent btn--sm" data-add-test type="button">+ Avaliação</button>' : ''}
       </div>
       ${tests.length
-        ? `<table class="players-table">
+        ? `<div class="scroll-x"><table class="players-table">
              <thead><tr><th>Data</th><th>Teste</th><th>Valor</th>${canPhysical ? '<th></th>' : ''}</tr></thead>
              <tbody>${tests.map((t) => testRowHTML(t, canPhysical)).join('')}</tbody>
-           </table>`
+           </table></div>`
         : '<p class="muted" style="margin:0.3rem 0 0">Sem avaliações registadas.</p>'}
     </div>
 

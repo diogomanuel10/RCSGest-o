@@ -104,7 +104,7 @@ export function renderFinanceiro(container) {
       </div>
 
       ${entries.length ? `
-        <table class="data-table">
+        <div class="scroll-x"><table class="data-table">
           <thead>
             <tr>
               <th>Data</th>
@@ -118,7 +118,7 @@ export function renderFinanceiro(container) {
           <tbody>
             ${pg.items.map((e) => entryRow(e, editable)).join('')}
           </tbody>
-        </table>
+        </table></div>
         ${paginationHTML(pg)}
       ` : emptyHTML('Sem registos para os filtros selecionados.')}
     </section>

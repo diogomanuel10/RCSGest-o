@@ -472,7 +472,7 @@ function renderSummary(container, tabBar) {
     </div>
 
     <section class="card" style="padding:0;overflow:hidden">
-      <table class="pres-table">
+      <div class="scroll-x"><table class="pres-table">
         <thead>
           <tr>
             <th>#</th>
@@ -506,7 +506,7 @@ function renderSummary(container, tabBar) {
             `;
           }).join('') : `<tr><td colspan="8" class="muted" style="text-align:center;padding:1.5rem">Sem dados de presença ainda.</td></tr>`}
         </tbody>
-      </table>
+      </table></div>
     </section>
   `;
 
