@@ -15,6 +15,7 @@ import {
 } from '../store.js';
 import { esc, emptyHTML } from '../ui.js';
 import { ROLES, ROLE_LABEL, SECTIONS, DEFAULT_TRAINER_SECTIONS, DEFAULT_FISIO_SECTIONS, DEFAULT_PREP_SECTIONS, DEFAULT_SECCIONISTA_SECTIONS, isCoordenador } from '../permissions.js';
+import { planLimit, planLimitReached, currentPlan } from '../plans.js';
 
 // Acessos por omissão sugeridos ao convidar, por papel.
 const DEFAULT_SECTIONS_BY_ROLE = {
@@ -166,6 +167,18 @@ export function renderUtilizadores(container) {
   }
 
   container.querySelector('#invite-new')?.addEventListener('click', () => {
+    // Limite de utilizadores do plano: conta os perfis do clube + convites por
+    // usar. Ao atingir o teto, sugere upgrade em vez de criar mais.
+    const pendentes = (state.invitations || []).filter((i) => !i.used_at && (!i.expires_at || new Date(i.expires_at) >= new Date())).length;
+    const usados = state.profiles.length;
+    if (planLimitReached('users', usados + pendentes)) {
+      showInvMsg(
+        `Atingiste o limite de utilizadores do plano ${currentPlan().name} (${planLimit('users')}). ` +
+        'Faz upgrade do plano para convidares mais pessoas.',
+        'error'
+      );
+      return;
+    }
     openInviteModal((inv) => showInviteLinkModal(inv));
   });
 

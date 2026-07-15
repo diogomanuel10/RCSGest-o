@@ -2,6 +2,7 @@
 // isto serve para mostrar/esconder ações e dar mensagens claras ao utilizador.
 
 import { state } from './store.js';
+import { planAllowsFeature } from './plans.js';
 
 export const ROLES = [
   { key: 'coordenador', label: 'Coordenador', desc: 'Acesso total' },
@@ -166,11 +167,19 @@ export function currentPermissions() {
   return Array.isArray(p) ? p : [];
 }
 
-// Pode aceder (ver) uma dada secção?
+// Pode aceder (ver) uma dada secção? Combina DUAS camadas:
+//   1) o papel do utilizador (roleCanAccess) — quem pode ver o quê;
+//   2) o plano do clube (planAllowsFeature) — que módulos premium estão ativos.
+// Um módulo premium só aparece se o papel O permitir E o plano O incluir.
+export function canAccess(key) {
+  return roleCanAccess(key) && planAllowsFeature(key);
+}
+
+// Acesso por PAPEL (sem considerar o plano). Base histórica das permissões.
 //   coordenador → todas (menos o portal, que é do atleta);
 //   atleta      → só o portal;
 //   treinador / leitura → só as secções que o coordenador lhe deu.
-export function canAccess(key) {
+function roleCanAccess(key) {
   const role = currentRole();
   if (role === 'coordenador') return key !== 'portal';
   if (role === 'atleta') return key === 'portal';

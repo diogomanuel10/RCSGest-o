@@ -6,6 +6,7 @@
 
 import { state, adminListOrgs, adminSetOrgStatus, dbErrorMessage } from '../store.js';
 import { esc, emptyHTML, loadingHTML, errorHTML } from '../ui.js';
+import { PLANS, PLAN_LABEL, normalizePlan } from '../plans.js';
 
 const ORG_STATUSES = [
   { key: 'trial',     label: 'Demonstração', badge: 'info' },
@@ -72,12 +73,15 @@ export function renderAdmin(container) {
       </div>
       <div class="table-wrap"><table class="users-table">
         <thead><tr>
-          <th>Clube</th><th>Dono</th><th>Atletas</th><th>Equipas</th>
+          <th>Clube</th><th>Dono</th><th>Plano</th><th>Atletas</th><th>Equipas</th>
           <th>Utilizadores</th><th>Estado</th><th>Demonstração até</th><th>Ações</th>
         </tr></thead>
         <tbody>${orgs.map(orgRow).join('')}</tbody>
       </table></div>
       <p class="settings-msg hidden" id="admin-msg"></p>
+      <div class="roles-legend" style="margin-top:1rem">
+        ${PLANS.map((p) => `<span class="muted"><strong>${esc(p.name)}:</strong> ${esc(p.desc)}</span>`).join('')}
+      </div>
     `;
     wire(orgs);
   }
@@ -88,10 +92,16 @@ export function renderAdmin(container) {
       ? (dl < 0 ? '<span class="badge badge--danger">expirado</span>'
                 : `<span class="muted">${dl} dia${dl !== 1 ? 's' : ''}</span>`)
       : '';
+    const planKey = normalizePlan(o.plan);
     return `
       <tr>
-        <td><strong>${esc(o.name)}</strong><br><span class="muted" style="font-size:0.75rem">${esc(o.plan || '')}</span></td>
+        <td><strong>${esc(o.name)}</strong></td>
         <td style="font-size:0.85rem">${esc(o.owner_email || '—')}</td>
+        <td>
+          <select class="role-select" data-plan="${o.id}">
+            ${PLANS.map((p) => `<option value="${p.key}" ${p.key === planKey ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}
+          </select>
+        </td>
         <td>${o.players_count ?? 0}</td>
         <td>${o.teams_count ?? 0}</td>
         <td>${o.users_count ?? 0}</td>
@@ -103,7 +113,6 @@ export function renderAdmin(container) {
         <td style="font-size:0.85rem">${fmtDate(o.trial_ends_at)} ${trialInfo}</td>
         <td>
           <button class="btn btn--ghost btn--sm" data-extend="${o.id}" type="button">+14 dias</button>
-          <button class="btn btn--link btn--sm" data-plan="${o.id}" type="button">Plano</button>
         </td>
       </tr>
     `;
@@ -148,12 +157,12 @@ export function renderAdmin(container) {
       });
     });
 
-    body.querySelectorAll('[data-plan]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const o = findOrg(btn.dataset.plan);
-        const plan = prompt('Nome do plano:', o?.plan || '');
-        if (plan === null) return;
-        act(() => adminSetOrgStatus(o.id, { plan: plan.trim() }), 'Plano atualizado.');
+    body.querySelectorAll('[data-plan]').forEach((sel) => {
+      sel.addEventListener('change', (e) => {
+        const id = e.target.dataset.plan;
+        const plan = e.target.value;
+        act(() => adminSetOrgStatus(id, { plan }),
+            `Plano atualizado para "${PLAN_LABEL[plan] || plan}".`);
       });
     });
   }
