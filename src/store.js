@@ -48,6 +48,8 @@ export const state = {
   objectives: [],         // objetivos / KPIs da época (manuais e automáticos)
   profile: null, // perfil do utilizador atual (com o papel/role)
   profiles: [], // todos os perfis (preenchido só se o utilizador for coordenador)
+  org: null, // organização (clube) do utilizador atual — multi-tenant
+  isPlatformAdmin: false, // o utilizador é admin da plataforma (vendedor)?
   // Registos arquivados (inativos), só carregados para o coordenador — usados
   // na área "Arquivados" para consultar e repor. As coleções normais (acima)
   // contêm apenas registos ativos.
@@ -93,6 +95,8 @@ export function resetState() {
   state.objectives = [];
   state.profile = null;
   state.profiles = [];
+  state.org = null;
+  state.isPlatformAdmin = false;
   state.archived = { teams: [], players: [], coaches: [], sponsors: [], events: [], prospects: [] };
   state.loaded = false;
 }
@@ -125,7 +129,74 @@ export async function loadProfile() {
 
   const all = data || [];
   state.profiles = all;
-  state.profile = all.find((p) => p.id === userId) || { id: userId, role: 'leitura' };
+  state.profile = all.find((p) => p.id === userId) || { id: userId, role: 'leitura', org_id: null };
+
+  await loadOrgContext();
+}
+
+// Carrega a organização (clube) do utilizador atual e se é admin da plataforma.
+// A app usa isto para o gate de subscrição (trial/suspenso) e o onboarding.
+export async function loadOrgContext() {
+  const orgId = state.profile?.org_id || null;
+  if (orgId) {
+    const { data } = await supabase
+      .from('organizations')
+      .select('*')
+      .eq('id', orgId)
+      .maybeSingle();
+    state.org = data || null;
+  } else {
+    state.org = null;
+  }
+  // Admin da plataforma: a policy só devolve linhas a quem for admin.
+  const { data: padmin } = await supabase
+    .from('platform_admins')
+    .select('user_id')
+    .limit(1);
+  state.isPlatformAdmin = Array.isArray(padmin) && padmin.length > 0;
+}
+
+// A organização atual pode usar a app? (ativa, ou trial por expirar).
+// Devolve { ok, reason } — reason ∈ 'pending' | 'suspensa' | 'cancelada' | 'trial_expirado'.
+export function orgAccess() {
+  if (!state.profile?.org_id) return { ok: false, reason: 'pending' };
+  const o = state.org;
+  if (!o) return { ok: false, reason: 'pending' };
+  if (o.status === 'ativa') return { ok: true };
+  if (o.status === 'trial') {
+    const expired = o.trial_ends_at && new Date(o.trial_ends_at) < new Date();
+    return expired ? { ok: false, reason: 'trial_expirado' } : { ok: true };
+  }
+  return { ok: false, reason: o.status };
+}
+
+// --- Onboarding / convites (multi-tenant) --------------------------------
+
+// Cria um clube novo e torna o utilizador atual coordenador (RPC no Supabase).
+export async function createClub(name) {
+  const { data, error } = await supabase.rpc('create_club', { p_name: name });
+  if (error) throw error;
+  await loadProfile();
+  return data;
+}
+
+// Aceita um convite por token, ligando a conta ao clube (RPC no Supabase).
+export async function redeemInvitation(token) {
+  const { data, error } = await supabase.rpc('redeem_invitation', { p_token: token });
+  if (error) throw error;
+  await loadProfile();
+  return data;
+}
+
+// Cria um convite para o clube atual e devolve a linha (com o token/link).
+export async function createInvitation(role, permissions, email) {
+  const { data, error } = await supabase.rpc('create_invitation', {
+    p_role: role,
+    p_permissions: permissions || [],
+    p_email: email || null,
+  });
+  if (error) throw error;
+  return data;
 }
 
 // --- Carregamento inicial -------------------------------------------------
@@ -136,7 +207,9 @@ export async function loadAll() {
          trainingPlans, trainingPlanItems, trainingEvaluations, trainingPlayerEvals,
          playerDocuments, playerSizes, squads, squadPlayers, financialEntries, gamePlans, objectives] =
     await Promise.all([
-      supabase.from('settings').select('*').eq('id', 1).maybeSingle(),
+      // Multi-tenant: o RLS limita as definições ao clube do utilizador, por
+      // isso não filtramos por id — devolve a (única) linha do clube atual.
+      supabase.from('settings').select('*').limit(1).maybeSingle(),
       // Só registos ativos (archived_at nulo). Os arquivados carregam-se à parte
       // (loadArchived) e só para o coordenador.
       supabase.from('coaches').select('*').is('archived_at', null).order('name'),
@@ -886,12 +959,14 @@ export async function removeSquadPlayer(squadId, playerId) {
 
 // --- Definições (linha única) --------------------------------------------
 export async function saveSettings(values) {
-  const { data, error } = await supabase
-    .from('settings')
-    .update(values)
-    .eq('id', 1)
-    .select()
-    .single();
+  // Atualiza a linha de definições do clube atual (multi-tenant). Se ainda não
+  // existir (clube acabado de criar), o RLS/DEFAULT tratam do org_id no upsert.
+  const orgId = state.org?.id || state.profile?.org_id;
+  const query = supabase.from('settings').update(values);
+  const { data, error } = await (orgId
+    ? query.eq('org_id', orgId)
+    : query.eq('id', state.settings.id)
+  ).select().single();
   if (error) throw error;
   state.settings = data;
   // Reaplica a marca — cobre qualquer alteração de cores/emblema/textos.
@@ -912,12 +987,15 @@ export async function replaceAllData(backup) {
     if (error) throw error;
   }
 
-  // Inserir (pais primeiro). Só insere se houver linhas.
+  // Inserir (pais primeiro). Só insere se houver linhas. Remove o org_id das
+  // linhas para o DEFAULT (current_org_id) reatribuir ao clube atual — assim um
+  // backup pode ser reimportado noutro clube sem colidir com o isolamento.
   const insertOrder = ['coaches', 'teams', 'players', 'sponsors', 'events'];
   for (const table of insertOrder) {
     const rows = backup[table];
     if (Array.isArray(rows) && rows.length) {
-      const { error } = await supabase.from(table).insert(rows);
+      const clean = rows.map(({ org_id, ...rest }) => rest);
+      const { error } = await supabase.from(table).insert(clean);
       if (error) throw error;
     }
   }

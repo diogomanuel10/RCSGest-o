@@ -6,10 +6,33 @@ instalação e setup, ver [`README.md`](README.md).
 ## Visão geral
 
 Aplicação web **vanilla JavaScript** (sem framework) servida pelo **Vite**.
-A persistência e a autenticação são do **Supabase**. Modelo de dados de
-**clube único, partilhado**: qualquer utilizador autenticado vê e edita os
-mesmos dados. O controlo de acesso é o login + o RLS do Supabase, não filtros
-por utilizador.
+A persistência e a autenticação são do **Supabase**.
+
+**Modelo multi-tenant (SaaS):** cada clube é uma **organização** (`organizations`)
+com os dados totalmente isolados dos outros. Todas as tabelas de dados têm
+`org_id` (com `default current_org_id()`) e uma política **RESTRICTIVE** de
+isolamento por clube, que se combina (AND) com as políticas de papel já
+existentes — um clube nunca vê linhas de outro. Dentro de cada clube mantém-se
+o modelo **partilhado por papel**: os utilizadores desse clube veem/editam
+conforme o `role` + RLS. Ver `supabase/multitenant.sql` (corre DEPOIS de
+`schema.sql` e `notifications.sql`).
+
+- **Onboarding**: quem se regista sem convite fica "pendente" (perfil com
+  `org_id` nulo) e cria o seu clube em `onboarding.js` (RPC `create_club`,
+  arranca em período de demonstração/trial).
+- **Convites**: o coordenador gera um link `?invite=<token>` (RPC
+  `create_invitation`); o convidado regista-se e o token é resgatado no arranque
+  (RPC `redeem_invitation`, ver `app-shell.js`), ligando a conta ao clube.
+- **Subscrições**: `organizations.status` (`trial`/`ativa`/`suspensa`/
+  `cancelada`) + `trial_ends_at`. O *gate* em `app-shell.js` (`orgAccess()`)
+  bloqueia clubes inativos (`subscription-blocked.js`).
+- **Admin da plataforma** (o vendedor): tabela `platform_admins`, ACIMA do
+  coordenador. Gere planos/estados por billing manual (RPCs `admin_list_orgs`,
+  `admin_set_org_status`). `is_platform_admin()` no RLS.
+- **Pendente (follow-up)**: a Edge Function `attendance-reminder` corre com
+  chave de serviço (sem `auth.uid()`), por isso as notificações que cria ficam
+  com `org_id` nulo — precisa de iterar por clube e definir `org_id`. O painel
+  de admin (UI) e a UI de criação de convites em Utilizadores ainda não existem.
 
 ## Estrutura de pastas
 
