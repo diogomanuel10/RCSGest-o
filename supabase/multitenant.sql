@@ -421,9 +421,10 @@ $$;
 -- perfis existentes. Idempotente (só preenche onde org_id está nulo).
 do $$
 declare
+  -- Nome do clube inicial: recebe TODOS os dados atuais (nada se perde).
+  v_initial_name constant text := 'Real Clube Senhorense';
   v_org uuid;
   v_owner uuid;
-  v_name text;
   t text;
   tables text[] := array[
     'coaches','equipment','teams','players','team_coaches','sponsors','events',
@@ -445,13 +446,15 @@ begin
     if v_owner is null then
       select id into v_owner from auth.users order by created_at limit 1;
     end if;
-    select coalesce(nullif(trim(club_name), ''), 'O meu clube') into v_name
-      from settings order by id limit 1;
 
     insert into organizations (name, owner_id, plan, status)
-    values (coalesce(v_name, 'O meu clube'), v_owner, 'pro', 'ativa')
+    values (v_initial_name, v_owner, 'pro', 'ativa')
     returning id into v_org;
   end if;
+
+  -- Garante o nome do clube inicial mesmo que a migração já tenha corrido antes
+  -- (é o clube que detém todos os dados existentes — não se perde nada).
+  update organizations set name = v_initial_name where id = v_org;
 
   -- Perfis sem clube -> clube inicial.
   update profiles set org_id = v_org where org_id is null;
