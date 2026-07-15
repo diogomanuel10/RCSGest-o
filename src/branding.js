@@ -67,20 +67,38 @@ function mix(hex, target, amt) {
   return toHex(a.map((v, i) => v + (b[i] - v) * amt));
 }
 
+// O tema em vigor é escuro? Lê o data-theme (definido por theme.js) e, na sua
+// ausência ('auto'), o prefers-color-scheme do sistema.
+function isDarkTheme() {
+  const t = document.documentElement.getAttribute('data-theme');
+  if (t === 'dark') return true;
+  if (t === 'light') return false;
+  return !!window.matchMedia?.('(prefers-color-scheme: dark)').matches;
+}
+
 // Aplica a paleta ao documento, derivando os tons da cor primária/destaque.
-// Mantém alinhado com os tokens definidos em style.css (:root).
+// Mantém alinhado com os tokens definidos em style.css (:root). As tintas
+// CLARAS (--navy-100/-300, usadas como fundos suaves) derivam para branco no
+// tema claro e para um tom escuro no tema escuro, para funcionarem nos dois.
 function applyPalette(primary, accent) {
   const s = document.documentElement.style;
   const p = parseHex(primary) ? primary : DEFAULT_BRANDING.brand_primary;
   const a = parseHex(accent) ? accent : DEFAULT_BRANDING.brand_accent;
+  const dark = isDarkTheme();
+  const softTint = dark ? '#141c26' : '#ffffff';
 
   s.setProperty('--navy', p);
   s.setProperty('--navy-700', mix(p, '#000000', 0.22));
   s.setProperty('--navy-500', mix(p, '#ffffff', 0.16));
-  s.setProperty('--navy-300', mix(p, '#ffffff', 0.34));
-  s.setProperty('--navy-100', mix(p, '#ffffff', 0.88));
+  s.setProperty('--navy-300', mix(p, softTint, dark ? 0.48 : 0.34));
+  s.setProperty('--navy-100', mix(p, softTint, dark ? 0.80 : 0.88));
   s.setProperty('--yellow', a);
   s.setProperty('--yellow-600', mix(a, '#000000', 0.16));
+}
+
+// Reaplica a paleta com a marca atual (usado ao trocar de tema).
+export function reapplyPalette() {
+  applyPalette(current.brand_primary, current.brand_accent);
 }
 
 // Normaliza um objeto de definições para uma marca completa e válida.

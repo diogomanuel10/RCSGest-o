@@ -12,31 +12,21 @@ import { branding, logoSrc, defaultLogo, parseHex, DEFAULT_BRANDING } from '../b
 const MAX_LOGO_BYTES = 256 * 1024;
 
 export function renderDefinicoes(container) {
-  const { season, goal } = state.settings;
   const b = branding();
 
   container.innerHTML = `
     <header class="page-head">
       <div>
         <h1 class="section-title">Definições</h1>
-        <p class="muted" style="margin:0;font-size:0.88rem">Época, escalões e cópia de segurança</p>
+        <p class="muted" style="margin:0;font-size:0.88rem">Escalões, avaliação e cópia de segurança</p>
       </div>
     </header>
 
     <div class="settings-grid">
     <section class="card settings-card">
-      <h2 class="section-title settings-card__title">Época e meta</h2>
+      <h2 class="section-title settings-card__title">Avaliação de plantel</h2>
       <form id="settings-form">
         <div class="field-grid">
-          <div class="field">
-            <label for="season">Época</label>
-            <input type="text" id="season" name="season" value="${esc(season)}"
-                   placeholder="2026/2027" pattern="\\d{4}/\\d{4}" required />
-          </div>
-          <div class="field">
-            <label for="goal">Meta da época (€)</label>
-            <input type="number" id="goal" name="goal" value="${esc(goal)}" min="0" step="100" required />
-          </div>
           <div class="field">
             <label for="review_deadline">Prazo de avaliação de plantel</label>
             <input type="date" id="review_deadline" name="review_deadline"
@@ -166,8 +156,6 @@ export function renderDefinicoes(container) {
     btn.textContent = 'A guardar…';
     try {
       await saveSettings({
-        season: form.season.value.trim(),
-        goal: parseInt(form.goal.value, 10) || 0,
         review_deadline: form.review_deadline.value || null,
       });
       showMsg(settingsMsg, 'Definições guardadas.', 'ok');

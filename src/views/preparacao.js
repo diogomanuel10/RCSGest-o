@@ -148,7 +148,7 @@ function athleteListHTML() {
   const pg = paginate(players, page, PAGE_SIZE);
 
   return `
-    <table class="players-table med-table">
+    <div class="scroll-x"><table class="players-table med-table">
       <thead><tr><th>Atleta</th><th>Equipa</th><th>IMC</th><th>Última avaliação</th><th></th></tr></thead>
       <tbody>
         ${pg.items.map((p) => {
@@ -167,7 +167,7 @@ function athleteListHTML() {
             </tr>`;
         }).join('')}
       </tbody>
-    </table>
+    </table></div>
     ${paginationHTML({ ...pg, id: 'pf' })}
   `;
 }
@@ -307,10 +307,10 @@ function sessionHTML(s, editable) {
         <div class="cf-episode__body">
           ${s.notes ? `<p class="muted" style="margin:0.2rem 0 0.4rem">${esc(s.notes)}</p>` : ''}
           ${exercises.length
-            ? `<table class="players-table">
+            ? `<div class="scroll-x"><table class="players-table">
                  <thead><tr><th>Exercício</th><th>Séries</th><th>Carga</th><th>Reps</th><th>OBS</th>${editable ? '<th></th>' : ''}</tr></thead>
                  <tbody>${exercises.map((e) => exerciseRowHTML(e, s.id, editable)).join('')}</tbody>
-               </table>`
+               </table></div>`
             : '<p class="muted" style="margin:0.2rem 0">Sem exercícios.</p>'}
           ${editable ? `<div class="team-card__actions"><button class="btn btn--ghost btn--sm" data-add-ex="${s.id}" type="button">+ Exercício</button></div>` : ''}
         </div>` : ''}
