@@ -41,7 +41,9 @@ Deno.serve(async (_req: Request) => {
 
     const { data: events, error: evErr } = await supabase
       .from('events')
-      .select('id, type, title, date, time, end_time, team_id')
+      // org_id: multi-tenant — a notificação herda o clube do evento, para
+      // ficar isolada (visível só a esse clube).
+      .select('id, type, title, date, time, end_time, team_id, org_id')
       .is('archived_at', null)
       .eq('date', today)
       .gte('time', fmtTime(winStart))
@@ -90,6 +92,7 @@ Deno.serve(async (_req: Request) => {
           body:           `${label} começa às ${ev.time}. Não te esqueças de marcar as presenças.`,
           data:           { event_id: ev.id, type: ev.type, date: ev.date, time: ev.time },
           target_user_id: userId,
+          org_id:         ev.org_id, // isola a notificação no clube do evento
         }));
 
       if (!rows.length) continue;

@@ -34,7 +34,8 @@ begin
   win_end   := to_char(now() + interval '15 minutes', 'HH24:MI');
 
   for ev in
-    select e.id, e.type, e.title, e.date, e.time, e.team_id
+    -- org_id: multi-tenant — a notificação herda o clube do evento (isolamento).
+    select e.id, e.type, e.title, e.date, e.time, e.team_id, e.org_id
     from   events e
     where  e.archived_at is null
       and  e.date = current_date
@@ -65,7 +66,7 @@ begin
       where  tc.team_id = ev.team_id
         and  c.user_id is not null
     loop
-      insert into notifications (type, title, body, data, target_user_id)
+      insert into notifications (type, title, body, data, target_user_id, org_id)
       values (
         'attendance_reminder',
         'Lembrete: marcar presenças',
@@ -77,7 +78,8 @@ begin
           'date',     ev.date,
           'time',     ev.time
         ),
-        trainer_uid
+        trainer_uid,
+        ev.org_id
       );
     end loop;
   end loop;
