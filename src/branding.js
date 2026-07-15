@@ -9,7 +9,9 @@
 // pintar o ecrã de login (que corre sem sessão, logo sem acesso à BD) já com a
 // identidade do clube, em vez do arranque genérico.
 
-import defaultLogoUrl from './assets/logo.svg';
+// Emblema de origem servido de public/ (URL na raiz). Não se importa como
+// asset porque vive em public/ — o Vite copia-o tal e qual para a build.
+const defaultLogoUrl = '/logo.png';
 
 const STORAGE_KEY = 'rcs.branding';
 

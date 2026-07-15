@@ -1,6 +1,7 @@
 // Pequenos utilitários de interface partilhados por várias vistas.
 
-import logoUrl from './assets/logo.svg';
+// Emblema de origem servido de public/ (URL na raiz), não importado como asset.
+const logoUrl = '/logo.png';
 
 export { logoUrl };
 
