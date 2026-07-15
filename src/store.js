@@ -50,6 +50,7 @@ export const state = {
   profiles: [], // todos os perfis (preenchido só se o utilizador for coordenador)
   org: null, // organização (clube) do utilizador atual — multi-tenant
   isPlatformAdmin: false, // o utilizador é admin da plataforma (vendedor)?
+  invitations: [], // convites do clube (só o coordenador os lê via RLS)
   // Registos arquivados (inativos), só carregados para o coordenador — usados
   // na área "Arquivados" para consultar e repor. As coleções normais (acima)
   // contêm apenas registos ativos.
@@ -97,6 +98,7 @@ export function resetState() {
   state.profiles = [];
   state.org = null;
   state.isPlatformAdmin = false;
+  state.invitations = [];
   state.archived = { teams: [], players: [], coaches: [], sponsors: [], events: [], prospects: [] };
   state.loaded = false;
 }
@@ -194,6 +196,37 @@ export async function createInvitation(role, permissions, email) {
     p_role: role,
     p_permissions: permissions || [],
     p_email: email || null,
+  });
+  if (error) throw error;
+  state.invitations.unshift(data);
+  notify();
+  return data;
+}
+
+// Revoga (apaga) um convite pendente.
+export async function revokeInvitation(id) {
+  const { error } = await supabase.from('org_invitations').delete().eq('id', id);
+  if (error) throw error;
+  state.invitations = state.invitations.filter((i) => i.id !== id);
+  notify();
+}
+
+// --- Painel de admin da plataforma (o vendedor) --------------------------
+
+// Lista todas as organizações com estatísticas (RPC guardado por is_platform_admin).
+export async function adminListOrgs() {
+  const { data, error } = await supabase.rpc('admin_list_orgs');
+  if (error) throw error;
+  return data || [];
+}
+
+// Altera o estado/plano/fim de trial de uma organização (billing manual).
+export async function adminSetOrgStatus(orgId, { status, plan, trialEndsAt } = {}) {
+  const { data, error } = await supabase.rpc('admin_set_org_status', {
+    p_org: orgId,
+    p_status: status ?? null,
+    p_plan: plan ?? null,
+    p_trial_ends_at: trialEndsAt ?? null,
   });
   if (error) throw error;
   return data;
@@ -309,9 +342,20 @@ export async function loadAll() {
 
   await loadProfile();
   await loadArchived();
+  await loadInvitations();
 
   state.loaded = true;
   notify();
+}
+
+// Carrega os convites do clube. O RLS só devolve linhas ao coordenador; para os
+// outros papéis fica vazio (sem erro).
+export async function loadInvitations() {
+  const { data } = await supabase
+    .from('org_invitations')
+    .select('*')
+    .order('created_at', { ascending: false });
+  state.invitations = data || [];
 }
 
 // Remove da cache ativa os registos cujo "pai" já não está ativo (foi
