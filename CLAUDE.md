@@ -26,14 +26,18 @@ conforme o `role` + RLS. Ver `supabase/multitenant.sql` (corre DEPOIS de
 - **Subscrições**: `organizations.status` (`trial`/`ativa`/`suspensa`/
   `cancelada`) + `trial_ends_at`. O *gate* em `app-shell.js` (`orgAccess()`)
   bloqueia clubes inativos (`subscription-blocked.js`).
-- **Planos** (`plans.js`, fonte única): 5 níveis (Solo, Treinador+, Essencial,
-  Clube, Clube+) via `organizations.plan`. Cada plano define os módulos premium
-  (`quotas`, `medico`, `fisica`, `equipamentos`, `encomendas`, `financeiro`…) e
-  limites (`escaloes`, `users`). `canAccess()` combina papel + `planAllowsFeature`;
-  os limites têm avisos de upgrade em `planteis.js` (escalões) e `utilizadores.js`
-  (utilizadores). Planos legados (`pro`/`trial`) mapeiam para acesso total
-  (fail-open). Gating é de UI — enforcement por plano no RLS/triggers é
-  follow-up (os módulos sensíveis já têm RLS por papel).
+- **Planos** (tabela `plans`, ver `supabase/plans.sql`): 5 níveis (Solo,
+  Treinador+, Essencial, Clube, Clube+) via `organizations.plan`. São
+  **editáveis** pelo admin da plataforma em `admin.js` (Plataforma → Planos):
+  módulos premium incluídos (`quotas`, `medico`, `fisica`, `equipamentos`,
+  `encomendas`, `documentos`, `financeiro`, `ia` — catálogo em
+  `PLAN_FEATURE_CATALOG`) e limites (`max_escaloes`, `max_users`). A app
+  carrega-os em `state.plans`; `plans.js` lê daí (com `DEFAULT_PLANS` como
+  recurso se a tabela ainda não existir). `canAccess()` combina papel +
+  `planAllowsFeature`; os limites têm avisos de upgrade em `planteis.js`
+  (escalões) e `utilizadores.js` (utilizadores). Planos legados (`pro`/`trial`)
+  mapeiam para acesso total (fail-open). Gating é de UI — enforcement por plano
+  no RLS/triggers é follow-up (os módulos sensíveis já têm RLS por papel).
 - **Admin da plataforma** (o vendedor): tabela `platform_admins`, ACIMA do
   coordenador. A vista `admin.js` (entrada "Plataforma" no rodapé, só para
   `is_platform_admin()`) lista os clubes e gere planos/estados por billing

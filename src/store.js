@@ -51,6 +51,7 @@ export const state = {
   org: null, // organização (clube) do utilizador atual — multi-tenant
   isPlatformAdmin: false, // o utilizador é admin da plataforma (vendedor)?
   invitations: [], // convites do clube (só o coordenador os lê via RLS)
+  plans: [], // planos de subscrição (editáveis pelo admin da plataforma)
   // Registos arquivados (inativos), só carregados para o coordenador — usados
   // na área "Arquivados" para consultar e repor. As coleções normais (acima)
   // contêm apenas registos ativos.
@@ -99,6 +100,7 @@ export function resetState() {
   state.org = null;
   state.isPlatformAdmin = false;
   state.invitations = [];
+  state.plans = [];
   state.archived = { teams: [], players: [], coaches: [], sponsors: [], events: [], prospects: [] };
   state.loaded = false;
 }
@@ -343,9 +345,32 @@ export async function loadAll() {
   await loadProfile();
   await loadArchived();
   await loadInvitations();
+  await loadPlans();
 
   state.loaded = true;
   notify();
+}
+
+// Carrega os planos de subscrição da BD. Se a tabela ainda não existir (o
+// plans.sql não foi corrido), fica vazio e a app usa os planos por omissão.
+export async function loadPlans() {
+  const { data, error } = await supabase.from('plans').select('*').order('sort');
+  state.plans = error ? [] : (data || []);
+}
+
+// Cria/atualiza um plano (só o admin da plataforma, garantido pelo RLS).
+export async function savePlan(plan) {
+  const { data, error } = await supabase
+    .from('plans')
+    .upsert({ ...plan, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+    .select()
+    .single();
+  if (error) throw error;
+  const i = state.plans.findIndex((p) => p.key === plan.key);
+  if (i !== -1) state.plans[i] = data;
+  else state.plans.push(data);
+  notify();
+  return data;
 }
 
 // Carrega os convites do clube. O RLS só devolve linhas ao coordenador; para os
