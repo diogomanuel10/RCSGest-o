@@ -6,8 +6,10 @@
 
 import { logoSrc, branding } from '../branding.js';
 import { signOut } from '../auth.js';
-import { state, subscribe, loadAll } from '../store.js';
+import { state, subscribe, loadAll, loadProfile, orgAccess, redeemInvitation } from '../store.js';
 import { loadingHTML, errorHTML, esc } from '../ui.js';
+import { renderOnboarding } from './onboarding.js';
+import { renderSubscriptionBlocked } from './subscription-blocked.js';
 import { canManageSettings, canManageUsers, canRestore, canAccess, ROLE_LABEL } from '../permissions.js';
 import { teamName } from '../compute.js';
 import {
@@ -97,6 +99,42 @@ let current = 'painel';
 export async function renderAppShell(root, session) {
   current = 'painel';
   root.removeAttribute('aria-busy');
+
+  // --- Gate multi-tenant: clube e subscrição ------------------------------
+  // Antes de montar a app, confirma que o utilizador pertence a um clube ativo.
+  // Sem clube -> onboarding (ou resgate de convite). Clube inativo -> bloqueio.
+  root.innerHTML = loadingHTML('A preparar a tua conta…');
+  try {
+    await loadProfile();
+
+    // Resgata um convite pendente (link ?invite=) se ainda não tiver clube.
+    const pendingInvite = (() => {
+      try { return localStorage.getItem('rcs.invite'); } catch { return null; }
+    })();
+    if (!state.profile?.org_id && pendingInvite) {
+      try {
+        await redeemInvitation(pendingInvite);
+      } catch (err) {
+        console.warn('Convite inválido ou expirado:', err?.message);
+      } finally {
+        try { localStorage.removeItem('rcs.invite'); } catch { /* ignora */ }
+      }
+    }
+
+    const access = orgAccess();
+    if (!access.ok) {
+      if (access.reason === 'pending') {
+        renderOnboarding(root, () => renderAppShell(root, session));
+      } else {
+        renderSubscriptionBlocked(root, access.reason);
+      }
+      return;
+    }
+  } catch (err) {
+    root.innerHTML = errorHTML('Não foi possível verificar a tua conta. Tenta recarregar.');
+    console.error(err);
+    return;
+  }
 
   const navHTML = (items, footer = false) =>
     items

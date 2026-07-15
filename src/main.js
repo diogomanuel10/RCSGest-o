@@ -38,10 +38,29 @@ function route(session) {
   }
 }
 
+// Guarda um token de convite presente no URL (?invite=TOKEN) para sobreviver ao
+// registo/confirmação de email. É resgatado no arranque da app (ver app-shell).
+function captureInviteToken() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('invite');
+    if (token) {
+      localStorage.setItem('rcs.invite', token);
+      // Limpa o parâmetro do URL para não ficar visível/partilhável por engano.
+      params.delete('invite');
+      const qs = params.toString();
+      window.history.replaceState({}, '', window.location.pathname + (qs ? '?' + qs : ''));
+    }
+  } catch {
+    /* URL/localStorage indisponível: segue sem convite */
+  }
+}
+
 async function boot() {
   // Aplica a última marca conhecida já no arranque, para que o ecrã de login
   // (sem sessão, sem acesso à BD) surja com a identidade do clube.
   applyCachedBranding();
+  captureInviteToken();
 
   if (!isConfigured) {
     renderConfigHelp(root);
