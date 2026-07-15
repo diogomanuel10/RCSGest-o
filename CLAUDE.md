@@ -27,12 +27,15 @@ conforme o `role` + RLS. Ver `supabase/multitenant.sql` (corre DEPOIS de
   `cancelada`) + `trial_ends_at`. O *gate* em `app-shell.js` (`orgAccess()`)
   bloqueia clubes inativos (`subscription-blocked.js`).
 - **Admin da plataforma** (o vendedor): tabela `platform_admins`, ACIMA do
-  coordenador. Gere planos/estados por billing manual (RPCs `admin_list_orgs`,
-  `admin_set_org_status`). `is_platform_admin()` no RLS.
+  coordenador. A vista `admin.js` (entrada "Plataforma" no rodapé, só para
+  `is_platform_admin()`) lista os clubes e gere planos/estados por billing
+  manual (RPCs `admin_list_orgs`, `admin_set_org_status`).
+- **Convites (UI)**: em `utilizadores.js` o coordenador cria convites (papel +
+  acessos), copia o link `?invite=<token>` e revoga-os. A lista vem de
+  `state.invitations`.
 - **Pendente (follow-up)**: a Edge Function `attendance-reminder` corre com
   chave de serviço (sem `auth.uid()`), por isso as notificações que cria ficam
-  com `org_id` nulo — precisa de iterar por clube e definir `org_id`. O painel
-  de admin (UI) e a UI de criação de convites em Utilizadores ainda não existem.
+  com `org_id` nulo — precisa de iterar por clube e definir `org_id`.
 
 ## Estrutura de pastas
 
