@@ -7,6 +7,7 @@ import { teamName, teamCoaches, escaloes, currentCoach, coachTeams } from '../co
 import { openModal, confirmDialog } from '../modal.js';
 import { POSITIONS, COACH_ROLE_LABEL } from '../constants.js';
 import { canEdit, canDelete, isCoordenador } from '../permissions.js';
+import { planLimit, currentPlan } from '../plans.js';
 import { parsePlayersFile, downloadPlayersTemplate } from '../players-xlsx.js';
 import { openAthleteProfile } from './athlete-profile.js';
 
@@ -327,6 +328,19 @@ function openTeamForm(id) {
       errEl.textContent = 'Escolhe o escalão.';
       errEl.classList.remove('hidden');
       return;
+    }
+
+    // Limite de escalões do plano: só ao criar um escalão NOVO (adicionar mais
+    // uma equipa a um escalão já existente não conta). Infinity = sem limite.
+    if (!existing) {
+      const distinct = new Set(state.teams.map((t) => t.escalao));
+      if (!distinct.has(escalao) && distinct.size >= planLimit('escaloes')) {
+        errEl.textContent =
+          `O plano ${currentPlan().name} permite ${planLimit('escaloes')} escalão(ões). ` +
+          'Faz upgrade do plano para adicionares mais.';
+        errEl.classList.remove('hidden');
+        return;
+      }
     }
 
     const confirmBtn = overlay.querySelector('#team-confirm');
