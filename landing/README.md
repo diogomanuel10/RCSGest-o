@@ -26,11 +26,23 @@ python3 -m http.server 8080 --directory landing
 
 Tudo está em `landing/index.html`:
 
-- **Preços** — os valores (`19€`, `39€`, `69€`) e o que cada plano inclui são
-  **exemplos**. Procura pela secção `id="precos"` (tem um comentário de aviso) e
-  ajusta ao teu modelo de negócio.
-- **Contacto / CTA** — os botões apontam para `mailto:ola@rumia.pt`. Substitui
-  por um email real ou por um formulário/checkout. Procura por `ola@rumia.pt`.
+- **Preços** — os cinco planos (Solo, Treinador+, Essencial, Clube, Clube+)
+  estão alinhados com `src/plans.js` (`DEFAULT_PLANS`): nomes, funcionalidades e
+  limites de escalões/utilizadores. Os **montantes** (`9€`…`99€`) são
+  placeholders — procura por `/mês` na secção `id="precos"` e ajusta ao teu
+  modelo de negócio.
+- **Pedir demonstração** — a secção `id="contacto"` tem um formulário: o cliente
+  põe o email (clube e mensagem são opcionais) e o pedido chega a
+  **diomanuel10@gmail.com** através do [FormSubmit](https://formsubmit.co)
+  (gratuito, sem servidor próprio).
+  - **Importante:** no *primeiro* envio, o FormSubmit manda um email de
+    **ativação** a diomanuel10@gmail.com — basta clicar uma vez no link para
+    passares a receber todos os pedidos.
+  - Para mudar o destino, edita a constante `FORM_ENDPOINT` no `<script>` no fim
+    da página (e o `mailto:` de recurso na mesma zona).
+  - Depois de ativares, o FormSubmit dá-te um endereço "alias" (ex.:
+    `formsubmit.co/ajax/xxxxxxxx`); podes usá-lo em `FORM_ENDPOINT` para não
+    expor o teu email no código.
 - **Textos** — hero, funcionalidades e FAQ estão prontos, mas afina o tom à
   vontade.
 - Não há dados falsos de clientes nem números inventados de "clubes a usar" —
