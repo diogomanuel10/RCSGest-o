@@ -3,7 +3,8 @@
 import { state, saveSettings, snapshot, replaceAllData, dbErrorMessage } from '../store.js';
 import { esc } from '../ui.js';
 import { isCoordenador } from '../permissions.js';
-import { escaloes } from '../compute.js';
+import { escaloes, positions, sport } from '../compute.js';
+import { SPORTS, SPORT_POSITIONS } from '../constants.js';
 import { confirmDialog } from '../modal.js';
 import { branding, logoSrc, defaultLogo, parseHex, DEFAULT_BRANDING } from '../branding.js';
 
@@ -121,6 +122,37 @@ export function renderDefinicoes(container) {
       <p class="settings-msg hidden" id="esc-msg"></p>
       <div class="row" style="justify-content:flex-end">
         <button type="button" class="btn btn--primary" id="save-esc">Guardar escalões</button>
+      </div>
+    </section>
+
+    <section class="card settings-card">
+      <h2 class="section-title settings-card__title">Modalidade e posições</h2>
+      <p class="muted" style="margin-top:0">
+        A modalidade do clube e as posições usadas nas fichas de atleta, plantéis,
+        recrutamento e avaliação. Mudar de modalidade sugere as suas posições —
+        podes personalizá-las livremente.
+      </p>
+      <div class="field" style="max-width:280px">
+        <label for="sport-select">Modalidade</label>
+        <select id="sport-select">
+          ${SPORTS.map((s) => `<option value="${esc(s.key)}" ${s.key === sport() ? 'selected' : ''}>${esc(s.label)}</option>`).join('')}
+        </select>
+      </div>
+      <p class="muted" style="font-size:0.86rem;margin:0.7rem 0 0.3rem">Posições</p>
+      <ul class="chips" id="pos-list"></ul>
+      <form class="esc-add" id="pos-add">
+        <input type="text" id="pos-input" placeholder="Nova posição" maxlength="40"
+               aria-label="Nova posição" />
+        <button class="btn btn--ghost" type="submit">Adicionar</button>
+      </form>
+      <div class="row row--wrap" style="gap:0.6rem;margin-top:0.3rem">
+        <button type="button" class="btn btn--ghost btn--sm" id="pos-load-defaults">
+          Repor posições da modalidade
+        </button>
+      </div>
+      <p class="settings-msg hidden" id="pos-msg"></p>
+      <div class="row" style="justify-content:flex-end">
+        <button type="button" class="btn btn--primary" id="save-pos">Guardar modalidade e posições</button>
       </div>
     </section>
 
@@ -335,6 +367,95 @@ export function renderDefinicoes(container) {
     } finally {
       btn.disabled = false;
       btn.textContent = 'Guardar escalões';
+    }
+  });
+
+  // --- Modalidade e posições configuráveis ---
+  let posList = [...positions()];
+  const sportSelect = container.querySelector('#sport-select');
+  const posListEl = container.querySelector('#pos-list');
+  const posMsg = container.querySelector('#pos-msg');
+
+  function drawPosList() {
+    if (!posList.length) {
+      posListEl.innerHTML = '<li class="muted" style="list-style:none">Sem posições. Adiciona ou repõe as da modalidade.</li>';
+    } else {
+      posListEl.innerHTML = posList
+        .map(
+          (name, i) => `
+        <li class="chip">
+          <span class="chip__label">${esc(name)}</span>
+          <span class="chip__actions">
+            <button type="button" data-pup="${i}" aria-label="Mover para cima" ${
+            i === 0 ? 'disabled' : ''
+          }>↑</button>
+            <button type="button" data-pdown="${i}" aria-label="Mover para baixo" ${
+            i === posList.length - 1 ? 'disabled' : ''
+          }>↓</button>
+            <button type="button" data-premove="${i}" aria-label="Remover" class="chip__remove">×</button>
+          </span>
+        </li>`
+        )
+        .join('');
+    }
+    posListEl.querySelectorAll('[data-premove]').forEach((b) =>
+      b.addEventListener('click', () => {
+        posList.splice(Number(b.dataset.premove), 1);
+        drawPosList();
+      })
+    );
+    posListEl.querySelectorAll('[data-pup]').forEach((b) =>
+      b.addEventListener('click', () => movePos(Number(b.dataset.pup), -1))
+    );
+    posListEl.querySelectorAll('[data-pdown]').forEach((b) =>
+      b.addEventListener('click', () => movePos(Number(b.dataset.pdown), 1))
+    );
+  }
+
+  function movePos(i, dir) {
+    const j = i + dir;
+    if (j < 0 || j >= posList.length) return;
+    [posList[i], posList[j]] = [posList[j], posList[i]];
+    drawPosList();
+  }
+
+  drawPosList();
+
+  container.querySelector('#pos-add').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const input = container.querySelector('#pos-input');
+    const name = input.value.trim();
+    if (!name) return;
+    if (posList.some((x) => x.toLowerCase() === name.toLowerCase())) {
+      showMsg(posMsg, 'Essa posição já existe na lista.', 'error');
+      return;
+    }
+    posList.push(name);
+    input.value = '';
+    posMsg.classList.add('hidden');
+    drawPosList();
+    input.focus();
+  });
+
+  // Carrega as posições por omissão da modalidade selecionada (substitui a lista).
+  container.querySelector('#pos-load-defaults').addEventListener('click', () => {
+    posList = [...(SPORT_POSITIONS[sportSelect.value] || [])];
+    posMsg.classList.add('hidden');
+    drawPosList();
+  });
+
+  container.querySelector('#save-pos').addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    btn.textContent = 'A guardar…';
+    try {
+      await saveSettings({ sport: sportSelect.value, positions: posList });
+      showMsg(posMsg, 'Modalidade e posições guardadas.', 'ok');
+    } catch (err) {
+      showMsg(posMsg, dbErrorMessage(err), 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Guardar modalidade e posições';
     }
   });
 

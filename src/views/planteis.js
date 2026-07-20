@@ -3,9 +3,9 @@
 
 import { state, createRow, createRows, updateRow, archiveRow, saveTeamCoaches, dbErrorMessage } from '../store.js';
 import { esc, emptyHTML, paginate, paginationHTML, wirePagination, PAGE_SIZE } from '../ui.js';
-import { teamName, teamCoaches, escaloes, currentCoach, coachTeams } from '../compute.js';
+import { teamName, teamCoaches, escaloes, currentCoach, coachTeams, positions } from '../compute.js';
 import { openModal, confirmDialog } from '../modal.js';
-import { POSITIONS, COACH_ROLE_LABEL } from '../constants.js';
+import { COACH_ROLE_LABEL } from '../constants.js';
 import { canEdit, canDelete, isCoordenador } from '../permissions.js';
 import { planLimit, currentPlan } from '../plans.js';
 import { parsePlayersFile, downloadPlayersTemplate } from '../players-xlsx.js';
@@ -143,7 +143,7 @@ function filterBarHTML() {
         <label for="pl-pos">Posição</label>
         <select id="pl-pos">
           <option value="">Todas as posições</option>
-          ${POSITIONS.map((p) => `<option value="${esc(p)}" ${positionFilter === p ? 'selected' : ''}>${esc(p)}</option>`).join('')}
+          ${positions().map((p) => `<option value="${esc(p)}" ${positionFilter === p ? 'selected' : ''}>${esc(p)}</option>`).join('')}
         </select>
       </div>
     </div>
@@ -421,7 +421,7 @@ function openPlayerForm(teamId, playerId) {
         label: 'Posição',
         type: 'select',
         placeholder: '—',
-        options: POSITIONS,
+        options: positions(),
         full: true,
       },
       { name: 'federation_number', label: 'Nº de federado', placeholder: 'ex.: 987654' },

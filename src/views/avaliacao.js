@@ -5,8 +5,8 @@
 
 import { state, updateRow, dbErrorMessage } from '../store.js';
 import { esc, emptyHTML, paginate, paginationHTML, wirePagination, PAGE_SIZE } from '../ui.js';
-import { teamCoaches, teamName } from '../compute.js';
-import { REVIEW_STATUSES, REVIEW_LABEL, POSITIONS } from '../constants.js';
+import { teamCoaches, teamName, positions } from '../compute.js';
+import { REVIEW_STATUSES, REVIEW_LABEL } from '../constants.js';
 import { canEdit } from '../permissions.js';
 
 // Equipa selecionada (mantida entre re-desenhos).
@@ -87,7 +87,7 @@ export function renderAvaliacao(container) {
         <label for="aval-pos">Posição</label>
         <select id="aval-pos">
           <option value="">Todas as posições</option>
-          ${POSITIONS.map((p) => `<option value="${esc(p)}" ${positionFilter === p ? 'selected' : ''}>${esc(p)}</option>`).join('')}
+          ${positions().map((p) => `<option value="${esc(p)}" ${positionFilter === p ? 'selected' : ''}>${esc(p)}</option>`).join('')}
         </select>
       </div>
       <div class="field">

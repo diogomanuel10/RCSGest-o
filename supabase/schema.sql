@@ -28,6 +28,13 @@ create table if not exists settings (
 alter table settings add column if not exists escaloes jsonb not null default
   '["Minis","Infantis","Iniciados","Juvenis","Juniores","Seniores"]'::jsonb;
 
+-- Modalidade do clube (voleibol/futebol/futsal/andebol/basquetebol/outro) e as
+-- posições em vigor. A lista de posições é opcional: quando fica vazia, a app
+-- deriva as posições da modalidade (ver compute.positions()); quando é
+-- personalizada, sobrepõe-se. Escolhida no onboarding e editável nas Definições.
+alter table settings add column if not exists sport     text  not null default 'voleibol';
+alter table settings add column if not exists positions jsonb not null default '[]'::jsonb;
+
 -- Personalização da marca (white-label): nome, lema, cores e emblema do clube.
 -- O emblema é guardado como data URL (imagem pequena). Editável só pelo
 -- coordenador (política write_coord).

@@ -252,7 +252,11 @@ $$;
 
 -- Cria um clube novo e torna o utilizador atual o seu coordenador. Usado no
 -- onboarding de quem se regista sem convite. Arranca em período de demonstração.
-create or replace function public.create_club(p_name text, p_trial_days int default 7)
+create or replace function public.create_club(
+  p_name text,
+  p_trial_days int default 7,
+  p_sport text default 'voleibol'
+)
 returns uuid
 language plpgsql
 security definer
@@ -260,6 +264,7 @@ set search_path = public
 as $$
 declare
   v_org uuid;
+  v_sport text := coalesce(nullif(trim(p_sport), ''), 'voleibol');
 begin
   if auth.uid() is null then
     raise exception 'Sem sessão.';
@@ -283,9 +288,9 @@ begin
     on conflict (id) do update set org_id = excluded.org_id, role = excluded.role;
   end if;
 
-  -- Linha de definições própria do clube (marca/época por omissão).
-  insert into public.settings (org_id) values (v_org)
-  on conflict (org_id) do nothing;
+  -- Linha de definições própria do clube (marca/época/modalidade por omissão).
+  insert into public.settings (org_id, sport) values (v_org, v_sport)
+  on conflict (org_id) do update set sport = excluded.sport;
 
   return v_org;
 end;

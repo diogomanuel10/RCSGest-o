@@ -203,6 +203,14 @@ topo do módulo da vista.
 - **Escalões configuráveis**: guardados em `settings.escaloes` (JSON). A lista
   em vigor obtém-se por `compute.escaloes()` (recorre a `DEFAULT_ESCALOES` se
   vazio). Geridos nas Definições; usados no formulário de equipa dos Plantéis.
+- **Modalidade e posições configuráveis**: a modalidade do clube vive em
+  `settings.sport` (voleibol/futebol/futsal/andebol/basquetebol/outro — catálogo
+  `SPORTS` em `constants.js`) e as posições em `settings.positions` (JSON). A
+  lista em vigor obtém-se por `compute.positions()`: usa `settings.positions` se
+  for personalizada, senão deriva as posições por omissão da modalidade
+  (`SPORT_POSITIONS`). Assim, mudar de modalidade muda logo as posições sem seed.
+  Escolhida no onboarding (RPC `create_club` aceita `p_sport`) e editável nas
+  Definições; usada nos Plantéis, Recrutamento e Avaliação.
 - **Credenciação do treinador**: `coaches.license_number` (Nº da Licença) e
   `coaches.tptd` são texto livre, opcionais; mostrados na ficha do treinador.
 - **Importar atletas (.xlsx)**: nos Plantéis, cada equipa tem "Importar (xlsx)".

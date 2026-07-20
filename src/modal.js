@@ -16,7 +16,9 @@ function fieldHTML(field, value) {
     control = `<textarea id="${id}" name="${field.name}" ${required}
       placeholder="${esc(field.placeholder || '')}">${esc(v)}</textarea>`;
   } else if (field.type === 'select') {
-    const opts = (field.options || [])
+    const options = field.options || [];
+    const keys = options.map((o) => (typeof o === 'string' ? o : o.key));
+    const opts = options
       .map((o) => {
         const key = typeof o === 'string' ? o : o.key;
         const label = typeof o === 'string' ? o : o.label;
@@ -24,10 +26,17 @@ function fieldHTML(field, value) {
         return `<option value="${esc(key)}" ${sel}>${esc(label)}</option>`;
       })
       .join('');
+    // Valor guardado que já não consta das opções (ex.: posição de uma
+    // modalidade anterior). Preserva-o como opção "atual" já selecionada, para
+    // que editar o registo nunca o sobrescreva silenciosamente.
+    const orphan =
+      v && !keys.some((k) => String(k) === String(v))
+        ? `<option value="${esc(v)}" selected>${esc(v)} (atual)</option>`
+        : '';
     const placeholder = field.placeholder
       ? `<option value="" ${v ? '' : 'selected'}>${esc(field.placeholder)}</option>`
       : '';
-    control = `<select id="${id}" name="${field.name}" ${required}>${placeholder}${opts}</select>`;
+    control = `<select id="${id}" name="${field.name}" ${required}>${placeholder}${orphan}${opts}</select>`;
   } else if (field.type === 'file') {
     control = `<input type="file" id="${id}" name="${field.name}" ${required}
       accept="${esc(field.accept || '*/*')}" style="padding:0.25rem 0" />`;

@@ -63,14 +63,56 @@ export const DEFAULT_ESCALOES = [
   'Seniores',
 ];
 
-export const POSITIONS = [
-  'Distribuidor',
-  'Zona 4',
-  'Central',
-  'Oposto',
-  'Líbero',
-  'Universal',
+// Modalidades suportadas. Cada uma traz o seu conjunto de posições por omissão
+// (PT-PT). A modalidade do clube guarda-se em settings.sport; as posições em
+// vigor obtêm-se por compute.positions() (que recorre a estas se o clube não
+// tiver uma lista personalizada). Geridas nas Definições e no onboarding.
+export const SPORTS = [
+  {
+    key: 'voleibol',
+    label: 'Voleibol',
+    positions: ['Distribuidor', 'Zona 4', 'Central', 'Oposto', 'Líbero', 'Universal'],
+  },
+  {
+    key: 'futebol',
+    label: 'Futebol',
+    positions: [
+      'Guarda-redes', 'Defesa central', 'Defesa direito', 'Defesa esquerdo',
+      'Médio defensivo', 'Médio centro', 'Médio ofensivo',
+      'Extremo direito', 'Extremo esquerdo', 'Avançado',
+    ],
+  },
+  {
+    key: 'futsal',
+    label: 'Futsal',
+    positions: ['Guarda-redes', 'Fixo', 'Ala direito', 'Ala esquerdo', 'Pivô', 'Universal'],
+  },
+  {
+    key: 'andebol',
+    label: 'Andebol',
+    positions: [
+      'Guarda-redes', 'Ponta esquerda', 'Ponta direita',
+      'Lateral esquerdo', 'Lateral direito', 'Central', 'Pivô',
+    ],
+  },
+  {
+    key: 'basquetebol',
+    label: 'Basquetebol',
+    positions: ['Base', 'Escolta', 'Extremo', 'Ala-poste', 'Poste'],
+  },
+  {
+    key: 'outro',
+    label: 'Outro',
+    positions: [],
+  },
 ];
+export const SPORT_LABEL = Object.fromEntries(SPORTS.map((s) => [s.key, s.label]));
+export const SPORT_POSITIONS = Object.fromEntries(SPORTS.map((s) => [s.key, s.positions]));
+export const DEFAULT_SPORT = 'voleibol';
+
+// Posições por omissão (recurso caso a modalidade seja desconhecida). Mantém a
+// retrocompatibilidade com os clubes de voleibol já existentes.
+export const DEFAULT_POSITIONS = SPORT_POSITIONS[DEFAULT_SPORT];
 
 // Papel de um treinador dentro de uma equipa.
 export const COACH_ROLES = [
