@@ -29,8 +29,9 @@ Tudo está em `landing/index.html`:
 - **Preços** — os valores (`19€`, `39€`, `69€`) e o que cada plano inclui são
   **exemplos**. Procura pela secção `id="precos"` (tem um comentário de aviso) e
   ajusta ao teu modelo de negócio.
-- **Contacto / CTA** — os botões apontam para `mailto:ola@rumia.pt`. Substitui
-  por um email real ou por um formulário/checkout. Procura por `ola@rumia.pt`.
+- **Contacto / CTA** — os botões apontam para `mailto:duospike410@gmail.com`.
+  Para trocar, procura por `duospike410@gmail.com` (ou substitui por um
+  formulário/checkout).
 - **Textos** — hero, funcionalidades e FAQ estão prontos, mas afina o tom à
   vontade.
 - Não há dados falsos de clientes nem números inventados de "clubes a usar" —

@@ -227,6 +227,13 @@
   .pill--ok { background: #dcfce7; color: #15803d; }
   .pill--warn { background: #fef3c7; color: #b45309; }
   .pill--info { background: #dbeafe; color: #1d4ed8; }
+  /* Barra de meta da época (reflete o Painel real: total angariado vs meta) */
+  .mock-goal { background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px; padding: 0.6rem 0.7rem; margin-bottom: 0.8rem; }
+  .mock-goal__top { display: flex; justify-content: space-between; align-items: baseline; font-size: 0.72rem; color: var(--muted); margin-bottom: 0.4rem; }
+  .mock-goal__top strong { color: var(--ink); font-family: var(--font-display); font-size: 0.9rem; }
+  .mock-goal__bar { height: 7px; border-radius: 4px; background: var(--border); overflow: hidden; }
+  .mock-goal__bar span { display: block; height: 100%; width: 63%; background: linear-gradient(90deg, var(--navy-500), var(--yellow)); }
+  .mock-label { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); margin: 0.2rem 0 0.1rem; }
 
   /* --- Faixa de confiança --- */
   .trust { background: var(--surface); border-bottom: 1px solid var(--border); }
@@ -301,13 +308,14 @@
 
   /* --- Preços --- */
   .pricing { background: var(--paper); }
-  .plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.3rem; align-items: stretch; }
-  @media (max-width: 900px) { .plans { grid-template-columns: 1fr; max-width: 420px; margin: 0 auto; } }
+  .plans { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.8rem; align-items: stretch; }
+  @media (max-width: 1040px) { .plans { grid-template-columns: repeat(3, 1fr); max-width: 680px; margin: 0 auto; } }
+  @media (max-width: 640px) { .plans { grid-template-columns: 1fr; max-width: 400px; } }
   .plan {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 2rem 1.7rem;
+    padding: 1.9rem 1.4rem;
     display: flex;
     flex-direction: column;
   }
@@ -323,11 +331,12 @@
     text-transform: uppercase; letter-spacing: 0.08em;
     padding: 0.3rem 0.9rem; border-radius: 999px;
   }
-  .plan__name { font-family: var(--font-display); font-weight: 700; font-size: 1.5rem; }
-  .plan__desc { color: var(--muted); font-size: 0.92rem; min-height: 2.6em; margin: 0.3rem 0 1.1rem; }
-  .plan__price { font-family: var(--font-display); font-weight: 700; font-size: 3rem; line-height: 1; color: var(--ink); }
+  .plan__name { font-family: var(--font-display); font-weight: 700; font-size: 1.35rem; }
+  .plan__desc { color: var(--muted); font-size: 0.88rem; min-height: 3.6em; margin: 0.3rem 0 1rem; }
+  .plan__price { font-family: var(--font-display); font-weight: 700; font-size: 2.4rem; line-height: 1; color: var(--ink); }
   .plan__price .per { font-size: 1rem; font-weight: 500; color: var(--muted); font-family: var(--font-body); }
-  .plan__list { list-style: none; padding: 0; margin: 1.4rem 0 1.8rem; display: flex; flex-direction: column; gap: 0.65rem; font-size: 0.94rem; }
+  .plan__list { list-style: none; padding: 0; margin: 1.4rem 0 1.8rem; display: flex; flex-direction: column; gap: 0.65rem; font-size: 0.9rem; }
+  .plan > .btn { margin-top: auto; }
   .plan__list li { display: flex; gap: 0.55rem; align-items: flex-start; }
   .plan__list .tick { color: var(--navy); font-weight: 700; flex: 0 0 auto; }
   @media (prefers-color-scheme: dark) { .plan__list .tick { color: var(--yellow); } }
@@ -460,11 +469,16 @@
           <span class="item"><span class="ic"></span>Financeiro</span>
         </div>
         <div class="mock-main">
+          <div class="mock-goal">
+            <div class="mock-goal__top"><span>Meta da época</span><strong>9.500 € / 15.000 €</strong></div>
+            <div class="mock-goal__bar"><span></span></div>
+          </div>
           <div class="mock-stats">
             <div class="stat"><div class="n">128</div><div class="l">Atletas</div></div>
             <div class="stat"><div class="n">9</div><div class="l">Equipas</div></div>
             <div class="stat"><div class="n">14</div><div class="l">Jogos</div></div>
           </div>
+          <p class="mock-label">Disponibilidade do plantel</p>
           <div class="mock-row"><span class="av"></span><span class="nm">Beatriz Faria</span><span class="pill pill--ok">Apto</span></div>
           <div class="mock-row"><span class="av"></span><span class="nm">Rui Tavares</span><span class="pill pill--warn">Limitado</span></div>
           <div class="mock-row"><span class="av"></span><span class="nm">Mariana Sá</span><span class="pill pill--info">Em recuperação</span></div>
@@ -478,7 +492,7 @@
 <!-- ================= FAIXA DE CONFIANÇA ================= -->
 <div class="trust">
   <div class="wrap trust__inner">
-    <span>Feito para <strong>voleibol</strong> — pronto para qualquer modalidade coletiva.</span>
+    <span>Voleibol, futebol, futsal, andebol, basquetebol — <strong>escolhe a modalidade</strong> do teu clube.</span>
     <span>Dados <strong>seguros</strong> na cloud, com cópias de segurança.</span>
     <span><strong>Personalizável</strong> com a marca do teu clube.</span>
   </div>
@@ -605,10 +619,11 @@
 <!-- ================= PREÇOS ================= -->
 <!--
   ┌──────────────────────────────────────────────────────────────────┐
-  │  ATENÇÃO: os preços abaixo são VALORES DE EXEMPLO.                 │
-  │  Ajusta os montantes e o que cada plano inclui ao teu modelo de   │
-  │  negócio antes de publicar. Procura por "/mês" e pela lista de    │
-  │  cada .plan para editar.                                          │
+  │  ATENÇÃO: os preços (€/mês) abaixo são VALORES DE EXEMPLO.         │
+  │  Os NOMES, MÓDULOS e LIMITES de cada plano batem com os da app    │
+  │  (Solo · Treinador+ · Essencial · Clube · Clube+ — ver plans.sql).│
+  │  Ajusta só os montantes ao teu modelo de negócio antes de         │
+  │  publicar. Procura por "/mês" em cada .plan.                      │
   └──────────────────────────────────────────────────────────────────┘
 -->
 <section class="pricing" id="precos">
@@ -616,18 +631,44 @@
     <div class="section-head reveal">
       <span class="eyebrow">Preços simples</span>
       <h2>Um plano para cada fase do clube</h2>
-      <p>Sem fidelização. Escolhe o que precisas hoje e sobe de plano quando o clube crescer.</p>
+      <p>Sem fidelização. Do treinador sozinho ao clube completo — sobe de plano quando cresceres.</p>
     </div>
     <div class="plans">
       <div class="plan reveal">
-        <div class="plan__name">Base</div>
-        <p class="plan__desc">O essencial para pôr o clube em ordem.</p>
+        <div class="plan__name">Solo</div>
+        <p class="plan__desc">Um treinador, um escalão.</p>
+        <div class="plan__price">9€<span class="per"> /mês</span></div>
+        <ul class="plan__list">
+          <li><span class="tick">✓</span> Plantel e fichas de atleta</li>
+          <li><span class="tick">✓</span> Calendário, presenças e convocatórias</li>
+          <li><span class="tick">✓</span> Plano de jogo, avaliação e estatísticas</li>
+          <li><span class="tick">✓</span> 1 escalão · 1 utilizador</li>
+        </ul>
+        <a class="btn btn--ghost" href="#contacto">Começar</a>
+      </div>
+
+      <div class="plan reveal">
+        <div class="plan__name">Treinador+</div>
+        <p class="plan__desc">Um treinador com vários escalões e coordenação técnica.</p>
         <div class="plan__price">19€<span class="per"> /mês</span></div>
         <ul class="plan__list">
-          <li><span class="tick">✓</span> Plantéis e fichas de atleta</li>
-          <li><span class="tick">✓</span> Calendário e presenças</li>
-          <li><span class="tick">✓</span> Quotas mensais</li>
-          <li><span class="tick">✓</span> Até 2 escalões</li>
+          <li><span class="tick">✓</span> Tudo do Solo, para várias equipas</li>
+          <li><span class="tick">✓</span> Recrutamento, objetivos e patrocínios</li>
+          <li><span class="tick">✓</span> Até 3 escalões · 2 utilizadores</li>
+        </ul>
+        <a class="btn btn--ghost" href="#contacto">Começar</a>
+      </div>
+
+      <div class="plan reveal">
+        <div class="plan__name">Essencial</div>
+        <p class="plan__desc">Gestão administrativa do clube: sócios, material e documentos.</p>
+        <div class="plan__price">29€<span class="per"> /mês</span></div>
+        <ul class="plan__list">
+          <li><span class="tick">✓</span> Tudo do Treinador+</li>
+          <li><span class="tick">✓</span> Quotas (ficha de sócio)</li>
+          <li><span class="tick">✓</span> Equipamentos e encomendas</li>
+          <li><span class="tick">✓</span> Documentos (RGPD)</li>
+          <li><span class="tick">✓</span> Escalões ilimitados · até 5 utilizadores</li>
         </ul>
         <a class="btn btn--ghost" href="#contacto">Começar</a>
       </div>
@@ -635,28 +676,26 @@
       <div class="plan plan--featured reveal">
         <span class="plan__badge">Mais popular</span>
         <div class="plan__name">Clube</div>
-        <p class="plan__desc">Para clubes com equipa técnica e médica.</p>
-        <div class="plan__price">39€<span class="per"> /mês</span></div>
+        <p class="plan__desc">Clube completo, com equipa técnica e médica.</p>
+        <div class="plan__price">49€<span class="per"> /mês</span></div>
         <ul class="plan__list">
-          <li><span class="tick">✓</span> Tudo do plano Base</li>
-          <li><span class="tick">✓</span> Departamento médico</li>
+          <li><span class="tick">✓</span> Tudo do Essencial</li>
+          <li><span class="tick">✓</span> Departamento médico / fisioterapia</li>
           <li><span class="tick">✓</span> Preparação física</li>
-          <li><span class="tick">✓</span> Convocatórias e estatísticas</li>
-          <li><span class="tick">✓</span> Escalões ilimitados</li>
+          <li><span class="tick">✓</span> Até 15 utilizadores</li>
         </ul>
         <a class="btn btn--primary" href="#contacto">Escolher Clube</a>
       </div>
 
       <div class="plan reveal">
-        <div class="plan__name">Pro</div>
-        <p class="plan__desc">Gestão completa, com a tua marca.</p>
-        <div class="plan__price">69€<span class="per"> /mês</span></div>
+        <div class="plan__name">Clube+</div>
+        <p class="plan__desc">Tudo, com visão de direção e análise avançada.</p>
+        <div class="plan__price">79€<span class="per"> /mês</span></div>
         <ul class="plan__list">
-          <li><span class="tick">✓</span> Tudo do plano Clube</li>
-          <li><span class="tick">✓</span> Financeiro e patrocínios</li>
-          <li><span class="tick">✓</span> Plano de jogo e objetivos</li>
-          <li><span class="tick">✓</span> Personalização com a tua marca</li>
-          <li><span class="tick">✓</span> Suporte prioritário</li>
+          <li><span class="tick">✓</span> Tudo do Clube</li>
+          <li><span class="tick">✓</span> Financeiro (visão de direção)</li>
+          <li><span class="tick">✓</span> Análise / IA avançada</li>
+          <li><span class="tick">✓</span> Utilizadores ilimitados</li>
         </ul>
         <a class="btn btn--ghost" href="#contacto">Falar connosco</a>
       </div>
@@ -675,7 +714,7 @@
     <div class="faq reveal">
       <details class="qa">
         <summary>A Rumia serve para outras modalidades além do voleibol?</summary>
-        <p>Sim. Foi desenhada a pensar no voleibol, mas a estrutura — equipas, escalões, calendário, presenças, departamento médico — aplica-se a qualquer modalidade coletiva.</p>
+        <p>Sim. Escolhes a modalidade do clube — voleibol, futebol, futsal, andebol, basquetebol ou outra — e as posições adaptam-se automaticamente. Toda a gestão (equipas, escalões, calendário, presenças, departamento médico) serve qualquer modalidade coletiva.</p>
       </details>
       <details class="qa">
         <summary>Posso personalizar com a marca do meu clube?</summary>
@@ -704,7 +743,7 @@
     <p>Marca uma demonstração de 20 minutos e mostramos-te a Rumia com dados de exemplo.</p>
     <div class="final__actions">
       <!-- Substitui pelo teu email/formulário de contacto real -->
-      <a class="btn btn--primary" href="mailto:ola@rumia.pt?subject=Quero%20conhecer%20a%20Rumia">Pedir demonstração</a>
+      <a class="btn btn--primary" href="mailto:duospike410@gmail.com?subject=Quero%20conhecer%20a%20Rumia">Pedir demonstração</a>
       <a class="btn btn--on-navy" href="#precos">Ver planos</a>
     </div>
   </div>
@@ -722,7 +761,7 @@
         <a href="#funcionalidades">Funcionalidades</a>
         <a href="#precos">Preços</a>
         <a href="#faq">FAQ</a>
-        <a href="mailto:ola@rumia.pt">Contacto</a>
+        <a href="mailto:duospike410@gmail.com">Contacto</a>
       </nav>
     </div>
     <div class="footer__legal">
