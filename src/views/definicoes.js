@@ -12,39 +12,37 @@ import { branding, logoSrc, defaultLogo, parseHex, DEFAULT_BRANDING } from '../b
 // pequena e o carregamento rápido.
 const MAX_LOGO_BYTES = 256 * 1024;
 
+// Separador ativo das Definições (mantido entre re-desenhos).
+let activeTab = 'identidade';
+
 export function renderDefinicoes(container) {
   const b = branding();
+  const coordenador = isCoordenador();
+  // "Cópia de segurança" só existe para o coordenador — evita ficar preso nesse
+  // separador se o utilizador não lhe tiver acesso.
+  if (activeTab === 'backup' && !coordenador) activeTab = 'identidade';
+  const panelClass = (key) =>
+    `settings-panel${activeTab === key ? ' settings-panel--active' : ''}`;
+  const tabBtn = (key, label) =>
+    `<button class="cal-toggle__btn ${activeTab === key ? 'cal-toggle__btn--active' : ''}"
+             data-settings-tab="${key}" type="button">${label}</button>`;
 
   container.innerHTML = `
     <header class="page-head">
       <div>
         <h1 class="section-title">Definições</h1>
-        <p class="muted" style="margin:0;font-size:0.88rem">Escalões, avaliação e cópia de segurança</p>
+        <p class="muted" style="margin:0;font-size:0.88rem">Identidade, estrutura e cópia de segurança</p>
+      </div>
+      <div class="cal-toggle" role="group" aria-label="Separadores das definições">
+        ${tabBtn('identidade', 'Identidade')}
+        ${tabBtn('estrutura', 'Estrutura')}
+        ${coordenador ? tabBtn('backup', 'Cópia de segurança') : ''}
       </div>
     </header>
 
-    <div class="settings-grid">
+    <div class="${panelClass('identidade')}" data-panel="identidade">
+    <div class="settings-stack">
     <section class="card settings-card">
-      <h2 class="section-title settings-card__title">Avaliação de plantel</h2>
-      <form id="settings-form">
-        <div class="field-grid">
-          <div class="field">
-            <label for="review_deadline">Prazo de avaliação de plantel</label>
-            <input type="date" id="review_deadline" name="review_deadline"
-                   value="${esc(state.settings.review_deadline || '')}" />
-            <p class="field__hint muted" style="margin:0.25rem 0 0;font-size:0.82rem">
-              Após esta data, só o coordenador pode alterar as decisões.
-            </p>
-          </div>
-        </div>
-        <p class="settings-msg hidden" id="settings-msg"></p>
-        <div class="row" style="justify-content:flex-end">
-          <button type="submit" class="btn btn--primary" id="save-settings">Guardar</button>
-        </div>
-      </form>
-    </section>
-
-    <section class="card settings-card settings-card--wide">
       <h2 class="section-title settings-card__title">Personalização</h2>
       <p class="muted" style="margin-top:0">
         A identidade do clube na aplicação: nome, lema, cores e emblema. Muda
@@ -106,7 +104,11 @@ export function renderDefinicoes(container) {
         </div>
       </form>
     </section>
+    </div>
+    </div>
 
+    <div class="${panelClass('estrutura')}" data-panel="estrutura">
+    <div class="settings-stack">
     <section class="card settings-card">
       <h2 class="section-title settings-card__title">Escalões</h2>
       <p class="muted" style="margin-top:0">
@@ -156,13 +158,34 @@ export function renderDefinicoes(container) {
       </div>
     </section>
 
-    ${isCoordenador() ? `
-    <details class="card settings-card">
-      <summary class="section-title settings-card__title" style="cursor:pointer;list-style:none">
-        Cópia de segurança
-        <span class="muted" style="font-size:0.82rem;font-weight:normal;margin-left:0.5rem">▸ avançado</span>
-      </summary>
-      <p class="muted" style="margin-top:0.75rem">
+    <section class="card settings-card">
+      <h2 class="section-title settings-card__title">Avaliação de plantel</h2>
+      <form id="settings-form">
+        <div class="field-grid">
+          <div class="field">
+            <label for="review_deadline">Prazo de avaliação de plantel</label>
+            <input type="date" id="review_deadline" name="review_deadline"
+                   value="${esc(state.settings.review_deadline || '')}" />
+            <p class="field__hint muted" style="margin:0.25rem 0 0;font-size:0.82rem">
+              Após esta data, só o coordenador pode alterar as decisões.
+            </p>
+          </div>
+        </div>
+        <p class="settings-msg hidden" id="settings-msg"></p>
+        <div class="row" style="justify-content:flex-end">
+          <button type="submit" class="btn btn--primary" id="save-settings">Guardar</button>
+        </div>
+      </form>
+    </section>
+    </div>
+    </div>
+
+    ${coordenador ? `
+    <div class="${panelClass('backup')}" data-panel="backup">
+    <div class="settings-stack">
+    <section class="card settings-card">
+      <h2 class="section-title settings-card__title">Cópia de segurança</h2>
+      <p class="muted" style="margin-top:0">
         Exporta todos os dados para um ficheiro <code>.json</code>, ou importa um backup anterior.
       </p>
       <div class="row row--wrap" style="gap:0.6rem">
@@ -174,9 +197,23 @@ export function renderDefinicoes(container) {
       <p class="muted settings-warn">
         ⚠ A importação <strong>substitui</strong> todos os dados atuais pelos do ficheiro.
       </p>
-    </details>` : ''}
+    </section>
     </div>
+    </div>` : ''}
   `;
+
+  // --- Separadores ---
+  container.querySelectorAll('[data-settings-tab]').forEach((btn) =>
+    btn.addEventListener('click', () => {
+      activeTab = btn.dataset.settingsTab;
+      container.querySelectorAll('[data-settings-tab]').forEach((x) =>
+        x.classList.toggle('cal-toggle__btn--active', x.dataset.settingsTab === activeTab)
+      );
+      container.querySelectorAll('[data-panel]').forEach((p) =>
+        p.classList.toggle('settings-panel--active', p.dataset.panel === activeTab)
+      );
+    })
+  );
 
   // --- Guardar definições ---
   const form = container.querySelector('#settings-form');
