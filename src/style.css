@@ -1955,6 +1955,20 @@ tbody tr:hover {
 .settings-card--wide {
   grid-column: 1 / -1;
 }
+/* Definições por separadores: cada painel mostra-se só quando ativo. Os cartões
+   empilham-se numa coluna (leitura de cima para baixo), sem grelha dispersa. */
+.settings-panel {
+  display: none;
+}
+.settings-panel--active {
+  display: block;
+}
+.settings-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+  max-width: 760px;
+}
 /* Par cor + hex lado a lado (seletor de cor + caixa de texto). */
 .color-field {
   display: flex;
