@@ -8,6 +8,7 @@ import { createClub, dbErrorMessage, TRIAL_DAYS } from '../store.js';
 import { signOut } from '../auth.js';
 import { esc } from '../ui.js';
 import { logoSrc, branding } from '../branding.js';
+import { SPORTS, DEFAULT_SPORT } from '../constants.js';
 
 export function renderOnboarding(root, onDone) {
   root.removeAttribute('aria-busy');
@@ -27,6 +28,16 @@ export function renderOnboarding(root, onDone) {
           <label for="club-name">Nome do clube</label>
           <input type="text" id="club-name" name="club-name" required
                  placeholder="Ex.: Clube Desportivo da Senhora da Hora" />
+        </div>
+
+        <div class="field">
+          <label for="club-sport">Modalidade</label>
+          <select id="club-sport" name="club-sport">
+            ${SPORTS.map((s) => `<option value="${esc(s.key)}" ${s.key === DEFAULT_SPORT ? 'selected' : ''}>${esc(s.label)}</option>`).join('')}
+          </select>
+          <p class="field__hint muted" style="margin:0.25rem 0 0;font-size:0.82rem">
+            Define as posições sugeridas. Podes mudar e personalizar depois nas Definições.
+          </p>
         </div>
 
         <p class="login__error hidden" id="onboarding-error" role="alert"></p>
@@ -55,10 +66,11 @@ export function renderOnboarding(root, onDone) {
       errorEl.classList.remove('hidden');
       return;
     }
+    const sport = form['club-sport'].value || DEFAULT_SPORT;
     submitBtn.disabled = true;
     submitBtn.textContent = 'A criar…';
     try {
-      await createClub(name);
+      await createClub(name, sport);
       onDone?.();
     } catch (error) {
       errorEl.textContent = dbErrorMessage(error);

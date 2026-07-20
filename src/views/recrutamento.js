@@ -4,10 +4,10 @@
 
 import { state, createRow, updateRow, archiveRow, convertProspect, dbErrorMessage } from '../store.js';
 import { esc, emptyHTML } from '../ui.js';
-import { teamName, teamById, currentCoachEscaloes, escaloes as getEscaloes } from '../compute.js';
+import { teamName, teamById, currentCoachEscaloes, escaloes as getEscaloes, positions } from '../compute.js';
 import { openModal, confirmDialog } from '../modal.js';
 import { canEdit, canDelete, isCoordenador, isClubWide } from '../permissions.js';
-import { PROSPECT_STATUSES, PROSPECT_REJECTED, PROSPECT_LABEL, PROSPECT_BADGE, POSITIONS } from '../constants.js';
+import { PROSPECT_STATUSES, PROSPECT_REJECTED, PROSPECT_LABEL, PROSPECT_BADGE } from '../constants.js';
 
 // Filtros locais da vista.
 let positionFilter = '';
@@ -84,7 +84,7 @@ export function renderRecrutamento(container) {
         <label for="rec-pos">Posição</label>
         <select id="rec-pos">
           <option value="">Todas as posições</option>
-          ${POSITIONS.map((p) => `<option value="${esc(p)}" ${positionFilter === p ? 'selected' : ''}>${esc(p)}</option>`).join('')}
+          ${positions().map((p) => `<option value="${esc(p)}" ${positionFilter === p ? 'selected' : ''}>${esc(p)}</option>`).join('')}
         </select>
       </div>
     </div>
@@ -202,7 +202,7 @@ function openProspectForm(id) {
     fields: [
       { name: 'name', label: 'Nome', required: true, full: true },
       { name: 'birth_year', label: 'Ano de nascimento', placeholder: 'ex.: 2008' },
-      { name: 'position', label: 'Posição', type: 'select', placeholder: '—', options: POSITIONS },
+      { name: 'position', label: 'Posição', type: 'select', placeholder: '—', options: positions() },
       {
         name: 'target_team_id',
         label: 'Equipa-alvo',

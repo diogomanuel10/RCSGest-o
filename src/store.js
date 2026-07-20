@@ -182,10 +182,11 @@ export const TRIAL_DAYS = 7;
 
 // Cria um clube novo e torna o utilizador atual coordenador (RPC no Supabase).
 // Arranca em período de demonstração de TRIAL_DAYS dias.
-export async function createClub(name, trialDays = TRIAL_DAYS) {
+export async function createClub(name, sport = 'voleibol', trialDays = TRIAL_DAYS) {
   const { data, error } = await supabase.rpc('create_club', {
     p_name: name,
     p_trial_days: trialDays,
+    p_sport: sport,
   });
   if (error) throw error;
   await loadProfile();
@@ -1079,10 +1080,13 @@ export async function replaceAllData(backup) {
 
   // Definições (linha única).
   if (backup.settings) {
-    const { season, goal, escaloes, club_name, app_name, motto,
+    const { season, goal, escaloes, sport, positions, club_name, app_name, motto,
             brand_primary, brand_accent, logo } = backup.settings;
     const values = { season, goal };
     if (Array.isArray(escaloes)) values.escaloes = escaloes;
+    // Modalidade e posições (se o backup as trouxer).
+    if (sport !== undefined) values.sport = sport;
+    if (Array.isArray(positions)) values.positions = positions;
     // Marca do clube (se o backup a trouxer).
     if (club_name !== undefined) values.club_name = club_name;
     if (app_name !== undefined) values.app_name = app_name;

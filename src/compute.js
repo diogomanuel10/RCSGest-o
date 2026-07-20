@@ -1,13 +1,30 @@
 // Cálculos derivados a partir do estado (state). Sem efeitos secundários.
 
 import { state } from './store.js';
-import { TIER_VALUE, IN_PROGRESS_STATUSES, DEFAULT_ESCALOES } from './constants.js';
+import {
+  TIER_VALUE, IN_PROGRESS_STATUSES, DEFAULT_ESCALOES,
+  DEFAULT_SPORT, SPORT_POSITIONS, DEFAULT_POSITIONS,
+} from './constants.js';
 
 // Lista de escalões em vigor (configurável nas Definições). Recorre à lista
 // por omissão se ainda não houver nada guardado.
 export function escaloes() {
   const e = state.settings?.escaloes;
   return Array.isArray(e) && e.length ? e : DEFAULT_ESCALOES;
+}
+
+// Modalidade do clube (configurável nas Definições / escolhida no onboarding).
+export function sport() {
+  return state.settings?.sport || DEFAULT_SPORT;
+}
+
+// Posições em vigor. Se o clube tiver uma lista personalizada (settings.positions)
+// usa-a; caso contrário deriva da modalidade escolhida. Assim, mudar de
+// modalidade muda logo as posições sem precisar de as recriar à mão.
+export function positions() {
+  const custom = state.settings?.positions;
+  if (Array.isArray(custom) && custom.length) return custom;
+  return SPORT_POSITIONS[sport()] || DEFAULT_POSITIONS;
 }
 
 // Total angariado = soma do valor do nível dos patrocínios CONFIRMADOS.
