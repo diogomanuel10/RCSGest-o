@@ -26,7 +26,6 @@ export const SECTIONS = [
   { key: 'avaliacao',    label: 'Avaliação' },
   { key: 'calendario',   label: 'Calendário' },
   { key: 'presencas',    label: 'Presenças' },
-  { key: 'estatisticas', label: 'Estatísticas' },
   { key: 'quotas',       label: 'Quotas' },
   { key: 'equipamentos', label: 'Equipamentos' },
   { key: 'treinadores',  label: 'Treinadores' },
@@ -43,7 +42,6 @@ export const DEFAULT_TRAINER_SECTIONS = [
   'avaliacao',
   'calendario',
   'presencas',
-  'estatisticas',
 ];
 
 // Acessos sugeridos por omissão ao definir alguém como fisioterapeuta. O
@@ -204,6 +202,11 @@ function roleCanAccess(key) {
   // direção — nunca acessível ao fisioterapeuta nem ao preparador físico.
   if (key === 'avaliacao' && (role === 'fisioterapeuta' || role === 'preparador')) {
     return false;
+  }
+  // Presenças absorveu as antigas "Estatísticas" (mesma secção): quem tinha
+  // acesso a qualquer uma continua a ver Presenças (que agora inclui a análise).
+  if (key === 'presencas') {
+    return currentPermissions().includes('presencas') || currentPermissions().includes('estatisticas');
   }
   // Encomendas: exclusivo do coordenador (não configurável).
   if (key === 'encomendas') return false;

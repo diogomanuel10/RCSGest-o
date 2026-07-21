@@ -9,7 +9,7 @@ import { ATTENDANCE_STATUSES, ATTENDANCE_LABEL, ATTENDANCE_BADGE } from '../cons
 import { canEdit } from '../permissions.js';
 
 let selectedEventId = null;
-let presTab = 'sessao'; // 'sessao' | 'resumo'
+let presTab = 'sessao'; // 'sessao' | 'estatisticas'
 let summaryTeamId = '';
 
 // Pré-seleciona uma sessão de treino (usado pelo atalho do Painel).
@@ -41,12 +41,12 @@ export function renderPresencas(container) {
 
   const tabBar = `
     <div class="pres-tabs">
-      <button class="pres-tab${presTab === 'sessao' ? ' pres-tab--active' : ''}" data-tab="sessao" type="button">Por sessão</button>
-      <button class="pres-tab${presTab === 'resumo' ? ' pres-tab--active' : ''}" data-tab="resumo" type="button">Resumo global</button>
+      <button class="pres-tab${presTab === 'sessao' ? ' pres-tab--active' : ''}" data-tab="sessao" type="button">Marcar</button>
+      <button class="pres-tab${presTab === 'estatisticas' ? ' pres-tab--active' : ''}" data-tab="estatisticas" type="button">Estatísticas</button>
     </div>
   `;
 
-  if (presTab === 'resumo') {
+  if (presTab === 'estatisticas') {
     renderSummary(container, tabBar);
     container.querySelectorAll('[data-tab]').forEach((btn) =>
       btn.addEventListener('click', () => { presTab = btn.dataset.tab; renderPresencas(container); })
@@ -415,41 +415,65 @@ export function openQuickAttendance(eventId) {
   });
 }
 
+// Separador "Estatísticas": comparência por atleta de UMA equipa, ordenada da
+// melhor para a pior, com barra e taxa global. (Absorveu o antigo ecrã
+// Estatísticas.)
 function renderSummary(container, tabBar) {
-  const trainings = state.events.filter((e) => e.type === 'treino');
-
-  // Treinos por equipa
-  const sessionsByTeam = {};
-  trainings.forEach((t) => {
-    if (t.team_id) sessionsByTeam[t.team_id] = (sessionsByTeam[t.team_id] || 0) + 1;
-  });
-
-  // Presenças por atleta
-  const byPlayer = {};
-  state.attendances.forEach((a) => {
-    if (!byPlayer[a.player_id]) byPlayer[a.player_id] = { presente: 0, atraso: 0, justificado: 0, falta: 0 };
-    if (a.status) byPlayer[a.player_id][a.status] = (byPlayer[a.player_id][a.status] || 0) + 1;
-  });
-
   const teams = state.teams.slice().sort((a, b) => teamName(a).localeCompare(teamName(b)));
-  const filteredTeams = summaryTeamId ? teams.filter((t) => t.id === summaryTeamId) : teams;
+  const wireTabs = () => container.querySelectorAll('[data-tab]').forEach((btn) =>
+    btn.addEventListener('click', () => { presTab = btn.dataset.tab; renderPresencas(container); })
+  );
 
-  const rows = filteredTeams.flatMap((team) => {
-    const sessions = sessionsByTeam[team.id] || 0;
-    const players = state.players
-      .filter((p) => p.team_id === team.id)
-      .sort((a, b) => (Number(a.number) || 999) - (Number(b.number) || 999));
-    if (!players.length) return [];
-    return [
-      { type: 'team', team, sessions },
-      ...players.map((p) => {
-        const s = byPlayer[p.id] || { presente: 0, atraso: 0, justificado: 0, falta: 0 };
-        const attended = s.presente + s.atraso;
-        const pct = sessions ? Math.round((attended / sessions) * 100) : null;
-        return { type: 'player', player: p, sessions, s, attended, pct };
-      }),
-    ];
+  if (!teams.length) {
+    container.innerHTML = `
+      <header class="page-head">
+        <div>
+          <h1 class="section-title">Presenças</h1>
+          <p class="muted" style="margin:0;font-size:0.88rem">Registo de presenças nos treinos</p>
+        </div>
+      </header>
+      ${tabBar}
+      ${emptyHTML('Ainda não há equipas.')}
+    `;
+    wireTabs();
+    return;
+  }
+
+  if (!summaryTeamId || !teams.some((t) => t.id === summaryTeamId)) {
+    summaryTeamId = teams[0].id;
+  }
+
+  const players = state.players
+    .filter((p) => p.team_id === summaryTeamId)
+    .sort((a, b) => (Number(a.number) || 999) - (Number(b.number) || 999));
+
+  // Treinos passados desta equipa (só esses têm presenças a contar).
+  const trainings = state.events.filter(
+    (e) => e.type === 'treino' && e.team_id === summaryTeamId && eventDateTime(e) <= new Date()
+  );
+  const totalTrainings = trainings.length;
+  const trainingIds = new Set(trainings.map((t) => t.id));
+
+  const rows = players.map((p) => {
+    const atts = state.attendances.filter((a) => a.player_id === p.id && trainingIds.has(a.event_id));
+    const byStatus = { presente: 0, atraso: 0, justificado: 0, falta: 0 };
+    atts.forEach((a) => { if (byStatus[a.status] !== undefined) byStatus[a.status]++; });
+    const compareceu = byStatus.presente + byStatus.atraso;
+    const total = atts.length;
+    const pct = total ? Math.round((compareceu / total) * 100) : null;
+    return { player: p, byStatus, compareceu, total, pct, semRegisto: totalTrainings - total };
   });
+
+  const sorted = [...rows].sort((a, b) => {
+    if (a.pct === null && b.pct === null) return 0;
+    if (a.pct === null) return 1;
+    if (b.pct === null) return -1;
+    return b.pct - a.pct;
+  });
+
+  const totalRegistos = rows.reduce((s, r) => s + r.total, 0);
+  const totalCompareceu = rows.reduce((s, r) => s + r.compareceu, 0);
+  const globalPct = totalRegistos ? Math.round((totalCompareceu / totalRegistos) * 100) : null;
 
   container.innerHTML = `
     <header class="page-head">
@@ -461,63 +485,84 @@ function renderSummary(container, tabBar) {
 
     ${tabBar}
 
-    <div class="filter-bar">
-      <div class="field">
-        <label for="sum-team">Equipa</label>
-        <select id="sum-team">
-          <option value="">Todas as equipas</option>
-          ${teams.map((t) => `<option value="${t.id}" ${t.id === summaryTeamId ? 'selected' : ''}>${esc(teamName(t))}</option>`).join('')}
-        </select>
+    <div class="card" style="margin-bottom:1.2rem">
+      <div class="row row--between row--wrap" style="gap:0.8rem">
+        <div style="min-width:220px">
+          <label for="sum-team">Equipa</label>
+          <select id="sum-team">
+            ${teams.map((t) => `<option value="${t.id}" ${t.id === summaryTeamId ? 'selected' : ''}>${esc(teamName(t))}</option>`).join('')}
+          </select>
+        </div>
+        <div class="stat-summary">
+          <span class="stat-summary__item"><strong>${totalTrainings}</strong> treino${totalTrainings === 1 ? '' : 's'}</span>
+          <span class="stat-summary__item"><strong>${players.length}</strong> atleta${players.length === 1 ? '' : 's'}</span>
+          <span class="stat-summary__item">Taxa global
+            <strong class="stat-pct ${globalPct !== null ? (globalPct >= 70 ? 'stat-pct--ok' : globalPct >= 50 ? 'stat-pct--warn' : 'stat-pct--danger') : ''}">
+              ${globalPct !== null ? globalPct + '%' : '—'}
+            </strong>
+          </span>
+        </div>
       </div>
     </div>
 
-    <section class="card" style="padding:0;overflow:hidden">
-      <div class="scroll-x"><table class="pres-table">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Atleta</th>
-            <th title="Treinos realizados">Treinos</th>
-            <th title="Presente + a tempo">Presenças</th>
-            <th title="Chegou tarde">Atrasos</th>
-            <th title="Falta justificada">Justificadas</th>
-            <th title="Falta injustificada">Faltas</th>
-            <th>%</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rows.length ? rows.map((r) => {
-            if (r.type === 'team') {
-              return `<tr class="pres-table__team-row"><td colspan="8">${esc(teamName(r.team))} <span class="muted" style="font-weight:400">· ${r.sessions} treino${r.sessions !== 1 ? 's' : ''}</span></td></tr>`;
-            }
-            const { player: p, sessions, s, attended, pct } = r;
-            const pctClass = pct === null ? '' : pct >= 80 ? 'pres-pct--ok' : pct >= 50 ? 'pres-pct--warn' : 'pres-pct--bad';
-            return `
-              <tr>
-                <td class="muted">${esc(p.number || '—')}</td>
-                <td><strong>${esc(p.name)}</strong>${p.position ? `<br><span class="muted" style="font-size:0.78rem">${esc(p.position)}</span>` : ''}</td>
-                <td class="pres-table__num">${sessions}</td>
-                <td class="pres-table__num">${s.presente}</td>
-                <td class="pres-table__num">${s.atraso || 0}</td>
-                <td class="pres-table__num">${s.justificado || 0}</td>
-                <td class="pres-table__num">${s.falta || 0}</td>
-                <td class="pres-table__num"><span class="pres-pct ${pctClass}">${pct !== null ? pct + '%' : '—'}</span></td>
-              </tr>
-            `;
-          }).join('') : `<tr><td colspan="8" class="muted" style="text-align:center;padding:1.5rem">Sem dados de presença ainda.</td></tr>`}
-        </tbody>
-      </table></div>
-    </section>
+    ${!totalTrainings
+      ? `<div class="card">${emptyHTML('Esta equipa ainda não tem treinos passados com presenças.')}</div>`
+      : !players.length
+        ? `<div class="card">${emptyHTML('Sem atletas nesta equipa.')}</div>`
+        : `<div class="card">
+             <div class="stat-table-wrap">
+               <table class="stat-table">
+                 <thead>
+                   <tr>
+                     <th>#</th>
+                     <th>Atleta</th>
+                     <th class="stat-col--center">Presenças</th>
+                     <th class="stat-col--center">Atrasos</th>
+                     <th class="stat-col--center">Justif.</th>
+                     <th class="stat-col--center">Faltas</th>
+                     <th class="stat-col--center">Sem reg.</th>
+                     <th class="stat-col--bar">% Comparência</th>
+                   </tr>
+                 </thead>
+                 <tbody>
+                   ${sorted.map((r) => statRow(r)).join('')}
+                 </tbody>
+               </table>
+             </div>
+           </div>`
+    }
   `;
 
-  container.querySelectorAll('[data-tab]').forEach((btn) =>
-    btn.addEventListener('click', () => { presTab = btn.dataset.tab; renderPresencas(container); })
-  );
+  wireTabs();
   container.querySelector('#sum-team').addEventListener('change', (e) => {
     summaryTeamId = e.target.value;
     renderSummary(container, tabBar);
-    container.querySelectorAll('[data-tab]').forEach((b) =>
-      b.addEventListener('click', () => { presTab = b.dataset.tab; renderPresencas(container); })
-    );
   });
+}
+
+function statRow({ player, byStatus, pct, semRegisto }) {
+  const pctClass = pct === null ? '' : pct >= 70 ? 'stat-pct--ok' : pct >= 50 ? 'stat-pct--warn' : 'stat-pct--danger';
+  const barWidth = pct ?? 0;
+  return `
+    <tr class="stat-row">
+      <td class="stat-num">${esc(player.number || '—')}</td>
+      <td class="stat-name">
+        <span>${esc(player.name)}</span>
+        ${player.position ? `<span class="muted stat-pos">${esc(player.position)}</span>` : ''}
+      </td>
+      <td class="stat-col--center"><span class="badge badge--ok">${byStatus.presente}</span></td>
+      <td class="stat-col--center"><span class="badge badge--warn">${byStatus.atraso}</span></td>
+      <td class="stat-col--center"><span class="badge badge--info">${byStatus.justificado}</span></td>
+      <td class="stat-col--center"><span class="badge badge--danger">${byStatus.falta}</span></td>
+      <td class="stat-col--center"><span class="badge badge--muted">${semRegisto}</span></td>
+      <td class="stat-col--bar">
+        <div class="stat-bar-wrap">
+          <div class="stat-bar">
+            <div class="stat-bar__fill stat-bar__fill--${pctClass.replace('stat-pct--', '')}" style="width:${barWidth}%"></div>
+          </div>
+          <span class="stat-pct ${pctClass}">${pct !== null ? pct + '%' : '—'}</span>
+        </div>
+      </td>
+    </tr>
+  `;
 }

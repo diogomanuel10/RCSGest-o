@@ -25,7 +25,6 @@ import { renderCalendario } from './calendario.js';
 import { renderPresencas } from './presencas.js';
 import { renderQuotas } from './quotas.js';
 import { renderEquipamentos } from './equipamentos.js';
-import { renderEstatisticas } from './estatisticas.js';
 import { renderTreinadores } from './treinadores.js';
 import { renderDefinicoes } from './definicoes.js';
 import { renderUtilizadores } from './utilizadores.js';
@@ -89,7 +88,6 @@ const NAV = [
 
   { key: 'calendario',   label: 'Calendário',    icon: ICONS.calendario,   render: renderCalendario,    group: 'competicao' },
   { key: 'presencas',    label: 'Presenças',     icon: ICONS.presencas,    render: renderPresencas,     group: 'competicao' },
-  { key: 'estatisticas', label: 'Estatísticas',  icon: ICONS.estatisticas, render: renderEstatisticas,  group: 'competicao' },
 
   { key: 'medico',       label: 'Dept. Médico',  icon: ICONS.medico,       render: renderMedico,        group: 'saude' },
   { key: 'fisica',       label: 'Prep. Física',  icon: ICONS.fisica,       render: renderPreparacao,    group: 'saude' },

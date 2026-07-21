@@ -97,10 +97,10 @@ export function renderPainel(container) {
   const seeEquip = canAccess('equipamentos');
   const seeCoaches = canAccess('treinadores');
   const seePlanteis = canAccess('planteis');
-  const seeAttendance = canAccess('presencas') || canAccess('estatisticas');
+  const seeAttendance = canAccess('presencas');
   const seeCalendar = canAccess('calendario');
   const seeMedico = canAccess('medico');
-  const attRoute = canAccess('presencas') ? 'presencas' : 'estatisticas';
+  const attRoute = 'presencas';
   const injured = seeMedico ? injuredCount() : 0;
 
   const metrics = [
