@@ -3,10 +3,11 @@
 
 import { state, createRow, createRows, updateRow, archiveRow, dbErrorMessage } from '../store.js';
 import { openSquadModal } from './convocatorias.js';
-import { esc, emptyHTML, teamHue } from '../ui.js';
-import { eventDateTime, eventTimeRange, teamById, teamName } from '../compute.js';
+import { esc, emptyHTML } from '../ui.js';
+import { eventDateTime, eventTimeRange, teamById, teamName, escalaoColor } from '../compute.js';
 import { openModal, confirmDialog } from '../modal.js';
 import { openAthleteProfile } from './athlete-profile.js';
+import { findPlanForEvent, openGamePlanForEvent } from './plano-jogo.js';
 import {
   EVENT_TYPES,
   EVENT_TYPE_LABEL,
@@ -42,9 +43,25 @@ function apptToEvent(a) {
   };
 }
 
+// Cor de identidade de um evento: a do escalão da sua equipa (unificada com o
+// resto da app). null se o evento não tiver equipa.
+function eventColor(ev) {
+  const team = teamById(ev.team_id);
+  return team ? escalaoColor(team.escalao) : null;
+}
+// Estilo de "chip" (fundo suave + acento) para a grelha/semana.
+function eventChipStyle(color) {
+  return `background:color-mix(in srgb, ${color} 16%, var(--surface));border-left:3px solid ${color};color:var(--text)`;
+}
+// Navega para outra secção reaproveitando o botão da barra lateral.
+function navTo(route) {
+  document.querySelector(`[data-route="${route}"]`)?.click();
+}
+
 const filters = { type: '', team: '' };
-let calView = 'lista'; // 'lista' | 'grelha'
+let calView = 'lista'; // 'lista' | 'semana' | 'grelha'
 let gridMonth = new Date(); // mês exibido na grelha
+let weekRef = new Date();   // qualquer dia da semana exibida na vista Semana
 
 export function renderCalendario(container) {
   const editable = canEdit('events');
@@ -74,8 +91,10 @@ export function renderCalendario(container) {
       <div class="row" style="gap:0.5rem;flex-wrap:wrap">
         <div class="cal-toggle" role="group" aria-label="Vista">
           <button class="cal-toggle__btn ${calView === 'lista' ? 'cal-toggle__btn--active' : ''}" id="view-lista" type="button">☰ Lista</button>
-          <button class="cal-toggle__btn ${calView === 'grelha' ? 'cal-toggle__btn--active' : ''}" id="view-grelha" type="button">▦ Grelha</button>
+          <button class="cal-toggle__btn ${calView === 'semana' ? 'cal-toggle__btn--active' : ''}" id="view-semana" type="button">▤ Semana</button>
+          <button class="cal-toggle__btn ${calView === 'grelha' ? 'cal-toggle__btn--active' : ''}" id="view-grelha" type="button">▦ Mês</button>
         </div>
+        <button class="btn btn--ghost" id="export-ics" type="button" title="Adicionar ao Google/Apple Calendar">⤓ .ics</button>
         ${editable ? `
           <button class="btn btn--ghost" id="add-recurrent" type="button">↺ Recorrentes</button>
           <button class="btn btn--accent" id="add-event" type="button">+ Evento</button>
@@ -83,13 +102,24 @@ export function renderCalendario(container) {
       </div>
     </header>
 
-    ${calView === 'grelha' ? renderGrid(events, editable) : renderLista(events, future, past, editable, showAppts)}
+    ${
+      calView === 'grelha'
+        ? renderGrid(events, editable)
+        : calView === 'semana'
+          ? renderWeek(events, editable)
+          : renderLista(events, future, past, editable, showAppts)
+    }
   `;
 
   container.querySelector('#add-event')?.addEventListener('click', () => openForm());
   container.querySelector('#add-recurrent')?.addEventListener('click', () => openRecurrentModal());
+  container.querySelector('#export-ics')?.addEventListener('click', () => exportICS(events));
   container.querySelector('#view-lista').addEventListener('click', () => { calView = 'lista'; renderCalendario(container); });
+  container.querySelector('#view-semana').addEventListener('click', () => { calView = 'semana'; renderCalendario(container); });
   container.querySelector('#view-grelha').addEventListener('click', () => { calView = 'grelha'; renderCalendario(container); });
+  container.querySelector('#week-prev')?.addEventListener('click', () => { weekRef = new Date(weekRef.getFullYear(), weekRef.getMonth(), weekRef.getDate() - 7); renderCalendario(container); });
+  container.querySelector('#week-next')?.addEventListener('click', () => { weekRef = new Date(weekRef.getFullYear(), weekRef.getMonth(), weekRef.getDate() + 7); renderCalendario(container); });
+  container.querySelector('#week-today')?.addEventListener('click', () => { weekRef = new Date(); renderCalendario(container); });
   container.querySelector('#f-type')?.addEventListener('change', (e) => { filters.type = e.target.value; renderCalendario(container); });
   container.querySelector('#f-team')?.addEventListener('change', (e) => { filters.team = e.target.value; renderCalendario(container); });
   container.querySelector('#grid-prev')?.addEventListener('click', () => { gridMonth = new Date(gridMonth.getFullYear(), gridMonth.getMonth() - 1, 1); renderCalendario(container); });
@@ -100,6 +130,10 @@ export function renderCalendario(container) {
   container.querySelectorAll('[data-squad]').forEach((b) => b.addEventListener('click', () => openSquadModal(b.dataset.squad)));
   container.querySelectorAll('[data-new-day]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); openForm(null, b.dataset.newDay); }));
   container.querySelectorAll('[data-appt]').forEach((b) => b.addEventListener('click', () => openAthleteProfile(b.dataset.appt, { tab: 'fisioterapia' })));
+  container.querySelectorAll('[data-plan-event]').forEach((b) => b.addEventListener('click', () => {
+    const ev = state.events.find((e) => e.id === b.dataset.planEvent);
+    if (ev) { openGamePlanForEvent(ev); navTo('plano-jogo'); }
+  }));
   container.querySelectorAll('[data-day]').forEach((cell) => {
     cell.addEventListener('click', () => openDayModal(cell.dataset.day, editable));
     cell.addEventListener('keydown', (e) => {
@@ -218,12 +252,10 @@ function renderGrid(allEvents, editable) {
                       const time = ev.time ? ev.time.slice(0, 5) : '';
                       const full = [EVENT_TYPE_LABEL[ev.type] || ev.type, label, time, ev.opponent ? `vs ${ev.opponent}` : '']
                         .filter(Boolean).join(' · ');
-                      // Cor por equipa (mantém o texto). Sem equipa, usa a cor do tipo.
-                      const hue = evTeam ? teamHue(evTeam.id) : null;
-                      const colorClass = hue != null ? 'cal-grid__ev--team' : `badge--${EVENT_TYPE_BADGE[ev.type] || 'muted'}`;
-                      const styleAttr = hue != null
-                        ? ` style="background:hsl(${hue} 70% 92%);border-left:3px solid hsl(${hue} 55% 42%);color:#1f2937"`
-                        : '';
+                      // Cor pelo escalão da equipa (unificada). Sem equipa, cor do tipo.
+                      const color = evTeam ? escalaoColor(evTeam.escalao) : null;
+                      const colorClass = color ? 'cal-grid__ev--team' : `badge--${EVENT_TYPE_BADGE[ev.type] || 'muted'}`;
+                      const styleAttr = color ? ` style="${eventChipStyle(color)}"` : '';
                       return `
                       <div class="cal-grid__ev ${colorClass}"${styleAttr} title="${esc(full)}">
                         ${time ? `<span class="cal-grid__ev-time">${esc(time)}</span> ` : ''}${esc(label.slice(0, 16))}${label.length > 16 ? '…' : ''}
@@ -238,6 +270,131 @@ function renderGrid(allEvents, editable) {
       </div>
     </div>
   `;
+}
+
+// Segunda-feira da semana que contém `d`.
+function startOfWeek(d) {
+  const off = (d.getDay() + 6) % 7; // Mon=0 … Sun=6
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() - off);
+}
+
+// Um "chip" de evento na vista Semana (reutiliza o estilo da grelha).
+function weekChip(ev) {
+  const time = ev.time && /^\d{2}:\d{2}/.test(ev.time) ? ev.time.slice(0, 5) : '';
+  if (ev._appt) {
+    const label = ev.title || 'Atendimento';
+    return `<div class="cal-grid__ev" style="background:hsl(275 60% 93%);border-left:3px solid hsl(275 55% 52%);color:#1f2937" title="Fisioterapia · ${esc(label)}">${time ? `<span class="cal-grid__ev-time">${esc(time)}</span> ` : ''}🩺 ${esc(label)}</div>`;
+  }
+  const evTeam = teamById(ev.team_id);
+  const label = evTeam ? teamName(evTeam) : (ev.title || EVENT_TYPE_LABEL[ev.type] || '');
+  const color = evTeam ? escalaoColor(evTeam.escalao) : null;
+  const cls = color ? 'cal-grid__ev cal-grid__ev--team' : `cal-grid__ev badge--${EVENT_TYPE_BADGE[ev.type] || 'muted'}`;
+  const style = color ? ` style="${eventChipStyle(color)}"` : '';
+  const full = [EVENT_TYPE_LABEL[ev.type] || ev.type, label, time, ev.opponent ? `vs ${ev.opponent}` : ''].filter(Boolean).join(' · ');
+  return `<div class="${cls}"${style} title="${esc(full)}">${time ? `<span class="cal-grid__ev-time">${esc(time)}</span> ` : ''}${esc(label)}</div>`;
+}
+
+function renderWeek(allEvents, editable) {
+  const monday = startOfWeek(weekRef);
+  const todayStr = toLocalISO(new Date());
+  const DOW = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+
+  const evMap = {};
+  allEvents.forEach((ev) => { (evMap[ev.date] = evMap[ev.date] || []).push(ev); });
+
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i);
+    days.push({ date: d, dateStr: toLocalISO(d) });
+  }
+  const rangeLabel = `${monday.toLocaleDateString('pt-PT', { day: '2-digit', month: 'short' })} – ${days[6].date.toLocaleDateString('pt-PT', { day: '2-digit', month: 'short', year: 'numeric' })}`;
+
+  return `
+    <div class="grid-nav">
+      <button class="btn btn--ghost btn--sm" id="week-prev" type="button">‹ Anterior</button>
+      <span class="grid-nav__month">${esc(rangeLabel)}</span>
+      <button class="btn btn--ghost btn--sm" id="week-today" type="button">Esta semana</button>
+      <button class="btn btn--ghost btn--sm" id="week-next" type="button">Seguinte ›</button>
+    </div>
+    <div class="cal-week card">
+      ${days.map((day, i) => {
+        const list = (evMap[day.dateStr] || []).sort((a, b) => eventDateTime(a) - eventDateTime(b));
+        const isToday = day.dateStr === todayStr;
+        const isPast = day.dateStr < todayStr;
+        return `
+          <div class="cal-week__col${isToday ? ' cal-week__col--today' : ''}${isPast ? ' cal-week__col--past' : ''}">
+            <div class="cal-week__head"${list.length ? ` data-day="${day.dateStr}" role="button" tabindex="0" title="Ver o dia"` : ''}>
+              <span class="cal-week__dow">${DOW[i]}</span>
+              <span class="cal-week__num${isToday ? ' cal-week__num--today' : ''}">${day.date.getDate()}</span>
+              ${editable ? `<button class="cal-grid__add" data-new-day="${day.dateStr}" type="button" title="Novo evento">+</button>` : ''}
+            </div>
+            <div class="cal-week__events">
+              ${list.length ? list.map(weekChip).join('') : '<span class="cal-week__empty">—</span>'}
+            </div>
+          </div>`;
+      }).join('')}
+    </div>
+  `;
+}
+
+// Exporta os eventos (sem os atendimentos de fisioterapia) para um ficheiro
+// .ics, que se pode importar/subscrever no Google/Apple Calendar.
+function exportICS(events) {
+  const real = events.filter((e) => !e._appt);
+  if (!real.length) { alert('Sem eventos para exportar nos filtros atuais.'); return; }
+
+  const pad = (n) => String(n).padStart(2, '0');
+  const enc = (s) => String(s || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
+  const dstamp = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+  const hasTime = (t) => t && /^\d{2}:\d{2}/.test(t);
+
+  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Rumia//Calendario//PT', 'CALSCALE:GREGORIAN'];
+
+  real.forEach((ev) => {
+    const team = teamById(ev.team_id);
+    let summary = EVENT_TYPE_LABEL[ev.type] || ev.type;
+    if (team) summary += `: ${teamName(team)}`;
+    if (ev.opponent) summary += ` vs ${ev.opponent}`;
+    if (ev.title) summary += ` (${ev.title})`;
+
+    lines.push('BEGIN:VEVENT');
+    lines.push(`UID:${ev.id}@rumia`);
+    lines.push(`DTSTAMP:${dstamp}`);
+
+    const [y, m, d] = ev.date.split('-');
+    if (hasTime(ev.time)) {
+      const [hh, mm] = ev.time.split(':');
+      lines.push(`DTSTART:${y}${m}${d}T${hh}${mm}00`);
+      let end;
+      if (hasTime(ev.end_time)) {
+        const [eh, em] = ev.end_time.split(':');
+        end = `${y}${m}${d}T${eh}${em}00`;
+      } else {
+        const dt = new Date(`${ev.date}T${ev.time}:00`);
+        dt.setHours(dt.getHours() + 1);
+        end = `${dt.getFullYear()}${pad(dt.getMonth() + 1)}${pad(dt.getDate())}T${pad(dt.getHours())}${pad(dt.getMinutes())}00`;
+      }
+      lines.push(`DTEND:${end}`);
+    } else {
+      lines.push(`DTSTART;VALUE=DATE:${y}${m}${d}`);
+      const nd = new Date(`${ev.date}T00:00:00`);
+      nd.setDate(nd.getDate() + 1);
+      lines.push(`DTEND;VALUE=DATE:${nd.getFullYear()}${pad(nd.getMonth() + 1)}${pad(nd.getDate())}`);
+    }
+
+    lines.push(`SUMMARY:${enc(summary)}`);
+    if (ev.location) lines.push(`LOCATION:${enc(ev.location)}`);
+    lines.push('END:VEVENT');
+  });
+
+  lines.push('END:VCALENDAR');
+
+  const blob = new Blob([lines.join('\r\n')], { type: 'text/calendar;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'calendario-rumia.ics';
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
 function eventRow(ev, isPast, editable) {
@@ -257,14 +414,18 @@ function eventRow(ev, isPast, editable) {
     .filter(Boolean)
     .join(' · ');
 
-  const hue = team ? teamHue(team.id) : null;
-  const accent = hue != null ? ` style="border-left:4px solid hsl(${hue} 55% 45%);padding-left:0.7rem"` : '';
+  const color = team ? escalaoColor(team.escalao) : null;
+  const accent = color ? ` style="border-left:4px solid ${color};padding-left:0.7rem"` : '';
 
   const canSquad = canEdit('squads') && ev.type === 'jogo' && ev.team_id;
   const squad = state.squads.find((s) => s.event_id === ev.id);
   const nConvocados = squad
     ? state.squadPlayers.filter((sp) => sp.squad_id === squad.id).length
     : 0;
+
+  // Ligação ao Plano de Jogo (só jogos, para quem tem acesso a essa secção).
+  const showPlan = ev.type === 'jogo' && ev.team_id && canAccess('plano-jogo');
+  const hasPlan = showPlan && !!findPlanForEvent(ev);
 
   return `
     <div class="event-row ${isPast ? 'event-row--past' : ''}"${accent}>
@@ -282,6 +443,7 @@ function eventRow(ev, isPast, editable) {
           : ''}
       </div>
       <div class="cell-actions">
+        ${showPlan ? `<button class="btn btn--ghost btn--sm" data-plan-event="${ev.id}" type="button">${hasPlan ? 'Plano ✓' : 'Preparar plano'}</button>` : ''}
         ${canSquad ? `<button class="btn btn--ghost btn--sm" data-squad="${ev.id}" type="button">Convocar</button>` : ''}
         ${editable
           ? `<button class="btn btn--ghost btn--sm" data-edit="${ev.id}" type="button">Editar</button>
@@ -344,6 +506,10 @@ function openDayModal(dateStr, editable) {
   overlay.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => { close(); remove(b.dataset.del); }));
   overlay.querySelectorAll('[data-squad]').forEach((b) => b.addEventListener('click', () => { close(); openSquadModal(b.dataset.squad); }));
   overlay.querySelectorAll('[data-appt]').forEach((b) => b.addEventListener('click', () => { close(); openAthleteProfile(b.dataset.appt, { tab: 'fisioterapia' }); }));
+  overlay.querySelectorAll('[data-plan-event]').forEach((b) => b.addEventListener('click', () => {
+    const ev = state.events.find((e) => e.id === b.dataset.planEvent);
+    if (ev) { close(); openGamePlanForEvent(ev); navTo('plano-jogo'); }
+  }));
 }
 
 // Linha (vista Lista) de um atendimento de fisioterapia. Só de leitura — abre
