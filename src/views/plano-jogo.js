@@ -560,3 +560,30 @@ export function renderPlanoJogo(container) {
     renderPlanList(container);
   }
 }
+
+// Plano de jogo correspondente a um evento (jogo), por equipa + data. null se
+// não existir.
+export function findPlanForEvent(ev) {
+  return (state.gamePlans || []).find(
+    (p) => p.team_id === ev.team_id && p.game_date === ev.date
+  ) || null;
+}
+
+// Prepara o estado para o próximo render mostrar o plano deste jogo: abre o
+// existente em edição, ou um novo pré-preenchido a partir do evento. Quem chama
+// deve navegar para a vista Plano de Jogo a seguir.
+export function openGamePlanForEvent(ev) {
+  const plan = findPlanForEvent(ev);
+  viewMode = 'form';
+  if (plan) {
+    editingId = plan.id;
+    formData = {};
+  } else {
+    editingId = null;
+    formData = {
+      team_id: ev.team_id || '',
+      opponent: ev.opponent || '',
+      game_date: ev.date || '',
+    };
+  }
+}

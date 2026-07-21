@@ -3196,6 +3196,69 @@ button.metric--nav:focus-visible {
   overflow-y: auto;
 }
 
+/* --- Vista Semana --- */
+.cal-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  padding: 0;
+  overflow: hidden;
+}
+.cal-week__col {
+  display: flex;
+  flex-direction: column;
+  min-height: 130px;
+  border-right: 1px solid var(--border);
+}
+.cal-week__col:last-child { border-right: none; }
+.cal-week__col--past { background: rgba(240, 244, 248, 0.5); }
+.cal-week__col--today { background: rgba(242, 183, 5, 0.06); }
+.cal-week__head {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.cal-week__head[role="button"] { cursor: pointer; }
+.cal-week__head[role="button"]:hover { background: rgba(242, 183, 5, 0.1); }
+.cal-week__dow {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+.cal-week__num { font-size: 0.9rem; font-weight: 700; color: var(--navy); }
+.cal-week__num--today {
+  background: var(--yellow);
+  color: var(--navy-700);
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.cal-week__head .cal-grid__add {
+  margin-left: auto;
+  display: inline-flex;
+}
+.cal-week__events {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.4rem;
+  flex: 1;
+}
+.cal-week__events .cal-grid__ev { white-space: normal; }
+.cal-week__empty {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  text-align: center;
+  padding: 0.3rem 0;
+}
+
 @media (max-width: 640px) {
   .cal-grid__cell {
     min-height: 60px;
@@ -3208,6 +3271,16 @@ button.metric--nav:focus-visible {
   .grid-nav__month {
     font-size: 0.95rem;
   }
+  /* Semana empilha (um dia por linha) no telemóvel. */
+  .cal-week {
+    grid-template-columns: 1fr;
+  }
+  .cal-week__col {
+    min-height: 0;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .cal-week__col:last-child { border-bottom: none; }
 }
 
 /* =========================================================================
