@@ -3,14 +3,16 @@
 // associado a uma equipa; o treinador só vê os planos das suas equipas
 // (garantido pelo RLS + filtro de UI). O coordenador vê todos.
 
-import { state, createRow, updateRow, dbErrorMessage } from '../store.js';
+import { state, createRow, updateRow, deleteRow, dbErrorMessage } from '../store.js';
 import { esc, emptyHTML } from '../ui.js';
+import { confirmDialog } from '../modal.js';
 import { canEdit, isClubWide } from '../permissions.js';
-import { teamName } from '../compute.js';
+import { teamName, eventDateTime, escalaoColor } from '../compute.js';
 
 // Estado local de UI (persiste entre re-desenhos).
 let viewMode = 'list'; // 'list' | 'form'
 let editingId = null;
+let teamFilter = ''; // filtro por equipa na lista
 
 // Campos do formulário para o cálculo da barra de progresso (team_id excluído).
 const FORM_FIELDS = [
@@ -294,97 +296,215 @@ function collectFormData(form) {
   return out;
 }
 
-function exportTxt(plan) {
+// Vista de impressão (também serve para "Guardar como PDF" no diálogo de
+// impressão). Abre uma janela com o plano formatado e dispara a impressão.
+function printPlan(plan) {
   const team = state.teams.find((t) => t.id === plan.team_id);
-  const lines = [
-    'PLANO DE JOGO',
-    '='.repeat(40),
-    `Equipa:     ${team ? teamName(team) : '—'}`,
-    `Adversário: ${plan.opponent || '—'}`,
-    `Data:       ${formatDate(plan.game_date)}`,
-    '',
-    '[ SISTEMA DE JOGO ]',
-    `Formação:  ${plan.formation || '—'}`,
-    `Receção:   ${plan.reception_system || '—'}`,
-    `Notas:     ${plan.system_notes || '—'}`,
-    '',
-    '[ PRINCÍPIOS DEFENSIVOS ]',
-    `Sistema:           ${plan.defense_system || '—'}`,
-    `Bloco:             ${plan.block_notes || '—'}`,
-    `Defesa de campo:   ${plan.field_defense_notes || '—'}`,
-    '',
-    '[ PRINCÍPIOS OFENSIVOS ]',
-    `Side-out:          ${plan.sideout_notes || '—'}`,
-    `Transição:         ${plan.transition_notes || '—'}`,
-    `Tipo de serviço:   ${plan.serve_type || '—'}`,
-    `Zona do serviço:   ${plan.serve_zone_notes || '—'}`,
-    '',
-    '[ ROTAÇÕES ]',
-    `Crítica/vulnerável: ${plan.rotation_weak || '—'}`,
-    `Forte/a explorar:   ${plan.rotation_strong || '—'}`,
-    '',
-    '[ SCOUTING DO ADVERSÁRIO ]',
-    `Pontos fortes:     ${plan.scout_strengths || '—'}`,
-    `Vulnerabilidades:  ${plan.scout_weaknesses || '—'}`,
-    `Padrões:           ${plan.scout_patterns || '—'}`,
-    '',
-    '[ NOTAS DO TREINADOR ]',
-    plan.free_notes || '—',
-  ];
-  const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  const fname = `plano-jogo-${(plan.opponent || 'adversario').replace(/\s+/g, '-').toLowerCase()}-${plan.game_date || 'sem-data'}.txt`;
-  a.download = fname;
-  a.click();
-  URL.revokeObjectURL(a.href);
+  const color = team ? escalaoColor(team.escalao) : '#143b61';
+
+  const row = (label, val) =>
+    val && String(val).trim()
+      ? `<tr><th>${esc(label)}</th><td>${esc(String(val)).replace(/\n/g, '<br>')}</td></tr>`
+      : '';
+  const sec = (title, rows) => (rows ? `<section><h2>${esc(title)}</h2><table>${rows}</table></section>` : '');
+
+  const body = [
+    sec('Sistema de Jogo', row('Formação', plan.formation) + row('Receção', plan.reception_system) + row('Notas', plan.system_notes)),
+    sec('Princípios Defensivos', row('Sistema', plan.defense_system) + row('Bloco', plan.block_notes) + row('Defesa de campo', plan.field_defense_notes)),
+    sec('Princípios Ofensivos', row('Side-out', plan.sideout_notes) + row('Transição', plan.transition_notes) + row('Tipo de serviço', plan.serve_type) + row('Zona do serviço', plan.serve_zone_notes)),
+    sec('Rotações', row('Crítica / vulnerável', plan.rotation_weak) + row('Forte / a explorar', plan.rotation_strong)),
+    sec('Scouting do Adversário', row('Pontos fortes', plan.scout_strengths) + row('Vulnerabilidades', plan.scout_weaknesses) + row('Padrões', plan.scout_patterns)),
+    sec('Notas do Treinador', row('Observações', plan.free_notes)),
+  ].filter(Boolean).join('');
+
+  const html = `<!doctype html><html lang="pt"><head><meta charset="utf-8">
+    <title>Plano de Jogo${plan.opponent ? ' · ' + esc(plan.opponent) : ''}</title>
+    <style>
+      *{box-sizing:border-box}
+      body{font-family:-apple-system,system-ui,'Segoe UI',Roboto,sans-serif;color:#1a2636;margin:0;padding:32px;line-height:1.5}
+      header{border-bottom:3px solid ${color};padding-bottom:12px;margin-bottom:22px}
+      h1{margin:0 0 4px;font-size:22px}
+      .sub{color:#617080;font-size:14px}
+      section{margin:0 0 18px;break-inside:avoid}
+      h2{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:${color};border-bottom:1px solid #dde4ed;padding-bottom:4px;margin:0 0 8px}
+      table{width:100%;border-collapse:collapse}
+      th{width:180px;text-align:left;vertical-align:top;color:#617080;font-weight:600;font-size:13px;padding:4px 12px 4px 0}
+      td{vertical-align:top;font-size:13px;padding:4px 0}
+      @media print{body{padding:0}}
+    </style></head><body>
+    <header>
+      <h1>Plano de Jogo${plan.opponent ? ' — vs ' + esc(plan.opponent) : ''}</h1>
+      <div class="sub">${team ? esc(teamName(team)) : ''}${plan.game_date ? ' · ' + formatDate(plan.game_date) : ''}</div>
+    </header>
+    ${body || '<p style="color:#617080">Plano ainda sem conteúdo preenchido.</p>'}
+    </body></html>`;
+
+  const w = window.open('', '_blank');
+  if (!w) { alert('Permite pop-ups para imprimir ou guardar em PDF.'); return; }
+  w.document.write(html);
+  w.document.close();
+  w.focus();
+  w.onload = () => w.print();
+}
+
+// Duplicar um plano (reaproveitar): copia os campos, limpa a data do jogo e
+// abre logo em edição para ajustar. Marca o adversário como cópia.
+async function duplicatePlan(plan, container) {
+  const payload = {};
+  FORM_FIELDS.forEach((f) => { payload[f] = plan[f] || ''; });
+  payload.team_id = plan.team_id || null;
+  payload.game_date = '';
+  payload.opponent = plan.opponent ? `${plan.opponent} (cópia)` : '';
+  try {
+    const created = await createRow('game_plans', 'gamePlans', payload);
+    viewMode = 'form';
+    editingId = created.id;
+    formData = {};
+    renderForm(container);
+  } catch (err) {
+    alert(dbErrorMessage(err));
+  }
+}
+
+// Apagar um plano (definitivo — os planos não têm arquivo).
+async function deletePlan(plan, container) {
+  const label = [plan.opponent, formatDate(plan.game_date)].filter(Boolean).join(' · ') || 'este plano';
+  const ok = await confirmDialog(
+    `Apagar o plano "${label}"? Esta ação é definitiva (os planos de jogo não têm arquivo).`,
+    { confirmLabel: 'Apagar', danger: true }
+  );
+  if (!ok) return;
+  try {
+    await deleteRow('game_plans', 'gamePlans', plan.id);
+  } catch (err) {
+    alert(dbErrorMessage(err));
+  }
+}
+
+const ICON_PRINT = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>`;
+const ICON_COPY = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
+const ICON_PENCIL = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`;
+const ICON_TRASH = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`;
+
+// Abre o formulário de novo plano pré-preenchido a partir de um jogo agendado.
+function openPlanFromEvent(ev, container) {
+  viewMode = 'form';
+  editingId = null;
+  formData = {
+    team_id: ev.team_id || '',
+    opponent: ev.opponent || '',
+    game_date: ev.date || '',
+  };
+  renderForm(container);
+}
+
+function planCard(p, editable) {
+  const filled = countFilled(p);
+  const pct = Math.round((filled / TOTAL_FIELDS) * 100);
+  const barColor = pct >= 80 ? 'var(--ok, #16a34a)' : pct >= 40 ? 'var(--warn, #d97706)' : 'var(--border)';
+  const team = state.teams.find((t) => t.id === p.team_id);
+  const color = team ? escalaoColor(team.escalao) : 'var(--border)';
+  return `
+    <div class="plan-card card" style="--tc:${color}" data-id="${esc(p.id)}">
+      <div class="plan-card__head">
+        <div>
+          <strong class="plan-card__opponent">${esc(p.opponent || '(sem adversário)')}</strong>
+          <span class="muted">${formatDate(p.game_date)}</span>
+          ${team ? `<span class="badge badge--muted" style="margin-left:0.4rem">${esc(teamName(team))}</span>` : ''}
+        </div>
+        <div class="plan-card__actions">
+          <button class="icon-btn" data-print="${esc(p.id)}" type="button" aria-label="Imprimir / PDF" title="Imprimir / PDF">${ICON_PRINT}</button>
+          ${editable ? `<button class="icon-btn" data-dup="${esc(p.id)}" type="button" aria-label="Duplicar" title="Duplicar">${ICON_COPY}</button>` : ''}
+          ${editable ? `<button class="icon-btn" data-edit="${esc(p.id)}" type="button" aria-label="Editar" title="Editar">${ICON_PENCIL}</button>` : ''}
+          ${editable ? `<button class="icon-btn icon-btn--danger" data-del="${esc(p.id)}" type="button" aria-label="Apagar" title="Apagar">${ICON_TRASH}</button>` : ''}
+        </div>
+      </div>
+      <div class="progress-wrap" style="margin-top:0.5rem">
+        <div class="progress" style="margin-bottom:0.25rem"><div class="progress__bar" style="width:${pct}%;background:${barColor}"></div></div>
+        <span class="progress__label muted">${filled}/${TOTAL_FIELDS} (${pct}%)</span>
+      </div>
+    </div>`;
 }
 
 function renderPlanList(container) {
   const editable = canEdit('game_plans');
-  const plans = [...(state.gamePlans || [])].sort((a, b) => {
-    if (a.game_date && b.game_date) return b.game_date.localeCompare(a.game_date);
-    return new Date(b.created_at) - new Date(a.created_at);
-  });
+  const teams = myTeams();
+  const all = [...(state.gamePlans || [])];
+  const plans = all.filter((p) => !teamFilter || p.team_id === teamFilter);
+  const todayStr = new Date().toISOString().slice(0, 10);
 
-  const listHTML = plans.length
-    ? plans
-        .map((p) => {
-          const filled = countFilled(p);
-          const pct = Math.round((filled / TOTAL_FIELDS) * 100);
-          const barColor = pct >= 80 ? 'var(--ok, #16a34a)' : pct >= 40 ? 'var(--warn, #d97706)' : 'var(--border)';
-          const team = state.teams.find((t) => t.id === p.team_id);
-          return `
-          <div class="plan-card card" data-id="${esc(p.id)}">
-            <div class="plan-card__head">
-              <div>
-                <strong class="plan-card__opponent">${esc(p.opponent || '(sem adversário)')}</strong>
-                <span class="muted">${formatDate(p.game_date)}</span>
-                ${team ? `<span class="badge badge--muted" style="margin-left:0.4rem">${esc(teamName(team))}</span>` : ''}
-              </div>
-              <div class="plan-card__actions">
-                <button class="btn btn--ghost btn--sm btn-export" data-id="${esc(p.id)}" type="button" title="Exportar .txt">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                  .txt
-                </button>
-                ${editable ? `<button class="btn btn--ghost btn--sm btn-edit" data-id="${esc(p.id)}" type="button">Editar</button>` : ''}
-              </div>
-            </div>
-            <div class="progress-wrap" style="margin-top:0.5rem">
-              <div class="progress" style="margin-bottom:0.25rem"><div class="progress__bar" style="width:${pct}%;background:${barColor}"></div></div>
-              <span class="progress__label muted">${filled}/${TOTAL_FIELDS} (${pct}%)</span>
-            </div>
-          </div>`;
-        })
-        .join('')
-    : emptyHTML('Ainda não há planos de jogo criados.');
+  // Próximos vs. passados (por data do jogo; sem data conta como próximo).
+  const upcoming = plans
+    .filter((p) => !p.game_date || p.game_date >= todayStr)
+    .sort((a, b) => (a.game_date || '9999').localeCompare(b.game_date || '9999'));
+  const past = plans
+    .filter((p) => p.game_date && p.game_date < todayStr)
+    .sort((a, b) => (b.game_date || '').localeCompare(a.game_date || ''));
+
+  // Jogos agendados (futuros) das minhas equipas ainda sem plano.
+  const teamIds = new Set(teams.map((t) => t.id));
+  const hasPlan = (ev) => all.some((p) => p.team_id === ev.team_id && p.game_date === ev.date);
+  const gamesNoPlan = editable
+    ? state.events
+        .filter((e) => e.type === 'jogo' && e.date >= todayStr)
+        .filter((e) => isClubWide() || (e.team_id && teamIds.has(e.team_id)))
+        .filter((e) => !hasPlan(e))
+        .sort((a, b) => eventDateTime(a) - eventDateTime(b))
+        .slice(0, 6)
+    : [];
+
+  const group = (title, list) =>
+    list.length
+      ? `<h2 class="plan-group__title">${title} <span class="plan-group__count">${list.length}</span></h2>
+         <div class="plan-list">${list.map((p) => planCard(p, editable)).join('')}</div>`
+      : '';
+
+  const noPlanRow = (ev) => {
+    const team = state.teams.find((t) => t.id === ev.team_id);
+    const when = eventDateTime(ev).toLocaleDateString('pt-PT', { weekday: 'short', day: '2-digit', month: 'short' });
+    const label = [team ? teamName(team) : '', ev.opponent ? `vs ${esc(ev.opponent)}` : ''].filter(Boolean).join(' · ') || 'Jogo';
+    return `
+      <li class="noplan-item">
+        <span class="noplan-item__date">${esc(when)}</span>
+        <span class="noplan-item__body">${label}</span>
+        <button class="btn btn--accent btn--sm" data-prep-game="${esc(ev.id)}" type="button">Preparar plano</button>
+      </li>`;
+  };
 
   container.innerHTML = `
     <header class="page-head">
       <h1 class="section-title">Plano de Jogo</h1>
       ${editable ? '<button class="btn btn--accent" id="btn-new-plan" type="button">+ Novo plano</button>' : ''}
     </header>
-    <div class="plan-list">${listHTML}</div>
+
+    ${
+      teams.length > 1
+        ? `<div class="filter-bar">
+             <div class="field">
+               <label for="plan-team">Equipa</label>
+               <select id="plan-team">
+                 <option value="">Todas as equipas</option>
+                 ${teams.map((t) => `<option value="${esc(t.id)}" ${teamFilter === t.id ? 'selected' : ''}>${esc(teamName(t))}</option>`).join('')}
+               </select>
+             </div>
+           </div>`
+        : ''
+    }
+
+    ${
+      gamesNoPlan.length
+        ? `<section class="card noplan-card">
+             <h2 class="section-title upcoming-card__title">Jogos sem plano</h2>
+             <ul class="noplan-list">${gamesNoPlan.map(noPlanRow).join('')}</ul>
+           </section>`
+        : ''
+    }
+
+    ${
+      plans.length
+        ? `${group('Próximos', upcoming)}${group('Passados', past)}`
+        : emptyHTML(teamFilter ? 'Sem planos para esta equipa.' : 'Ainda não há planos de jogo criados.')
+    }
   `;
 
   container.querySelector('#btn-new-plan')?.addEventListener('click', () => {
@@ -394,20 +514,43 @@ function renderPlanList(container) {
     renderForm(container);
   });
 
-  container.querySelectorAll('.btn-edit').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      viewMode = 'form';
-      editingId = btn.dataset.id;
-      renderForm(container);
-    });
+  container.querySelector('#plan-team')?.addEventListener('change', (e) => {
+    teamFilter = e.target.value;
+    renderPlanList(container);
   });
 
-  container.querySelectorAll('.btn-export').forEach((btn) => {
+  container.querySelectorAll('[data-prep-game]').forEach((btn) =>
     btn.addEventListener('click', () => {
-      const plan = plans.find((p) => p.id === btn.dataset.id);
-      if (plan) exportTxt(plan);
-    });
-  });
+      const ev = state.events.find((e) => e.id === btn.dataset.prepGame);
+      if (ev) openPlanFromEvent(ev, container);
+    })
+  );
+
+  container.querySelectorAll('[data-edit]').forEach((btn) =>
+    btn.addEventListener('click', () => {
+      viewMode = 'form';
+      editingId = btn.dataset.edit;
+      renderForm(container);
+    })
+  );
+  container.querySelectorAll('[data-print]').forEach((btn) =>
+    btn.addEventListener('click', () => {
+      const plan = all.find((p) => p.id === btn.dataset.print);
+      if (plan) printPlan(plan);
+    })
+  );
+  container.querySelectorAll('[data-dup]').forEach((btn) =>
+    btn.addEventListener('click', () => {
+      const plan = all.find((p) => p.id === btn.dataset.dup);
+      if (plan) duplicatePlan(plan, container);
+    })
+  );
+  container.querySelectorAll('[data-del]').forEach((btn) =>
+    btn.addEventListener('click', () => {
+      const plan = all.find((p) => p.id === btn.dataset.del);
+      if (plan) deletePlan(plan, container);
+    })
+  );
 }
 
 export function renderPlanoJogo(container) {
