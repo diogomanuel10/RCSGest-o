@@ -2075,6 +2075,7 @@ button.metric--nav:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 0.55rem;
+  border-left: 4px solid var(--tc, var(--navy));
 }
 .coach-card__head {
   display: flex;
@@ -2091,7 +2092,7 @@ button.metric--nav:focus-visible {
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--navy-500), var(--navy));
+  background: var(--tc, var(--navy));
   color: rgba(255, 255, 255, 0.95);
   font-family: var(--font-title);
   font-size: 1rem;
@@ -2110,9 +2111,15 @@ button.metric--nav:focus-visible {
   display: block;
   font-weight: 700;
 }
+.coach-card__sub {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-top: 0.15rem;
+}
 .coach-card__role {
   font-size: 0.81rem;
-  display: block;
 }
 .coach-card__contact {
   margin: 0;
@@ -2148,6 +2155,30 @@ button.metric--nav:focus-visible {
   letter-spacing: 0.05em;
   color: var(--text-muted);
   font-weight: 700;
+}
+.coach-card__stats {
+  display: flex;
+  gap: 1.1rem;
+  padding-top: 0.55rem;
+  border-top: 1px dashed var(--border);
+}
+.cstat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.02rem;
+}
+.cstat b {
+  font-family: var(--font-title);
+  font-size: 1.15rem;
+  line-height: 1;
+  color: var(--navy);
+  font-variant-numeric: tabular-nums;
+}
+.cstat small {
+  font-size: 0.66rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 .coach-card__teams {
   margin-top: auto;

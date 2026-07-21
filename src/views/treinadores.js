@@ -2,16 +2,19 @@
 
 import { state, createRow, updateRow, archiveRow, dbErrorMessage } from '../store.js';
 import { esc, emptyHTML, paginate, paginationHTML, wirePagination, PAGE_SIZE } from '../ui.js';
-import { teamName, coachTeams } from '../compute.js';
+import { teamName, coachTeams, escalaoColor } from '../compute.js';
 import { openModal, confirmDialog } from '../modal.js';
 import { canEdit } from '../permissions.js';
 import { COACH_ROLE_LABEL } from '../constants.js';
 
 let page = 1;
+let search = '';
 
 export function renderTreinadores(container) {
   const editable = canEdit('coaches');
-  const coaches = state.coaches.slice().sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  const all = state.coaches.slice().sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  const q = search.trim().toLowerCase();
+  const coaches = all.filter((c) => !q || (c.name || '').toLowerCase().includes(q));
   const pg = paginate(coaches, page, PAGE_SIZE);
   container.innerHTML = `
     <header class="page-head">
@@ -19,12 +22,33 @@ export function renderTreinadores(container) {
       ${editable ? '<button class="btn btn--accent" id="add-coach" type="button">+ Treinador</button>' : ''}
     </header>
     ${
-      coaches.length
-        ? `<div class="coach-grid">${pg.items.map((c) => coachCard(c, editable)).join('')}</div>
-           ${paginationHTML({ ...pg, id: 'coach' })}`
-        : emptyHTML('Ainda não há treinadores.')
+      all.length
+        ? `<div class="filter-bar">
+             <div class="field field--grow">
+               <label for="coach-search">Pesquisar treinador</label>
+               <input type="search" id="coach-search" placeholder="Nome do treinador…" value="${esc(search)}" />
+             </div>
+           </div>`
+        : ''
+    }
+    ${
+      !all.length
+        ? emptyHTML('Ainda não há treinadores.')
+        : coaches.length
+          ? `<div class="coach-grid">${pg.items.map((c) => coachCard(c, editable)).join('')}</div>
+             ${paginationHTML({ ...pg, id: 'coach' })}`
+          : emptyHTML('Nenhum treinador corresponde à pesquisa.')
     }
   `;
+
+  const searchEl = container.querySelector('#coach-search');
+  searchEl?.addEventListener('input', (e) => {
+    search = e.target.value;
+    page = 1;
+    renderTreinadores(container);
+    const el = container.querySelector('#coach-search');
+    if (el) { el.focus(); const v = el.value; el.value = ''; el.value = v; }
+  });
 
   container.querySelector('#add-coach')?.addEventListener('click', () => openForm());
   container.querySelectorAll('[data-edit]').forEach((b) =>
@@ -47,14 +71,27 @@ function initials(name) {
 
 function coachCard(coach, editable) {
   const teams = coachTeams(coach.id);
+  const principalTeams = teams.filter((t) => t.role === 'principal');
+  const adjuntoTeams = teams.filter((t) => t.role === 'adjunto');
+  // Cor de identidade: a da equipa principal (ou a primeira que orienta).
+  const primaryTeam = (principalTeams[0] || teams[0])?.team;
+  const color = primaryTeam ? escalaoColor(primaryTeam.escalao) : 'var(--navy)';
+  // Atletas orientados: total das equipas que orienta (principal ou adjunto).
+  const teamIds = new Set(teams.map((t) => t.team.id));
+  const athletes = state.players.filter((p) => teamIds.has(p.team_id)).length;
+  const hasAccount = !!coach.user_id;
+
   return `
-    <article class="card coach-card">
+    <article class="card coach-card" style="--tc:${color}">
       <div class="coach-card__head">
         <div class="coach-card__identity">
           <div class="coach-avatar" aria-hidden="true">${esc(initials(coach.name))}</div>
           <div>
             <strong class="coach-card__name">${esc(coach.name)}</strong>
-            ${coach.role ? `<span class="muted coach-card__role">${esc(coach.role)}</span>` : ''}
+            <span class="coach-card__sub">
+              ${coach.role ? `<span class="muted coach-card__role">${esc(coach.role)}</span>` : ''}
+              <span class="badge badge--${hasAccount ? 'ok' : 'muted'}" title="${hasAccount ? 'Tem conta de acesso à app' : 'Sem conta de acesso'}">${hasAccount ? 'Com conta' : 'Sem conta'}</span>
+            </span>
           </div>
         </div>
         ${
@@ -77,6 +114,12 @@ function coachCard(coach, editable) {
           : ''
       }
       ${coach.notes ? `<p class="muted coach-card__notes">${esc(coach.notes)}</p>` : ''}
+
+      <div class="coach-card__stats">
+        <span class="cstat"><b>${athletes}</b><small>Atleta${athletes === 1 ? '' : 's'}</small></span>
+        ${principalTeams.length ? `<span class="cstat"><b>${principalTeams.length}</b><small>Principal</small></span>` : ''}
+        ${adjuntoTeams.length ? `<span class="cstat"><b>${adjuntoTeams.length}</b><small>Adjunto</small></span>` : ''}
+      </div>
 
       <div class="coach-card__teams">
         <span class="coach-card__teams-label">Equipas</span>
