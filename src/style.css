@@ -771,12 +771,16 @@ tbody tr:hover {
   padding: 1.8rem 2rem 3rem;
 }
 .content__inner {
-  max-width: 1180px;
+  max-width: none;
   margin: 0 auto;
   animation: pageIn 0.2s ease;
 }
 .content__inner--wide {
   max-width: none;
+}
+/* Ecrãs largos: mais respiro nas margens (sem limitar a largura do conteúdo). */
+@media (min-width: 1400px) {
+  .content { padding-left: 2.75rem; padding-right: 2.75rem; }
 }
 @keyframes pageIn {
   from { opacity: 0; transform: translateY(6px); }
