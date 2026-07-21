@@ -419,7 +419,10 @@ function toMinutes(t) {
 
 // --- Gestão financeira ---------------------------------------------------
 
-// Resumo financeiro: total de receitas, despesas e saldo.
+// Resumo financeiro: receitas e despesas do livro-razão + quotas recebidas
+// (mensalidades pagas, geridas no módulo Quotas) para uma imagem completa sem
+// duplicar lançamentos. `balance` fica só com o livro-razão (retrocompatível);
+// `totalIncome`/`totalBalance` incluem as quotas.
 export function financialSummary() {
   let income = 0;
   let expenses = 0;
@@ -428,7 +431,18 @@ export function financialSummary() {
     if (e.type === 'receita') income += v;
     else expenses += v;
   });
-  return { income, expenses, balance: income - expenses };
+  const quotas = (state.quotas || []).reduce(
+    (s, q) => s + (q.pago ? Number(q.valor || 0) : 0),
+    0
+  );
+  return {
+    income,
+    expenses,
+    quotas,
+    balance: income - expenses,
+    totalIncome: income + quotas,
+    totalBalance: income + quotas - expenses,
+  };
 }
 
 // --- Convocatórias -------------------------------------------------------

@@ -34,7 +34,6 @@ import { renderPreparacao } from './preparacao.js';
 import { renderPortal } from './portal.js';
 import { renderArquivados } from './arquivados.js';
 import { renderFinanceiro } from './financeiro.js';
-import { renderEncomendas } from './encomendas.js';
 import { renderPlanoJogo } from './plano-jogo.js';
 import { renderObjetivos } from './objetivos.js';
 import { renderAdmin } from './admin.js';
@@ -95,9 +94,8 @@ const NAV = [
 
   { key: 'objetivos',    label: 'Objetivos',     icon: ICONS.objetivos,    render: renderObjetivos,     group: 'admin' },
   { key: 'quotas',       label: 'Quotas',        icon: ICONS.quotas,       render: renderQuotas,        group: 'admin' },
-  { key: 'equipamentos', label: 'Equipamentos',  icon: ICONS.equipamentos, render: renderEquipamentos,  group: 'admin' },
+  { key: 'equipamentos', label: 'Equipamentos',  icon: ICONS.equipamentos, render: renderEquipamentos,  group: 'admin', can: () => canAccess('equipamentos') || canAccess('encomendas') },
   { key: 'financeiro',   label: 'Financeiro',    icon: ICONS.financeiro,   render: renderFinanceiro,    group: 'admin' },
-  { key: 'encomendas',   label: 'Encomendas',    icon: ICONS.encomendas,   render: renderEncomendas,    group: 'admin', wide: true },
 ];
 
 const FOOTER = [

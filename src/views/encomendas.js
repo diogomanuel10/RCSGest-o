@@ -18,19 +18,12 @@ import { exportEncomendaXLSX } from '../encomendas-xlsx.js';
 let selectedTeam = '';
 let tab = 'tamanhos'; // 'tamanhos' | 'resumo'
 
-export function renderEncomendas(container) {
+// Corpo do separador "Encomendas" (renderizado pelo orquestrador Equipamentos).
+export function renderEncomendasBody(container) {
   const teams = state.teams.slice().sort((a, b) => teamName(a).localeCompare(teamName(b)));
 
   if (!teams.length) {
-    container.innerHTML = `
-      <header class="page-head">
-        <div>
-          <h1 class="section-title">Encomendas</h1>
-          <p class="muted" style="margin:0;font-size:0.88rem">Tamanhos de equipamento por atleta</p>
-        </div>
-      </header>
-      ${emptyHTML('Ainda não há equipas registadas. Começa pelos Plantéis.')}
-    `;
+    container.innerHTML = emptyHTML('Ainda não há equipas registadas. Começa pelos Plantéis.');
     return;
   }
 
@@ -53,16 +46,8 @@ export function renderEncomendas(container) {
   const editable = canEdit('sizes');
 
   container.innerHTML = `
-    <header class="page-head">
-      <div>
-        <h1 class="section-title">Encomendas</h1>
-        <p class="muted" style="margin:0;font-size:0.88rem">Tamanhos de equipamento por atleta</p>
-      </div>
-      <button class="btn btn--ghost" id="enc-export" type="button" title="Exportar a encomenda desta equipa">⬇ Exportar Excel</button>
-    </header>
-
     <div class="card" style="margin-bottom:1rem">
-      <div class="filters" style="margin:0;padding:0;background:none;border:none">
+      <div class="filters" style="margin:0;padding:0;background:none;border:none;align-items:flex-end">
         <div>
           <label for="enc-team">Equipa</label>
           <select id="enc-team">
@@ -71,10 +56,11 @@ export function renderEncomendas(container) {
             `).join('')}
           </select>
         </div>
-        <div class="pres-tabs" style="align-self:flex-end">
+        <div class="pres-tabs">
           <button class="pres-tab${tab === 'tamanhos' ? ' pres-tab--active' : ''}" data-tab="tamanhos" type="button">Tamanhos</button>
           <button class="pres-tab${tab === 'resumo' ? ' pres-tab--active' : ''}" data-tab="resumo" type="button">Resumo encomenda</button>
         </div>
+        <button class="btn btn--ghost btn--sm" id="enc-export" type="button" style="margin-left:auto" title="Exportar a encomenda desta equipa">⬇ Exportar Excel</button>
       </div>
     </div>
 
@@ -85,13 +71,13 @@ export function renderEncomendas(container) {
 
   container.querySelector('#enc-team').addEventListener('change', (e) => {
     selectedTeam = e.target.value;
-    renderEncomendas(container);
+    renderEncomendasBody(container);
   });
   container.querySelector('#enc-export').addEventListener('click', (e) => {
     handleExport(e.currentTarget, team, players);
   });
   container.querySelectorAll('[data-tab]').forEach((btn) => {
-    btn.addEventListener('click', () => { tab = btn.dataset.tab; renderEncomendas(container); });
+    btn.addEventListener('click', () => { tab = btn.dataset.tab; renderEncomendasBody(container); });
   });
   container.querySelectorAll('[data-edit-sizes]').forEach((btn) => {
     btn.addEventListener('click', () => openSizesModal(btn.dataset.editSizes, container));
