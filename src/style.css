@@ -857,6 +857,25 @@ tbody tr:hover {
   border-top: 3px solid var(--yellow);
 }
 
+/* Cartão de métrica clicável (navega para a secção). */
+button.metric--nav {
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  appearance: none;
+  cursor: pointer;
+  transition: transform 0.13s ease, box-shadow 0.13s ease, border-color 0.13s ease;
+}
+button.metric--nav:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md, 0 8px 24px rgba(10, 22, 40, 0.12));
+  border-color: var(--yellow);
+}
+button.metric--nav:focus-visible {
+  outline: 2px solid var(--yellow);
+  outline-offset: 2px;
+}
+
 .goal-card {
   margin-bottom: 1.3rem;
 }

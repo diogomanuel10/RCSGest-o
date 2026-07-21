@@ -98,16 +98,20 @@ export function renderPainel(container) {
   const seePlanteis = canAccess('planteis');
   const seeAttendance = canAccess('presencas') || canAccess('estatisticas');
   const seeCalendar = canAccess('calendario');
+  const seeMedico = canAccess('medico');
+  const attRoute = canAccess('presencas') ? 'presencas' : 'estatisticas';
+  const injured = seeMedico ? injuredCount() : 0;
 
   const metrics = [
-    seeSpon     && metricCard(ICON_MONEY, 'Angariado', euros(raised), `Meta: ${euros(goal)}`, 'accent'),
-    seeSpon     && metricCard(ICON_CHART, 'Em contacto', inProgress, 'patrocínios a decorrer', 'blue'),
-    seePlanteis && metricCard(ICON_USERS, 'Atletas', athletes, `em ${teamsCount} equipa${teamsCount === 1 ? '' : 's'}`, 'green'),
-    seeCoaches  && metricCard(ICON_COACH, 'Treinadores', coaches, 'na equipa técnica', 'purple'),
-    seeAttendance && metricCard(ICON_CHECK, 'Presenças', att.rate == null ? '—' : att.rate + '%', att.total ? `média em ${att.total} registo${att.total === 1 ? '' : 's'}` : 'ainda sem registos', 'green'),
-    seeQuotas   && metricCard(ICON_CARD, 'Em dívida', euros(owed.total), owed.count ? `${owed.count} quota${owed.count === 1 ? '' : 's'} por pagar` : 'tudo regularizado', owed.total > 0 ? 'accent' : 'blue'),
-    seePlanteis && metricCard(ICON_SHIELD, 'Equipas', teamsCount, 'plantéis ativos', 'blue'),
-    seeEquip    && metricCard(ICON_BOX, 'Equipamentos', state.equipment.length, equipReview ? `${equipReview} em mau estado` : 'inventário em dia', equipReview ? 'accent' : 'purple'),
+    seeSpon     && metricCard(ICON_MONEY, 'Angariado', euros(raised), `Meta: ${euros(goal)}`, 'accent', 'financeiro'),
+    seeSpon     && metricCard(ICON_CHART, 'Em contacto', inProgress, 'patrocínios a decorrer', 'blue', 'financeiro'),
+    seePlanteis && metricCard(ICON_USERS, 'Atletas', athletes, `em ${teamsCount} equipa${teamsCount === 1 ? '' : 's'}`, 'green', 'planteis'),
+    seeCoaches  && metricCard(ICON_COACH, 'Treinadores', coaches, 'na equipa técnica', 'purple', 'treinadores'),
+    seeAttendance && metricCard(ICON_CHECK, 'Presenças', att.rate == null ? '—' : att.rate + '%', att.total ? `média em ${att.total} registo${att.total === 1 ? '' : 's'}` : 'ainda sem registos', 'green', attRoute),
+    seeMedico   && metricCard(ICON_PULSE, 'Em tratamento', injured, injured ? `atleta${injured === 1 ? '' : 's'} com episódio ativo` : 'sem lesões ativas', injured > 0 ? 'accent' : 'green', 'medico'),
+    seeQuotas   && metricCard(ICON_CARD, 'Em dívida', euros(owed.total), owed.count ? `${owed.count} quota${owed.count === 1 ? '' : 's'} por pagar` : 'tudo regularizado', owed.total > 0 ? 'accent' : 'blue', 'quotas'),
+    seePlanteis && metricCard(ICON_SHIELD, 'Equipas', teamsCount, 'plantéis ativos', 'blue', 'planteis'),
+    seeEquip    && metricCard(ICON_BOX, 'Equipamentos', state.equipment.length, equipReview ? `${equipReview} em mau estado` : 'inventário em dia', equipReview ? 'accent' : 'purple', 'equipamentos'),
   ].filter(Boolean);
 
   container.innerHTML = `
@@ -396,15 +400,19 @@ function markRow({ event, total, marked, isToday }) {
   `;
 }
 
-function metricCard(icon, label, value, sub, variant = '') {
-  return `
-    <div class="card metric ${variant ? 'metric--' + variant : ''}">
+// `route` opcional: quando presente, o cartão fica clicável e navega para essa
+// secção (data-nav, ligado em renderPainel). Sem rota, é só informativo.
+function metricCard(icon, label, value, sub, variant = '', route = '') {
+  const cls = `card metric ${variant ? 'metric--' + variant : ''}${route ? ' metric--nav' : ''}`;
+  const inner = `
       <div class="metric__icon-wrap">${icon}</div>
       <span class="metric__label">${esc(label)}</span>
       <strong class="metric__value">${String(value)}</strong>
-      <span class="metric__sub muted">${esc(sub)}</span>
-    </div>
-  `;
+      <span class="metric__sub muted">${esc(sub)}</span>`;
+  return route
+    ? `<button class="${cls}" type="button" data-nav="${esc(route)}"
+        title="Abrir ${esc(label)}">${inner}</button>`
+    : `<div class="${cls}">${inner}</div>`;
 }
 
 function upcomingList(events) {
