@@ -13,13 +13,21 @@ import { canEdit, canDelete, canAccess, isCoordenador } from '../permissions.js'
 import { planLimit, currentPlan } from '../plans.js';
 import { parsePlayersFile, downloadPlayersTemplate } from '../players-xlsx.js';
 import { openAthleteProfile } from './athlete-profile.js';
+import { evaluationHTML, wireEvaluation } from './avaliacao.js';
 
 // Equipa selecionada (mostra o seu plantel). Mantida entre re-desenhos.
 let selectedTeamId = null;
+// Modo da vista: 'plantel' (lista de atletas) ou 'avaliacao' (planear a época).
+let mode = 'plantel';
 // Filtros e paginação (estado local da vista).
 let search = '';
 let positionFilter = '';
 const teamPage = new Map(); // team_id -> página atual dos atletas
+
+// Abre os Plantéis diretamente no modo "Planear época" (usado pelo Painel).
+export function openSeasonPlanning() {
+  mode = 'avaliacao';
+}
 
 // Cor/identidade por escalão e por posição. Índice na lista configurada (que é
 // estável) -> paleta cíclica, para cada escalão/posição ter sempre a mesma cor.
@@ -75,7 +83,12 @@ export function renderPlanteis(container) {
   const canPlayers = canEdit('players');
   // Arquivar atletas é uma decisão do coordenador (o treinador edita mas não remove).
   const canRemovePlayers = canDelete('players');
-  const filtering = !!(search.trim() || positionFilter);
+  // "Planear época" (avaliação) só para quem tem acesso à avaliação de plantel.
+  const canEval = canAccess('avaliacao');
+  if (mode === 'avaliacao' && !canEval) mode = 'plantel';
+  const evaluating = mode === 'avaliacao';
+  // Os filtros de pesquisa só se aplicam no modo plantel.
+  const filtering = !evaluating && !!(search.trim() || positionFilter);
 
   // Equipas do utilizador (todas para o coordenador; só as suas para o treinador).
   const myTeams = scopedTeams();
@@ -92,16 +105,23 @@ export function renderPlanteis(container) {
   container.innerHTML = `
     <header class="page-head">
       <h1 class="section-title">Plantéis</h1>
-      ${canTeams ? '<button class="btn btn--accent" id="add-team" type="button">+ Equipa</button>' : ''}
+      <div class="page-head__actions">
+        ${canEval ? modeToggleHTML(mode) : ''}
+        ${canTeams ? '<button class="btn btn--accent" id="add-team" type="button">+ Equipa</button>' : ''}
+      </div>
     </header>
-    ${myTeams.length ? filterBarHTML() : ''}
+    ${myTeams.length && !evaluating ? filterBarHTML() : ''}
     ${
       !myTeams.length
-        ? emptyHTML('Ainda não há equipas.')
+        ? emptyHTML(evaluating ? 'Ainda não há equipas para avaliar.' : 'Ainda não há equipas.')
         : !teams.length
           ? emptyHTML('Nenhum atleta corresponde ao filtro.')
           : `${teamPillsHTML(teams, filtering)}
-             ${rosterHTML(team, canTeams, canPlayers, canRemovePlayers, filtering)}`
+             ${
+               evaluating
+                 ? evaluationHTML(team, { editable: canPlayers, canApply: canRemovePlayers, color: escalaoColor(team.escalao) })
+                 : rosterHTML(team, canTeams, canPlayers, canRemovePlayers, filtering)
+             }`
     }
   `;
 
@@ -120,6 +140,15 @@ export function renderPlanteis(container) {
     renderPlanteis(container);
   });
 
+  // Alternar modo (Plantel / Planear época).
+  container.querySelectorAll('[data-mode]').forEach((b) =>
+    b.addEventListener('click', () => {
+      if (mode === b.dataset.mode) return;
+      mode = b.dataset.mode;
+      renderPlanteis(container);
+    })
+  );
+
   // Seleção da equipa (separadores).
   container.querySelectorAll('[data-team-pick]').forEach((b) =>
     b.addEventListener('click', () => {
@@ -128,7 +157,16 @@ export function renderPlanteis(container) {
     })
   );
 
-  // Paginação dos atletas da equipa selecionada.
+  // + Equipa está no cabeçalho nos dois modos.
+  container.querySelector('#add-team')?.addEventListener('click', () => openTeamForm());
+
+  // Modo avaliação: liga os seus próprios eventos (filtros, decisões, aplicar).
+  if (evaluating && team) {
+    wireEvaluation(container, team, () => renderPlanteis(container));
+    return;
+  }
+
+  // Paginação dos atletas da equipa selecionada (modo plantel).
   if (team) {
     const pg = paginate(filteredPlayers(team.id), teamPage.get(team.id) || 1, PAGE_SIZE);
     wirePagination(container, `pl-${team.id}`, pg.page, pg.totalPages, (np) => {
@@ -136,8 +174,6 @@ export function renderPlanteis(container) {
       renderPlanteis(container);
     });
   }
-
-  container.querySelector('#add-team')?.addEventListener('click', () => openTeamForm());
 
   container.querySelectorAll('[data-team-edit]').forEach((b) =>
     b.addEventListener('click', () => openTeamForm(b.dataset.teamEdit))
@@ -167,6 +203,16 @@ export function renderPlanteis(container) {
   container.querySelectorAll('[data-player-del]').forEach((b) =>
     b.addEventListener('click', () => removePlayer(b.dataset.playerDel, container))
   );
+}
+
+// Alternador de modo: ver o plantel ou planear a próxima época (avaliação).
+function modeToggleHTML(current) {
+  const opt = (key, label) =>
+    `<button class="mode-toggle__btn${current === key ? ' is-active' : ''}"
+             type="button" data-mode="${key}" aria-pressed="${current === key}">${label}</button>`;
+  return `<div class="mode-toggle" role="group" aria-label="Modo dos Plantéis">
+      ${opt('plantel', 'Plantel')}${opt('avaliacao', 'Planear época')}
+    </div>`;
 }
 
 // Barra de filtros (pesquisa por nome + posição).
