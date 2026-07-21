@@ -35,6 +35,10 @@ alter table settings add column if not exists escaloes jsonb not null default
 alter table settings add column if not exists sport     text  not null default 'voleibol';
 alter table settings add column if not exists positions jsonb not null default '[]'::jsonb;
 
+-- Janela de antecedência (dias) para os alertas de documentos a expirar
+-- (exame médico, seguro…) no Painel. Editável nas Definições.
+alter table settings add column if not exists doc_alert_days int not null default 30;
+
 -- Personalização da marca (white-label): nome, lema, cores e emblema do clube.
 -- O emblema é guardado como data URL (imagem pequena). Editável só pelo
 -- coordenador (política write_coord).

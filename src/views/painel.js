@@ -83,8 +83,9 @@ export function renderPainel(container) {
   const canMark = canEdit('attendances');
   const toMark = canMark ? trainingsToMark(6) : [];
   const actions = buildActions();
-  // Alertas de documentos a expirar/expirados (só para quem os pode ver).
-  const docAlerts = canEdit('documents') ? expiringDocuments(30) : [];
+  // Alertas de documentos a expirar/expirados/sem data (só para quem os pode ver).
+  // A janela de antecedência vem das Definições (doc_alert_days).
+  const docAlerts = canEdit('documents') ? expiringDocuments() : [];
   const today = todayEvents();
   const quick = quickActions();
 
@@ -338,11 +339,15 @@ function actionItem({ variant, title, sub, route }) {
 // Uma linha do alerta "Documentos a expirar" — abre a ficha do atleta (onde os
 // documentos vivem, no separador Geral) ao clicar.
 function docAlertItem(row) {
-  const variant = row.status === 'expired' ? 'danger' : 'warn';
-  const date = new Date(row.expiresAt + 'T00:00:00').toLocaleDateString('pt-PT',
-    { day: '2-digit', month: 'short', year: 'numeric' });
+  const variant = row.status === 'expired' ? 'danger' : row.status === 'missing' ? 'info' : 'warn';
+  const date = row.expiresAt
+    ? new Date(row.expiresAt + 'T00:00:00').toLocaleDateString('pt-PT',
+        { day: '2-digit', month: 'short', year: 'numeric' })
+    : '';
   const sub = row.status === 'expired'
     ? `Expirou a ${date} — renovar.`
+    : row.status === 'missing'
+    ? 'Sem data de validade — atualizar.'
     : `Expira a ${date} (${row.daysLeft} dia${row.daysLeft === 1 ? '' : 's'}).`;
   return `
     <li>

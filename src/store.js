@@ -1080,13 +1080,15 @@ export async function replaceAllData(backup) {
 
   // Definições (linha única).
   if (backup.settings) {
-    const { season, goal, escaloes, sport, positions, club_name, app_name, motto,
+    const { season, goal, escaloes, sport, positions, doc_alert_days,
+            club_name, app_name, motto,
             brand_primary, brand_accent, logo } = backup.settings;
     const values = { season, goal };
     if (Array.isArray(escaloes)) values.escaloes = escaloes;
     // Modalidade e posições (se o backup as trouxer).
     if (sport !== undefined) values.sport = sport;
     if (Array.isArray(positions)) values.positions = positions;
+    if (doc_alert_days !== undefined) values.doc_alert_days = doc_alert_days;
     // Marca do clube (se o backup a trouxer).
     if (club_name !== undefined) values.club_name = club_name;
     if (app_name !== undefined) values.app_name = app_name;

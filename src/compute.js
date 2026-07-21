@@ -3,8 +3,13 @@
 import { state } from './store.js';
 import {
   TIER_VALUE, IN_PROGRESS_STATUSES, DEFAULT_ESCALOES,
-  DEFAULT_SPORT, SPORT_POSITIONS, DEFAULT_POSITIONS, DOC_TYPE_LABEL,
+  DEFAULT_SPORT, SPORT_POSITIONS, DEFAULT_POSITIONS, DOC_TYPE_LABEL, DOCUMENT_TYPES,
 } from './constants.js';
+
+// Tipos de documento que deviam ter data de validade (exame médico, seguro…).
+const EXPIRY_DOC_TYPES = DOCUMENT_TYPES.filter((t) => t.hasExpiry).map((t) => t.key);
+// Ordem de urgência dos alertas de documentos.
+const DOC_ALERT_RANK = { expired: 0, missing: 1, soon: 2 };
 
 // Lista de escalões em vigor (configurável nas Definições). Recorre à lista
 // por omissão se ainda não houver nada guardado.
@@ -27,22 +32,37 @@ export function positions() {
   return SPORT_POSITIONS[sport()] || DEFAULT_POSITIONS;
 }
 
-// Documentos de atleta (exame médico, seguro…) a expirar dentro de `days` dias
-// ou já expirados. Junta o atleta e devolve ordenado por urgência (mais
-// urgente/expirado primeiro). Só conta documentos com data de validade e cujo
-// atleta ainda está ativo na cache. A leitura de documentos já está limitada
-// por RLS ao coordenador/fisioterapeuta/preparador, por isso a lista só traz o
-// que o utilizador atual pode ver.
-export function expiringDocuments(days = 30) {
+// Janela de aviso (dias de antecedência) para documentos a expirar,
+// configurável nas Definições. Recorre a 30 dias se não estiver definida.
+export function docAlertDays() {
+  const d = Number(state.settings?.doc_alert_days);
+  return Number.isFinite(d) && d > 0 ? d : 30;
+}
+
+// Documentos de atleta que precisam de atenção: já expirados, a expirar dentro
+// de `days` dias, ou sem data de validade (num tipo que a devia ter, p. ex.
+// exame médico/seguro). Junta o atleta e devolve ordenado por urgência
+// (expirado → sem data → a expirar). Só conta documentos de atletas ativos na
+// cache. A leitura de documentos já está limitada por RLS ao coordenador/
+// fisioterapeuta/preparador, por isso a lista só traz o que o utilizador pode ver.
+export function expiringDocuments(days = docAlertDays()) {
   const now = new Date();
   const dayMs = 1000 * 60 * 60 * 24;
   const out = [];
   for (const doc of state.playerDocuments) {
-    if (!doc.expires_at) continue;
-    const diffDays = (new Date(doc.expires_at) - now) / dayMs;
-    const expired = diffDays < 0;
-    const soon = diffDays >= 0 && diffDays <= days;
-    if (!expired && !soon) continue;
+    // Documento sem validade, mas de um tipo que a devia ter → "em falta".
+    const missing = !doc.expires_at && EXPIRY_DOC_TYPES.includes(doc.doc_type);
+    let status, diffDays = null;
+    if (doc.expires_at) {
+      diffDays = (new Date(doc.expires_at) - now) / dayMs;
+      if (diffDays < 0) status = 'expired';
+      else if (diffDays <= days) status = 'soon';
+      else continue; // ainda longe da validade
+    } else if (missing) {
+      status = 'missing';
+    } else {
+      continue; // sem validade e de um tipo que não a exige (ex.: CC)
+    }
     const player = state.players.find((p) => p.id === doc.player_id);
     if (!player) continue;
     out.push({
@@ -51,14 +71,20 @@ export function expiringDocuments(days = 30) {
       playerId: player.id,
       docType: doc.doc_type,
       docLabel: DOC_TYPE_LABEL[doc.doc_type] || doc.doc_type,
-      expiresAt: doc.expires_at,
-      status: expired ? 'expired' : 'soon',
-      daysLeft: Math.round(diffDays),
+      expiresAt: doc.expires_at || null,
+      status,
+      daysLeft: diffDays == null ? null : Math.round(diffDays),
     });
   }
-  // Por data de validade crescente: os mais atrasados (expirados) primeiro,
-  // depois os que expiram mais cedo.
-  out.sort((a, b) => new Date(a.expiresAt) - new Date(b.expiresAt));
+  // Ordena por urgência (expirado → em falta → a expirar) e, dentro do mesmo
+  // grupo com data, pela validade mais próxima.
+  out.sort((a, b) => {
+    if (DOC_ALERT_RANK[a.status] !== DOC_ALERT_RANK[b.status]) {
+      return DOC_ALERT_RANK[a.status] - DOC_ALERT_RANK[b.status];
+    }
+    if (a.expiresAt && b.expiresAt) return new Date(a.expiresAt) - new Date(b.expiresAt);
+    return 0;
+  });
   return out;
 }
 
