@@ -3881,10 +3881,20 @@ button.metric--nav:focus-visible {
   color: var(--accent, #2563eb);
   border-bottom-color: var(--accent, #2563eb);
 }
-/* Corpo do perfil do atleta — página inteira (sem scroll próprio; a página
-   é que rola). */
+/* Perfil do atleta — página inteira num painel branco (como era o modal). */
+.athlete-page {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: 1.3rem 1.4rem 1.6rem;
+}
+/* Corpo do perfil sem scroll próprio (a página é que rola). */
 .ap-body {
   overflow: visible;
+}
+.ap-page-head {
+  margin-bottom: 1rem;
 }
 .ap-page-head .ap-head {
   min-width: 0;
@@ -3893,6 +3903,9 @@ button.metric--nav:focus-visible {
 .ap-page-head .pd-hero__name {
   display: block;
   line-height: 1.15;
+}
+@media (max-width: 640px) {
+  .athlete-page { padding: 1rem 1rem 1.2rem; }
 }
 
 /* =====================================================================
