@@ -43,78 +43,79 @@ import { renderDocumentsInto } from './documents-section.js';
 const fmtDate = (d) =>
   d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-PT', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
 
-// Abre o perfil do atleta. `onEdit` (opcional) edita os dados base (Plantéis);
-// `tab` define o separador inicial ('geral' | 'fisioterapia' | 'fisica').
-export function openAthleteProfile(playerId, { onEdit, tab } = {}) {
-  const player = state.players.find((p) => p.id === playerId);
-  if (!player) return;
+// --- Navegação para o perfil (página inteira, sem modal) ------------------
+// O app-shell regista aqui como abrir o perfil; assim o perfil é desenhado no
+// conteúdo principal (integrado na navegação) e sobrevive às atualizações.
+let _opener = null;
+let _activeTab = 'geral';
 
+export function registerProfileOpener(fn) { _opener = fn; }
+
+function allowedTabs() {
   const tabs = [{ key: 'geral', label: 'Geral' }];
   if (canAccess('medico')) tabs.push({ key: 'fisioterapia', label: 'Fisioterapia' });
   if (canAccess('fisica')) tabs.push({ key: 'fisica', label: 'Prep. física' });
+  return tabs;
+}
 
-  let active = tabs.some((t) => t.key === tab) ? tab : 'geral';
+// Ponto de entrada usado em toda a app. `onEdit` (opcional) edita os dados base
+// (Plantéis); `tab` define o separador inicial. Delega no app-shell, que mostra
+// o perfil como página.
+export function openAthleteProfile(playerId, opts = {}) {
+  const tabs = allowedTabs();
+  _activeTab = tabs.some((t) => t.key === opts.tab) ? opts.tab : 'geral';
+  if (_opener) _opener(playerId, opts);
+}
+
+// Renderiza o perfil (página inteira) no `container`. Chamado pelo app-shell
+// (paint), por isso o separador ativo persiste através de `_activeTab`.
+export function renderAthleteProfilePage(container, playerId, { onEdit, onBack } = {}) {
+  const player = state.players.find((p) => p.id === playerId);
+  if (!player) { onBack?.(); return; }
+
+  const tabs = allowedTabs();
+  if (!tabs.some((t) => t.key === _activeTab)) _activeTab = 'geral';
 
   const initials = (player.name || '?')
     .split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
 
-  const overlay = document.createElement('div');
-  overlay.className = 'modal-overlay';
-  overlay.innerHTML = `
-    <div class="modal card athlete-profile" role="dialog" aria-modal="true"
-         aria-label="Perfil de ${esc(player.name)}" style="width:min(720px,96vw)">
-      <div class="modal__head">
+  container.innerHTML = `
+    <div class="athlete-page">
+      <header class="page-head ap-page-head">
         <div class="ap-head">
+          <button class="btn btn--ghost btn--sm" data-ap-back type="button">← Voltar</button>
           <span class="pd-avatar" aria-hidden="true">${esc(initials || '?')}</span>
           <div>
             <strong class="pd-hero__name">${esc(player.name)}</strong>
             <span class="muted pd-hero__meta">${headMeta(player)}</span>
           </div>
         </div>
-        <button class="modal__close" type="button" aria-label="Fechar">&times;</button>
-      </div>
+        ${onEdit ? '<button class="btn btn--primary" data-ap-edit type="button">Editar dados</button>' : ''}
+      </header>
 
       <div class="ap-tabs" role="tablist">
-        ${tabs.map((t) => `<button class="ap-tab ${t.key === active ? 'ap-tab--active' : ''}" data-tab="${t.key}" type="button" role="tab">${esc(t.label)}</button>`).join('')}
+        ${tabs.map((t) => `<button class="ap-tab ${t.key === _activeTab ? 'ap-tab--active' : ''}" data-tab="${t.key}" type="button" role="tab">${esc(t.label)}</button>`).join('')}
       </div>
 
       <div class="ap-body" data-ap-body></div>
-
-      <div class="modal__actions">
-        <button class="btn btn--ghost" data-ap-close type="button">Fechar</button>
-        ${onEdit ? '<button class="btn btn--primary" data-ap-edit type="button">Editar dados</button>' : ''}
-      </div>
     </div>
   `;
-  document.body.appendChild(overlay);
-  document.body.classList.add('no-scroll');
-  overlay.querySelector('.modal__close').focus();
 
-  const close = () => {
-    overlay.remove();
-    if (!document.querySelector('.modal-overlay')) document.body.classList.remove('no-scroll');
-    document.removeEventListener('keydown', onKey);
-  };
-  const onKey = (e) => { if (e.key === 'Escape') close(); };
-  document.addEventListener('keydown', onKey);
-  overlay.querySelector('.modal__close').addEventListener('click', close);
-  overlay.querySelector('[data-ap-close]').addEventListener('click', close);
-  overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
-  overlay.querySelector('[data-ap-edit]')?.addEventListener('click', () => { close(); onEdit(); });
-
-  const body = overlay.querySelector('[data-ap-body]');
+  const body = container.querySelector('[data-ap-body]');
 
   function paintTab() {
-    overlay.querySelectorAll('[data-tab]').forEach((b) =>
-      b.classList.toggle('ap-tab--active', b.dataset.tab === active)
+    container.querySelectorAll('[data-tab]').forEach((b) =>
+      b.classList.toggle('ap-tab--active', b.dataset.tab === _activeTab)
     );
-    if (active === 'fisioterapia') renderClinicalInto(body, playerId, {});
-    else if (active === 'fisica') renderPhysicalInto(body, playerId, {});
+    if (_activeTab === 'fisioterapia') renderClinicalInto(body, playerId, {});
+    else if (_activeTab === 'fisica') renderPhysicalInto(body, playerId, {});
     else renderGeral(body, playerId);
   }
 
-  overlay.querySelectorAll('[data-tab]').forEach((b) =>
-    b.addEventListener('click', () => { active = b.dataset.tab; paintTab(); })
+  container.querySelector('[data-ap-back]')?.addEventListener('click', () => onBack?.());
+  container.querySelector('[data-ap-edit]')?.addEventListener('click', () => onEdit?.());
+  container.querySelectorAll('[data-tab]').forEach((b) =>
+    b.addEventListener('click', () => { _activeTab = b.dataset.tab; paintTab(); })
   );
 
   paintTab();

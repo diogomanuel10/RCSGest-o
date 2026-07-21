@@ -3881,9 +3881,18 @@ button.metric--nav:focus-visible {
   color: var(--accent, #2563eb);
   border-bottom-color: var(--accent, #2563eb);
 }
+/* Corpo do perfil do atleta — página inteira (sem scroll próprio; a página
+   é que rola). */
 .ap-body {
-  max-height: 65vh;
-  overflow-y: auto;
+  overflow: visible;
+}
+.ap-page-head .ap-head {
+  min-width: 0;
+  flex: 1;
+}
+.ap-page-head .pd-hero__name {
+  display: block;
+  line-height: 1.15;
 }
 
 /* =====================================================================
