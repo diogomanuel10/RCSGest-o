@@ -1,51 +1,34 @@
-// Vista: Avaliação de plantel.
-// Para cada equipa, permite decidir atleta a atleta quem fica para a próxima
-// época (Mantém / Sai / Pendente), com contadores de progresso. Não apaga
-// ninguém — é só planeamento. O estado vive em players.review_status.
+// Avaliação de plantel (modo "Planear época" dos Plantéis).
+// Para a equipa selecionada, decide-se atleta a atleta quem fica para a próxima
+// época (Mantém / Sai / Pendente), com contadores e progresso. O estado vive em
+// players.review_status. "Aplicar decisões" fecha o ciclo: arquiva quem sai e
+// repõe os que ficam a Pendente para a nova época (só o coordenador).
+//
+// Não é uma vista de rota: é renderizada por planteis.js. Exporta um construtor
+// de HTML (evaluationHTML) e o respetivo wiring (wireEvaluation).
 
-import { state, updateRow, dbErrorMessage } from '../store.js';
-import { esc, emptyHTML, paginate, paginationHTML, wirePagination, PAGE_SIZE } from '../ui.js';
+import { state, updateRow, archiveRow, dbErrorMessage } from '../store.js';
+import { esc, paginate, paginationHTML, wirePagination, PAGE_SIZE } from '../ui.js';
 import { teamCoaches, teamName, positions } from '../compute.js';
+import { confirmDialog } from '../modal.js';
 import { REVIEW_STATUSES, REVIEW_LABEL } from '../constants.js';
-import { canEdit } from '../permissions.js';
 
-// Equipa selecionada (mantida entre re-desenhos).
-let selectedTeam = null;
-let page = 1;
+// Filtros do modo avaliação (globais) e paginação por equipa.
 let positionFilter = '';
 let statusFilter = '';
+const evalPage = new Map(); // team_id -> página
 
-export function renderAvaliacao(container) {
-  const editable = canEdit('players');
-
-  if (!state.teams.length) {
-    container.innerHTML = `
-      <header class="page-head">
-        <div>
-          <h1 class="section-title">Avaliação de plantel</h1>
-          <p class="muted" style="margin:0;font-size:0.88rem">Decide quem fica para a próxima época</p>
-        </div>
-      </header>
-      ${emptyHTML('Ainda não há equipas para avaliar.')}
-    `;
-    return;
-  }
-
-  // Garante uma equipa válida selecionada.
-  if (!selectedTeam || !state.teams.some((t) => t.id === selectedTeam)) {
-    selectedTeam = state.teams[0].id;
-  }
-  const team = state.teams.find((t) => t.id === selectedTeam);
+// HTML do modo avaliação para UMA equipa. `opts`: { editable, canApply, color }.
+export function evaluationHTML(team, opts = {}) {
+  const { editable = false, canApply = false, color = 'var(--navy)' } = opts;
   const coachLabel = teamCoaches(team.id).map((c) => c.coach.name).join(', ');
   const allPlayers = state.players
-    .filter((p) => p.team_id === selectedTeam)
+    .filter((p) => p.team_id === team.id)
     .sort((a, b) => (Number(a.number) || 999) - (Number(b.number) || 999));
 
   // Contadores e progresso refletem sempre o plantel completo.
   const counts = { pendente: 0, mantem: 0, sai: 0 };
-  allPlayers.forEach((p) => {
-    counts[p.review_status || 'pendente']++;
-  });
+  allPlayers.forEach((p) => { counts[p.review_status || 'pendente']++; });
   const total = allPlayers.length;
   const decided = counts.mantem + counts.sai;
   const pct = total ? Math.round((decided / total) * 100) : 0;
@@ -54,57 +37,43 @@ export function renderAvaliacao(container) {
   const players = allPlayers
     .filter((p) => !positionFilter || p.position === positionFilter)
     .filter((p) => !statusFilter || (p.review_status || 'pendente') === statusFilter);
-  const pg = paginate(players, page, PAGE_SIZE);
+  const pg = paginate(players, evalPage.get(team.id) || 1, PAGE_SIZE);
 
-  container.innerHTML = `
-    <header class="page-head">
-      <div>
-        <h1 class="section-title">Avaliação de plantel</h1>
-        <p class="muted" style="margin:0;font-size:0.88rem">Decide quem fica para a próxima época</p>
-      </div>
-      <div class="aval-pick">
-        <label for="aval-team">Equipa</label>
-        <select id="aval-team">
-          ${state.teams
-            .map(
-              (t) =>
-                `<option value="${t.id}" ${t.id === selectedTeam ? 'selected' : ''}>${esc(teamName(t))}</option>`
-            )
-            .join('')}
-        </select>
-      </div>
-    </header>
+  return `
+    <section class="roster" style="--tc:${color}">
+      <p class="muted aval-context">
+        A decidir quem fica para a <strong>próxima época</strong>${state.settings.season ? ` · época atual <strong>${esc(state.settings.season)}</strong>` : ''}.
+      </p>
 
-    <section class="cards-grid aval-summary">
-      ${summaryCard('Mantêm', counts.mantem, 'green')}
-      ${summaryCard('Saem', counts.sai, 'red')}
-      ${summaryCard('Pendentes', counts.pendente, 'muted')}
-      ${summaryCard('Avaliados', `${decided}/${total}`, 'accent')}
-    </section>
+      <section class="cards-grid aval-summary">
+        ${summaryCard('Mantêm', counts.mantem, 'green')}
+        ${summaryCard('Saem', counts.sai, 'red')}
+        ${summaryCard('Pendentes', counts.pendente, 'muted')}
+        ${summaryCard('Avaliados', `${decided}/${total}`, 'accent')}
+      </section>
 
-    <div class="filter-bar">
-      <div class="field">
-        <label for="aval-pos">Posição</label>
-        <select id="aval-pos">
-          <option value="">Todas as posições</option>
-          ${positions().map((p) => `<option value="${esc(p)}" ${positionFilter === p ? 'selected' : ''}>${esc(p)}</option>`).join('')}
-        </select>
+      <div class="filter-bar">
+        <div class="field">
+          <label for="aval-pos">Posição</label>
+          <select id="aval-pos">
+            <option value="">Todas as posições</option>
+            ${positions().map((p) => `<option value="${esc(p)}" ${positionFilter === p ? 'selected' : ''}>${esc(p)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field">
+          <label for="aval-status">Decisão</label>
+          <select id="aval-status">
+            <option value="">Todas</option>
+            ${REVIEW_STATUSES.map((s) => `<option value="${s.key}" ${statusFilter === s.key ? 'selected' : ''}>${esc(s.label)}</option>`).join('')}
+          </select>
+        </div>
       </div>
-      <div class="field">
-        <label for="aval-status">Decisão</label>
-        <select id="aval-status">
-          <option value="">Todas</option>
-          ${REVIEW_STATUSES.map((s) => `<option value="${s.key}" ${statusFilter === s.key ? 'selected' : ''}>${esc(s.label)}</option>`).join('')}
-        </select>
-      </div>
-    </div>
 
-    <section class="card">
       <div class="goal-card__header">
         <h2 class="section-title goal-card__title">${esc(teamName(team))}${coachLabel ? ` · ${esc(coachLabel)}` : ''}</h2>
         <span class="goal-card__pct">${pct}%</span>
       </div>
-      <div class="progress"><div class="progress__bar" style="width:${pct}%"></div></div>
+      <div class="progress"><div class="progress__bar" style="width:${pct}%;background:${color}"></div></div>
 
       ${
         players.length
@@ -112,35 +81,47 @@ export function renderAvaliacao(container) {
              ${paginationHTML({ ...pg, id: 'aval' })}`
           : `<p class="muted" style="margin:0.6rem 0 0">${positionFilter || statusFilter ? 'Nenhum atleta corresponde ao filtro.' : 'Sem atletas nesta equipa.'}</p>`
       }
+
+      ${
+        canApply && decided > 0
+          ? `<div class="roster__actions aval-apply">
+               <button class="btn btn--accent btn--sm" id="aval-apply" type="button">Aplicar decisões</button>
+               <span class="muted aval-apply__hint">Arquiva quem sai e prepara a nova época.</span>
+             </div>`
+          : ''
+      }
     </section>
   `;
+}
 
-  container.querySelector('#aval-team').addEventListener('change', (e) => {
-    selectedTeam = e.target.value;
-    page = 1;
-    renderAvaliacao(container);
-  });
+// Liga os eventos do modo avaliação. `rerender` re-desenha os Plantéis.
+export function wireEvaluation(container, team, rerender) {
   container.querySelector('#aval-pos')?.addEventListener('change', (e) => {
     positionFilter = e.target.value;
-    page = 1;
-    renderAvaliacao(container);
+    evalPage.set(team.id, 1);
+    rerender();
   });
   container.querySelector('#aval-status')?.addEventListener('change', (e) => {
     statusFilter = e.target.value;
-    page = 1;
-    renderAvaliacao(container);
+    evalPage.set(team.id, 1);
+    rerender();
   });
 
+  const players = state.players
+    .filter((p) => p.team_id === team.id)
+    .filter((p) => !positionFilter || p.position === positionFilter)
+    .filter((p) => !statusFilter || (p.review_status || 'pendente') === statusFilter);
+  const pg = paginate(players, evalPage.get(team.id) || 1, PAGE_SIZE);
   wirePagination(container, 'aval', pg.page, pg.totalPages, (np) => {
-    page = np;
-    renderAvaliacao(container);
+    evalPage.set(team.id, np);
+    rerender();
   });
 
-  if (editable) {
-    container.querySelectorAll('[data-set-status]').forEach((b) =>
-      b.addEventListener('click', () => setStatus(b.dataset.player, b.dataset.setStatus, container))
-    );
-  }
+  container.querySelectorAll('[data-set-status]').forEach((b) =>
+    b.addEventListener('click', () => setStatus(b.dataset.player, b.dataset.setStatus))
+  );
+
+  container.querySelector('#aval-apply')?.addEventListener('click', () => applyDecisions(team));
 }
 
 function summaryCard(label, value, variant) {
@@ -179,11 +160,39 @@ function playerRow(p, editable) {
   `;
 }
 
-async function setStatus(playerId, status, container) {
+async function setStatus(playerId, status) {
   const player = state.players.find((p) => p.id === playerId);
   if (!player || player.review_status === status) return;
   try {
     await updateRow('players', 'players', playerId, { review_status: status });
+  } catch (err) {
+    alert(dbErrorMessage(err));
+  }
+}
+
+// Fecha o ciclo: arquiva quem sai e repõe quem fica a Pendente (nova época).
+async function applyDecisions(team) {
+  const teamPlayers = state.players.filter((p) => p.team_id === team.id);
+  const leaving = teamPlayers.filter((p) => (p.review_status || 'pendente') === 'sai');
+  const staying = teamPlayers.filter((p) => (p.review_status || 'pendente') === 'mantem');
+
+  const parts = [];
+  if (leaving.length) parts.push(`${leaving.length} atleta${leaving.length === 1 ? '' : 's'} marcado${leaving.length === 1 ? '' : 's'} como "Sai" ${leaving.length === 1 ? 'será arquivado' : 'serão arquivados'}`);
+  if (staying.length) parts.push(`${staying.length} "Mantém" ${staying.length === 1 ? 'volta' : 'voltam'} a Pendente para a nova época`);
+
+  const ok = await confirmDialog(
+    `Aplicar as decisões de "${teamName(team)}"? ${parts.join(' e ')}. Os arquivados ficam no histórico e podem ser repostos nos Arquivados.`,
+    { confirmLabel: 'Aplicar', danger: leaving.length > 0 }
+  );
+  if (!ok) return;
+
+  try {
+    for (const p of staying) {
+      await updateRow('players', 'players', p.id, { review_status: 'pendente' });
+    }
+    for (const p of leaving) {
+      await archiveRow('players', p.id);
+    }
   } catch (err) {
     alert(dbErrorMessage(err));
   }

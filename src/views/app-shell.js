@@ -21,7 +21,6 @@ import {
 
 import { renderPainel } from './painel.js';
 import { renderPlanteis } from './planteis.js';
-import { renderAvaliacao } from './avaliacao.js';
 import { renderCalendario } from './calendario.js';
 import { renderPresencas } from './presencas.js';
 import { renderQuotas } from './quotas.js';
@@ -84,7 +83,6 @@ const NAV = [
   { key: 'painel',       label: 'Painel',        icon: ICONS.painel,       render: renderPainel,        group: 'principal' },
 
   { key: 'planteis',     label: 'Plantéis',      icon: ICONS.planteis,     render: renderPlanteis,      group: 'desportivo' },
-  { key: 'avaliacao',    label: 'Avaliação',     icon: ICONS.avaliacao,    render: renderAvaliacao,     group: 'desportivo' },
   { key: 'treinadores',  label: 'Treinadores',   icon: ICONS.treinadores,  render: renderTreinadores,   group: 'desportivo' },
   { key: 'recrutamento', label: 'Recrutamento',  icon: ICONS.recrutamento, render: renderRecrutamento,  group: 'desportivo' },
   { key: 'plano-jogo',   label: 'Plano de Jogo', icon: ICONS['plano-jogo'], render: renderPlanoJogo,    group: 'desportivo' },

@@ -39,6 +39,7 @@ import { openTrainingPlan } from './training-plan.js';
 import { openEventForm, openRecurrentTrainings } from './calendario.js';
 import { openSponsorForm } from './patrocinios.js';
 import { openAthleteProfile } from './athlete-profile.js';
+import { openSeasonPlanning } from './planteis.js';
 
 const ICON_MONEY = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v12m-3-3.5c0 1.38 1.34 2.5 3 2.5s3-1.12 3-2.5c0-1.74-1.35-2.17-3-2.5C10.35 11.67 9 11.24 9 9.5 9 8.12 10.34 7 12 7s3 1.12 3 2.5"/></svg>`;
 
@@ -176,9 +177,13 @@ export function renderPainel(container) {
     btn.addEventListener('click', () => openTrainingPlan(btn.dataset.planEvent));
   });
 
-  // Itens de ação: navegam para a secção respetiva.
+  // Itens de ação: navegam para a secção respetiva (e, se marcado, abrem os
+  // Plantéis já no modo "Planear época").
   container.querySelectorAll('[data-nav]').forEach((el) => {
-    el.addEventListener('click', () => navTo(el.dataset.nav));
+    el.addEventListener('click', () => {
+      if (el.dataset.plan) openSeasonPlanning();
+      navTo(el.dataset.nav);
+    });
   });
 
   // Alertas de documentos: abrem a ficha do atleta (separador Geral).
@@ -315,9 +320,10 @@ function buildActions() {
     if (pend > 0 && state.players.length > 0) {
       items.push({
         variant: 'info',
-        route: 'avaliacao',
+        route: 'planteis',
+        plan: true,
         title: `${pend} avaliaç${pend === 1 ? 'ão' : 'ões'} de atleta por decidir`,
-        sub: 'Definir quem fica para a próxima época — abrir Avaliação.',
+        sub: 'Definir quem fica para a próxima época — planear nos Plantéis.',
       });
     }
   }
@@ -325,10 +331,10 @@ function buildActions() {
   return items;
 }
 
-function actionItem({ variant, title, sub, route }) {
+function actionItem({ variant, title, sub, route, plan }) {
   return `
     <li>
-      <button class="alert-item alert-item--${variant} alert-item--nav" data-nav="${route}" type="button">
+      <button class="alert-item alert-item--${variant} alert-item--nav" data-nav="${route}"${plan ? ' data-plan="1"' : ''} type="button">
         <span class="alert-item__dot" aria-hidden="true"></span>
         <span class="alert-item__text">
           <strong class="alert-item__title">${esc(title)}</strong>
