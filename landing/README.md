@@ -1,9 +1,10 @@
 # Rumia — Landing page
 
-Mini-site de marketing da **Rumia**, independente da aplicação. É um único
-ficheiro `index.html` autossuficiente (HTML + CSS + um pouco de JS), sem passo
-de build — abre diretamente no navegador e faz deploy em qualquer alojamento
-de sites estáticos.
+Mini-site de marketing da **Rumia**, independente da aplicação. O `index.html`
+é autossuficiente (HTML + CSS + um pouco de JS), sem passo de build, e usa o
+logótipo real da app em `logo-mark.png` (o símbolo "R", recortado de
+`public/logo.png`). Abre diretamente no navegador e faz deploy em qualquer
+alojamento de sites estáticos — basta publicar a pasta `landing/` inteira.
 
 ## Pré-visualizar localmente
 
