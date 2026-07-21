@@ -5,7 +5,8 @@
 import { state, createRow, updateRow, deleteRow, dbErrorMessage } from '../store.js';
 import { esc, emptyHTML, paginate, paginationHTML, wirePagination, PAGE_SIZE } from '../ui.js';
 import { openModal, confirmDialog } from '../modal.js';
-import { canEdit } from '../permissions.js';
+import { canEdit, canAccess } from '../permissions.js';
+import { renderEncomendasBody } from './encomendas.js';
 import {
   EQUIPMENT_CATEGORIES,
   EQUIPMENT_CONDITIONS,
@@ -14,8 +15,42 @@ import {
 } from '../constants.js';
 
 let page = 1;
+let equipTab = 'inventario'; // 'inventario' | 'encomendas'
 
+// Orquestrador "Equipamentos": junta o Inventário e as Encomendas (tamanhos por
+// atleta) num só ecrã com separadores. As Encomendas são só do coordenador
+// (canAccess('encomendas')); o Inventário segue o acesso a 'equipamentos'.
 export function renderEquipamentos(container) {
+  const tabs = [];
+  if (canAccess('equipamentos')) tabs.push({ key: 'inventario', label: 'Inventário' });
+  if (canAccess('encomendas')) tabs.push({ key: 'encomendas', label: 'Encomendas' });
+  if (!tabs.some((t) => t.key === equipTab)) equipTab = tabs[0]?.key || 'inventario';
+
+  container.innerHTML = `
+    <header class="page-head">
+      <div>
+        <h1 class="section-title">Equipamentos</h1>
+        <p class="muted" style="margin:0;font-size:0.88rem">Inventário do clube e encomendas por atleta</p>
+      </div>
+      ${tabs.length > 1
+        ? `<div class="cal-toggle" role="group" aria-label="Separador">
+             ${tabs.map((t) => `<button class="cal-toggle__btn ${equipTab === t.key ? 'cal-toggle__btn--active' : ''}" data-equip-tab="${t.key}" type="button">${esc(t.label)}</button>`).join('')}
+           </div>`
+        : ''}
+    </header>
+    <div id="equip-body"></div>
+  `;
+
+  container.querySelectorAll('[data-equip-tab]').forEach((b) =>
+    b.addEventListener('click', () => { equipTab = b.dataset.equipTab; renderEquipamentos(container); })
+  );
+
+  const body = container.querySelector('#equip-body');
+  if (equipTab === 'encomendas') renderEncomendasBody(body);
+  else renderInventarioBody(body);
+}
+
+function renderInventarioBody(container) {
   const canWrite = canEdit('equipment');
   const items = state.equipment.slice().sort((a, b) => a.name.localeCompare(b.name));
   const pg = paginate(items, page, PAGE_SIZE);
@@ -25,13 +60,7 @@ export function renderEquipamentos(container) {
   items.forEach((e) => { if (counts[e.condition] !== undefined) counts[e.condition]++; });
 
   container.innerHTML = `
-    <header class="page-head">
-      <div>
-        <h1 class="section-title">Equipamentos</h1>
-        <p class="muted" style="margin:0;font-size:0.88rem">Inventário de material desportivo</p>
-      </div>
-      ${canWrite ? `<button class="btn btn--accent" id="add-equip" type="button">+ Equipamento</button>` : ''}
-    </header>
+    ${canWrite ? '<div style="display:flex;justify-content:flex-end;margin-bottom:1rem"><button class="btn btn--accent" id="add-equip" type="button">+ Equipamento</button></div>' : ''}
 
     <section class="cards-grid aval-summary" style="margin-bottom:1.2rem">
       <div class="card metric metric--green aval-metric">
@@ -70,7 +99,7 @@ export function renderEquipamentos(container) {
   );
   wirePagination(container, 'equip', pg.page, pg.totalPages, (np) => {
     page = np;
-    renderEquipamentos(container);
+    renderInventarioBody(container);
   });
 }
 
