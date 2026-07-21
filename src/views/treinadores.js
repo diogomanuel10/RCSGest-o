@@ -10,6 +10,9 @@ import { COACH_ROLE_LABEL } from '../constants.js';
 let page = 1;
 let search = '';
 
+const ICON_EDIT = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`;
+const ICON_ARCHIVE = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8"/><path d="M10 12h4"/></svg>`;
+
 export function renderTreinadores(container) {
   const editable = canEdit('coaches');
   const all = state.coaches.slice().sort((a, b) => (a.name || '').localeCompare(b.name || ''));
@@ -97,8 +100,8 @@ function coachCard(coach, editable) {
         ${
           editable
             ? `<div class="cell-actions">
-          <button class="btn btn--ghost btn--sm" data-edit="${coach.id}" type="button">Editar</button>
-          <button class="btn btn--danger btn--sm" data-del="${coach.id}" type="button">Remover</button>
+          <button class="icon-btn" data-edit="${coach.id}" type="button" aria-label="Editar" title="Editar">${ICON_EDIT}</button>
+          <button class="icon-btn icon-btn--danger" data-del="${coach.id}" type="button" aria-label="Arquivar" title="Arquivar">${ICON_ARCHIVE}</button>
         </div>`
             : ''
         }
