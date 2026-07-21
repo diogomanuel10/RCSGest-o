@@ -4562,6 +4562,9 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 1rem;
 }
+.plan-card {
+  border-left: 4px solid var(--tc, var(--border));
+}
 .plan-card__head {
   display: flex;
   justify-content: space-between;
@@ -4570,7 +4573,60 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
   flex-wrap: wrap;
 }
 .plan-card__opponent { font-size: 1rem; display: block; }
-.plan-card__actions { display: flex; gap: 0.4rem; flex-shrink: 0; }
+.plan-card__actions { display: flex; gap: 0.2rem; flex-shrink: 0; }
+
+/* Grupos da lista (Próximos / Passados) */
+.plan-group__title {
+  font-size: 1.1rem;
+  color: var(--navy);
+  margin: 1.4rem 0 0.7rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.plan-group__title:first-child { margin-top: 0; }
+.plan-group__count {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.05rem 0.55rem;
+}
+
+/* Jogos sem plano */
+.noplan-card { margin-bottom: 1.2rem; }
+.noplan-list {
+  list-style: none;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.noplan-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.4rem 0;
+  border-top: 1px solid var(--border);
+}
+.noplan-item:first-child { border-top: none; }
+.noplan-item__date {
+  flex: none;
+  width: 6.5rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--navy);
+  text-transform: capitalize;
+}
+.noplan-item__body {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.9rem;
+}
+.noplan-item .btn { flex: none; }
 
 .form-actions {
   display: flex;
