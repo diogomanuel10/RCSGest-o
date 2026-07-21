@@ -1437,6 +1437,24 @@ button.metric--nav:focus-visible {
   color: var(--pc, var(--navy));
   background: color-mix(in srgb, var(--pc, var(--navy)) 15%, transparent);
 }
+
+/* Chip de equipa colorido pela cor do escalão (tabelas de atletas). */
+.team-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.team-chip::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  background: var(--tc, var(--navy));
+  flex: none;
+}
 .player-card__age {
   font-size: 0.76rem;
   color: var(--text-muted);
