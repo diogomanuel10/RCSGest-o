@@ -38,6 +38,7 @@ import { renderEncomendas } from './encomendas.js';
 import { renderPlanoJogo } from './plano-jogo.js';
 import { renderObjetivos } from './objetivos.js';
 import { renderAdmin } from './admin.js';
+import { renderAthleteProfilePage, registerProfileOpener } from './athlete-profile.js';
 
 const ICONS = {
   painel: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>`,
@@ -260,6 +261,15 @@ export async function renderAppShell(root, session) {
   const content = root.querySelector('#content');
   const sidebar = root.querySelector('#sidebar');
 
+  // Perfil do Atleta como página (sem modal): quando `detail` está definido, o
+  // paint() desenha o perfil em vez da rota atual. Sobrevive às atualizações.
+  let detail = null;
+  registerProfileOpener((playerId, opts) => {
+    detail = { playerId, opts: opts || {} };
+    paint();
+    content.scrollTop = 0;
+  });
+
   // --- Gaveta (telemóvel) ---
   function toggleMenu() {
     if (isMobile()) appRoot.classList.toggle('app--drawer');
@@ -347,6 +357,26 @@ export async function renderAppShell(root, session) {
   function paint() {
     refreshChrome();
 
+    // Perfil do Atleta (página) tem prioridade sobre a rota atual.
+    if (detail) {
+      const player = state.players.find((p) => p.id === detail.playerId);
+      if (player) {
+        setActive();
+        content.classList.toggle('content__inner--wide', false);
+        try {
+          renderAthleteProfilePage(content, detail.playerId, {
+            ...detail.opts,
+            onBack: () => { detail = null; paint(); content.scrollTop = 0; },
+          });
+        } catch (err) {
+          content.innerHTML = errorHTML('Não foi possível mostrar o atleta.');
+          console.error(err);
+        }
+        return;
+      }
+      detail = null; // atleta já não existe → volta à vista normal
+    }
+
     const allowed = allRoutes().filter(routeAllowed);
     if (!allowed.length) {
       current = null;
@@ -370,6 +400,7 @@ export async function renderAppShell(root, session) {
   }
 
   function go(route) {
+    detail = null; // navegar para uma secção fecha o perfil do atleta
     current = route;
     paint();
     content.scrollTop = 0;
