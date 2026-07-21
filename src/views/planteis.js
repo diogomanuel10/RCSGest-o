@@ -3,20 +3,50 @@
 
 import { state, createRow, createRows, updateRow, archiveRow, saveTeamCoaches, dbErrorMessage } from '../store.js';
 import { esc, emptyHTML, paginate, paginationHTML, wirePagination, PAGE_SIZE } from '../ui.js';
-import { teamName, teamCoaches, escaloes, currentCoach, coachTeams, positions } from '../compute.js';
+import {
+  teamName, teamCoaches, escaloes, currentCoach, coachTeams, positions,
+  playerAttendanceStats, playerAvailability, playerQuotas,
+} from '../compute.js';
 import { openModal, confirmDialog } from '../modal.js';
-import { COACH_ROLE_LABEL } from '../constants.js';
-import { canEdit, canDelete, isCoordenador } from '../permissions.js';
+import { COACH_ROLE_LABEL, AVAILABILITY_LABEL } from '../constants.js';
+import { canEdit, canDelete, canAccess, isCoordenador } from '../permissions.js';
 import { planLimit, currentPlan } from '../plans.js';
 import { parsePlayersFile, downloadPlayersTemplate } from '../players-xlsx.js';
 import { openAthleteProfile } from './athlete-profile.js';
 
-// Equipas expandidas (mostram os atletas). Mantido entre re-desenhos.
-const expanded = new Set();
+// Equipa selecionada (mostra o seu plantel). Mantida entre re-desenhos.
+let selectedTeamId = null;
 // Filtros e paginação (estado local da vista).
 let search = '';
 let positionFilter = '';
 const teamPage = new Map(); // team_id -> página atual dos atletas
+
+// Cor/identidade por escalão e por posição. Índice na lista configurada (que é
+// estável) -> paleta cíclica, para cada escalão/posição ter sempre a mesma cor.
+const ESCALAO_COLORS = ['#143b61', '#1e5080', '#0d9488', '#b45309', '#7c3aed', '#be185d', '#0369a1', '#4d7c0f'];
+const POSITION_COLORS = ['#7c3aed', '#2563eb', '#0d9488', '#dc2626', '#d39f00', '#be185d', '#0369a1', '#4d7c0f'];
+function colorFrom(list, value, palette) {
+  const i = list.indexOf(value);
+  return palette[(i < 0 ? 0 : i) % palette.length];
+}
+const escalaoColor = (esc) => colorFrom(escaloes(), esc, ESCALAO_COLORS);
+const positionColor = (pos) => colorFrom(positions(), pos, POSITION_COLORS);
+
+// Sigla curta do escalão para o crachá (ex.: "Sub-14" -> "S14", "Seniores" -> "SEN").
+function escalaoBadge(esc) {
+  const s = String(esc || '');
+  const digits = (s.match(/\d+/) || [''])[0];
+  const letter = (s.match(/[A-Za-zÀ-ÿ]/) || ['?'])[0].toUpperCase();
+  return digits ? letter + digits : s.slice(0, 3).toUpperCase();
+}
+
+// Idade a partir do ano de nascimento (só se for um ano plausível).
+function ageFrom(birthYear) {
+  const y = Number(birthYear);
+  if (!y || y < 1900 || y > 2100) return null;
+  const a = new Date().getFullYear() - y;
+  return a >= 0 && a < 120 ? a : null;
+}
 
 // Equipas visíveis ao utilizador atual. O coordenador vê todas; o treinador
 // (e qualquer outro papel ligado a uma ficha de treinador) só vê as suas.
@@ -52,6 +82,13 @@ export function renderPlanteis(container) {
   // Com filtro ativo, mostram-se só as equipas com atletas correspondentes.
   const teams = myTeams.filter((t) => !filtering || filteredPlayers(t.id).length);
 
+  // Seleção: mantida entre re-desenhos; cai na primeira equipa visível se a
+  // selecionada deixar de existir ou de corresponder ao filtro.
+  if (!teams.some((t) => t.id === selectedTeamId)) {
+    selectedTeamId = teams.length ? teams[0].id : null;
+  }
+  const team = teams.find((t) => t.id === selectedTeamId) || null;
+
   container.innerHTML = `
     <header class="page-head">
       <h1 class="section-title">Plantéis</h1>
@@ -61,9 +98,10 @@ export function renderPlanteis(container) {
     ${
       !myTeams.length
         ? emptyHTML('Ainda não há equipas.')
-        : teams.length
-          ? `<div class="teams-list">${teams.map((t) => teamCardHTML(t, canTeams, canPlayers, canRemovePlayers, filtering)).join('')}</div>`
-          : emptyHTML('Nenhum atleta corresponde ao filtro.')
+        : !teams.length
+          ? emptyHTML('Nenhum atleta corresponde ao filtro.')
+          : `${teamPillsHTML(teams, filtering)}
+             ${rosterHTML(team, canTeams, canPlayers, canRemovePlayers, filtering)}`
     }
   `;
 
@@ -82,25 +120,25 @@ export function renderPlanteis(container) {
     renderPlanteis(container);
   });
 
-  // Paginação dos atletas de cada equipa visível.
-  teams.forEach((t) => {
-    const pg = paginate(filteredPlayers(t.id), teamPage.get(t.id) || 1, PAGE_SIZE);
-    wirePagination(container, `pl-${t.id}`, pg.page, pg.totalPages, (np) => {
-      teamPage.set(t.id, np);
-      renderPlanteis(container);
-    });
-  });
-
-  container.querySelector('#add-team')?.addEventListener('click', () => openTeamForm());
-
-  container.querySelectorAll('[data-toggle]').forEach((b) =>
+  // Seleção da equipa (separadores).
+  container.querySelectorAll('[data-team-pick]').forEach((b) =>
     b.addEventListener('click', () => {
-      const id = b.dataset.toggle;
-      if (expanded.has(id)) expanded.delete(id);
-      else expanded.add(id);
+      selectedTeamId = b.dataset.teamPick;
       renderPlanteis(container);
     })
   );
+
+  // Paginação dos atletas da equipa selecionada.
+  if (team) {
+    const pg = paginate(filteredPlayers(team.id), teamPage.get(team.id) || 1, PAGE_SIZE);
+    wirePagination(container, `pl-${team.id}`, pg.page, pg.totalPages, (np) => {
+      teamPage.set(team.id, np);
+      renderPlanteis(container);
+    });
+  }
+
+  container.querySelector('#add-team')?.addEventListener('click', () => openTeamForm());
+
   container.querySelectorAll('[data-team-edit]').forEach((b) =>
     b.addEventListener('click', () => openTeamForm(b.dataset.teamEdit))
   );
@@ -150,80 +188,95 @@ function filterBarHTML() {
   `;
 }
 
-function teamCardHTML(team, canTeams, canPlayers, canRemovePlayers, filtering = false) {
+// Separadores das equipas (um por escalão, com cor e crachá). Clicar seleciona.
+function teamPillsHTML(teams, filtering) {
+  return `
+    <div class="team-pills" role="tablist" aria-label="Equipas">
+      ${teams
+        .map((t) => {
+          const color = escalaoColor(t.escalao);
+          const count = filtering
+            ? filteredPlayers(t.id).length
+            : state.players.filter((p) => p.team_id === t.id).length;
+          const on = t.id === selectedTeamId;
+          return `
+            <button class="team-pill${on ? ' team-pill--on' : ''}" style="--tc:${color}"
+                    role="tab" aria-selected="${on}" data-team-pick="${t.id}" type="button">
+              <span class="team-pill__badge">${esc(escalaoBadge(t.escalao))}</span>
+              <span class="team-pill__t">
+                <strong>${esc(t.escalao)}</strong>
+                <span>${count} atleta${count === 1 ? '' : 's'}</span>
+              </span>
+            </button>`;
+        })
+        .join('')}
+    </div>`;
+}
+
+// Plantel da equipa selecionada: cabeçalho com identidade + grelha de atletas.
+function rosterHTML(team, canTeams, canPlayers, canRemovePlayers, filtering) {
+  if (!team) return '';
+  const color = escalaoColor(team.escalao);
   const players = filteredPlayers(team.id);
   const totalInTeam = state.players.filter((p) => p.team_id === team.id).length;
   const coaches = teamCoaches(team.id);
-  const coachesSummary = coaches.length
-    ? coaches.map((c) => esc(c.coach.name)).join(', ')
-    : 'Sem treinador';
-  // Com filtro ativo as equipas correspondentes abrem automaticamente.
-  const isOpen = filtering || expanded.has(team.id);
   const pg = paginate(players, teamPage.get(team.id) || 1, PAGE_SIZE);
   const countLabel = filtering
     ? `${players.length} de ${totalInTeam} atleta${totalInTeam === 1 ? '' : 's'}`
     : `${totalInTeam} atleta${totalInTeam === 1 ? '' : 's'}`;
 
   return `
-    <article class="card team-card">
-      <div class="team-card__head">
-        <button class="team-card__toggle" data-toggle="${team.id}" type="button"
-                aria-expanded="${isOpen}">
-          <span class="team-card__chevron">${isOpen ? '▾' : '▸'}</span>
-          <span>
-            <strong>${esc(team.escalao)}</strong>
-            <span class="muted team-card__meta">
-              ${coachesSummary} · ${countLabel}
-            </span>
-          </span>
-        </button>
+    <section class="roster" style="--tc:${color}">
+      <div class="roster__head">
+        <div class="roster__title">
+          <span class="roster__badge">${esc(escalaoBadge(team.escalao))}</span>
+          <div>
+            <h2 class="section-title" style="margin:0">${esc(team.escalao)}</h2>
+            <span class="muted roster__count">${countLabel}</span>
+          </div>
+        </div>
         ${
           canTeams
             ? `<div class="cell-actions">
-          <button class="btn btn--ghost btn--sm" data-team-edit="${team.id}" type="button">Editar</button>
-          <button class="btn btn--danger btn--sm" data-team-del="${team.id}" type="button">Remover</button>
-        </div>`
+                 <button class="btn btn--ghost btn--sm" data-team-edit="${team.id}" type="button">Editar equipa</button>
+                 <button class="btn btn--danger btn--sm" data-team-del="${team.id}" type="button">Remover</button>
+               </div>`
             : ''
         }
       </div>
 
       ${
-        isOpen
-          ? `
-        <div class="team-card__body">
-          ${
-            coaches.length
-              ? `<div class="team-card__coaches">
-                  ${coaches
-                    .map(
-                      (c) => `<span class="team-coach-chip">
-                        ${esc(c.coach.name)}
-                        <span class="badge badge--${c.role === 'principal' ? 'info' : 'muted'}">${esc(COACH_ROLE_LABEL[c.role] || c.role)}</span>
-                      </span>`
-                    )
-                    .join('')}
-                 </div>`
-              : ''
-          }
-          ${
-            players.length
-              ? `<div class="player-cards">${pg.items.map((p) => playerCardHTML(p, team.id, canPlayers, canRemovePlayers)).join('')}</div>
-                 ${paginationHTML({ ...pg, id: `pl-${team.id}` })}`
-              : `<p class="muted" style="margin:0.4rem 0">${filtering ? 'Nenhum atleta corresponde ao filtro.' : 'Sem atletas nesta equipa.'}</p>`
-          }
-          ${
-            canPlayers
-              ? `<div class="team-card__actions">
-                   <button class="btn btn--ghost btn--sm" data-add-player="${team.id}" type="button">+ Atleta</button>
-                   <button class="btn btn--ghost btn--sm" data-import-player="${team.id}" type="button">Importar (xlsx)</button>
-                   <button class="btn btn--link btn--sm" data-template type="button">Descarregar modelo</button>
-                 </div>`
-              : ''
-          }
-        </div>`
+        coaches.length
+          ? `<div class="roster__coaches">
+              ${coaches
+                .map(
+                  (c) => `<span class="team-coach-chip">
+                    ${esc(c.coach.name)}
+                    <span class="badge badge--${c.role === 'principal' ? 'info' : 'muted'}">${esc(COACH_ROLE_LABEL[c.role] || c.role)}</span>
+                  </span>`
+                )
+                .join('')}
+             </div>`
+          : '<p class="muted roster__nocoach">Sem treinador atribuído.</p>'
+      }
+
+      ${
+        players.length
+          ? `<div class="player-cards">${pg.items.map((p) => playerCardHTML(p, team.id, canPlayers, canRemovePlayers)).join('')}</div>
+             ${paginationHTML({ ...pg, id: `pl-${team.id}` })}`
+          : `<p class="muted" style="margin:0.6rem 0">${filtering ? 'Nenhum atleta corresponde ao filtro.' : 'Sem atletas nesta equipa.'}</p>`
+      }
+
+      ${
+        canPlayers
+          ? `<div class="roster__actions">
+               <button class="btn btn--accent btn--sm" data-add-player="${team.id}" type="button">+ Atleta</button>
+               <button class="btn btn--ghost btn--sm" data-import-player="${team.id}" type="button">Importar (xlsx)</button>
+               <button class="btn btn--link btn--sm" data-template type="button">Descarregar modelo</button>
+             </div>`
           : ''
       }
-    </article>
+    </section>
   `;
 }
 
@@ -360,7 +413,7 @@ function openTeamForm(id) {
       } else {
         const created = await createRow('teams', 'teams', payload);
         teamId = created.id;
-        expanded.add(teamId);
+        selectedTeamId = teamId;
       }
       await saveTeamCoaches(teamId, entries);
       close();
@@ -373,21 +426,62 @@ function openTeamForm(id) {
   });
 }
 
-// Cartão de um atleta: clicável (abre o Perfil do Atleta) com nº, iniciais,
-// nome e posição/ano. Para quem pode editar, mostra ações discretas.
+// Linha de indicadores do cartão (só os que o utilizador pode ver): presenças,
+// quotas e disponibilidade. Devolve '' se nenhum estiver acessível.
+function playerStatsHTML(p) {
+  const items = [];
+
+  if (canAccess('presencas') || canAccess('estatisticas')) {
+    const rate = playerAttendanceStats(p.id).rate;
+    items.push(`
+      <span class="pstat">
+        <b class="${rate != null && rate < 75 ? 'pstat--warn' : ''}">${rate == null ? '—' : rate + '%'}</b>
+        <small>Presenças</small>
+      </span>`);
+  }
+
+  if (canAccess('quotas')) {
+    const q = playerQuotas(p.id);
+    items.push(`
+      <span class="pstat">
+        <b class="${q.owedCount ? 'pstat--warn' : ''}">${q.owedCount ? q.owedCount : '✓'}</b>
+        <small>${q.owedCount ? `Quota${q.owedCount === 1 ? '' : 's'} em dívida` : 'Quota em dia'}</small>
+      </span>`);
+  }
+
+  // Disponibilidade — visível à equipa técnica; assume "Apto" se nunca definida.
+  const st = playerAvailability(p.id)?.status || 'apto';
+  items.push(`
+    <span class="pstat">
+      <b><span class="avail-dot avail-dot--${st}"></span></b>
+      <small>${esc(AVAILABILITY_LABEL[st] || st)}</small>
+    </span>`);
+
+  return `<span class="player-card__stats">${items.join('')}</span>`;
+}
+
+// Cartão de um atleta: clicável (abre o Perfil do Atleta). Nº e posição na cor
+// da posição, avatar de iniciais, e uma linha de indicadores. Ações discretas.
 function playerCardHTML(p, teamId, canPlayers, canRemovePlayers) {
   const initials = (p.name || '?')
     .split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
-  const meta = [p.position, p.birth_year].filter(Boolean).map(esc).join(' · ') || 'Sem posição';
+  const color = positionColor(p.position);
+  const age = ageFrom(p.birth_year);
   return `
-    <article class="player-card">
+    <article class="player-card" style="--pc:${color}">
       <button class="player-card__main" data-player-view="${p.id}" data-team="${teamId}" type="button">
-        <span class="player-card__num">${p.number ? esc(p.number) : '—'}</span>
-        <span class="player-card__avatar" aria-hidden="true">${esc(initials || '?')}</span>
-        <span class="player-card__info">
-          <span class="player-card__name">${esc(p.name)}</span>
-          <span class="player-card__meta muted">${meta}</span>
+        <span class="player-card__top">
+          <span class="player-card__num">${p.number ? esc(p.number) : '—'}</span>
+          <span class="player-card__avatar" aria-hidden="true">${esc(initials || '?')}</span>
+          <span class="player-card__info">
+            <span class="player-card__name">${esc(p.name)}</span>
+            <span class="player-card__tags">
+              <span class="pos-tag">${esc(p.position || 'Sem posição')}</span>
+              ${age != null ? `<span class="player-card__age">${age} anos</span>` : ''}
+            </span>
+          </span>
         </span>
+        ${playerStatsHTML(p)}
       </button>
       ${
         canPlayers || canRemovePlayers
@@ -487,7 +581,7 @@ function importPlayers(teamId) {
     const rows = parsed.players.map((p) => ({ ...p, team_id: teamId }));
     try {
       await createRows('players', 'players', rows);
-      expanded.add(teamId);
+      selectedTeamId = teamId;
     } catch (err) {
       alert(dbErrorMessage(err));
     }

@@ -1298,28 +1298,27 @@ button.metric--nav:focus-visible {
 /* Grelha de cartões de atleta dentro de cada equipa */
 .player-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
   gap: 0.7rem;
   margin: 0.6rem 0;
 }
 .player-card {
   position: relative;
-  display: flex;
-  align-items: center;
   border: 1px solid var(--border);
+  border-left: 4px solid var(--pc, var(--navy));
   border-radius: 12px;
   background: var(--surface, #fff);
-  transition: box-shadow 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+  transition: box-shadow 0.16s ease, border-color 0.16s ease, transform 0.12s ease;
 }
 .player-card:hover {
-  border-color: var(--navy, #1e3a5f);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow);
+  transform: translateY(-2px);
 }
 .player-card__main {
-  flex: 1;
   display: flex;
-  align-items: center;
-  gap: 0.7rem;
+  flex-direction: column;
+  gap: 0.55rem;
+  width: 100%;
   padding: 0.7rem 0.8rem;
   background: none;
   border: none;
@@ -1329,13 +1328,21 @@ button.metric--nav:focus-visible {
   color: inherit;
   min-width: 0;
 }
+.player-card__top {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-width: 0;
+}
 .player-card__num {
   flex: none;
-  min-width: 1.6rem;
-  font-weight: 800;
-  font-size: 1.05rem;
-  color: var(--navy, #1e3a5f);
+  min-width: 1.5rem;
+  font-family: var(--font-title);
+  font-weight: 700;
+  font-size: 1.2rem;
+  color: var(--pc, var(--navy));
   text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 .player-card__avatar {
   flex: none;
@@ -1352,21 +1359,85 @@ button.metric--nav:focus-visible {
 .player-card__info {
   display: flex;
   flex-direction: column;
+  gap: 0.15rem;
   min-width: 0;
 }
 .player-card__name {
-  font-weight: 600;
+  font-weight: 650;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.player-card__meta {
-  font-size: 0.8rem;
-}
-.player-card__actions {
+.player-card__tags {
   display: flex;
-  gap: 0.15rem;
-  padding-right: 0.5rem;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.pos-tag {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  color: var(--pc, var(--navy));
+  background: color-mix(in srgb, var(--pc, var(--navy)) 15%, transparent);
+}
+.player-card__age {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.player-card__stats {
+  display: flex;
+  gap: 0.9rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed var(--border);
+}
+.pstat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  min-width: 0;
+}
+.pstat b {
+  font-family: var(--font-title);
+  font-size: 0.98rem;
+  line-height: 1;
+  min-height: 1rem;
+  display: flex;
+  align-items: center;
+  font-variant-numeric: tabular-nums;
+}
+.pstat b.pstat--warn {
+  color: var(--danger);
+}
+.pstat small {
+  font-size: 0.66rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.avail-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.avail-dot--apto { background: var(--ok); }
+.avail-dot--limitado { background: var(--yellow); }
+.avail-dot--recuperacao { background: var(--info); }
+.avail-dot--indisponivel { background: var(--danger); }
+.player-card__actions {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.45rem;
+  display: flex;
+  gap: 0.1rem;
+  padding: 0.1rem;
+  background: var(--surface);
+  border-radius: 9px;
+  box-shadow: var(--shadow-xs);
   opacity: 0;
   transition: opacity 0.16s ease;
 }
@@ -1396,51 +1467,109 @@ button.metric--nav:focus-visible {
 @media (hover: none) {
   .player-card__actions { opacity: 1; }
 }
-.team-card:hover {
-  box-shadow: var(--shadow);
-  border-color: var(--navy-100);
-}
-.team-card__head {
+/* --- Separadores das equipas (escolha de equipa) --- */
+.team-pills {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.6rem;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.1rem;
 }
-.team-card__toggle {
+.team-pill {
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  background: none;
-  border: none;
+  background: var(--surface-2);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.5rem 0.8rem 0.5rem 0.55rem;
   cursor: pointer;
-  text-align: left;
-  padding: 0.2rem;
-  flex: 1;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
   font-family: var(--font-body);
   color: var(--text);
-  min-height: 44px;
 }
-.team-card__toggle:hover .team-card__chevron {
-  color: var(--navy);
+.team-pill:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
 }
-.team-card__chevron {
-  color: var(--navy-300);
+.team-pill--on {
+  border-color: var(--tc, var(--navy));
+  box-shadow: 0 0 0 1.5px var(--tc, var(--navy)) inset;
+  background: var(--surface);
+}
+.team-pill__badge {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  background: var(--tc, var(--navy));
+  color: #fff;
+  font-family: var(--font-title);
+  font-weight: 700;
   font-size: 0.85rem;
-  transition: transform 0.15s ease;
-  flex-shrink: 0;
 }
-.team-card__toggle[aria-expanded="true"] .team-card__chevron {
-  transform: rotate(0deg);
+.team-pill__t {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+  text-align: left;
 }
-.team-card__meta {
-  display: block;
-  font-size: 0.79rem;
-  margin-top: 0.1rem;
+.team-pill__t strong { font-size: 0.95rem; }
+.team-pill__t span { font-size: 0.74rem; color: var(--text-muted); }
+
+/* --- Plantel da equipa selecionada --- */
+.roster {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--tc, var(--navy));
+  border-radius: var(--radius);
+  padding: 1rem 1.1rem 1.1rem;
+  box-shadow: var(--shadow-sm);
 }
-.team-card__body {
-  margin-top: 0.85rem;
-  border-top: 1px solid var(--border);
-  padding-top: 0.75rem;
+.roster__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.7rem;
+}
+.roster__title {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+.roster__badge {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--tc, var(--navy));
+  color: #fff;
+  font-family: var(--font-title);
+  font-weight: 700;
+}
+.roster__count { font-size: 0.82rem; }
+.roster__coaches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.4rem;
+}
+.roster__nocoach {
+  font-size: 0.8rem;
+  margin: 0 0 0.4rem;
+}
+.roster__actions,
+.team-card__actions {
+  margin-top: 0.9rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
 }
 .players-table {
   font-size: 0.86rem;
@@ -1448,19 +1577,6 @@ button.metric--nav:focus-visible {
 .players-table th,
 .players-table td {
   padding: 0.45rem 0.55rem;
-}
-.team-card__actions {
-  margin-top: 0.7rem;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.4rem;
-}
-.team-card__coaches {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin-bottom: 0.8rem;
 }
 .team-coach-chip {
   display: inline-flex;
