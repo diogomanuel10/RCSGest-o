@@ -57,6 +57,11 @@ export function renderFinanceiro(container) {
         <strong class="tier-card__value" style="color:var(--ok)">${euros(summary.income)}</strong>
         <span class="tier-card__count">${state.financialEntries.filter((e) => e.type === 'receita').length} registo${state.financialEntries.filter((e) => e.type === 'receita').length !== 1 ? 's' : ''}</span>
       </div>
+      <div class="card tier-card" style="--tier-accent:var(--info)">
+        <span class="tier-card__name">Quotas recebidas</span>
+        <strong class="tier-card__value" style="color:var(--info)">${euros(summary.quotas)}</strong>
+        <span class="tier-card__count">mensalidades (geridas em Quotas)</span>
+      </div>
       <div class="card tier-card" style="--tier-accent:var(--danger)">
         <span class="tier-card__name">Despesas</span>
         <strong class="tier-card__value" style="color:var(--danger)">${euros(summary.expenses)}</strong>
@@ -64,12 +69,16 @@ export function renderFinanceiro(container) {
       </div>
       <div class="card tier-card" style="--tier-accent:var(--navy)">
         <span class="tier-card__name">Saldo</span>
-        <strong class="tier-card__value" style="color:${summary.balance >= 0 ? 'var(--ok)' : 'var(--danger)'}">
-          ${euros(summary.balance)}
+        <strong class="tier-card__value" style="color:${summary.totalBalance >= 0 ? 'var(--ok)' : 'var(--danger)'}">
+          ${euros(summary.totalBalance)}
         </strong>
-        <span class="tier-card__count">${summary.balance >= 0 ? 'Positivo' : 'Negativo'}</span>
+        <span class="tier-card__count">receitas + quotas − despesas</span>
       </div>
     </section>
+
+    <p class="muted" style="margin:-0.4rem 0 1rem;font-size:0.82rem">
+      As quotas entram no saldo automaticamente a partir do módulo Quotas; a tabela abaixo é só o livro-razão (receitas/despesas lançadas à mão).
+    </p>
 
     <section class="card">
       <div class="filters">
