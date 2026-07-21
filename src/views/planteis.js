@@ -467,7 +467,7 @@ function openTeamForm(id) {
 function playerStatsHTML(p) {
   const items = [];
 
-  if (canAccess('presencas') || canAccess('estatisticas')) {
+  if (canAccess('presencas')) {
     const rate = playerAttendanceStats(p.id).rate;
     items.push(`
       <span class="pstat">
