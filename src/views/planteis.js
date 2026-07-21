@@ -6,6 +6,7 @@ import { esc, emptyHTML, paginate, paginationHTML, wirePagination, PAGE_SIZE } f
 import {
   teamName, teamCoaches, escaloes, currentCoach, coachTeams, positions,
   playerAttendanceStats, playerAvailability, playerQuotas,
+  escalaoColor, positionColor,
 } from '../compute.js';
 import { openModal, confirmDialog } from '../modal.js';
 import { COACH_ROLE_LABEL, AVAILABILITY_LABEL } from '../constants.js';
@@ -28,17 +29,6 @@ const teamPage = new Map(); // team_id -> página atual dos atletas
 export function openSeasonPlanning() {
   mode = 'avaliacao';
 }
-
-// Cor/identidade por escalão e por posição. Índice na lista configurada (que é
-// estável) -> paleta cíclica, para cada escalão/posição ter sempre a mesma cor.
-const ESCALAO_COLORS = ['#143b61', '#1e5080', '#0d9488', '#b45309', '#7c3aed', '#be185d', '#0369a1', '#4d7c0f'];
-const POSITION_COLORS = ['#7c3aed', '#2563eb', '#0d9488', '#dc2626', '#d39f00', '#be185d', '#0369a1', '#4d7c0f'];
-function colorFrom(list, value, palette) {
-  const i = list.indexOf(value);
-  return palette[(i < 0 ? 0 : i) % palette.length];
-}
-const escalaoColor = (esc) => colorFrom(escaloes(), esc, ESCALAO_COLORS);
-const positionColor = (pos) => colorFrom(positions(), pos, POSITION_COLORS);
 
 // Sigla curta do escalão para o crachá (ex.: "Sub-14" -> "S14", "Seniores" -> "SEN").
 function escalaoBadge(esc) {

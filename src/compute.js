@@ -32,6 +32,18 @@ export function positions() {
   return SPORT_POSITIONS[sport()] || DEFAULT_POSITIONS;
 }
 
+// Cor de identidade por escalão / posição: índice na lista configurada (que é
+// estável) -> paleta cíclica, para cada escalão/posição ter sempre a mesma cor.
+// Partilhado pelos Plantéis (plantel + avaliação) e pelos Treinadores.
+const ESCALAO_COLORS = ['#143b61', '#1e5080', '#0d9488', '#b45309', '#7c3aed', '#be185d', '#0369a1', '#4d7c0f'];
+const POSITION_COLORS = ['#7c3aed', '#2563eb', '#0d9488', '#dc2626', '#d39f00', '#be185d', '#0369a1', '#4d7c0f'];
+function colorFrom(list, value, palette) {
+  const i = list.indexOf(value);
+  return palette[(i < 0 ? 0 : i) % palette.length];
+}
+export const escalaoColor = (esc) => colorFrom(escaloes(), esc, ESCALAO_COLORS);
+export const positionColor = (pos) => colorFrom(positions(), pos, POSITION_COLORS);
+
 // Janela de aviso (dias de antecedência) para documentos a expirar,
 // configurável nas Definições. Recorre a 30 dias se não estiver definida.
 export function docAlertDays() {
