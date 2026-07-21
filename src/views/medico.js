@@ -11,6 +11,7 @@ import { esc, emptyHTML, paginate, paginationHTML, wirePagination, PAGE_SIZE } f
 import {
   teamById,
   teamName,
+  escalaoColor,
   activeEpisode,
   injuredCount,
   apptDateTime,
@@ -133,7 +134,7 @@ function athleteListHTML() {
           return `
             <tr>
               <td><button class="player-link" data-file="${p.id}" type="button">${esc(p.name)}</button></td>
-              <td>${team ? esc(teamName(team)) : '<span class="muted">—</span>'}</td>
+              <td>${team ? `<span class="team-chip" style="--tc:${escalaoColor(team.escalao)}">${esc(teamName(team))}</span>` : '<span class="muted">—</span>'}</td>
               <td>${statusBadge}${active && active.title ? ` <span class="muted">${esc(active.title)}</span>` : ''}</td>
               <td class="cell-actions">
                 <button class="btn btn--ghost btn--sm" data-file="${p.id}" type="button">Ficha clínica</button>
