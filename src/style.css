@@ -3342,10 +3342,106 @@ button.metric--nav:focus-visible {
 .kanban-card {
   background: var(--surface);
   border: 1px solid var(--border);
+  border-left: 3px solid var(--tc, var(--border));
   border-radius: var(--radius-sm);
   padding: 0.45rem 0.5rem;
   box-shadow: var(--shadow-sm);
 }
+.kanban-card[draggable="true"] { cursor: grab; }
+.kanban-card.is-dragging { opacity: 0.5; cursor: grabbing; }
+.kanban-card--stale { border-left-color: var(--yellow); }
+.kanban-card__stale {
+  margin: 0.3rem 0 0;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--yellow-600);
+}
+.kanban-col--drop {
+  outline: 2px dashed var(--yellow);
+  outline-offset: -2px;
+  background: color-mix(in srgb, var(--yellow) 8%, var(--surface-2));
+}
+
+/* Botão de ícone extra-pequeno (cartões do kanban) */
+.icon-btn--xs {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+}
+
+/* Saúde do funil de recrutamento */
+.rec-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.7rem 1.2rem;
+  margin-bottom: 1rem;
+}
+.rec-funnel {
+  display: flex;
+  align-items: stretch;
+  gap: 0.25rem;
+  flex: 1;
+  min-width: 260px;
+}
+.rec-funnel__seg {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.05rem;
+  padding: 0.45rem 0.3rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--seg, var(--navy-300));
+  border-radius: var(--radius-sm);
+  text-align: center;
+}
+.rec-funnel__seg--muted { --seg: var(--navy-300); }
+.rec-funnel__seg--info  { --seg: var(--info); }
+.rec-funnel__seg--warn  { --seg: var(--yellow-600); }
+.rec-funnel__seg--ok    { --seg: var(--ok); }
+.rec-funnel__n {
+  font-family: var(--font-title);
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--navy);
+  font-variant-numeric: tabular-nums;
+}
+.rec-funnel__l {
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.rec-funnel__arrow {
+  align-self: center;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  flex: none;
+}
+.rec-summary__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.rec-chip {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.25rem 0.65rem;
+  white-space: nowrap;
+}
+.rec-chip b { color: var(--text); font-weight: 700; }
+.rec-chip--ok { border-color: var(--ok); }
+.rec-chip--ok b { color: var(--ok); }
+.rec-chip--warn { border-color: var(--yellow); }
+.rec-chip--warn b { color: var(--yellow-600); }
 .kanban-card__head {
   display: flex;
   align-items: center;
