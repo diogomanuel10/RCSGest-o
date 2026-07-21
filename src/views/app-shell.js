@@ -68,24 +68,39 @@ const ICONS = {
 
 // Visibilidade das secções: cada item usa canAccess(key). Definições e
 // Utilizadores (footer) mantêm o seu próprio `can` (coordenador).
+// Grupos da barra lateral (agrupadores). A ordem aqui define a ordem de
+// apresentação; `label: null` = grupo sem título (fica no topo). Um grupo cujas
+// entradas estejam todas escondidas por permissões não aparece (refreshChrome).
+const NAV_GROUPS = [
+  { key: 'principal',  label: null },
+  { key: 'desportivo', label: 'Desportivo' },
+  { key: 'competicao', label: 'Competição' },
+  { key: 'saude',      label: 'Saúde & Performance' },
+  { key: 'admin',      label: 'Administração' },
+];
+
 const NAV = [
-  { key: 'portal',       label: 'A minha página', icon: ICONS.portal,      render: renderPortal },
-  { key: 'painel',       label: 'Painel',        icon: ICONS.painel,       render: renderPainel },
-  { key: 'objetivos',    label: 'Objetivos',     icon: ICONS.objetivos,    render: renderObjetivos },
-  { key: 'planteis',     label: 'Plantéis',      icon: ICONS.planteis,     render: renderPlanteis },
-  { key: 'avaliacao',    label: 'Avaliação',     icon: ICONS.avaliacao,    render: renderAvaliacao },
-  { key: 'calendario',   label: 'Calendário',    icon: ICONS.calendario,   render: renderCalendario },
-  { key: 'presencas',    label: 'Presenças',     icon: ICONS.presencas,    render: renderPresencas },
-  { key: 'estatisticas', label: 'Estatísticas',  icon: ICONS.estatisticas, render: renderEstatisticas },
-  { key: 'quotas',       label: 'Quotas',        icon: ICONS.quotas,       render: renderQuotas },
-  { key: 'equipamentos', label: 'Equipamentos',  icon: ICONS.equipamentos, render: renderEquipamentos },
-  { key: 'medico',       label: 'Dept. Médico',  icon: ICONS.medico,       render: renderMedico },
-  { key: 'fisica',       label: 'Prep. Física',  icon: ICONS.fisica,       render: renderPreparacao },
-  { key: 'treinadores',  label: 'Treinadores',   icon: ICONS.treinadores,  render: renderTreinadores },
-  { key: 'recrutamento', label: 'Recrutamento',  icon: ICONS.recrutamento, render: renderRecrutamento },
-  { key: 'financeiro',   label: 'Financeiro',    icon: ICONS.financeiro,   render: renderFinanceiro },
-  { key: 'encomendas',   label: 'Encomendas',    icon: ICONS.encomendas,   render: renderEncomendas, wide: true },
-  { key: 'plano-jogo',  label: 'Plano de Jogo', icon: ICONS['plano-jogo'], render: renderPlanoJogo },
+  { key: 'portal',       label: 'A minha página', icon: ICONS.portal,      render: renderPortal,       group: 'principal' },
+  { key: 'painel',       label: 'Painel',        icon: ICONS.painel,       render: renderPainel,        group: 'principal' },
+
+  { key: 'planteis',     label: 'Plantéis',      icon: ICONS.planteis,     render: renderPlanteis,      group: 'desportivo' },
+  { key: 'avaliacao',    label: 'Avaliação',     icon: ICONS.avaliacao,    render: renderAvaliacao,     group: 'desportivo' },
+  { key: 'treinadores',  label: 'Treinadores',   icon: ICONS.treinadores,  render: renderTreinadores,   group: 'desportivo' },
+  { key: 'recrutamento', label: 'Recrutamento',  icon: ICONS.recrutamento, render: renderRecrutamento,  group: 'desportivo' },
+  { key: 'plano-jogo',   label: 'Plano de Jogo', icon: ICONS['plano-jogo'], render: renderPlanoJogo,    group: 'desportivo' },
+
+  { key: 'calendario',   label: 'Calendário',    icon: ICONS.calendario,   render: renderCalendario,    group: 'competicao' },
+  { key: 'presencas',    label: 'Presenças',     icon: ICONS.presencas,    render: renderPresencas,     group: 'competicao' },
+  { key: 'estatisticas', label: 'Estatísticas',  icon: ICONS.estatisticas, render: renderEstatisticas,  group: 'competicao' },
+
+  { key: 'medico',       label: 'Dept. Médico',  icon: ICONS.medico,       render: renderMedico,        group: 'saude' },
+  { key: 'fisica',       label: 'Prep. Física',  icon: ICONS.fisica,       render: renderPreparacao,    group: 'saude' },
+
+  { key: 'objetivos',    label: 'Objetivos',     icon: ICONS.objetivos,    render: renderObjetivos,     group: 'admin' },
+  { key: 'quotas',       label: 'Quotas',        icon: ICONS.quotas,       render: renderQuotas,        group: 'admin' },
+  { key: 'equipamentos', label: 'Equipamentos',  icon: ICONS.equipamentos, render: renderEquipamentos,  group: 'admin' },
+  { key: 'financeiro',   label: 'Financeiro',    icon: ICONS.financeiro,   render: renderFinanceiro,    group: 'admin' },
+  { key: 'encomendas',   label: 'Encomendas',    icon: ICONS.encomendas,   render: renderEncomendas,    group: 'admin', wide: true },
 ];
 
 const FOOTER = [
@@ -139,18 +154,39 @@ export async function renderAppShell(root, session) {
     return;
   }
 
-  const navHTML = (items, footer = false) =>
-    items
-      .map(
-        (n) => `
+  const itemHTML = (n, footer = false) => `
         <button class="navitem${footer ? ' hidden' : ''}" data-route="${n.key}"${
           footer ? ' data-footer' : ''
         } type="button" title="${n.label}">
           <span class="navitem__icon">${n.icon}</span>
           <span>${n.label}</span>
-        </button>`
-      )
-      .join('');
+        </button>`;
+
+  // Rodapé: lista plana (sem agrupadores).
+  const navHTML = (items, footer = false) =>
+    items.map((n) => itemHTML(n, footer)).join('');
+
+  // Seta de colapso (usada só no telemóvel).
+  const CHEVRON = `<svg class="navgroup__chevron" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+      stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>`;
+
+  // NAV principal agrupada por secções (NAV_GROUPS).
+  const groupedNavHTML = () =>
+    NAV_GROUPS.map((g) => {
+      const items = NAV.filter((n) => n.group === g.key);
+      if (!items.length) return '';
+      const head = g.label
+        ? `<button class="navgroup__title" type="button" data-group-toggle="${g.key}"
+              aria-expanded="true">
+             <span class="navgroup__title-text">${g.label}</span>${CHEVRON}
+           </button>`
+        : '';
+      return `<div class="navgroup" data-group="${g.key}">
+          ${head}
+          <div class="navgroup__items">${items.map((n) => itemHTML(n)).join('')}</div>
+        </div>`;
+    }).join('');
 
   root.innerHTML = `
     <div class="app" id="app-root">
@@ -215,7 +251,7 @@ export async function renderAppShell(root, session) {
 
       <div class="app__body">
         <aside class="sidebar" id="sidebar">
-          <nav class="sidebar__nav">${navHTML(NAV)}</nav>
+          <nav class="sidebar__nav">${groupedNavHTML()}</nav>
           <div class="sidebar__foot">${navHTML(FOOTER, true)}</div>
         </aside>
         <div class="scrim" id="scrim"></div>
@@ -251,6 +287,17 @@ export async function renderAppShell(root, session) {
     });
   });
 
+  // Colapsar/expandir secções — efeito só no telemóvel (ver CSS); no desktop a
+  // barra é de ícones e expande por hover, por isso o toggle fica inativo.
+  root.querySelectorAll('[data-group-toggle]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (!isMobile()) return;
+      const group = btn.closest('.navgroup');
+      const collapsed = group.classList.toggle('navgroup--collapsed');
+      btn.setAttribute('aria-expanded', String(!collapsed));
+    });
+  });
+
   function allRoutes() {
     return [...NAV, ...FOOTER];
   }
@@ -264,6 +311,13 @@ export async function renderAppShell(root, session) {
     root.querySelectorAll('[data-route]').forEach((btn) => {
       const item = allRoutes().find((r) => r.key === btn.dataset.route);
       btn.classList.toggle('hidden', !(item && routeAllowed(item)));
+    });
+    // Um grupo sem nenhuma entrada visível não aparece (nem o seu título).
+    root.querySelectorAll('.navgroup').forEach((group) => {
+      const anyVisible = [...group.querySelectorAll('[data-route]')].some(
+        (btn) => !btn.classList.contains('hidden')
+      );
+      group.classList.toggle('hidden', !anyVisible);
     });
     const role = state.profile?.role;
     if (role) {
