@@ -177,6 +177,28 @@ export function renderDefinicoes(container) {
         </div>
       </form>
     </section>
+
+    <section class="card settings-card">
+      <h2 class="section-title settings-card__title">Alertas de documentos</h2>
+      <p class="muted" style="margin-top:0">
+        Com quantos dias de antecedência o Painel avisa que um exame médico ou
+        seguro está a expirar. Documentos já expirados ou sem data são sempre
+        assinalados.
+      </p>
+      <form id="doc-alert-form">
+        <div class="field-grid">
+          <div class="field">
+            <label for="doc_alert_days">Antecedência do aviso (dias)</label>
+            <input type="number" id="doc_alert_days" name="doc_alert_days" min="1" max="365"
+                   value="${esc(String(state.settings.doc_alert_days ?? 30))}" />
+          </div>
+        </div>
+        <p class="settings-msg hidden" id="doc-alert-msg"></p>
+        <div class="row" style="justify-content:flex-end">
+          <button type="submit" class="btn btn--primary" id="save-doc-alert">Guardar</button>
+        </div>
+      </form>
+    </section>
     </div>
     </div>
 
@@ -230,6 +252,30 @@ export function renderDefinicoes(container) {
       showMsg(settingsMsg, 'Definições guardadas.', 'ok');
     } catch (err) {
       showMsg(settingsMsg, dbErrorMessage(err), 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Guardar';
+    }
+  });
+
+  // --- Alertas de documentos (janela de antecedência) ---
+  const docAlertForm = container.querySelector('#doc-alert-form');
+  const docAlertMsg = container.querySelector('#doc-alert-msg');
+  docAlertForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const days = Math.round(Number(docAlertForm.doc_alert_days.value));
+    if (!Number.isFinite(days) || days < 1 || days > 365) {
+      showMsg(docAlertMsg, 'Indica um número de dias entre 1 e 365.', 'error');
+      return;
+    }
+    const btn = container.querySelector('#save-doc-alert');
+    btn.disabled = true;
+    btn.textContent = 'A guardar…';
+    try {
+      await saveSettings({ doc_alert_days: days });
+      showMsg(docAlertMsg, 'Alertas de documentos guardados.', 'ok');
+    } catch (err) {
+      showMsg(docAlertMsg, dbErrorMessage(err), 'error');
     } finally {
       btn.disabled = false;
       btn.textContent = 'Guardar';

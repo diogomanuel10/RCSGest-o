@@ -23,6 +23,7 @@ import {
   upcomingAppointments,
   apptDateTime,
   activeEpisode,
+  expiringDocuments,
 } from '../compute.js';
 import {
   EVENT_TYPE_LABEL,
@@ -82,6 +83,9 @@ export function renderPainel(container) {
   const canMark = canEdit('attendances');
   const toMark = canMark ? trainingsToMark(6) : [];
   const actions = buildActions();
+  // Alertas de documentos a expirar/expirados/sem data (só para quem os pode ver).
+  // A janela de antecedência vem das Definições (doc_alert_days).
+  const docAlerts = canEdit('documents') ? expiringDocuments() : [];
   const today = todayEvents();
   const quick = quickActions();
 
@@ -129,6 +133,11 @@ export function renderPainel(container) {
       <ul class="alerts-list">${actions.map(actionItem).join('')}</ul>
     </section>` : ''}
 
+    ${docAlerts.length ? `<section class="card alerts-card">
+      <h2 class="section-title upcoming-card__title">Documentos a expirar</h2>
+      <ul class="alerts-list">${docAlerts.map(docAlertItem).join('')}</ul>
+    </section>` : ''}
+
     ${toMark.length ? `<section class="card mark-card">
       <h2 class="section-title upcoming-card__title">Presenças por marcar</h2>
       <ul class="mark-list">${toMark.map(markRow).join('')}</ul>
@@ -166,6 +175,11 @@ export function renderPainel(container) {
   // Itens de ação: navegam para a secção respetiva.
   container.querySelectorAll('[data-nav]').forEach((el) => {
     el.addEventListener('click', () => navTo(el.dataset.nav));
+  });
+
+  // Alertas de documentos: abrem a ficha do atleta (separador Geral).
+  container.querySelectorAll('[data-doc-athlete]').forEach((el) => {
+    el.addEventListener('click', () => openAthleteProfile(el.dataset.docAthlete, { tab: 'geral' }));
   });
 
   // Criação rápida: abre diretamente o formulário respetivo.
@@ -314,6 +328,33 @@ function actionItem({ variant, title, sub, route }) {
         <span class="alert-item__dot" aria-hidden="true"></span>
         <span class="alert-item__text">
           <strong class="alert-item__title">${esc(title)}</strong>
+          <span class="muted alert-item__sub">${esc(sub)}</span>
+        </span>
+        <span class="alert-item__chevron" aria-hidden="true">›</span>
+      </button>
+    </li>
+  `;
+}
+
+// Uma linha do alerta "Documentos a expirar" — abre a ficha do atleta (onde os
+// documentos vivem, no separador Geral) ao clicar.
+function docAlertItem(row) {
+  const variant = row.status === 'expired' ? 'danger' : row.status === 'missing' ? 'info' : 'warn';
+  const date = row.expiresAt
+    ? new Date(row.expiresAt + 'T00:00:00').toLocaleDateString('pt-PT',
+        { day: '2-digit', month: 'short', year: 'numeric' })
+    : '';
+  const sub = row.status === 'expired'
+    ? `Expirou a ${date} — renovar.`
+    : row.status === 'missing'
+    ? 'Sem data de validade — atualizar.'
+    : `Expira a ${date} (${row.daysLeft} dia${row.daysLeft === 1 ? '' : 's'}).`;
+  return `
+    <li>
+      <button class="alert-item alert-item--${variant} alert-item--nav" data-doc-athlete="${esc(row.playerId)}" type="button">
+        <span class="alert-item__dot" aria-hidden="true"></span>
+        <span class="alert-item__text">
+          <strong class="alert-item__title">${esc(row.docLabel)} — ${esc(row.player.name)}</strong>
           <span class="muted alert-item__sub">${esc(sub)}</span>
         </span>
         <span class="alert-item__chevron" aria-hidden="true">›</span>
