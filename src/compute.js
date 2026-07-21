@@ -3,7 +3,7 @@
 import { state } from './store.js';
 import {
   TIER_VALUE, IN_PROGRESS_STATUSES, DEFAULT_ESCALOES,
-  DEFAULT_SPORT, SPORT_POSITIONS, DEFAULT_POSITIONS,
+  DEFAULT_SPORT, SPORT_POSITIONS, DEFAULT_POSITIONS, DOC_TYPE_LABEL,
 } from './constants.js';
 
 // Lista de escalões em vigor (configurável nas Definições). Recorre à lista
@@ -25,6 +25,41 @@ export function positions() {
   const custom = state.settings?.positions;
   if (Array.isArray(custom) && custom.length) return custom;
   return SPORT_POSITIONS[sport()] || DEFAULT_POSITIONS;
+}
+
+// Documentos de atleta (exame médico, seguro…) a expirar dentro de `days` dias
+// ou já expirados. Junta o atleta e devolve ordenado por urgência (mais
+// urgente/expirado primeiro). Só conta documentos com data de validade e cujo
+// atleta ainda está ativo na cache. A leitura de documentos já está limitada
+// por RLS ao coordenador/fisioterapeuta/preparador, por isso a lista só traz o
+// que o utilizador atual pode ver.
+export function expiringDocuments(days = 30) {
+  const now = new Date();
+  const dayMs = 1000 * 60 * 60 * 24;
+  const out = [];
+  for (const doc of state.playerDocuments) {
+    if (!doc.expires_at) continue;
+    const diffDays = (new Date(doc.expires_at) - now) / dayMs;
+    const expired = diffDays < 0;
+    const soon = diffDays >= 0 && diffDays <= days;
+    if (!expired && !soon) continue;
+    const player = state.players.find((p) => p.id === doc.player_id);
+    if (!player) continue;
+    out.push({
+      id: doc.id,
+      player,
+      playerId: player.id,
+      docType: doc.doc_type,
+      docLabel: DOC_TYPE_LABEL[doc.doc_type] || doc.doc_type,
+      expiresAt: doc.expires_at,
+      status: expired ? 'expired' : 'soon',
+      daysLeft: Math.round(diffDays),
+    });
+  }
+  // Por data de validade crescente: os mais atrasados (expirados) primeiro,
+  // depois os que expiram mais cedo.
+  out.sort((a, b) => new Date(a.expiresAt) - new Date(b.expiresAt));
+  return out;
 }
 
 // Total angariado = soma do valor do nível dos patrocínios CONFIRMADOS.
