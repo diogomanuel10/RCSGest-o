@@ -344,7 +344,10 @@ function printPlan(plan) {
   w.document.write(html);
   w.document.close();
   w.focus();
-  w.onload = () => w.print();
+  // O conteúdo é todo inline (sem imagens/fontes externas), por isso já está
+  // pronto após close(); um pequeno atraso garante a impressão em todos os
+  // browsers (o evento load pode já ter disparado).
+  setTimeout(() => { try { w.print(); } catch { /* ignora */ } }, 300);
 }
 
 // Duplicar um plano (reaproveitar): copia os campos, limpa a data do jogo e
