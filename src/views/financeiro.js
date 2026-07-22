@@ -149,7 +149,7 @@ export function renderFinanceiro(container) {
   container.querySelectorAll('[data-del]').forEach((b) =>
     b.addEventListener('click', () => remove(b.dataset.del))
   );
-  wirePagination(container, pg, (p2) => { page = p2; renderFinanceiro(container); });
+  wirePagination(container, 'pg', pg.page, pg.totalPages, (p2) => { page = p2; renderFinanceiro(container); });
 }
 
 function entryRow(e, editable) {
@@ -255,13 +255,13 @@ async function remove(id) {
   const e = state.financialEntries.find((x) => x.id === id);
   if (!e) return;
   const label = `${FINANCIAL_TYPE_LABEL[e.type] || e.type} — ${e.description}`;
-  confirmDialog(
-    `Remover "${label}"?`,
-    'Esta ação não pode ser desfeita.',
-    async () => {
-      await deleteRow('financial_entries', 'financialEntries', id);
-    }
-  );
+  const ok = await confirmDialog(`Remover "${label}"? Esta ação não pode ser desfeita.`);
+  if (!ok) return;
+  try {
+    await deleteRow('financial_entries', 'financialEntries', id);
+  } catch (err) {
+    alert(dbErrorMessage(err));
+  }
 }
 
 function buildYears() {
