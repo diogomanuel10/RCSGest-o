@@ -81,15 +81,15 @@ export function renderDocumentsInto(container, playerId) {
 
   // Eliminar documento
   container.querySelectorAll('[data-doc-delete]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      confirmDialog('Eliminar este documento permanentemente?', async () => {
-        try {
-          await deletePlayerDocument(btn.dataset.docDelete);
-          renderDocumentsInto(container, playerId);
-        } catch (err) {
-          alert(dbErrorMessage(err));
-        }
-      });
+    btn.addEventListener('click', async () => {
+      const ok = await confirmDialog('Eliminar este documento permanentemente?');
+      if (!ok) return;
+      try {
+        await deletePlayerDocument(btn.dataset.docDelete);
+        renderDocumentsInto(container, playerId);
+      } catch (err) {
+        alert(dbErrorMessage(err));
+      }
     });
   });
 
