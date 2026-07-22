@@ -12,6 +12,17 @@
 <meta property="og:title" content="Rumia — Gestão desportiva para clubes" />
 <meta property="og:description" content="Todo o teu clube numa só plataforma. A tua gestão desportiva, simples." />
 <meta property="og:type" content="website" />
+<!-- Imagem de partilha (1200×630). Nota: para pré-visualização garantida em
+     todas as redes, define aqui o URL ABSOLUTO quando tiveres o domínio
+     (ex.: https://o-teu-dominio.pt/landing/og-cover.png). -->
+<meta property="og:image" content="og-cover.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="Rumia — Todo o teu clube numa só plataforma." />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Rumia — Gestão desportiva para clubes" />
+<meta name="twitter:description" content="Todo o teu clube numa só plataforma. A tua gestão desportiva, simples." />
+<meta name="twitter:image" content="og-cover.png" />
 
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -213,6 +224,8 @@
   .mock-side .item { font-size: 0.78rem; color: var(--muted); padding: 0.4rem 0.55rem; border-radius: 7px; display: flex; align-items: center; gap: 0.45rem; }
   .mock-side .item.active { background: var(--navy); color: #fff; font-weight: 600; }
   .mock-side .item .ic { width: 13px; height: 13px; border-radius: 4px; background: currentColor; opacity: 0.6; flex: 0 0 auto; }
+  .mock-side .grp { font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.09em; font-weight: 700; color: var(--muted); opacity: 0.65; padding: 0.4rem 0.55rem 0.05rem; }
+  .mock-row .esc { width: 9px; height: 9px; border-radius: 2px; flex: 0 0 auto; }
   .mock-main { padding: 1.1rem 1.2rem; }
   .mock-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; margin-bottom: 1rem; }
   .stat { background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px; padding: 0.6rem 0.7rem; }
@@ -245,7 +258,7 @@
   section { padding: 5.5rem 0; }
   /* Compensa a barra fixa (68px) quando se salta por âncora, para o título não
      ficar escondido por baixo dela. */
-  #funcionalidades, #papeis, #precos, #faq, #contacto, #topo { scroll-margin-top: 84px; }
+  #funcionalidades, #papeis, #por-dentro, #como-funciona, #precos, #faq, #contacto, #topo { scroll-margin-top: 84px; }
   .section-head { max-width: 640px; margin: 0 auto 3rem; text-align: center; }
   .section-head h2 { font-size: clamp(2rem, 3.6vw, 2.8rem); font-weight: 700; margin: 0.8rem 0 0.8rem; letter-spacing: -0.01em; }
   .section-head p { color: var(--muted); font-size: 1.1rem; margin: 0; }
@@ -306,6 +319,39 @@
   .miniapp .content { padding: 0.6rem; display: flex; flex-direction: column; gap: 0.35rem; }
   .miniapp .bar { height: 8px; border-radius: 4px; background: var(--surface-2); }
   .miniapp .bar.short { width: 60%; }
+
+  /* --- Como funciona (3 passos) --- */
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.1rem; }
+  @media (max-width: 760px) { .steps { grid-template-columns: 1fr; } }
+  .step {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.7rem 1.5rem;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  }
+  .step:hover { transform: translateY(-4px); box-shadow: var(--shadow); border-color: var(--navy-500); }
+  .step__n {
+    width: 42px; height: 42px; border-radius: 12px;
+    display: grid; place-items: center; margin-bottom: 1rem;
+    background: var(--navy); color: var(--yellow);
+    font-family: var(--font-display); font-weight: 700; font-size: 1.3rem;
+  }
+  .step h3 { font-size: 1.22rem; font-weight: 600; margin-bottom: 0.35rem; }
+  .step p { color: var(--muted); font-size: 0.95rem; margin: 0; }
+
+  /* --- Galeria de ecrãs reais --- */
+  .shots { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; }
+  @media (max-width: 820px) { .shots { grid-template-columns: 1fr; } }
+  .shot { margin: 0; }
+  .shot img {
+    width: 100%; height: auto; display: block;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow-lg);
+  }
+  .shot figcaption { margin-top: 0.85rem; color: var(--muted); font-size: 0.95rem; text-align: center; }
+  .shot figcaption strong { color: var(--ink); font-weight: 600; }
 
   /* --- Preços --- */
   .pricing { background: var(--paper); }
@@ -415,12 +461,11 @@
     </a>
     <nav class="nav__links" aria-label="Principal">
       <a href="#funcionalidades">Funcionalidades</a>
-      <a href="#papeis">Como funciona</a>
+      <a href="#como-funciona">Como funciona</a>
       <a href="#precos">Preços</a>
       <a href="#faq">FAQ</a>
     </nav>
     <div class="nav__cta">
-      <a class="btn btn--ghost" href="#contacto">Entrar</a>
       <a class="btn btn--primary" href="#precos">Começar</a>
     </div>
   </div>
@@ -450,10 +495,14 @@
       <div class="window__body">
         <div class="mock-side">
           <span class="item active"><span class="ic"></span>Painel</span>
+          <span class="grp">Desportivo</span>
           <span class="item"><span class="ic"></span>Plantéis</span>
+          <span class="grp">Competição</span>
           <span class="item"><span class="ic"></span>Calendário</span>
+          <span class="grp">Saúde</span>
           <span class="item"><span class="ic"></span>Dept. Médico</span>
           <span class="item"><span class="ic"></span>Prep. Física</span>
+          <span class="grp">Admin</span>
           <span class="item"><span class="ic"></span>Financeiro</span>
         </div>
         <div class="mock-main">
@@ -467,10 +516,10 @@
             <div class="stat"><div class="n">14</div><div class="l">Jogos</div></div>
           </div>
           <p class="mock-label">Disponibilidade do plantel</p>
-          <div class="mock-row"><span class="av"></span><span class="nm">Beatriz Faria</span><span class="pill pill--ok">Apto</span></div>
-          <div class="mock-row"><span class="av"></span><span class="nm">Rui Tavares</span><span class="pill pill--warn">Limitado</span></div>
-          <div class="mock-row"><span class="av"></span><span class="nm">Mariana Sá</span><span class="pill pill--info">Em recuperação</span></div>
-          <div class="mock-row"><span class="av"></span><span class="nm">Diogo Nunes</span><span class="pill pill--ok">Apto</span></div>
+          <div class="mock-row"><span class="esc" style="background:#143b61"></span><span class="av"></span><span class="nm">Beatriz Faria</span><span class="pill pill--ok">Apto</span></div>
+          <div class="mock-row"><span class="esc" style="background:#0d9488"></span><span class="av"></span><span class="nm">Rui Tavares</span><span class="pill pill--warn">Limitado</span></div>
+          <div class="mock-row"><span class="esc" style="background:#b45309"></span><span class="av"></span><span class="nm">Mariana Sá</span><span class="pill pill--info">Em recuperação</span></div>
+          <div class="mock-row"><span class="esc" style="background:#1e5080"></span><span class="av"></span><span class="nm">Diogo Nunes</span><span class="pill pill--ok">Apto</span></div>
         </div>
       </div>
     </div>
@@ -544,6 +593,35 @@
   </div>
 </section>
 
+<!-- ================= ECRÃS REAIS ================= -->
+<section id="por-dentro">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <span class="eyebrow">Por dentro</span>
+      <h2>Vê a app por dentro</h2>
+      <p>Ecrãs reais da Rumia — do plantel ao calendário, tudo com a identidade e as cores do teu clube.</p>
+    </div>
+    <div class="shots">
+      <figure class="shot reveal">
+        <img src="shots/planteis.png" width="1440" height="900" loading="lazy" alt="Ecrã de Plantéis: equipas por escalão e fichas de atleta com presenças, quotas e disponibilidade." />
+        <figcaption><strong>Plantéis</strong> — equipas por escalão, com presenças, quotas e disponibilidade de cada atleta.</figcaption>
+      </figure>
+      <figure class="shot reveal">
+        <img src="shots/painel.png" width="1440" height="900" loading="lazy" alt="Painel do clube: eventos de hoje e indicadores de gestão." />
+        <figcaption><strong>Painel</strong> — o pulso do clube num relance: hoje, angariado, presenças, dívidas e mais.</figcaption>
+      </figure>
+      <figure class="shot reveal">
+        <img src="shots/calendario.png" width="1440" height="900" loading="lazy" alt="Calendário em vista de semana com treinos e jogos por equipa." />
+        <figcaption><strong>Calendário</strong> — vistas de lista, semana e mês; exporta para o Google/Apple Calendar.</figcaption>
+      </figure>
+      <figure class="shot reveal">
+        <img src="shots/recrutamento.png" width="1440" height="900" loading="lazy" alt="Funil de recrutamento em quadro Kanban, do observado ao confirmado." />
+        <figcaption><strong>Recrutamento</strong> — funil de prospetos, do observado ao confirmado, com conversão em atleta.</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
 <!-- ================= DESTAQUES ================= -->
 <div class="highlight" id="papeis">
   <div class="wrap" style="padding-top:5.5rem;padding-bottom:5.5rem">
@@ -603,6 +681,34 @@
 
   </div>
 </div>
+
+<!-- ================= COMO FUNCIONA (3 PASSOS) ================= -->
+<section id="como-funciona">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <span class="eyebrow">Começar é simples</span>
+      <h2>A funcionar em três passos</h2>
+      <p>Do registo ao dia a dia do clube — sem instalações nem folhas de cálculo perdidas.</p>
+    </div>
+    <div class="steps">
+      <div class="step reveal">
+        <div class="step__n">1</div>
+        <h3>Cria o teu clube</h3>
+        <p>Regista-te, escolhe a modalidade e veste a aplicação com as cores e o emblema do clube.</p>
+      </div>
+      <div class="step reveal">
+        <div class="step__n">2</div>
+        <h3>Traz os teus dados</h3>
+        <p>Importa os atletas por Excel e convida a equipa técnica — cada pessoa entra com o seu papel e acesso.</p>
+      </div>
+      <div class="step reveal">
+        <div class="step__n">3</div>
+        <h3>Gere o dia a dia</h3>
+        <p>Calendário, presenças, plano de jogo, quotas e muito mais — tudo ligado, num só sítio.</p>
+      </div>
+    </div>
+  </div>
+</section>
 
 <!-- ================= PREÇOS ================= -->
 <!--
