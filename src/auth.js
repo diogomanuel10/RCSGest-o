@@ -33,6 +33,24 @@ export async function signUp(email, password) {
   return { needsConfirmation: !data.session, data };
 }
 
+// Envia o email de recuperação de palavra-passe. O link devolve o utilizador
+// à app já autenticado, num estado em que pode definir uma nova (ver
+// `updatePassword`). Sem isto, quem se esquece da palavra-passe fica sem forma
+// de entrar a não ser pedindo ao administrador.
+export async function requestPasswordReset(email) {
+  const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+    redirectTo: window.location.origin + window.location.pathname,
+  });
+  if (error) throw error;
+}
+
+// Define uma nova palavra-passe para a sessão atual (usada após o link de
+// recuperação, que já traz sessão).
+export async function updatePassword(password) {
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) throw error;
+}
+
 // Termina a sessão.
 export async function signOut() {
   const { error } = await supabase.auth.signOut();

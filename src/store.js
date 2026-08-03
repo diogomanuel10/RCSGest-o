@@ -8,6 +8,46 @@
 
 import { supabase } from './supabase.js';
 import { applyBranding } from './branding.js';
+import { toastOk } from './toast.js';
+
+// Nome legível de cada tabela, para as mensagens de confirmação das operações
+// genéricas (createRow/updateRow/…). Uma tabela sem entrada aqui grava na
+// mesma — apenas não mostra aviso, por não haver nome apresentável.
+const ENTITY_LABEL = {
+  players: 'Atleta',
+  teams: 'Equipa',
+  coaches: 'Treinador',
+  sponsors: 'Patrocínio',
+  events: 'Evento',
+  quotas: 'Quota',
+  equipment: 'Equipamento',
+  prospects: 'Recrutamento',
+  clinical_episodes: 'Episódio clínico',
+  clinical_sessions: 'Sessão',
+  physio_appointments: 'Atendimento',
+  physical_tests: 'Avaliação física',
+  training_phases: 'Fase',
+  mesocycles: 'Mesociclo',
+  gym_sessions: 'Treino de ginásio',
+  gym_exercises: 'Exercício',
+  finances: 'Movimento',
+  orders: 'Encomenda',
+  objectives: 'Objetivo',
+  documents: 'Documento',
+};
+
+// Etiquetas femininas — o particípio concorda em género («Equipa guardada»).
+const FEMININE = new Set([
+  'teams', 'quotas', 'clinical_sessions', 'orders', 'training_phases', 'physical_tests',
+]);
+
+// Aviso de confirmação para uma operação numa tabela conhecida.
+// `stem` é o particípio sem a vogal final: 'guardad' -> guardado/guardada.
+function toastEntity(table, stem) {
+  const label = ENTITY_LABEL[table];
+  if (!label) return;
+  toastOk(`${label} ${stem}${FEMININE.has(table) ? 'a' : 'o'}.`);
+}
 
 // Estado em memória. As vistas leem daqui após o carregamento inicial.
 export const state = {
@@ -573,6 +613,7 @@ export async function createRow(table, collection, values) {
     .single();
   if (error) throw error;
   state[collection].push(data);
+  toastEntity(table, 'criad');
   notify();
   return data;
 }
@@ -584,6 +625,8 @@ export async function createRows(table, collection, rows) {
   const { data, error } = await supabase.from(table).insert(rows).select();
   if (error) throw error;
   state[collection].push(...data);
+  const label = ENTITY_LABEL[table];
+  if (label) toastOk(`${data.length} registo${data.length === 1 ? '' : 's'} de ${label.toLowerCase()} criado${data.length === 1 ? '' : 's'}.`);
   notify();
   return data;
 }
@@ -749,6 +792,7 @@ export async function updateRow(table, collection, id, values) {
   if (error) throw error;
   const i = state[collection].findIndex((r) => r.id === id);
   if (i !== -1) state[collection][i] = data;
+  toastEntity(table, 'guardad');
   notify();
   return data;
 }
@@ -781,6 +825,7 @@ export async function archiveRow(table, id) {
     .eq('id', id);
   if (error) throw error;
   await loadAll();
+  toastEntity(table, 'arquivad');
 }
 
 // Repõe (reativa) um registo arquivado.
@@ -791,6 +836,7 @@ export async function restoreRow(table, id) {
     .eq('id', id);
   if (error) throw error;
   await loadAll();
+  toastEntity(table, 'repost');
 }
 
 export async function deleteRow(table, collection, id) {
@@ -851,6 +897,7 @@ export async function deleteRow(table, collection, id) {
   if (collection === 'trainingEvaluations') {
     state.trainingPlayerEvals = state.trainingPlayerEvals.filter((e) => e.evaluation_id !== id);
   }
+  toastEntity(table, 'removid');
   notify();
 }
 
@@ -1049,6 +1096,7 @@ export async function saveSettings(values) {
   state.settings = data;
   // Reaplica a marca — cobre qualquer alteração de cores/emblema/textos.
   applyBranding(state.settings);
+  toastOk('Definições guardadas.');
   notify();
   return data;
 }

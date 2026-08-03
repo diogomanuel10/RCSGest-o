@@ -62,6 +62,7 @@ src/
   permissions.js        Papéis e capacidades (canEdit, canManageUsers…)
   constants.js          Valores partilhados (níveis, estados, escalões, etc.)
   ui.js                 Utilitários de UI (esc, euros, loading/erro/vazio, logo)
+  toast.js              Avisos efémeros de confirmação/erro (toastOk/toastError)
   modal.js              Modal de formulário reutilizável + diálogo de confirmação
   style.css             Design system completo (tokens + componentes)
   players-xlsx.js       Importar atletas de .xlsx + gerar modelo (SheetJS lazy)
@@ -96,6 +97,21 @@ public/                 Ficheiros estáticos (modelo-atletas-rumia.xlsx)
 
 `onAuthChange` reage a login/logout (inclusive noutros separadores).
 
+## Navegação (rotas no endereço)
+
+A secção atual vive no **hash do endereço** (`#/planteis`), e o perfil de um
+atleta em `#/atleta/<id>[/<separador>]`. O `app-shell` trata o endereço como a
+fonte de verdade: `go()` e `setHash()` **escrevem** no hash e é o `hashchange`
+que desenha (`applyHash`). Assim, recarregar mantém o sítio, o botão "voltar" do
+browser desfaz o último passo e os links são partilháveis.
+
+- Uma rota desconhecida ou sem permissão cai na primeira secção permitida.
+- Quando o `paint()` muda de rota por sua conta, `syncHash()` corrige o endereço
+  com `replaceState` (sem criar passo no histórico).
+- O `renderAppShell` pode ser montado mais do que uma vez (ex.: fim do
+  onboarding); `disposeGlobals` limpa os listeners de `window`/`document` e a
+  subscrição ao store da montagem anterior.
+
 ## Camada de dados (`store.js`)
 
 - `state` — objeto em memória com `settings`, `coaches`, `teams`, `players`,
@@ -114,9 +130,21 @@ Cada `views/*.js` exporta `renderXxx(container)` que:
 1. Lê de `state` (e de `compute.js`) e escreve HTML em `container`.
 2. Liga os eventos (cliques, filtros) depois de inserir o HTML.
 3. Para criar/editar usa `openModal({ fields, onSubmit })` de `modal.js`;
-   para remover usa `confirmDialog(...)`.
+   para remover usa `confirmDialog(...)`. Cada campo aceita `hint` (texto de
+   ajuda por baixo, ligado por `aria-describedby`).
 4. Após uma operação no `store`, a notificação re-desenha a vista — por isso
    as vistas **não** atualizam o DOM manualmente após guardar.
+5. A **confirmação visível** da gravação vem do `store`, não da vista: as
+   operações genéricas (`createRow`, `updateRow`, `deleteRow`, `archiveRow`,
+   `restoreRow`, `saveSettings`) mostram um toast com o nome da entidade
+   (`ENTITY_LABEL` em `store.js`). Uma vista só chama `toastOk`/`toastError`
+   diretamente para ações que não passem por estas funções.
+
+O `modal.js` fecha com guarda: sair de um formulário com alterações por gravar
+pede confirmação. Os diálogos formam uma **pilha** (só o do topo reage ao
+Escape), prendem o foco (Tab não sai do modal) e devolvem-no ao elemento de
+origem. No `confirmDialog` o foco começa no **Cancelar**, para o Enter reflexo
+nunca confirmar uma ação destrutiva.
 
 Filtros e estados locais de UI (ex.: equipas expandidas) vivem em variáveis no
 topo do módulo da vista.

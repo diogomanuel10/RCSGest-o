@@ -109,7 +109,15 @@ const isMobile = () => window.matchMedia('(max-width: 820px)').matches;
 
 let current = 'painel';
 
+// Listeners registados fora do `root` (window/document) e a subscrição ao
+// store. O shell pode ser montado mais do que uma vez na mesma página — por
+// exemplo, ao terminar o onboarding — e sem isto cada montagem deixava para
+// trás os listeners da anterior, que continuavam a desenhar num DOM já morto.
+let disposeGlobals = null;
+
 export async function renderAppShell(root, session) {
+  disposeGlobals?.();
+  disposeGlobals = null;
   current = 'painel';
   root.removeAttribute('aria-busy');
 
@@ -205,10 +213,22 @@ export async function renderAppShell(root, session) {
         <div class="topbar__search" id="topbar-search">
           <div class="search-wrap">
             <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input type="search" class="search-input" id="search-input" placeholder="Pesquisar…" autocomplete="off" aria-label="Pesquisar atletas, treinadores…" />
+            <input type="search" class="search-input" id="search-input"
+                   placeholder="Pesquisar atletas, equipas, secções…" autocomplete="off"
+                   aria-label="Pesquisar atletas, equipas, treinadores, eventos e secções" />
+            <kbd class="search-kbd" aria-hidden="true">Ctrl K</kbd>
           </div>
           <div class="search-results" id="search-results" hidden></div>
+          <button class="search-close" id="search-close" type="button"
+                  aria-label="Fechar pesquisa">&times;</button>
         </div>
+        <button class="topbar__search-toggle" id="search-toggle" type="button"
+                aria-label="Pesquisar" aria-expanded="false">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+        </button>
         <div class="topbar__notif" id="notif-wrap" hidden>
           <button class="notif-bell" id="notif-btn" type="button"
                   aria-label="Notificações" aria-haspopup="true" aria-expanded="false">
@@ -263,10 +283,74 @@ export async function renderAppShell(root, session) {
   // paint() desenha o perfil em vez da rota atual. Sobrevive às atualizações.
   let detail = null;
   registerProfileOpener((playerId, opts) => {
-    detail = { playerId, opts: opts || {} };
+    setHash(`atleta/${playerId}${opts?.tab ? '/' + opts.tab : ''}`);
+  });
+
+  // --- Rotas no endereço (#/seccao) --------------------------------------
+  // Sem isto, recarregar a página devolve sempre ao Painel, o botão "voltar"
+  // do browser sai da aplicação e não há forma de partilhar o link de um
+  // atleta. O endereço passa a ser a fonte de verdade da navegação.
+
+  function setHash(path) {
+    const next = `#/${path}`;
+    if (location.hash === next) {
+      applyHash(); // mesmo destino: re-desenha (ex.: reabrir o mesmo atleta)
+      return;
+    }
+    location.hash = next;
+  }
+
+  // Traduz o endereço atual em { route } ou { playerId, tab }.
+  function parseHash() {
+    const raw = decodeURIComponent((location.hash || '').replace(/^#\/?/, '')).trim();
+    if (!raw) return null;
+    const [seg, a, b] = raw.split('/');
+    if (seg === 'atleta' && a) return { playerId: a, tab: b || undefined };
+    return { route: seg };
+  }
+
+  function applyHash() {
+    const parsed = parseHash();
+    if (parsed?.playerId) {
+      detail = { playerId: parsed.playerId, opts: parsed.tab ? { tab: parsed.tab } : {} };
+    } else {
+      detail = null;
+      // Rota desconhecida (link antigo ou erro de escrita) cai na primeira
+      // secção permitida, em vez de mostrar um ecrã vazio.
+      const item = parsed?.route ? allRoutes().find((n) => n.key === parsed.route) : null;
+      if (item && routeAllowed(item)) current = item.key;
+      else current = firstAllowedRoute();
+    }
     paint();
     content.scrollTop = 0;
-  });
+  }
+
+  // Passos de navegação dados dentro da app. Serve para saber se há para onde
+  // "voltar": num link partilhado que abre logo o perfil de um atleta, o
+  // histórico está vazio e um history.back() sairia da aplicação.
+  let inAppNavs = 0;
+  const onHashChange = () => {
+    inAppNavs++;
+    applyHash();
+  };
+  window.addEventListener('hashchange', onHashChange);
+
+  // Alinha o endereço com o que está desenhado, sem criar um passo no
+  // histórico. Usa-se quando o paint() muda de rota por sua conta (rota sem
+  // permissão, atleta apagado…) e o endereço ficaria a apontar para o sítio
+  // errado.
+  function syncHash(route) {
+    const expected = `#/${route}`;
+    if (location.hash === expected) return;
+    // replaceState não dispara `hashchange`, por isso não há re-desenho a
+    // evitar — só corrige o endereço no sítio.
+    history.replaceState(null, '', location.pathname + location.search + expected);
+  }
+
+  function goBack() {
+    if (inAppNavs > 0) history.back();
+    else setHash(current || firstAllowedRoute() || 'painel');
+  }
 
   // --- Gaveta (telemóvel) ---
   function toggleMenu() {
@@ -280,9 +364,10 @@ export async function renderAppShell(root, session) {
   root.querySelector('#scrim').addEventListener('click', closeDrawer);
   root.querySelector('#logout').addEventListener('click', () => signOut());
 
-  window.addEventListener('resize', () => {
+  const onResize = () => {
     if (!isMobile()) closeDrawer();
-  });
+  };
+  window.addEventListener('resize', onResize);
 
   root.querySelectorAll('[data-route]').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -309,6 +394,11 @@ export async function renderAppShell(root, session) {
   // Um item é visível se: footer → o seu próprio `can`; NAV → canAccess(key).
   function routeAllowed(item) {
     return item.can ? item.can() : canAccess(item.key);
+  }
+
+  // Primeira secção a que o utilizador tem acesso (o Painel, quase sempre).
+  function firstAllowedRoute() {
+    return allRoutes().filter(routeAllowed)[0]?.key || null;
   }
 
   function refreshChrome() {
@@ -364,7 +454,9 @@ export async function renderAppShell(root, session) {
         try {
           renderAthleteProfilePage(content, detail.playerId, {
             ...detail.opts,
-            onBack: () => { detail = null; paint(); content.scrollTop = 0; },
+            // "Voltar" desfaz o passo no histórico, para coincidir com o botão
+            // de voltar do browser/telemóvel em vez de o contrariar.
+            onBack: goBack,
           });
         } catch (err) {
           content.innerHTML = errorHTML('Não foi possível mostrar o atleta.');
@@ -387,6 +479,7 @@ export async function renderAppShell(root, session) {
     if (!item || !routeAllowed(item)) current = allowed[0].key;
 
     const view = allRoutes().find((n) => n.key === current) || allowed[0];
+    syncHash(view.key);
     setActive();
     content.classList.toggle('content__inner--wide', !!view.wide);
     try {
@@ -397,81 +490,239 @@ export async function renderAppShell(root, session) {
     }
   }
 
+  // Navegar escreve no endereço; o `hashchange` trata de desenhar. Assim o
+  // botão "voltar" do browser desfaz sempre o último passo da navegação.
   function go(route) {
-    detail = null; // navegar para uma secção fecha o perfil do atleta
-    current = route;
-    paint();
-    content.scrollTop = 0;
+    setHash(route);
   }
 
   // --- Pesquisa global ---
+  // Um único sítio para chegar a qualquer coisa: atletas, treinadores, equipas,
+  // eventos e as próprias secções. Atalho Ctrl/⌘+K, navegação com as setas.
   const searchInput = root.querySelector('#search-input');
   const searchResults = root.querySelector('#search-results');
+  let searchHits = [];
+  let activeHit = -1;
+
+  // Normaliza para comparar sem acentos nem maiúsculas — "jose" encontra
+  // "José", que é como as pessoas escrevem quando têm pressa.
+  const norm = (v) => String(v || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
 
   function searchAll(q) {
-    const lq = q.toLowerCase().trim();
+    const lq = norm(q).trim();
     if (!lq) return [];
-    const results = [];
+    const hits = [];
+    const match = (v) => norm(v).includes(lq);
 
-    state.players
-      .filter((p) => p.name?.toLowerCase().includes(lq))
-      .slice(0, 5)
-      .forEach((p) => {
-        const team = state.teams.find((t) => t.id === p.team_id);
-        results.push({ label: p.name, meta: [p.position, team ? teamName(team) : ''].filter(Boolean).join(' · '), route: 'planteis', group: 'Atletas' });
-      });
+    if (canAccess('planteis')) {
+      state.players
+        .filter((p) => match(p.name))
+        .slice(0, 6)
+        .forEach((p) => {
+          const team = state.teams.find((t) => t.id === p.team_id);
+          hits.push({
+            label: p.name,
+            meta: [p.position, team ? teamName(team) : ''].filter(Boolean).join(' · '),
+            playerId: p.id,
+            group: 'Atletas',
+          });
+        });
 
-    state.coaches
-      .filter((c) => c.name?.toLowerCase().includes(lq))
-      .slice(0, 3)
-      .forEach((c) => results.push({ label: c.name, meta: 'Treinador/a', route: 'treinadores', group: 'Treinadores' }));
+      state.teams
+        .filter((t) => match(teamName(t)))
+        .slice(0, 3)
+        .forEach((t) => hits.push({ label: teamName(t), meta: 'Equipa', route: 'planteis', group: 'Equipas' }));
+    }
 
-    return results.slice(0, 8);
+    if (canAccess('treinadores')) {
+      state.coaches
+        .filter((c) => match(c.name))
+        .slice(0, 3)
+        .forEach((c) => hits.push({ label: c.name, meta: 'Treinador/a', route: 'treinadores', group: 'Treinadores' }));
+    }
+
+    if (canAccess('calendario')) {
+      state.events
+        .filter((e) => match(e.title) || match(e.opponent) || match(e.location))
+        .slice(0, 4)
+        .forEach((e) => {
+          const team = state.teams.find((t) => t.id === e.team_id);
+          hits.push({
+            label: e.title || e.opponent || 'Evento',
+            meta: [e.date, team ? teamName(team) : ''].filter(Boolean).join(' · '),
+            route: 'calendario',
+            group: 'Calendário',
+          });
+        });
+    }
+
+    // As próprias secções: quem não sabe onde fica uma coisa escreve o nome
+    // dela na pesquisa antes de procurar no menu.
+    allRoutes()
+      .filter((n) => routeAllowed(n) && match(n.label))
+      .slice(0, 4)
+      .forEach((n) => hits.push({ label: n.label, meta: 'Ir para a secção', route: n.key, group: 'Secções' }));
+
+    return hits.slice(0, 10);
   }
 
-  function renderSearchResults(results) {
-    if (!results.length) {
-      searchResults.hidden = true;
+  function openHit(hit) {
+    if (!hit) return;
+    searchInput.value = '';
+    hideResults();
+    searchInput.blur();
+    closeMobileSearch();
+    if (hit.playerId) setHash(`atleta/${hit.playerId}`);
+    else go(hit.route);
+  }
+
+  function hideResults() {
+    searchResults.hidden = true;
+    searchResults.innerHTML = '';
+    searchInput.setAttribute('aria-expanded', 'false');
+    activeHit = -1;
+  }
+
+  function highlight(index) {
+    const items = [...searchResults.querySelectorAll('.search-result')];
+    if (!items.length) return;
+    activeHit = (index + items.length) % items.length;
+    items.forEach((el, i) => {
+      const on = i === activeHit;
+      el.classList.toggle('search-result--active', on);
+      if (on) el.scrollIntoView({ block: 'nearest' });
+    });
+  }
+
+  function renderSearchResults(hits) {
+    searchHits = hits;
+    if (!hits.length) {
+      // Dizer que não há nada é melhor do que fazer desaparecer o painel e
+      // deixar dúvidas sobre se a pesquisa chegou a correr.
+      if (searchInput.value.trim()) {
+        searchResults.innerHTML = '<p class="search-empty">Sem resultados.</p>';
+        searchResults.hidden = false;
+        searchInput.setAttribute('aria-expanded', 'true');
+      } else {
+        hideResults();
+      }
       return;
     }
     let html = '';
     let lastGroup = '';
-    results.forEach((r, i) => {
+    hits.forEach((r, i) => {
       if (r.group !== lastGroup) {
         html += `<div class="search-group">${esc(r.group)}</div>`;
         lastGroup = r.group;
       }
-      html += `<button class="search-result" type="button" data-idx="${i}">${esc(r.label)}${r.meta ? `<span class="search-result__meta">${esc(r.meta)}</span>` : ''}</button>`;
+      html += `<button class="search-result" type="button" role="option" data-idx="${i}">${esc(r.label)}${
+        r.meta ? `<span class="search-result__meta">${esc(r.meta)}</span>` : ''
+      }</button>`;
     });
     searchResults.innerHTML = html;
     searchResults.hidden = false;
+    searchInput.setAttribute('aria-expanded', 'true');
+    activeHit = -1;
 
     searchResults.querySelectorAll('.search-result').forEach((btn) => {
       btn.addEventListener('mousedown', (e) => {
         e.preventDefault();
-        go(results[Number(btn.dataset.idx)].route);
-        searchInput.value = '';
-        searchResults.hidden = true;
+        openHit(searchHits[Number(btn.dataset.idx)]);
       });
+      btn.addEventListener('mousemove', () => highlight(Number(btn.dataset.idx)));
     });
   }
+
+  // No telemóvel a barra de pesquisa não cabe ao lado da marca, por isso vive
+  // atrás de um botão e abre por cima da topbar quando é pedida.
+  const searchToggle = root.querySelector('#search-toggle');
+  const topbar = root.querySelector('.topbar');
+
+  function closeMobileSearch() {
+    topbar.classList.remove('topbar--searching');
+    searchToggle.setAttribute('aria-expanded', 'false');
+  }
+
+  root.querySelector('#search-close').addEventListener('click', () => {
+    searchInput.value = '';
+    hideResults();
+    closeMobileSearch();
+  });
+
+  searchToggle.addEventListener('click', () => {
+    const opening = !topbar.classList.contains('topbar--searching');
+    topbar.classList.toggle('topbar--searching', opening);
+    searchToggle.setAttribute('aria-expanded', String(opening));
+    if (opening) searchInput.focus();
+    else searchInput.value = '';
+  });
+
+  searchInput.setAttribute('role', 'combobox');
+  searchInput.setAttribute('aria-expanded', 'false');
+  searchInput.setAttribute('aria-autocomplete', 'list');
 
   searchInput.addEventListener('input', () => {
     renderSearchResults(searchAll(searchInput.value));
   });
   searchInput.addEventListener('blur', () => {
-    setTimeout(() => { searchResults.hidden = true; }, 150);
+    setTimeout(hideResults, 150);
   });
   searchInput.addEventListener('focus', () => {
     if (searchInput.value) renderSearchResults(searchAll(searchInput.value));
   });
   searchInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { searchInput.value = ''; searchResults.hidden = true; searchInput.blur(); }
+    if (e.key === 'Escape') {
+      searchInput.value = '';
+      hideResults();
+      searchInput.blur();
+      closeMobileSearch();
+      return;
+    }
+    if (searchResults.hidden || !searchHits.length) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); highlight(activeHit + 1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); highlight(activeHit - 1); }
+    else if (e.key === 'Enter') {
+      e.preventDefault();
+      openHit(searchHits[activeHit >= 0 ? activeHit : 0]);
+    }
   });
 
-  subscribe(() => paint());
+  // Ctrl/⌘+K e "/" saltam para a pesquisa de qualquer ponto da aplicação.
+  const onGlobalKey = (e) => {
+    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName || '')
+      || e.target?.isContentEditable;
+    const shortcut = (e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey);
+    if (shortcut || (e.key === '/' && !typing && !e.metaKey && !e.ctrlKey && !e.altKey)) {
+      e.preventDefault();
+      if (isMobile()) {
+        topbar.classList.add('topbar--searching');
+        searchToggle.setAttribute('aria-expanded', 'true');
+      }
+      searchInput.focus();
+      searchInput.select();
+    }
+  };
+  document.addEventListener('keydown', onGlobalKey);
+
+  const unsubscribe = subscribe(() => paint());
+
+  // Tudo o que este shell registou fora do `root`, para a próxima montagem
+  // poder limpar (ver `disposeGlobals`).
+  disposeGlobals = () => {
+    window.removeEventListener('hashchange', onHashChange);
+    window.removeEventListener('resize', onResize);
+    document.removeEventListener('keydown', onGlobalKey);
+    unsubscribe();
+    disposeNotif?.();
+  };
 
   // --- Notificações (só para coordenador) --------------------------------
+
+  // Limpeza do listener global do painel de notificações (ver disposeGlobals).
+  let disposeNotif = null;
 
   function _notifIcon(type) {
     const icons = {
@@ -570,10 +821,12 @@ export async function renderAppShell(root, session) {
       panel.classList.contains('notif-panel--open') ? closePanel() : openPanel();
     });
 
-    document.addEventListener('click', (e) => {
+    const onDocClick = (e) => {
       if (!panel.classList.contains('notif-panel--open')) return;
       if (!panel.contains(e.target) && e.target !== btn) closePanel();
-    });
+    };
+    document.addEventListener('click', onDocClick);
+    disposeNotif = () => document.removeEventListener('click', onDocClick);
 
     readAllBtn.addEventListener('click', async () => {
       await markAllRead();
@@ -615,7 +868,9 @@ export async function renderAppShell(root, session) {
   content.innerHTML = loadingHTML('A carregar os dados do clube…');
   try {
     if (!state.loaded) await loadAll();
-    paint();
+    // Respeita o endereço com que a página abriu (link partilhado, recarga,
+    // favorito) em vez de cair sempre no Painel.
+    applyHash();
     setupNotifications().catch((err) => console.error('Notificações:', err));
   } catch (err) {
     content.innerHTML = errorHTML(
