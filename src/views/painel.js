@@ -42,6 +42,7 @@ import { openEventForm, openRecurrentTrainings } from './calendario.js';
 import { openSponsorForm } from './patrocinios.js';
 import { openAthleteProfile } from './athlete-profile.js';
 import { openSeasonPlanning } from './planteis.js';
+import { DEFAULT_BRANDING } from '../branding.js';
 
 const ICON_MONEY = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v12m-3-3.5c0 1.38 1.34 2.5 3 2.5s3-1.12 3-2.5c0-1.74-1.35-2.17-3-2.5C10.35 11.67 9 11.24 9 9.5 9 8.12 10.34 7 12 7s3 1.12 3 2.5"/></svg>`;
 
@@ -211,6 +212,19 @@ export function renderPainel(container) {
 // indicadores a zero e não diz por onde começar. A lista aparece enquanto
 // faltar algum passo essencial e desaparece sozinha quando estiver tudo feito.
 
+// O clube já foi personalizado? Conta qualquer campo de marca afastado do
+// valor por omissão — emblema, nomes, lema ou cores. Olhar só para o emblema
+// deixava o passo por marcar a quem tinha mudado o nome e as cores.
+function isBranded() {
+  const s = state.settings || {};
+  if (s.logo_url) return true;
+  return ['club_name', 'app_name', 'motto', 'brand_primary', 'brand_accent'].some((key) => {
+    const value = (s[key] || '').trim();
+    if (!value) return false;
+    return value.toLowerCase() !== String(DEFAULT_BRANDING[key]).toLowerCase();
+  });
+}
+
 function firstSteps() {
   // Só faz sentido para quem pode mesmo criar as coisas (o coordenador).
   if (!canEdit('teams') || !canEdit('players')) return null;
@@ -242,7 +256,7 @@ function firstSteps() {
       can: canManageUsers,
     },
     {
-      done: !!state.settings?.logo_url,
+      done: isBranded(),
       title: 'Personalizar o clube',
       sub: 'Emblema, cores e época — para a app ficar com a tua cara.',
       route: 'definicoes',
