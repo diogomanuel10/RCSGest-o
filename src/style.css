@@ -58,7 +58,8 @@
 
 /* --- Tema escuro -------------------------------------------------------
    Redefine só os tokens de "chão" (fundos, texto, bordas, estados, sombras).
-   As cores da marca (--navy*/--yellow*) vêm de branding.js, já cientes do tema.
+   As cores da marca (--navy… e --yellow…) vêm de branding.js, já cientes do
+   tema.
    Aplica-se por prefers-color-scheme (modo 'auto') E por data-theme="dark"
    (escolha explícita); o data-theme="light" força claro mesmo com SO escuro. */
 @media (prefers-color-scheme: dark) {
@@ -3998,7 +3999,8 @@ button.metric--nav:focus-visible {
   color: var(--text);
   font-family: var(--font-body);
   font-size: 0.86rem;
-  padding: 0.4rem 0.75rem 0.4rem 2rem;
+  /* Folga à direita para o atalho "Ctrl K" não tapar o texto do campo. */
+  padding: 0.4rem 4.2rem 0.4rem 2rem;
   outline: none;
   transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
 }
@@ -4821,4 +4823,295 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
   border-top: 1px solid var(--border);
   padding-top: 0.65rem;
   justify-content: flex-end;
+}
+
+/* =========================================================================
+   Avisos efémeros (toasts) — confirmação das ações
+   ========================================================================= */
+.toast-host {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 400;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: flex-end;
+  pointer-events: none;
+}
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  max-width: min(380px, calc(100vw - 2rem));
+  padding: 0.7rem 0.85rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+  font-size: 0.88rem;
+  color: var(--text);
+  animation: toast-in 0.22s ease-out;
+}
+.toast--out { animation: toast-out 0.2s ease-in forwards; }
+.toast__icon {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+}
+.toast__icon svg { width: 13px; height: 13px; }
+.toast--ok    .toast__icon { background: var(--ok-bg);     color: var(--ok); }
+.toast--error .toast__icon { background: var(--danger-bg); color: var(--danger); }
+.toast--info  .toast__icon { background: var(--info-bg);   color: var(--info); }
+.toast--ok    { border-left: 3px solid var(--ok); }
+.toast--error { border-left: 3px solid var(--danger); }
+.toast--info  { border-left: 3px solid var(--info); }
+.toast__text { flex: 1; min-width: 0; }
+.toast__close {
+  flex: none;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.15rem;
+  border-radius: var(--radius-xs);
+}
+.toast__close:hover { color: var(--text); }
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes toast-out {
+  from { opacity: 1; transform: none; }
+  to   { opacity: 0; transform: translateY(6px); }
+}
+
+/* Em telemóvel os avisos ocupam a largura toda, por cima do conteúdo. */
+@media (max-width: 520px) {
+  .toast-host {
+    left: 0.75rem;
+    right: 0.75rem;
+    bottom: 0.75rem;
+    align-items: stretch;
+  }
+  .toast { max-width: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast, .toast--out { animation: none; }
+}
+
+/* =========================================================================
+   Primeiros passos (Painel de um clube novo)
+   ========================================================================= */
+.steps-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.6rem;
+}
+.steps-card__caption {
+  margin: 0.15rem 0 0;
+  font-size: 0.85rem;
+}
+.steps-card__pct {
+  font-family: var(--font-title);
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--navy);
+  line-height: 1;
+}
+.steps-list {
+  list-style: none;
+  margin: 0.9rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.step-item {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  padding: 0.6rem 0.7rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.14s, border-color 0.14s, transform 0.12s;
+}
+.step-item:hover {
+  border-color: var(--navy-300);
+  transform: translateX(2px);
+}
+.step-item__mark {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  display: grid;
+  place-items: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #fff;
+}
+.step-item--done .step-item__mark {
+  background: var(--ok);
+  border-color: var(--ok);
+}
+.step-item__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  flex: 1;
+  min-width: 0;
+}
+.step-item__title { font-weight: 600; font-size: 0.92rem; }
+.step-item--done .step-item__title {
+  text-decoration: line-through;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+.step-item__sub { font-size: 0.8rem; }
+
+/* =========================================================================
+   Pesquisa — atalho, item ativo e estado vazio
+   ========================================================================= */
+.search-kbd {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  font-family: var(--font-body);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  padding: 0.1rem 0.3rem;
+  opacity: 0.9;
+}
+.search-input:focus ~ .search-kbd { opacity: 0; }
+/* Item apontado pelas setas — mesmo destaque do hover, para o teclado e o
+   rato darem a mesma leitura. */
+.search-result--active { background: var(--navy-100); }
+.search-empty {
+  margin: 0;
+  padding: 0.75rem;
+  font-size: 0.86rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* =========================================================================
+   Campo de palavra-passe com "Mostrar / Esconder"
+   ========================================================================= */
+.input-reveal { position: relative; display: flex; }
+.input-reveal input { flex: 1; padding-right: 5.2rem; }
+.input-reveal__btn {
+  position: absolute;
+  right: 0.35rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  padding: 0.3rem 0.45rem;
+  border-radius: var(--radius-xs);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--navy);
+  cursor: pointer;
+}
+.input-reveal__btn:hover { background: var(--navy-100); }
+.login__link {
+  margin-top: 0.6rem;
+  width: 100%;
+}
+
+/* Dica por baixo de um campo do formulário e marca de obrigatório. */
+.field__hint {
+  margin: 0.25rem 0 0;
+  font-size: 0.79rem;
+  line-height: 1.35;
+}
+.field__req { color: var(--danger); }
+
+/* =========================================================================
+   Pesquisa no telemóvel — atrás de um botão, abre por cima da topbar
+   ========================================================================= */
+.topbar__search-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex: none;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.topbar__search-toggle:hover { background: var(--bg); color: var(--text); }
+
+@media (max-width: 820px) {
+  .topbar__search-toggle { display: inline-flex; }
+  /* A barra abre sobreposta, ocupando a topbar toda — no telemóvel não há
+     largura para a ter sempre visível ao lado da marca. */
+  .topbar--searching .topbar__search {
+    display: block;
+    position: absolute;
+    inset: 0;
+    z-index: 60;
+    background: var(--surface);
+    padding: 0.5rem 0.75rem;
+    display: flex;
+    align-items: center;
+  }
+  .topbar--searching .search-wrap { flex: 1; }
+  .topbar--searching .search-results {
+    top: calc(100% - 0.25rem);
+    left: 0.75rem;
+    right: 0.75rem;
+  }
+  /* O atalho de teclado não se aplica a quem usa o telemóvel. */
+  .search-kbd { display: none; }
+}
+
+/* Botão de fechar da pesquisa em telemóvel (no desktop a barra está sempre
+   visível e não precisa de ser fechada). */
+.search-close {
+  display: none;
+  flex: none;
+  margin-left: 0.4rem;
+  width: 34px;
+  height: 34px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.search-close:hover { background: var(--bg); color: var(--text); }
+@media (max-width: 820px) {
+  .topbar--searching .search-close { display: block; }
 }

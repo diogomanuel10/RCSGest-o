@@ -3,7 +3,21 @@
 
 import { esc } from './ui.js';
 
-let openCount = 0;
+// Pilha de diálogos abertos. Só o do topo reage ao Escape — sem isto, cancelar
+// o aviso de "alterações por guardar" fechava também o formulário por trás.
+const stack = [];
+const isTop = (overlay) => stack[stack.length - 1] === overlay;
+
+function pushOverlay(overlay) {
+  stack.push(overlay);
+  document.body.classList.add('no-scroll');
+}
+
+function popOverlay(overlay) {
+  const i = stack.indexOf(overlay);
+  if (i !== -1) stack.splice(i, 1);
+  if (!stack.length) document.body.classList.remove('no-scroll');
+}
 
 // Constrói o HTML de um campo a partir da sua definição.
 function fieldHTML(field, value) {
@@ -47,16 +61,56 @@ function fieldHTML(field, value) {
   }
 
   const span = field.full ? ' field--full' : '';
+  // `hint` explica o campo por baixo do controlo (ligado por aria-describedby,
+  // para os leitores de ecrã o anunciarem junto com a etiqueta).
+  const hint = field.hint
+    ? `<p class="field__hint muted" id="${id}-hint">${esc(field.hint)}</p>`
+    : '';
+  const described = field.hint ? ` aria-describedby="${id}-hint"` : '';
   return `<div class="field${span}" data-field="${field.name}">
-    <label for="${id}">${esc(field.label)}${field.required ? ' *' : ''}</label>
-    ${control}
+    <label for="${id}">${esc(field.label)}${
+      field.required ? ' <span class="field__req" title="Obrigatório">*</span>' : ''
+    }</label>
+    ${described ? control.replace(/^(<\w+)/, `$1${described}`) : control}
+    ${hint}
   </div>`;
+}
+
+// Elementos que podem receber foco dentro de um contentor, pela ordem do DOM.
+function focusables(root) {
+  return [...root.querySelectorAll(
+    'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  )].filter((el) => el.offsetParent !== null || el === document.activeElement);
+}
+
+// Mantém o Tab dentro do diálogo (requisito de acessibilidade dos modais) e
+// devolve o foco ao elemento de origem quando fecha.
+function trapFocus(overlay) {
+  const previous = document.activeElement;
+  function onKeydown(e) {
+    if (e.key !== 'Tab') return;
+    const items = focusables(overlay);
+    if (!items.length) return;
+    const first = items[0];
+    const last = items[items.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
+  overlay.addEventListener('keydown', onKeydown);
+  return () => {
+    overlay.removeEventListener('keydown', onKeydown);
+    if (previous && document.contains(previous)) previous.focus();
+  };
 }
 
 // Abre um modal com um formulário. `onSubmit(values)` pode lançar erro
 // (mostrado no topo do formulário) ou devolver para fechar.
 export function openModal({ title, fields, values = {}, submitLabel = 'Guardar', onSubmit }) {
-  openCount++;
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
@@ -78,32 +132,52 @@ export function openModal({ title, fields, values = {}, submitLabel = 'Guardar',
     </div>
   `;
   document.body.appendChild(overlay);
-  document.body.classList.add('no-scroll');
+  pushOverlay(overlay);
 
   const form = overlay.querySelector('form');
   const errorEl = overlay.querySelector('.modal__error');
   const submitBtn = overlay.querySelector('[data-submit]');
+  const releaseFocus = trapFocus(overlay);
 
   // Foco no primeiro campo.
   const firstInput = form.querySelector('input, select, textarea');
   firstInput?.focus();
 
+  // Instantâneo do formulário ao abrir, para detetar alterações por gravar.
+  const initial = new URLSearchParams(new FormData(form)).toString();
+  const isDirty = () =>
+    new URLSearchParams(new FormData(form)).toString() !== initial;
+
   function close() {
+    releaseFocus();
     overlay.remove();
-    openCount--;
-    if (openCount === 0) document.body.classList.remove('no-scroll');
+    popOverlay(overlay);
     document.removeEventListener('keydown', onKey);
   }
 
+  // Fechar com alterações por gravar pede confirmação — fechar sem querer
+  // (Escape ou clique fora) é a forma mais fácil de perder trabalho.
+  async function requestClose() {
+    if (!isDirty()) return close();
+    const ok = await confirmDialog(
+      'Tens alterações por guardar. Queres fechar e perdê-las?',
+      { confirmLabel: 'Fechar sem guardar', danger: true }
+    );
+    if (ok) close();
+  }
+
   function onKey(e) {
-    if (e.key === 'Escape') close();
+    // Só o modal mais acima reage ao Escape (evita fechar o formulário quando
+    // se cancela o diálogo de confirmação que ele próprio abriu).
+    if (e.key !== 'Escape' || !isTop(overlay)) return;
+    requestClose();
   }
   document.addEventListener('keydown', onKey);
 
-  overlay.querySelector('.modal__close').addEventListener('click', close);
-  overlay.querySelector('[data-cancel]').addEventListener('click', close);
+  overlay.querySelector('.modal__close').addEventListener('click', requestClose);
+  overlay.querySelector('[data-cancel]').addEventListener('click', requestClose);
   overlay.addEventListener('mousedown', (e) => {
-    if (e.target === overlay) close();
+    if (e.target === overlay) requestClose();
   });
 
   form.addEventListener('submit', async (e) => {
@@ -119,6 +193,9 @@ export function openModal({ title, fields, values = {}, submitLabel = 'Guardar',
     } catch (err) {
       errorEl.textContent = err.message || 'Não foi possível guardar.';
       errorEl.classList.remove('hidden');
+      // Leva o utilizador ao erro — num formulário longo, uma mensagem no topo
+      // fora do ecrã passa despercebida e parece que o botão não fez nada.
+      errorEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       submitBtn.disabled = false;
       submitBtn.textContent = submitLabel;
     }
@@ -144,18 +221,30 @@ export function confirmDialog(message, { confirmLabel = 'Remover', danger = true
       </div>
     `;
     document.body.appendChild(overlay);
-    document.body.classList.add('no-scroll');
+    pushOverlay(overlay);
+    const releaseFocus = trapFocus(overlay);
 
     function done(result) {
+      releaseFocus();
       overlay.remove();
-      document.body.classList.remove('no-scroll');
+      popOverlay(overlay);
+      document.removeEventListener('keydown', onKey);
       resolve(result);
     }
+
+    // Escape cancela — a saída segura, coerente com o botão «Cancelar».
+    function onKey(e) {
+      if (e.key === 'Escape' && isTop(overlay)) done(false);
+    }
+    document.addEventListener('keydown', onKey);
+
     overlay.querySelector('[data-no]').addEventListener('click', () => done(false));
     overlay.querySelector('[data-yes]').addEventListener('click', () => done(true));
     overlay.addEventListener('mousedown', (e) => {
       if (e.target === overlay) done(false);
     });
-    overlay.querySelector('[data-yes]').focus();
+    // Foco no «Cancelar»: numa ação destrutiva, o Enter reflexo não deve
+    // confirmar. Quem quer mesmo remover carrega no botão ou faz Tab.
+    overlay.querySelector('[data-no]').focus();
   });
 }

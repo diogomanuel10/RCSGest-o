@@ -33,7 +33,9 @@ import {
   EPISODE_STATUS_LABEL,
   EPISODE_STATUS_BADGE,
 } from '../constants.js';
-import { canEdit, canAccess, isFisio, isPreparador } from '../permissions.js';
+import {
+  canEdit, canAccess, isFisio, isPreparador, canManageUsers, canManageSettings,
+} from '../permissions.js';
 import { openQuickAttendance } from './presencas.js';
 import { openTrainingPlan } from './training-plan.js';
 import { openEventForm, openRecurrentTrainings } from './calendario.js';
@@ -115,6 +117,8 @@ export function renderPainel(container) {
     seeEquip    && metricCard(ICON_BOX, 'Equipamentos', state.equipment.length, equipReview ? `${equipReview} em mau estado` : 'inventário em dia', equipReview ? 'accent' : 'purple', 'equipamentos'),
   ].filter(Boolean);
 
+  const steps = firstSteps();
+
   container.innerHTML = `
     <header class="page-head page-head--hero">
       <div>
@@ -125,6 +129,8 @@ export function renderPainel(container) {
         <button class="btn btn--ghost btn--sm" data-quick="${q.key}" type="button">${esc(q.label)}</button>
       `).join('')}</div>` : ''}
     </header>
+
+    ${steps ? stepsCard(steps) : ''}
 
     ${today.length && seeCalendar ? `<section class="card today-card">
       <h2 class="section-title upcoming-card__title">Hoje</h2>
@@ -198,6 +204,89 @@ export function renderPainel(container) {
       if (fn) fn();
     });
   });
+}
+
+// --- Primeiros passos ----------------------------------------------------
+// Um clube acabado de criar não tem nada: sem isto, o Painel mostra só
+// indicadores a zero e não diz por onde começar. A lista aparece enquanto
+// faltar algum passo essencial e desaparece sozinha quando estiver tudo feito.
+
+function firstSteps() {
+  // Só faz sentido para quem pode mesmo criar as coisas (o coordenador).
+  if (!canEdit('teams') || !canEdit('players')) return null;
+
+  const steps = [
+    {
+      done: state.teams.length > 0,
+      title: 'Criar a primeira equipa',
+      sub: 'Escalão, género e treinador — a base de tudo o resto.',
+      route: 'planteis',
+    },
+    {
+      done: state.players.length > 0,
+      title: 'Adicionar atletas',
+      sub: 'Um a um, ou importa a lista toda de um ficheiro Excel.',
+      route: 'planteis',
+    },
+    {
+      done: state.events.length > 0,
+      title: 'Agendar treinos e jogos',
+      sub: 'Com o calendário preenchido podes marcar presenças.',
+      route: 'calendario',
+    },
+    {
+      done: (state.profiles?.length || 0) > 1 || (state.invitations?.length || 0) > 0,
+      title: 'Convidar a tua equipa técnica',
+      sub: 'Cada pessoa entra com a sua conta e vê só o que lhe compete.',
+      route: 'utilizadores',
+      can: canManageUsers,
+    },
+    {
+      done: !!state.settings?.logo_url,
+      title: 'Personalizar o clube',
+      sub: 'Emblema, cores e época — para a app ficar com a tua cara.',
+      route: 'definicoes',
+      can: canManageSettings,
+    },
+  ].filter((s) => (s.can ? s.can() : true));
+
+  // Tudo feito: o cartão sai da frente e não volta.
+  return steps.every((s) => s.done) ? null : steps;
+}
+
+function stepsCard(steps) {
+  const done = steps.filter((s) => s.done).length;
+  const pct = Math.round((done / steps.length) * 100);
+  return `
+    <section class="card steps-card">
+      <div class="steps-card__head">
+        <div>
+          <h2 class="section-title upcoming-card__title">Primeiros passos</h2>
+          <p class="muted steps-card__caption">
+            ${done} de ${steps.length} concluídos — clica num passo para o fazer.
+          </p>
+        </div>
+        <span class="steps-card__pct">${pct}%</span>
+      </div>
+      <div class="progress" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100">
+        <div class="progress__bar" style="width:${pct}%"></div>
+      </div>
+      <ul class="steps-list">
+        ${steps.map((s) => `
+          <li>
+            <button class="step-item${s.done ? ' step-item--done' : ''}" type="button" data-nav="${esc(s.route)}">
+              <span class="step-item__mark" aria-hidden="true">${s.done ? '✓' : ''}</span>
+              <span class="step-item__text">
+                <strong class="step-item__title">${esc(s.title)}</strong>
+                <span class="muted step-item__sub">${esc(s.sub)}</span>
+              </span>
+              <span class="alert-item__chevron" aria-hidden="true">›</span>
+            </button>
+          </li>
+        `).join('')}
+      </ul>
+    </section>
+  `;
 }
 
 // Saudação conforme a hora do dia.
