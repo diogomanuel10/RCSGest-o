@@ -110,7 +110,9 @@ function trapFocus(overlay) {
 
 // Abre um modal com um formulário. `onSubmit(values)` pode lançar erro
 // (mostrado no topo do formulário) ou devolver para fechar.
-export function openModal({ title, fields, values = {}, submitLabel = 'Guardar', onSubmit }) {
+export function openModal({
+  title, fields, values = {}, submitLabel = 'Guardar', onSubmit, onFieldChange,
+}) {
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
@@ -142,6 +144,19 @@ export function openModal({ title, fields, values = {}, submitLabel = 'Guardar',
   // Foco no primeiro campo.
   const firstInput = form.querySelector('input, select, textarea');
   firstInput?.focus();
+
+  // Campos marcados com `reactive: true` avisam assim que mudam, para a vista
+  // poder reconstruir o formulário (ex.: mudar o tipo de objetivo troca os
+  // campos seguintes). Reconstruir só na gravação não serve: os campos
+  // obrigatórios ainda por preencher bloqueiam o submit antes de lá chegar.
+  if (onFieldChange) {
+    fields.filter((f) => f.reactive).forEach((f) => {
+      form.querySelector(`[name="${f.name}"]`)?.addEventListener('change', () => {
+        const current = Object.fromEntries(new FormData(form).entries());
+        onFieldChange(f.name, current);
+      });
+    });
+  }
 
   // Instantâneo do formulário ao abrir, para detetar alterações por gravar.
   const initial = new URLSearchParams(new FormData(form)).toString();

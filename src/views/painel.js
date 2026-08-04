@@ -24,6 +24,7 @@ import {
   apptDateTime,
   activeEpisode,
   expiringDocuments,
+  objectivesNeedingAttention,
 } from '../compute.js';
 import {
   EVENT_TYPE_LABEL,
@@ -419,6 +420,24 @@ function buildActions() {
       route: 'equipamentos',
       title: `${n} equipamento${n === 1 ? '' : 's'} em mau estado`,
       sub: 'Rever ou substituir — abrir Equipamentos.',
+    });
+  }
+
+  // Objetivos em risco ou fora de prazo. Sem isto, a secção Objetivos só se vê
+  // indo lá de propósito — e um KPI que ninguém olha não serve de nada.
+  if (canAccess('objetivos')) {
+    objectivesNeedingAttention().slice(0, 3).forEach(({ obj, status, met, total }) => {
+      const sub = obj.scope === 'todas'
+        ? `${met} de ${total} equipas a cumprir — abrir Objetivos.`
+        : status === 'falhado'
+          ? 'O prazo passou sem se atingir — rever nos Objetivos.'
+          : 'Vai atrasado face ao prazo — abrir Objetivos.';
+      items.push({
+        variant: status === 'falhado' ? 'danger' : 'warn',
+        route: 'objetivos',
+        title: `${obj.title}${status === 'falhado' ? ' — fora de prazo' : ' — em risco'}`,
+        sub,
+      });
     });
   }
 

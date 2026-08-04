@@ -1394,6 +1394,40 @@ create table if not exists objectives (
 
 create index if not exists idx_objectives_created on objectives (created_at);
 
+-- Âmbito do objetivo:
+--   'clube'  — um número para todo o clube (comportamento histórico);
+--   'equipa' — uma equipa concreta (usa team_id);
+--   'todas'  — a MESMA definição medida em cada plantel, com um resultado por
+--              equipa (ex.: "90% dos atletas mantêm-se, em cada escalão").
+alter table objectives add column if not exists scope text not null default 'clube';
+do $$ begin
+  alter table objectives drop constraint if exists objectives_scope_check;
+  alter table objectives add constraint objectives_scope_check
+    check (scope in ('clube','equipa','todas'));
+end $$;
+
+-- Equipa do objetivo (só quando scope = 'equipa'). Arquivar/apagar a equipa
+-- leva o objetivo consigo — sem equipa deixa de ter significado.
+alter table objectives add column if not exists team_id uuid
+  references teams(id) on delete cascade;
+
+-- Prazo (opcional). Sem ele não há noção de "em risco": 60% de progresso não
+-- se consegue julgar sem saber quanto tempo falta.
+alter table objectives add column if not exists deadline date;
+
+-- Marcos (kind = 'marco'): objetivos binários, sem alvo nem barra — ou se
+-- atingem ou não (ex.: "Apurar para o campeonato nacional"). `done_at` guarda
+-- QUANDO foi atingido; nulo = por atingir.
+alter table objectives add column if not exists done_at timestamptz;
+
+do $$ begin
+  alter table objectives drop constraint if exists objectives_kind_check;
+  alter table objectives add constraint objectives_kind_check
+    check (kind in ('manual','auto','marco'));
+end $$;
+
+create index if not exists idx_objectives_team on objectives (team_id);
+
 alter table objectives enable row level security;
 
 drop policy if exists "obj_read"  on objectives;

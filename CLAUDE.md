@@ -132,7 +132,11 @@ Cada `views/*.js` exporta `renderXxx(container)` que:
 2. Liga os eventos (cliques, filtros) depois de inserir o HTML.
 3. Para criar/editar usa `openModal({ fields, onSubmit })` de `modal.js`;
    para remover usa `confirmDialog(...)`. Cada campo aceita `hint` (texto de
-   ajuda por baixo, ligado por `aria-describedby`).
+   ajuda por baixo, ligado por `aria-describedby`) e `reactive: true` — este
+   avisa por `onFieldChange(nome, valores)` assim que muda, para a vista poder
+   reconstruir o formulário (ex.: mudar o tipo de objetivo troca os campos
+   seguintes). Reconstruir na gravação não serve: os campos obrigatórios ainda
+   vazios fazem a validação nativa bloquear o submit antes de lá chegar.
 4. Após uma operação no `store`, a notificação re-desenha a vista — por isso
    as vistas **não** atualizam o DOM manualmente após guardar.
 5. A **confirmação visível** da gravação vem do `store`, não da vista: as
@@ -149,6 +153,40 @@ nunca confirmar uma ação destrutiva.
 
 Filtros e estados locais de UI (ex.: equipas expandidas) vivem em variáveis no
 topo do módulo da vista.
+
+## Objetivos / KPIs
+
+`objectives` guarda as metas da época. Cada objetivo cruza um **tipo** com um
+**âmbito**:
+
+| Tipo | O que é |
+|------|---------|
+| `auto`   | a app calcula o valor (ver `OBJECTIVE_METRICS` em `compute.js`) |
+| `manual` | o coordenador escreve o alvo e vai atualizando `current` |
+| `marco`  | binário, sem alvo nem barra — `done_at` nulo = por atingir |
+
+| Âmbito | O que faz |
+|--------|-----------|
+| `clube`  | um número para todo o clube (é o valor por omissão, e o dos registos antigos) |
+| `equipa` | uma equipa concreta (`team_id`) |
+| `todas`  | a MESMA definição medida em CADA plantel — o cartão abre numa linha por equipa (`objectiveRows`) |
+
+- **Indicadores** declaram `scope` (`clube` ou `ambos`) e recebem `teamId`;
+  `metricsForScope()` filtra os que sabem medir uma equipa. Declaram também
+  `cumulative` — ver a seguir.
+- **Estado** (`objectiveStatus`): `atingido`, `falhado` (prazo passou),
+  `risco`, `abaixo`, `progresso`. A distinção que importa é entre indicadores
+  que **acumulam** (dinheiro angariado) e **taxas** (retenção, presenças):
+  num acumulável o risco compara o progresso com o tempo já gasto; numa taxa
+  isso não faz sentido — estar a 75% de um alvo de 90% a meio da época não é ir
+  atrasado, é estar `abaixo`. Só sobe a `risco` no último quarto do prazo.
+  Sem `deadline` não há ritmo que se meça.
+- **Retenção do plantel** (`squad_retention`) lê `players.review_status`:
+  `mantem ÷ total`. Os `pendente` contam para o denominador de propósito, e o
+  cartão mostra quantos faltam decidir. Mede a **decisão** do coordenador, não a
+  inscrição efetiva na época seguinte.
+- O Painel mostra os que estão em `risco`/`falhado` na lista "A precisar da tua
+  atenção" (`objectivesNeedingAttention`).
 
 ## Secções que orquestram separadores
 

@@ -603,40 +603,105 @@ export function gamesInMonth(teamId, year, month) {
 
 // Percentagem de atletas com a avaliação já decidida (mantém/sai) — o resto
 // está 'pendente'. 0 se não houver atletas.
-function reviewDecidedPct() {
-  const total = state.players.length;
-  if (!total) return 0;
-  return Math.round(((total - pendingReviews()) / total) * 100);
-}
-
 // Indicadores automáticos disponíveis: cada um sabe calcular o seu valor
 // atual a partir do `state`. Para juntar mais no futuro, basta acrescentar uma
 // entrada aqui (chave estável guardada em objectives.metric, etiqueta, unidade
 // e a função que devolve o valor).
+// --- Indicadores dos objetivos -------------------------------------------
+//
+// Cada indicador sabe calcular-se a partir do `state`. O `scope` diz onde faz
+// sentido usá-lo:
+//   'clube'  — só ao nível do clube (patrocínios e finanças não têm equipa);
+//   'ambos'  — funciona no clube e por equipa (recebe `teamId`; sem ele, mede
+//              o clube inteiro).
+// Para juntar mais no futuro basta acrescentar uma entrada aqui — a chave fica
+// guardada em objectives.metric, por isso tem de ser estável.
+
+// Atletas de uma equipa (ou todos, se `teamId` for nulo).
+function playersOf(teamId) {
+  return teamId ? state.players.filter((p) => p.team_id === teamId) : state.players;
+}
+
+// Retenção do plantel: quantos atletas estão marcados para MANTER, em relação
+// ao plantel atual. Os `pendente` contam para o denominador de propósito — até
+// decidires, não asseguraste a retenção, e o ecrã mostra quantos faltam.
+//
+// Nota: isto mede a DECISÃO do coordenador (players.review_status), não a
+// inscrição efetiva na época seguinte.
+export function squadRetention(teamId) {
+  const players = playersOf(teamId);
+  const total = players.length;
+  const counts = { mantem: 0, sai: 0, pendente: 0 };
+  players.forEach((p) => {
+    const st = p.review_status || 'pendente';
+    if (counts[st] !== undefined) counts[st]++;
+  });
+  return {
+    total,
+    ...counts,
+    pct: total ? Math.round((counts.mantem / total) * 100) : 0,
+  };
+}
+
+// Taxa de presenças, opcionalmente limitada a uma equipa (via o evento).
+function attendanceRate(teamId) {
+  let rows = state.attendances;
+  if (teamId) {
+    const eventsOfTeam = new Set(
+      state.events.filter((e) => e.team_id === teamId).map((e) => e.id)
+    );
+    rows = rows.filter((a) => eventsOfTeam.has(a.event_id));
+  }
+  if (!rows.length) return 0;
+  const presentes = rows.filter((a) => a.status === 'presente' || a.status === 'atraso').length;
+  return Math.round((presentes / rows.length) * 100);
+}
+
+// Percentagem de atletas com a avaliação já decidida (Mantém ou Sai).
+function reviewDecidedPct(teamId) {
+  const players = playersOf(teamId);
+  if (!players.length) return 0;
+  const decided = players.filter((p) => (p.review_status || 'pendente') !== 'pendente').length;
+  return Math.round((decided / players.length) * 100);
+}
+
 export const OBJECTIVE_METRICS = [
   {
     key: 'total_raised',
     label: 'Total angariado',
     unit: '€',
+    scope: 'clube',
+    cumulative: true,
     value: () => totalRaised(),
-  },
-  {
-    key: 'attendance_rate',
-    label: 'Taxa de presenças',
-    unit: '%',
-    value: () => attendanceStats().rate ?? 0,
-  },
-  {
-    key: 'review_decided',
-    label: 'Avaliação decidida',
-    unit: '%',
-    value: () => reviewDecidedPct(),
   },
   {
     key: 'financial_balance',
     label: 'Saldo financeiro',
     unit: '€',
+    scope: 'clube',
+    cumulative: true,
     value: () => financialSummary().balance,
+  },
+  {
+    key: 'attendance_rate',
+    label: 'Taxa de presenças',
+    unit: '%',
+    scope: 'ambos',
+    value: (teamId) => attendanceRate(teamId),
+  },
+  {
+    key: 'squad_retention',
+    label: 'Retenção do plantel',
+    unit: '%',
+    scope: 'ambos',
+    value: (teamId) => squadRetention(teamId).pct,
+  },
+  {
+    key: 'review_decided',
+    label: 'Avaliação decidida',
+    unit: '%',
+    scope: 'ambos',
+    value: (teamId) => reviewDecidedPct(teamId),
   },
 ];
 
@@ -650,20 +715,46 @@ export function objectiveMetricLabel(key) {
   return OBJECTIVE_METRIC_BY_KEY[key]?.label || key || '';
 }
 
-// Valor atual de um indicador automático; null se a chave for desconhecida.
-export function objectiveMetricValue(key) {
-  const m = OBJECTIVE_METRIC_BY_KEY[key];
-  return m ? Number(m.value()) || 0 : null;
+// Indicadores utilizáveis num dado âmbito ('clube' mostra todos; por equipa só
+// os que sabem filtrar).
+// Um objetivo ACUMULA (soma-se ao longo da época, como o dinheiro angariado)
+// ou é uma TAXA (uma percentagem que é o que é em cada momento, como a
+// retenção). A distinção muda a leitura de "em risco": num acumulável faz
+// sentido comparar o progresso com o tempo gasto; numa taxa não — estar abaixo
+// do alvo a meio da época não é ir atrasado, é estar abaixo.
+export function isCumulative(obj) {
+  if (obj.kind === 'auto') {
+    return !!OBJECTIVE_METRIC_BY_KEY[obj.metric]?.cumulative;
+  }
+  // Nos manuais assume-se contagem (acumula), exceto se a unidade for %.
+  return obj.unit !== '%';
 }
 
-// Estado de progresso de um objetivo. Para os automáticos o valor atual vem
-// dos dados; para os manuais vem do campo `current`. Devolve o valor atual, o
-// alvo, a percentagem (0–100, limitada) e se já foi atingido.
-export function objectiveProgress(obj) {
+export function metricsForScope(scope) {
+  return scope === 'clube'
+    ? OBJECTIVE_METRICS
+    : OBJECTIVE_METRICS.filter((m) => m.scope === 'ambos');
+}
+
+// Valor atual de um indicador automático; null se a chave for desconhecida.
+export function objectiveMetricValue(key, teamId) {
+  const m = OBJECTIVE_METRIC_BY_KEY[key];
+  return m ? Number(m.value(teamId)) || 0 : null;
+}
+
+// Estado de progresso de um objetivo, opcionalmente medido numa equipa (para
+// os de âmbito 'todas'). Devolve valor atual, alvo, percentagem (0–100) e se
+// já foi atingido. Nos marcos não há percentagem — só atingido ou não.
+export function objectiveProgress(obj, teamId) {
+  if (obj.kind === 'marco') {
+    const reached = !!obj.done_at;
+    return { current: reached ? 1 : 0, target: 1, pct: reached ? 100 : 0, reached };
+  }
+  const scopeTeam = teamId ?? (obj.scope === 'equipa' ? obj.team_id : null);
   const target = Number(obj.target) || 0;
   const current =
     obj.kind === 'auto'
-      ? objectiveMetricValue(obj.metric) ?? 0
+      ? objectiveMetricValue(obj.metric, scopeTeam) ?? 0
       : Number(obj.current) || 0;
   const pct = target > 0 ? Math.min(100, Math.max(0, Math.round((current / target) * 100))) : 0;
   return { current, target, pct, reached: target > 0 && current >= target };
@@ -678,4 +769,93 @@ export function playerQuotas(playerId) {
   const pendentes = list.filter((q) => !q.pago);
   const owed = pendentes.reduce((s, q) => s + Number(q.valor || 0), 0);
   return { list, owed, owedCount: pendentes.length, paidCount: list.length - pendentes.length };
+}
+
+// Estado de um objetivo, já a contar com o prazo.
+//
+//   'atingido'  — chegou ao alvo (ou o marco está feito);
+//   'falhado'   — passou o prazo sem chegar lá;
+//   'risco'     — precisa de atenção agora (é o que sobe ao Painel);
+//   'abaixo'    — taxa abaixo do alvo, mas ainda com tempo;
+//   'progresso' — a andar, ou sem prazo que permita julgar.
+//
+// Num objetivo ACUMULÁVEL o risco compara o progresso com o tempo gasto: se já
+// passaram 70% do caminho até ao prazo mas só se fez 40%, vai atrasado. A folga
+// de 20 pontos evita assinalar quem está só ligeiramente atrás.
+//
+// Numa TAXA esse cálculo não se aplica — 75% de retenção não é "estar a 83% do
+// caminho", é estar abaixo. Aí fica 'abaixo' enquanto houver tempo, e só passa
+// a 'risco' quando o prazo se aproxima (último quarto).
+const RISK_MARGIN = 20;
+const RATE_RISK_TIME_PCT = 75;
+const MARCO_RISK_DAYS = 30;
+
+export function objectiveStatus(obj, progress) {
+  if (progress.reached) return 'atingido';
+
+  const cumulative = isCumulative(obj);
+  if (!obj.deadline) return cumulative ? 'progresso' : 'abaixo';
+
+  const end = new Date(obj.deadline + 'T23:59:59');
+  const now = new Date();
+  if (now > end) return 'falhado';
+
+  // Um marco não tem progresso parcial; avisa-se quando o prazo se aproxima.
+  if (obj.kind === 'marco') {
+    const daysLeft = Math.ceil((end - now) / 86400000);
+    return daysLeft <= MARCO_RISK_DAYS ? 'risco' : 'progresso';
+  }
+
+  const start = obj.created_at ? new Date(obj.created_at) : null;
+  if (!start || end <= start) return cumulative ? 'progresso' : 'abaixo';
+
+  const timePct = Math.min(100, Math.max(0, ((now - start) / (end - start)) * 100));
+  if (cumulative) {
+    return timePct - progress.pct >= RISK_MARGIN ? 'risco' : 'progresso';
+  }
+  return timePct >= RATE_RISK_TIME_PCT ? 'risco' : 'abaixo';
+}
+
+// Um objetivo de âmbito 'todas' desdobra-se numa linha por equipa. Para os
+// outros âmbitos devolve uma linha só (a do clube ou a da equipa escolhida).
+export function objectiveRows(obj) {
+  if (obj.scope !== 'todas') {
+    const team = obj.scope === 'equipa' ? teamById(obj.team_id) : null;
+    const progress = objectiveProgress(obj);
+    return [{ team, progress, status: objectiveStatus(obj, progress) }];
+  }
+  return state.teams
+    .slice()
+    .sort((a, b) => teamName(a).localeCompare(teamName(b)))
+    .map((team) => {
+      const progress = objectiveProgress(obj, team.id);
+      return { team, progress, status: objectiveStatus(obj, progress) };
+    });
+}
+
+// Gravidade dos estados, do que mais exige atenção para o que menos exige.
+// Serve para ordenar os cartões e para escolher o estado global de um objetivo
+// medido em várias equipas.
+export const STATUS_ORDER = {
+  falhado: 0, risco: 1, abaixo: 2, progresso: 3, atingido: 4,
+};
+
+// Resumo de um objetivo de âmbito 'todas': quantas equipas cumprem, e o estado
+// global (o pior das equipas — é o que exige atenção).
+export function objectiveSummary(obj) {
+  const rows = objectiveRows(obj);
+  const met = rows.filter((r) => r.progress.reached).length;
+  const worst = rows.reduce(
+    (acc, r) => (STATUS_ORDER[r.status] < STATUS_ORDER[acc] ? r.status : acc),
+    'atingido'
+  );
+  return { rows, met, total: rows.length, status: rows.length ? worst : 'progresso' };
+}
+
+// Objetivos que precisam de atenção (em risco ou já fora de prazo), para o
+// Painel os mostrar sem ser preciso ir à secção.
+export function objectivesNeedingAttention() {
+  return state.objectives
+    .map((obj) => ({ obj, ...objectiveSummary(obj) }))
+    .filter((o) => o.status === 'risco' || o.status === 'falhado');
 }

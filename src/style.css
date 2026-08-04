@@ -5122,3 +5122,157 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 .section-tabs {
   margin-bottom: 1rem;
 }
+
+/* =========================================================================
+   Objetivos — faixa de contagem, marcos, linhas por equipa
+   ========================================================================= */
+.obj-tally {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.1rem;
+  padding: 0.7rem 0.9rem;
+  margin-bottom: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.87rem;
+}
+.obj-tally__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--text-muted);
+}
+
+/* Barra de cor à esquerda: o estado lê-se antes de se ler o texto. */
+.obj-card--risco   { border-left: 3px solid var(--warn); }
+.obj-card--falhado { border-left: 3px solid var(--danger); }
+.obj-card--atingido{ border-left: 3px solid var(--ok); }
+
+.obj-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.25rem;
+}
+.obj-card__deadline {
+  margin: 0;
+  font-size: 0.8rem;
+}
+.obj-card__rollup {
+  margin: 0.2rem 0 0.1rem;
+  font-size: 0.9rem;
+}
+
+/* --- Marco (objetivo binário) --- */
+.obj-marco {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.6rem 0.7rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.obj-marco__mark {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  color: #fff;
+}
+.obj-marco__mark--done {
+  background: var(--ok);
+  border-color: var(--ok);
+}
+.obj-marco__text { flex: 1; font-size: 0.9rem; }
+
+/* --- Uma linha por equipa (âmbito "todas") --- */
+.obj-teams {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.obj-team {
+  display: grid;
+  grid-template-columns: minmax(80px, 1.1fr) minmax(60px, 2fr) auto auto;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+.obj-team__name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.obj-team__bar .progress { margin: 0; }
+.obj-team__value {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--text-muted);
+}
+/* A nota de contexto ocupa a linha toda, por baixo. */
+.obj-team .obj-note,
+.obj-card .obj-note {
+  grid-column: 1 / -1;
+  display: block;
+  font-size: 0.76rem;
+  margin-top: -0.15rem;
+}
+
+/* --- Estado vazio com sugestões --- */
+.obj-suggest {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+@media (max-width: 560px) {
+  .obj-team {
+    grid-template-columns: 1fr auto;
+  }
+  .obj-team__bar { grid-column: 1 / -1; order: 3; }
+}
+.obj-card--abaixo { border-left: 3px solid var(--warn); }
+
+/* --- Correções de layout dos cartões de objetivo --- */
+/* O título pode ser longo; sem min-width:0 empurra o crachá de estado para
+   fora do cartão em vez de quebrar linha. */
+.obj-card__head { flex-wrap: wrap; }
+.obj-card__heading { flex: 1 1 12rem; min-width: 0; }
+.obj-card__title { overflow-wrap: anywhere; }
+.obj-card__head > .badge { flex: none; }
+
+/* A barra por equipa vive num <span> dentro de uma grelha: sem display:block
+   fica inline e colapsa a zero. */
+.obj-team__bar .progress {
+  display: block;
+  width: 100%;
+  height: 8px;
+  margin: 0;
+}
+.obj-team__bar .progress__bar { display: block; }
+
+/* O botão do marco não deve empurrar o texto para fora da caixa. */
+.obj-marco { flex-wrap: wrap; }
+.obj-marco__text { min-width: 6rem; }
+.obj-marco .btn { flex: none; margin-left: auto; }
+
+/* Um objetivo medido em todas as equipas traz uma linha por plantel — precisa
+   de mais largura do que um cartão de número único. */
+.obj-card--wide { grid-column: span 2; }
+@media (max-width: 760px) {
+  .obj-card--wide { grid-column: span 1; }
+}
