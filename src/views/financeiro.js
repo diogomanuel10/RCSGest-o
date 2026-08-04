@@ -1,6 +1,12 @@
-// Vista: Gestão Financeira.
-// Receitas e despesas do clube, com resumo e filtros. Só o coordenador edita;
-// o papel 'leitura' pode consultar (controlado pelo RLS e pela canAccess).
+// Vista: Financeiro — o dinheiro do clube num só sítio.
+//
+// Orquestra três separadores, cada um com a sua permissão própria:
+//   • Livro-razão — receitas e despesas lançadas à mão (canAccess 'financeiro');
+//   • Patrocínios — empresas, níveis e estados        (canAccess 'patrocinios');
+//   • Quotas      — cobrança mensal por atleta        (canAccess 'quotas').
+//
+// Cada separador é desenhado pela sua própria vista, dentro do corpo desta —
+// por isso mantêm o seu cabeçalho e o seu botão de ação.
 
 import { state, createRow, updateRow, deleteRow, dbErrorMessage } from '../store.js';
 import { esc, euros, emptyHTML, paginate, paginationHTML, wirePagination, PAGE_SIZE } from '../ui.js';
@@ -14,7 +20,9 @@ import {
   INCOME_CATEGORIES,
   MONTHS,
 } from '../constants.js';
-import { canEdit } from '../permissions.js';
+import { canEdit, canAccess } from '../permissions.js';
+import { renderPatrocinios } from './patrocinios.js';
+import { renderQuotas } from './quotas.js';
 
 const now = new Date();
 const filters = {
@@ -24,7 +32,7 @@ const filters = {
 };
 let page = 1;
 
-export function renderFinanceiro(container) {
+function renderLedgerBody(container) {
   const editable = canEdit('finances');
   const summary = financialSummary();
 
@@ -135,13 +143,13 @@ export function renderFinanceiro(container) {
 
   container.querySelector('#add-entry')?.addEventListener('click', () => openForm());
   container.querySelector('#f-type')?.addEventListener('change', (ev) => {
-    filters.type = ev.target.value; page = 1; renderFinanceiro(container);
+    filters.type = ev.target.value; page = 1; renderLedgerBody(container);
   });
   container.querySelector('#f-cat')?.addEventListener('change', (ev) => {
-    filters.category = ev.target.value; page = 1; renderFinanceiro(container);
+    filters.category = ev.target.value; page = 1; renderLedgerBody(container);
   });
   container.querySelector('#f-year')?.addEventListener('change', (ev) => {
-    filters.year = ev.target.value ? Number(ev.target.value) : ''; page = 1; renderFinanceiro(container);
+    filters.year = ev.target.value ? Number(ev.target.value) : ''; page = 1; renderLedgerBody(container);
   });
   container.querySelectorAll('[data-edit]').forEach((b) =>
     b.addEventListener('click', () => openForm(b.dataset.edit))
@@ -149,7 +157,7 @@ export function renderFinanceiro(container) {
   container.querySelectorAll('[data-del]').forEach((b) =>
     b.addEventListener('click', () => remove(b.dataset.del))
   );
-  wirePagination(container, 'pg', pg.page, pg.totalPages, (p2) => { page = p2; renderFinanceiro(container); });
+  wirePagination(container, 'pg', pg.page, pg.totalPages, (p2) => { page = p2; renderLedgerBody(container); });
 }
 
 function entryRow(e, editable) {
@@ -274,4 +282,54 @@ function buildYears() {
   const result = [];
   for (let y = max; y >= min; y--) result.push(y);
   return result;
+}
+
+// --- Orquestrador dos separadores ----------------------------------------
+
+// Separador em vigor (mantido entre re-desenhos, como os filtros).
+let finTab = 'razao';
+
+// Permite a outra vista abrir o Financeiro já num separador — usado pelo
+// Painel, cujos cartões "Em dívida" e "Angariado" apontam para aqui.
+export function openFinanceiroTab(key) {
+  finTab = key;
+}
+
+const FIN_TABS = [
+  { key: 'razao',       label: 'Livro-razão',  can: () => canAccess('financeiro'),  render: renderLedgerBody },
+  { key: 'patrocinios', label: 'Patrocínios',  can: () => canAccess('patrocinios'), render: renderPatrocinios },
+  { key: 'quotas',      label: 'Quotas',       can: () => canAccess('quotas'),      render: renderQuotas },
+];
+
+export function renderFinanceiro(container) {
+  const tabs = FIN_TABS.filter((t) => t.can());
+  if (!tabs.length) {
+    container.innerHTML = emptyHTML('Não tens acesso a nenhuma área financeira.');
+    return;
+  }
+  if (!tabs.some((t) => t.key === finTab)) finTab = tabs[0].key;
+
+  container.innerHTML = `
+    ${tabs.length > 1 ? `
+      <div class="cal-toggle section-tabs" role="tablist" aria-label="Áreas do financeiro">
+        ${tabs.map((t) => `
+          <button class="cal-toggle__btn ${finTab === t.key ? 'cal-toggle__btn--active' : ''}"
+                  data-fin-tab="${t.key}" type="button" role="tab"
+                  aria-selected="${finTab === t.key}">${esc(t.label)}</button>
+        `).join('')}
+      </div>` : ''}
+    <div id="fin-body"></div>
+  `;
+
+  container.querySelectorAll('[data-fin-tab]').forEach((b) =>
+    b.addEventListener('click', () => {
+      finTab = b.dataset.finTab;
+      renderFinanceiro(container);
+    })
+  );
+
+  // O separador desenha-se no corpo e re-desenha-se aí sozinho depois de
+  // gravar (cada vista chama-se a si própria com o contentor que recebeu).
+  const active = tabs.find((t) => t.key === finTab) || tabs[0];
+  active.render(container.querySelector('#fin-body'));
 }

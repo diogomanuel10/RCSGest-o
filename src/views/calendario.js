@@ -8,6 +8,7 @@ import { eventDateTime, eventTimeRange, teamById, teamName, escalaoColor } from 
 import { openModal, confirmDialog } from '../modal.js';
 import { openAthleteProfile } from './athlete-profile.js';
 import { findPlanForEvent, openGamePlanForEvent } from './plano-jogo.js';
+import { openTrainingPlan } from './training-plan.js';
 import {
   EVENT_TYPES,
   EVENT_TYPE_LABEL,
@@ -134,6 +135,8 @@ export function renderCalendario(container) {
     const ev = state.events.find((e) => e.id === b.dataset.planEvent);
     if (ev) { openGamePlanForEvent(ev); navTo('plano-jogo'); }
   }));
+  container.querySelectorAll('[data-training-plan]').forEach((b) =>
+    b.addEventListener('click', () => openTrainingPlan(b.dataset.trainingPlan)));
   container.querySelectorAll('[data-day]').forEach((cell) => {
     cell.addEventListener('click', () => openDayModal(cell.dataset.day, editable));
     cell.addEventListener('keydown', (e) => {
@@ -426,6 +429,11 @@ function eventRow(ev, isPast, editable) {
   // Ligação ao Plano de Jogo (só jogos, para quem tem acesso a essa secção).
   const showPlan = ev.type === 'jogo' && ev.team_id && canAccess('plano-jogo');
   const hasPlan = showPlan && !!findPlanForEvent(ev);
+  // Ligação ao Plano de Treino (só treinos, para quem marca presenças). O
+  // calendário é o sítio natural para o preparar — antes só se lá chegava pelo
+  // Painel, e só a treinos de hoje ou com presenças por marcar.
+  const showTraining = ev.type === 'treino' && canEdit('attendances');
+  const hasTraining = showTraining && state.trainingPlans.some((tp) => tp.event_id === ev.id);
 
   return `
     <div class="event-row ${isPast ? 'event-row--past' : ''}"${accent}>
@@ -444,6 +452,7 @@ function eventRow(ev, isPast, editable) {
       </div>
       <div class="cell-actions">
         ${showPlan ? `<button class="btn btn--ghost btn--sm" data-plan-event="${ev.id}" type="button">${hasPlan ? 'Plano ✓' : 'Preparar plano'}</button>` : ''}
+        ${showTraining ? `<button class="btn btn--ghost btn--sm" data-training-plan="${ev.id}" type="button">${hasTraining ? 'Plano ✓' : 'Preparar treino'}</button>` : ''}
         ${canSquad ? `<button class="btn btn--ghost btn--sm" data-squad="${ev.id}" type="button">Convocar</button>` : ''}
         ${editable
           ? `<button class="btn btn--ghost btn--sm" data-edit="${ev.id}" type="button">Editar</button>
@@ -509,6 +518,11 @@ function openDayModal(dateStr, editable) {
   overlay.querySelectorAll('[data-plan-event]').forEach((b) => b.addEventListener('click', () => {
     const ev = state.events.find((e) => e.id === b.dataset.planEvent);
     if (ev) { close(); openGamePlanForEvent(ev); navTo('plano-jogo'); }
+  }));
+  overlay.querySelectorAll('[data-training-plan]').forEach((b) => b.addEventListener('click', () => {
+    const id = b.dataset.trainingPlan;
+    close();
+    openTrainingPlan(id);
   }));
 }
 

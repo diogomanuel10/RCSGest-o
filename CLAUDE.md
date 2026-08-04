@@ -72,13 +72,14 @@ src/
     login.js            Ecrã de login
     app-shell.js        Layout (top bar + barra lateral colapsável + router)
     painel.js           Vista Painel
-    patrocinios.js      Vista Patrocínios
+    patrocinios.js      Separador Patrocínios (dentro do Financeiro)
     planteis.js         Vista Plantéis (CRUD + importar atletas via .xlsx)
     athlete-profile.js  Perfil do Atleta (modal unificado com separadores)
     avaliacao.js        Vista Avaliação de plantel (Mantém/Sai/Pendente)
-    medico.js           Vista Departamento Médico (atletas + agenda de fisioterapia)
+    saude.js            Vista Saúde & Física (orquestra Médico + Prep. Física)
+    medico.js           Separador Fisioterapia (atletas + agenda)
     clinical-file.js    Área de Fisioterapia do perfil (episódios, sessões, atendimentos)
-    preparacao.js       Vista Preparação Física (atletas + periodização + mapa de jogos)
+    preparacao.js       Separador Prep. física (atletas + periodização + mapa de jogos)
     physical-file.js    Área de Prep. física do perfil (dados físicos, avaliações, controlo)
     calendario.js       Vista Calendário
     treinadores.js      Vista Treinadores
@@ -148,6 +149,31 @@ nunca confirmar uma ação destrutiva.
 
 Filtros e estados locais de UI (ex.: equipas expandidas) vivem em variáveis no
 topo do módulo da vista.
+
+## Secções que orquestram separadores
+
+Três entradas da barra lateral não desenham conteúdo próprio: montam uma barra
+de separadores e delegam o corpo a outras vistas, que mantêm o seu cabeçalho e
+o seu botão de ação. Cada separador tem a **sua** permissão, e a barra só
+aparece quando há mais do que um visível — quem tem acesso a um só não ganha
+camada extra.
+
+| Secção         | Separadores (permissão)                                             |
+|----------------|---------------------------------------------------------------------|
+| `financeiro`   | Livro-razão (`financeiro`) · Patrocínios (`patrocinios`) · Quotas (`quotas`) |
+| `saude`        | Fisioterapia (`medico`) · Prep. física (`fisica`)                    |
+| `equipamentos` | Inventário (`equipamentos`) · Encomendas (`encomendas`)              |
+
+A entrada só aparece se **alguma** das suas permissões passar (ver `can` no
+`NAV`). `openFinanceiroTab()` / `openSaudeTab()` deixam outra vista escolher o
+separador antes de navegar (usado pelos cartões do Painel).
+
+- **Endereços antigos**: `LEGACY_ROUTES` no `app-shell` redirecciona `#/medico`,
+  `#/fisica`, `#/quotas` e `#/patrocinios` para a secção que os absorveu, já no
+  separador certo — links partilhados e favoritos continuam a funcionar.
+- **Pesquisa**: cada entrada do `NAV` pode ter `alias` com o que vive lá dentro
+  (ex.: "quotas patrocínios" no Financeiro), para quem procura pelo nome da
+  coisa e não pelo da secção.
 
 ## Permissões (papéis)
 

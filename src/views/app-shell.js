@@ -23,17 +23,15 @@ import { renderPainel } from './painel.js';
 import { renderPlanteis } from './planteis.js';
 import { renderCalendario } from './calendario.js';
 import { renderPresencas } from './presencas.js';
-import { renderQuotas } from './quotas.js';
 import { renderEquipamentos } from './equipamentos.js';
 import { renderTreinadores } from './treinadores.js';
 import { renderDefinicoes } from './definicoes.js';
 import { renderUtilizadores } from './utilizadores.js';
 import { renderRecrutamento } from './recrutamento.js';
-import { renderMedico } from './medico.js';
-import { renderPreparacao } from './preparacao.js';
+import { renderSaude, openSaudeTab } from './saude.js';
 import { renderPortal } from './portal.js';
 import { renderArquivados } from './arquivados.js';
-import { renderFinanceiro } from './financeiro.js';
+import { renderFinanceiro, openFinanceiroTab } from './financeiro.js';
 import { renderPlanoJogo } from './plano-jogo.js';
 import { renderObjetivos } from './objetivos.js';
 import { renderAdmin } from './admin.js';
@@ -73,7 +71,6 @@ const NAV_GROUPS = [
   { key: 'principal',  label: null },
   { key: 'desportivo', label: 'Desportivo' },
   { key: 'competicao', label: 'Competição' },
-  { key: 'saude',      label: 'Saúde & Performance' },
   { key: 'admin',      label: 'Administração' },
 ];
 
@@ -81,21 +78,19 @@ const NAV = [
   { key: 'portal',       label: 'A minha página', icon: ICONS.portal,      render: renderPortal,       group: 'principal' },
   { key: 'painel',       label: 'Painel',        icon: ICONS.painel,       render: renderPainel,        group: 'principal' },
 
-  { key: 'planteis',     label: 'Plantéis',      icon: ICONS.planteis,     render: renderPlanteis,      group: 'desportivo' },
+  { key: 'planteis',     label: 'Plantéis',      icon: ICONS.planteis,     render: renderPlanteis,      group: 'desportivo', alias: 'atletas equipas avaliação de plantel' },
   { key: 'treinadores',  label: 'Treinadores',   icon: ICONS.treinadores,  render: renderTreinadores,   group: 'desportivo' },
   { key: 'recrutamento', label: 'Recrutamento',  icon: ICONS.recrutamento, render: renderRecrutamento,  group: 'desportivo' },
   { key: 'plano-jogo',   label: 'Plano de Jogo', icon: ICONS['plano-jogo'], render: renderPlanoJogo,    group: 'desportivo' },
 
+  { key: 'saude',        label: 'Saúde & Física', icon: ICONS.medico,      render: renderSaude,         group: 'desportivo', alias: 'fisioterapia lesões dept. médico preparação física ginásio periodização', can: () => canAccess('medico') || canAccess('fisica') },
+
   { key: 'calendario',   label: 'Calendário',    icon: ICONS.calendario,   render: renderCalendario,    group: 'competicao' },
   { key: 'presencas',    label: 'Presenças',     icon: ICONS.presencas,    render: renderPresencas,     group: 'competicao' },
 
-  { key: 'medico',       label: 'Dept. Médico',  icon: ICONS.medico,       render: renderMedico,        group: 'saude' },
-  { key: 'fisica',       label: 'Prep. Física',  icon: ICONS.fisica,       render: renderPreparacao,    group: 'saude' },
-
   { key: 'objetivos',    label: 'Objetivos',     icon: ICONS.objetivos,    render: renderObjetivos,     group: 'admin' },
-  { key: 'quotas',       label: 'Quotas',        icon: ICONS.quotas,       render: renderQuotas,        group: 'admin' },
-  { key: 'equipamentos', label: 'Equipamentos',  icon: ICONS.equipamentos, render: renderEquipamentos,  group: 'admin', can: () => canAccess('equipamentos') || canAccess('encomendas') },
-  { key: 'financeiro',   label: 'Financeiro',    icon: ICONS.financeiro,   render: renderFinanceiro,    group: 'admin' },
+  { key: 'equipamentos', label: 'Equipamentos',  icon: ICONS.equipamentos, render: renderEquipamentos,  group: 'admin', alias: 'inventário encomendas tamanhos', can: () => canAccess('equipamentos') || canAccess('encomendas') },
+  { key: 'financeiro',   label: 'Financeiro',    icon: ICONS.financeiro,   render: renderFinanceiro,    group: 'admin', alias: 'quotas patrocínios livro-razão receitas despesas', can: () => canAccess('financeiro') || canAccess('patrocinios') || canAccess('quotas') },
 ];
 
 const FOOTER = [
@@ -300,6 +295,16 @@ export async function renderAppShell(root, session) {
     location.hash = next;
   }
 
+  // Secções que deixaram de ter entrada própria e passaram a ser separadores
+  // de outra. Um endereço antigo (link partilhado, favorito) continua a levar
+  // ao sítio certo, já no separador respetivo, em vez de cair no Painel.
+  const LEGACY_ROUTES = {
+    medico:      { route: 'saude',      open: () => openSaudeTab('medico') },
+    fisica:      { route: 'saude',      open: () => openSaudeTab('fisica') },
+    quotas:      { route: 'financeiro', open: () => openFinanceiroTab('quotas') },
+    patrocinios: { route: 'financeiro', open: () => openFinanceiroTab('patrocinios') },
+  };
+
   // Traduz o endereço atual em { route } ou { playerId, tab }.
   function parseHash() {
     const raw = decodeURIComponent((location.hash || '').replace(/^#\/?/, '')).trim();
@@ -317,7 +322,13 @@ export async function renderAppShell(root, session) {
       detail = null;
       // Rota desconhecida (link antigo ou erro de escrita) cai na primeira
       // secção permitida, em vez de mostrar um ecrã vazio.
-      const item = parsed?.route ? allRoutes().find((n) => n.key === parsed.route) : null;
+      let key = parsed?.route || null;
+      const legacy = key ? LEGACY_ROUTES[key] : null;
+      if (legacy) {
+        legacy.open();
+        key = legacy.route;
+      }
+      const item = key ? allRoutes().find((n) => n.key === key) : null;
       if (item && routeAllowed(item)) current = item.key;
       else current = firstAllowedRoute();
     }
@@ -561,10 +572,17 @@ export async function renderAppShell(root, session) {
 
     // As próprias secções: quem não sabe onde fica uma coisa escreve o nome
     // dela na pesquisa antes de procurar no menu.
+    // O `alias` cobre o que vive DENTRO de uma secção (ex.: "quotas" está no
+    // Financeiro): quem escreve o nome da coisa continua a encontrá-la.
     allRoutes()
-      .filter((n) => routeAllowed(n) && match(n.label))
+      .filter((n) => routeAllowed(n) && (match(n.label) || match(n.alias)))
       .slice(0, 4)
-      .forEach((n) => hits.push({ label: n.label, meta: 'Ir para a secção', route: n.key, group: 'Secções' }));
+      .forEach((n) => hits.push({
+        label: n.label,
+        meta: match(n.label) ? 'Ir para a secção' : 'Secção',
+        route: n.key,
+        group: 'Secções',
+      }));
 
     return hits.slice(0, 10);
   }

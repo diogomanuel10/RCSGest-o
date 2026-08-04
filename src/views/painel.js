@@ -40,6 +40,7 @@ import { openQuickAttendance } from './presencas.js';
 import { openTrainingPlan } from './training-plan.js';
 import { openEventForm, openRecurrentTrainings } from './calendario.js';
 import { openSponsorForm } from './patrocinios.js';
+import { openFinanceiroTab } from './financeiro.js';
 import { openAthleteProfile } from './athlete-profile.js';
 import { openSeasonPlanning } from './planteis.js';
 import { DEFAULT_BRANDING } from '../branding.js';
@@ -107,13 +108,13 @@ export function renderPainel(container) {
   const injured = seeMedico ? injuredCount() : 0;
 
   const metrics = [
-    seeSpon     && metricCard(ICON_MONEY, 'Angariado', euros(raised), `Meta: ${euros(goal)}`, 'accent', 'financeiro'),
-    seeSpon     && metricCard(ICON_CHART, 'Em contacto', inProgress, 'patrocínios a decorrer', 'blue', 'financeiro'),
+    seeSpon     && metricCard(ICON_MONEY, 'Angariado', euros(raised), `Meta: ${euros(goal)}`, 'accent', 'financeiro', 'patrocinios'),
+    seeSpon     && metricCard(ICON_CHART, 'Em contacto', inProgress, 'patrocínios a decorrer', 'blue', 'financeiro', 'patrocinios'),
     seePlanteis && metricCard(ICON_USERS, 'Atletas', athletes, `em ${teamsCount} equipa${teamsCount === 1 ? '' : 's'}`, 'green', 'planteis'),
     seeCoaches  && metricCard(ICON_COACH, 'Treinadores', coaches, 'na equipa técnica', 'purple', 'treinadores'),
     seeAttendance && metricCard(ICON_CHECK, 'Presenças', att.rate == null ? '—' : att.rate + '%', att.total ? `média em ${att.total} registo${att.total === 1 ? '' : 's'}` : 'ainda sem registos', 'green', attRoute),
-    seeMedico   && metricCard(ICON_PULSE, 'Em tratamento', injured, injured ? `atleta${injured === 1 ? '' : 's'} com episódio ativo` : 'sem lesões ativas', injured > 0 ? 'accent' : 'green', 'medico'),
-    seeQuotas   && metricCard(ICON_CARD, 'Em dívida', euros(owed.total), owed.count ? `${owed.count} quota${owed.count === 1 ? '' : 's'} por pagar` : 'tudo regularizado', owed.total > 0 ? 'accent' : 'blue', 'quotas'),
+    seeMedico   && metricCard(ICON_PULSE, 'Em tratamento', injured, injured ? `atleta${injured === 1 ? '' : 's'} com episódio ativo` : 'sem lesões ativas', injured > 0 ? 'accent' : 'green', 'saude'),
+    seeQuotas   && metricCard(ICON_CARD, 'Em dívida', euros(owed.total), owed.count ? `${owed.count} quota${owed.count === 1 ? '' : 's'} por pagar` : 'tudo regularizado', owed.total > 0 ? 'accent' : 'blue', 'financeiro', 'quotas'),
     seePlanteis && metricCard(ICON_SHIELD, 'Equipas', teamsCount, 'plantéis ativos', 'blue', 'planteis'),
     seeEquip    && metricCard(ICON_BOX, 'Equipamentos', state.equipment.length, equipReview ? `${equipReview} em mau estado` : 'inventário em dia', equipReview ? 'accent' : 'purple', 'equipamentos'),
   ].filter(Boolean);
@@ -189,6 +190,8 @@ export function renderPainel(container) {
   container.querySelectorAll('[data-nav]').forEach((el) => {
     el.addEventListener('click', () => {
       if (el.dataset.plan) openSeasonPlanning();
+      // Escolher o separador ANTES de navegar: a secção lê-o ao desenhar.
+      if (el.dataset.finTabOpen) openFinanceiroTab(el.dataset.finTabOpen);
       navTo(el.dataset.nav);
     });
   });
@@ -389,7 +392,8 @@ function buildActions() {
     if (qm.pendentes > 0) {
       items.push({
         variant: 'warn',
-        route: 'quotas',
+        route: 'financeiro',
+        finTab: 'quotas',
         title: `${qm.pendentes} quota${qm.pendentes === 1 ? '' : 's'} por cobrar este mês`,
         sub: `${euros(qm.total)} por receber — abrir Quotas.`,
       });
@@ -434,10 +438,12 @@ function buildActions() {
   return items;
 }
 
-function actionItem({ variant, title, sub, route, plan }) {
+function actionItem({ variant, title, sub, route, plan, finTab }) {
   return `
     <li>
-      <button class="alert-item alert-item--${variant} alert-item--nav" data-nav="${route}"${plan ? ' data-plan="1"' : ''} type="button">
+      <button class="alert-item alert-item--${variant} alert-item--nav" data-nav="${route}"${
+        plan ? ' data-plan="1"' : ''
+      }${finTab ? ` data-fin-tab-open="${finTab}"` : ''} type="button">
         <span class="alert-item__dot" aria-hidden="true"></span>
         <span class="alert-item__text">
           <strong class="alert-item__title">${esc(title)}</strong>
@@ -511,7 +517,8 @@ function markRow({ event, total, marked, isToday }) {
 
 // `route` opcional: quando presente, o cartão fica clicável e navega para essa
 // secção (data-nav, ligado em renderPainel). Sem rota, é só informativo.
-function metricCard(icon, label, value, sub, variant = '', route = '') {
+// `finTab` abre o Financeiro já no separador certo (patrocínios/quotas).
+function metricCard(icon, label, value, sub, variant = '', route = '', finTab = '') {
   const cls = `card metric ${variant ? 'metric--' + variant : ''}${route ? ' metric--nav' : ''}`;
   const inner = `
       <div class="metric__icon-wrap">${icon}</div>
@@ -519,8 +526,9 @@ function metricCard(icon, label, value, sub, variant = '', route = '') {
       <strong class="metric__value">${String(value)}</strong>
       <span class="metric__sub muted">${esc(sub)}</span>`;
   return route
-    ? `<button class="${cls}" type="button" data-nav="${esc(route)}"
-        title="Abrir ${esc(label)}">${inner}</button>`
+    ? `<button class="${cls}" type="button" data-nav="${esc(route)}"${
+        finTab ? ` data-fin-tab-open="${esc(finTab)}"` : ''
+      } title="Abrir ${esc(label)}">${inner}</button>`
     : `<div class="${cls}">${inner}</div>`;
 }
 
