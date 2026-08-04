@@ -23,6 +23,8 @@ import {
   metricsForScope,
   objectiveMetricLabel,
   objectiveSummary,
+  canSeeObjective,
+  visibleTeamIds,
   squadRetention,
   STATUS_ORDER,
   teamName,
@@ -54,7 +56,10 @@ const STATUS = {
 export function renderObjetivos(container) {
   const editable = canEdit('objectives');
   // Os que precisam de atenção primeiro; depois os que já lá chegaram.
+  // O treinador vê os objetivos do clube e os das SUAS equipas; nos de âmbito
+  // "todas" vê o cartão e o alvo, mas só a linha do seu plantel.
   const items = state.objectives
+    .filter(canSeeObjective)
     .map((obj) => ({ obj, ...objectiveSummary(obj) }))
     .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]);
 
@@ -268,10 +273,15 @@ function progressBody(obj, rows, met, total) {
     if (!rows.length) {
       return '<p class="muted" style="margin:0">Ainda não há equipas para medir.</p>';
     }
+    // A contagem "X de Y a cumprir" é uma leitura de conjunto — só se mostra a
+    // quem vê o clube todo. Para o treinador ficaria a comparar-se com equipas
+    // que nem lhe aparecem.
+    const rollup = visibleTeamIds() === null
+      ? `<strong>${met} de ${total}</strong> equipa${total === 1 ? '' : 's'} a cumprir <span class="muted">·</span> `
+      : '';
     return `
       <p class="obj-card__rollup">
-        <strong>${met} de ${total}</strong> equipa${total === 1 ? '' : 's'} a cumprir
-        <span class="muted">· alvo ${formatValue(obj.target, obj.unit)}</span>
+        ${rollup}<span class="muted">alvo ${formatValue(obj.target, obj.unit)}</span>
       </p>
       <ul class="obj-teams">
         ${rows.map((r) => teamRow(obj, r)).join('')}

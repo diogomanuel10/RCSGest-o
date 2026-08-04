@@ -1,6 +1,7 @@
 // Cálculos derivados a partir do estado (state). Sem efeitos secundários.
 
 import { state } from './store.js';
+import { isClubWide } from './permissions.js';
 import {
   TIER_VALUE, IN_PROGRESS_STATUSES, DEFAULT_ESCALOES,
   DEFAULT_SPORT, SPORT_POSITIONS, DEFAULT_POSITIONS, DOC_TYPE_LABEL, DOCUMENT_TYPES,
@@ -816,6 +817,28 @@ export function objectiveStatus(obj, progress) {
   return timePct >= RATE_RISK_TIME_PCT ? 'risco' : 'abaixo';
 }
 
+// Equipas que o utilizador atual pode ver nos objetivos.
+// `null` = todas (coordenador, direção, seccionista…). O treinador fica com as
+// equipas onde está inscrito como treinador; sem ficha de coach, nenhuma.
+export function visibleTeamIds() {
+  if (isClubWide()) return null;
+  const coach = currentCoach();
+  if (!coach) return new Set();
+  return new Set(coachTeams(coach.id).map((x) => x.team.id));
+}
+
+// Um objetivo é visível para quem o vê?
+//   'clube' e 'todas' → sempre (o alvo do clube é do conhecimento de todos);
+//   'equipa'          → só a quem essa equipa pertence.
+// Os de 'todas' são visíveis, mas só mostram a linha da própria equipa (ver
+// objectiveRows) — o alvo é partilhado, a comparação entre plantéis não.
+export function canSeeObjective(obj) {
+  const ids = visibleTeamIds();
+  if (!ids) return true;
+  if (obj.scope !== 'equipa') return true;
+  return !!obj.team_id && ids.has(obj.team_id);
+}
+
 // Um objetivo de âmbito 'todas' desdobra-se numa linha por equipa. Para os
 // outros âmbitos devolve uma linha só (a do clube ou a da equipa escolhida).
 export function objectiveRows(obj) {
@@ -824,8 +847,9 @@ export function objectiveRows(obj) {
     const progress = objectiveProgress(obj);
     return [{ team, progress, status: objectiveStatus(obj, progress) }];
   }
+  const ids = visibleTeamIds();
   return state.teams
-    .slice()
+    .filter((t) => !ids || ids.has(t.id))
     .sort((a, b) => teamName(a).localeCompare(teamName(b)))
     .map((team) => {
       const progress = objectiveProgress(obj, team.id);
@@ -856,6 +880,7 @@ export function objectiveSummary(obj) {
 // Painel os mostrar sem ser preciso ir à secção.
 export function objectivesNeedingAttention() {
   return state.objectives
+    .filter(canSeeObjective)
     .map((obj) => ({ obj, ...objectiveSummary(obj) }))
     .filter((o) => o.status === 'risco' || o.status === 'falhado');
 }

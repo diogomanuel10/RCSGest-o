@@ -1433,9 +1433,28 @@ alter table objectives enable row level security;
 drop policy if exists "obj_read"  on objectives;
 drop policy if exists "obj_write" on objectives;
 
--- Leitura: todos exceto atleta.
+-- Leitura: todos exceto atleta, MAS um objetivo de uma equipa concreta só é
+-- visível a quem essa equipa pertence. Os de âmbito 'clube' e 'todas' são de
+-- conhecimento geral — o alvo é partilhado; o que a interface não mostra ao
+-- treinador, nos de 'todas', são as linhas das outras equipas.
+--
+-- O treinador identifica-se pela ficha de coach ligada à sua conta
+-- (coaches.user_id) e pelas equipas em team_coaches. Os restantes papéis não
+-- técnicos veem tudo, como antes.
 create policy "obj_read" on objectives for select to authenticated
-  using (app_role() <> 'atleta');
+  using (
+    app_role() <> 'atleta'
+    and (
+      app_role() <> 'treinador'
+      or coalesce(scope, 'clube') <> 'equipa'
+      or team_id in (
+        select tc.team_id
+        from team_coaches tc
+        join coaches c on c.id = tc.coach_id
+        where c.user_id = auth.uid()
+      )
+    )
+  );
 
 -- Escrita: só coordenador.
 create policy "obj_write" on objectives for all to authenticated

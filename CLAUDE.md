@@ -187,6 +187,13 @@ topo do módulo da vista.
   inscrição efetiva na época seguinte.
 - O Painel mostra os que estão em `risco`/`falhado` na lista "A precisar da tua
   atenção" (`objectivesNeedingAttention`).
+- **Quem vê o quê**: o treinador vê os objetivos de `clube` e de `todas`, e os
+  de `equipa` só das SUAS equipas (`canSeeObjective`). Num cartão de `todas` vê
+  apenas a linha do seu plantel e o alvo — sem as outras equipas nem a contagem
+  "X de Y a cumprir": o alvo é partilhado, a comparação entre treinadores não.
+  Os papéis de âmbito de clube (`isClubWide`) veem tudo. Isto **não é só UI**:
+  a política `obj_read` cruza `team_coaches`, por isso o servidor recusa os
+  objetivos de outras equipas.
 
 ## Secções que orquestram separadores
 
