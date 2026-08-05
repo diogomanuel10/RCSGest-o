@@ -350,6 +350,15 @@ separador antes de navegar (usado pelos cartões do Painel).
     carregadas dinamicamente — o quiosque e os cartões são chunks à parte.
   - **Sem rede** (pavilhão com wifi fraca) as leituras ficam numa fila em
     `localStorage` e são enviadas quando a ligação volta.
+  - **O palco do quiosque é desenhado uma vez.** Trocar de sessão ou de câmara
+    atualiza pontos concretos do DOM — reescrever o `innerHTML` destruía o
+    `<video>` e obrigava a repedir a câmara. O seletor da barra lista os treinos
+    de HOJE (lidos a cada abertura), para cada treinador que chega escolher o
+    seu sem sair do quiosque.
+  - **Os diálogos do quiosque vivem dentro do próprio quiosque** (`kioskPanel`),
+    e não via `confirmDialog`: em ecrã inteiro só é desenhado o que está dentro
+    do elemento em ecrã inteiro. O `.kiosk` está em `z-index: 90` — acima do
+    layout, abaixo dos modais (100) e dos toasts (400).
   - Definições do clube: ligar/desligar, tolerância e janela do quiosque. A UI
     só as mostra depois de a migração correr (`'qr_checkin_enabled' in
     state.settings`).

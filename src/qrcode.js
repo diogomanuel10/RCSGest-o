@@ -70,16 +70,81 @@ export function createScanner({ video, onCode, onError, interval = 120 }) {
   let lastAt = 0;
   const REPEAT_MS = 2500;
 
-  async function start() {
-    stopped = false;
+  // Câmaras disponíveis. Só se conhecem DEPOIS de a permissão ser dada — antes
+  // disso o browser esconde os ids e as etiquetas.
+  let devices = [];
+  let deviceIndex = 0;
+  // Recurso para quando não há ids (alguns iOS): alternar pelo lado da câmara.
+  let facing = 'environment';
+
+  // A escolha de câmara fica guardada: um tablet fixo à entrada não deve ter
+  // de ser reconfigurado a cada arranque.
+  const CAMERA_KEY = 'rumia:qr-camera';
+  const remembered = () => {
+    try {
+      return localStorage.getItem(CAMERA_KEY);
+    } catch {
+      return null;
+    }
+  };
+  const remember = (id) => {
+    try {
+      if (id) localStorage.setItem(CAMERA_KEY, id);
+    } catch {
+      /* armazenamento bloqueado: segue sem memória */
+    }
+  };
+
+  // Liga (ou volta a ligar) a câmara escolhida ao <video>.
+  async function openStream() {
+    stream?.getTracks().forEach((t) => t.stop());
+    const id = devices[deviceIndex]?.deviceId;
     stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+      video: {
+        ...(id ? { deviceId: { exact: id } } : { facingMode: facing }),
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+      },
       audio: false,
     });
     video.srcObject = stream;
     video.setAttribute('playsinline', '');
     video.muted = true;
     await video.play();
+  }
+
+  // Lista as câmaras e alinha `deviceIndex` com a que está mesmo a dar imagem.
+  async function refreshDevices() {
+    try {
+      const all = await navigator.mediaDevices.enumerateDevices();
+      devices = all.filter((d) => d.kind === 'videoinput');
+      const activeId = stream?.getVideoTracks()[0]?.getSettings?.().deviceId;
+      const i = devices.findIndex((d) => d.deviceId === activeId);
+      if (i !== -1) deviceIndex = i;
+    } catch {
+      devices = [];
+    }
+  }
+
+  async function start() {
+    stopped = false;
+    // Arranca na câmara memorizada, se ainda existir; senão na traseira, que é
+    // a que serve para ler um cartão à frente do tablet.
+    const saved = remembered();
+    if (saved) {
+      try {
+        await navigator.mediaDevices.enumerateDevices().then((all) => {
+          devices = all.filter((d) => d.kind === 'videoinput');
+          const i = devices.findIndex((d) => d.deviceId === saved);
+          if (i !== -1) deviceIndex = i;
+          else devices = [];
+        });
+      } catch {
+        devices = [];
+      }
+    }
+    await openStream();
+    await refreshDevices();
 
     if ('BarcodeDetector' in window) {
       try {
@@ -152,7 +217,36 @@ export function createScanner({ video, onCode, onError, interval = 120 }) {
     lastAt = 0;
   }
 
-  return { start, stop, reset };
+  // Passa à câmara seguinte (traseira -> frontal -> …). Devolve o nome da que
+  // ficou ativa, para a interface o poder mostrar.
+  async function switchCamera() {
+    if (devices.length > 1) {
+      deviceIndex = (deviceIndex + 1) % devices.length;
+    } else {
+      // Sem ids utilizáveis resta virar o lado — chega para telemóveis.
+      facing = facing === 'environment' ? 'user' : 'environment';
+      devices = [];
+    }
+    await openStream();
+    await refreshDevices();
+    remember(devices[deviceIndex]?.deviceId);
+    reset();
+    return cameraLabel();
+  }
+
+  // Nome legível da câmara ativa. As etiquetas do sistema são longas
+  // ("Câmara traseira (04f2:b6d9)"), por isso são encurtadas.
+  function cameraLabel() {
+    const label = devices[deviceIndex]?.label || '';
+    if (label) return label.replace(/\s*\([^)]*\)\s*$/, '').trim().slice(0, 28);
+    return facing === 'environment' ? 'Câmara traseira' : 'Câmara frontal';
+  }
+
+  // Quantas câmaras há para alternar (0 ou 1 = não vale a pena mostrar o botão
+  // por ids, mas num telemóvel o virar de lado funciona à mesma).
+  const cameraCount = () => devices.length;
+
+  return { start, stop, reset, switchCamera, cameraLabel, cameraCount };
 }
 
 // Mensagem em PT para o erro de acesso à câmara — o motivo é quase sempre
