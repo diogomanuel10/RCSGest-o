@@ -11,10 +11,10 @@
 // limitações ao treino (sem aceder ao detalhe clínico), além da última
 // avaliação física.
 
-import { state, regeneratePlayerQr, dbErrorMessage } from '../store.js';
+import { state, regeneratePlayerQr, createInvitation, dbErrorMessage } from '../store.js';
 import { esc, euros } from '../ui.js';
 import { confirmDialog } from '../modal.js';
-import { toastError } from '../toast.js';
+import { toastError, toastOk } from '../toast.js';
 import {
   teamById,
   teamName,
@@ -37,7 +37,7 @@ import {
   PHYSICAL_TEST_LABEL,
   PHYSICAL_TEST_UNIT,
 } from '../constants.js';
-import { canAccess, canEdit } from '../permissions.js';
+import { canAccess, canEdit, canManageUsers } from '../permissions.js';
 import { renderClinicalInto } from './clinical-file.js';
 import { renderPhysicalInto } from './physical-file.js';
 import { renderDocumentsInto } from './documents-section.js';
@@ -235,12 +235,86 @@ function renderGeral(container, playerId, _opts = {}) {
          </div>`
       : ''}
 
+    ${canManageUsers() ? portalAccessHTML(player) : ''}
+
     ${canEdit('documents') ? '<div id="ap-docs-placeholder"></div>' : ''}
   `;
 
   const docsEl = container.querySelector('#ap-docs-placeholder');
   if (docsEl) renderDocumentsInto(docsEl, playerId);
   if (container.querySelector('#ap-qr')) wireQrCard(container, player, team);
+  if (container.querySelector('#ap-portal')) wirePortalAccess(container, player);
+}
+
+// --- Acesso ao portal -----------------------------------------------------
+// O convite nasce AQUI, na ficha do atleta, e não na lista de utilizadores.
+// A diferença é toda: aqui o coordenador escolhe a pessoa pelo NOME, numa
+// ficha que já conhece. Na lista de utilizadores só há emails — e ligar a
+// conta errada dá ao atleta as presenças, as quotas e o cartão QR de outro.
+function portalAccessHTML(player) {
+  const linked = !!player.user_id;
+  const invite = (state.invitations || []).find(
+    (i) => i.player_id === player.id && !i.used_at && new Date(i.expires_at) > new Date()
+  );
+
+  return `
+    <div class="pd-section" id="ap-portal">
+      <span class="pd-label">Acesso ao portal</span>
+      ${linked
+        ? `<p class="muted" style="margin:0.3rem 0 0;font-size:0.86rem">
+             <span class="badge badge--ok">Conta ligada</span>
+             Este atleta já entra na app e vê a sua página pessoal.
+           </p>`
+        : `<p class="muted" style="margin:0.3rem 0 0.6rem;font-size:0.86rem">
+             ${invite
+               ? 'Já há um convite por usar. O link liga a conta a esta ficha — quem o abrir fica a ser este atleta.'
+               : 'Gera um link de convite para este atleta entrar na app. O link já vem ligado a esta ficha, por isso não há contas trocadas.'}
+           </p>
+           <div class="row row--wrap" style="gap:0.5rem">
+             <button class="btn btn--ghost btn--sm" type="button" id="ap-portal-invite">
+               ${invite ? 'Gerar link novo' : 'Convidar para o portal'}
+             </button>
+             ${invite ? '<button class="btn btn--ghost btn--sm" type="button" id="ap-portal-copy">Copiar link</button>' : ''}
+           </div>
+           <p class="pd-invite-link hidden" id="ap-portal-link"></p>`}
+    </div>
+  `;
+}
+
+function wirePortalAccess(container, player) {
+  const linkEl = container.querySelector('#ap-portal-link');
+  const showLink = (token) => {
+    const url = `${window.location.origin}${window.location.pathname}?invite=${token}`;
+    linkEl.textContent = url;
+    linkEl.classList.remove('hidden');
+    navigator.clipboard?.writeText(url).then(
+      () => toastOk('Link copiado. Envia-o a este atleta.'),
+      () => toastOk('Link gerado — copia-o abaixo.')
+    );
+  };
+
+  container.querySelector('#ap-portal-copy')?.addEventListener('click', () => {
+    const invite = (state.invitations || []).find(
+      (i) => i.player_id === player.id && !i.used_at
+    );
+    if (invite) showLink(invite.token);
+  });
+
+  container.querySelector('#ap-portal-invite')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    btn.textContent = 'A gerar…';
+    try {
+      // Papel e permissões vêm do servidor (força 'atleta'); aqui só se diz
+      // de que atleta se trata.
+      const inv = await createInvitation('atleta', [], null, player.id);
+      showLink(inv.token);
+    } catch (err) {
+      toastError(dbErrorMessage(err));
+      btn.disabled = false;
+      btn.textContent = 'Convidar para o portal';
+    }
+  });
 }
 
 // Cartão QR do atleta: pré-visualização, impressão de um cartão avulso e
