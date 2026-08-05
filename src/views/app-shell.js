@@ -8,6 +8,7 @@ import { logoSrc, branding } from '../branding.js';
 import { signOut } from '../auth.js';
 import { state, subscribe, loadAll, loadProfile, orgAccess, redeemInvitation } from '../store.js';
 import { loadingHTML, errorHTML, esc } from '../ui.js';
+import { renderOfflineCard, clearOfflineCard } from '../offline-card.js';
 import { renderOnboarding } from './onboarding.js';
 import { renderSubscriptionBlocked } from './subscription-blocked.js';
 import { canManageSettings, canManageUsers, canRestore, canAccess, ROLE_LABEL } from '../permissions.js';
@@ -373,7 +374,13 @@ export async function renderAppShell(root, session) {
 
   root.querySelector('#menu-toggle').addEventListener('click', toggleMenu);
   root.querySelector('#scrim').addEventListener('click', closeDrawer);
-  root.querySelector('#logout').addEventListener('click', () => signOut());
+  root.querySelector('#logout').addEventListener('click', () => {
+    // O cartão guardado é pessoal: não deve ficar no dispositivo depois de a
+    // conta sair (um tablet partilhado passaria o cartão ao utilizador
+    // seguinte).
+    clearOfflineCard();
+    signOut();
+  });
 
   const onResize = () => {
     if (!isMobile()) closeDrawer();
@@ -891,9 +898,14 @@ export async function renderAppShell(root, session) {
     applyHash();
     setupNotifications().catch((err) => console.error('Notificações:', err));
   } catch (err) {
-    content.innerHTML = errorHTML(
-      'Não foi possível carregar os dados. Confirma a ligação e o esquema da base de dados.'
-    );
+    // Sem dados, um atleta que já tenha visto o cartão continua a poder
+    // mostrá-lo: é a única coisa de que precisa à entrada do pavilhão, que é
+    // justamente onde a rede costuma faltar.
+    if (!renderOfflineCard(content)) {
+      content.innerHTML = errorHTML(
+        'Não foi possível carregar os dados. Confirma a ligação e o esquema da base de dados.'
+      );
+    }
     console.error(err);
   }
 }

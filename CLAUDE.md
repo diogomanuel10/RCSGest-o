@@ -77,6 +77,7 @@ src/
   players-xlsx.js       Importar atletas de .xlsx + gerar modelo (SheetJS lazy)
   qrcode.js             Cartões QR: gerar, ler pela câmara, traduzir (libs lazy)
   players-qr.js         Folha de cartões QR imprimíveis (A4, tamanho cartão)
+  offline-card.js       Cartão QR guardado no dispositivo (ecrã de recurso sem rede)
   assets/logo.svg       Logótipo do clube (emblema SVG)
   views/
     config-help.js      Ecrã quando faltam as variáveis do Supabase
@@ -101,6 +102,7 @@ src/
     arquivados.js       Vista Arquivados (registos inativos + repor — só coordenador)
 supabase/schema.sql     Tabelas, índices, RLS e dados iniciais (correr no Supabase)
 supabase/qrcode-presencas.sql  Presenças por QR: token do atleta + RPCs de check-in
+supabase/portal-atleta.sql     Portal: o atleta lê a sua própria disponibilidade
 public/                 Ficheiros estáticos (modelo-atletas-rumia.xlsx)
 ```
 
@@ -359,6 +361,14 @@ separador antes de navegar (usado pelos cartões do Painel).
     carregadas dinamicamente — o quiosque e os cartões são chunks à parte.
   - **Sem rede** (pavilhão com wifi fraca) as leituras ficam numa fila em
     `localStorage` e são enviadas quando a ligação volta.
+  - **O cartão do atleta sobrevive à falta de rede** (`offline-card.js`): o
+    portal guarda o SVG já desenhado no dispositivo, e se os dados não
+    carregarem o `app-shell` mostra um ecrã só com o cartão. Guarda-se o SVG e
+    não só o token para não depender de a biblioteca do QR estar em cache. O
+    service worker (`public/sw.js`) faz cache do próprio site (rede primeiro,
+    cache como recurso) e assume o controlo logo na 1.ª visita
+    (`skipWaiting`+`clients.claim`) — sem isso a primeira visita não guardava
+    nada. Sair da conta apaga o cartão guardado.
   - **O palco do quiosque é desenhado uma vez.** Trocar de sessão ou de câmara
     atualiza pontos concretos do DOM — reescrever o `innerHTML` destruía o
     `<video>` e obrigava a repedir a câmara. O seletor da barra lista os treinos

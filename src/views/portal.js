@@ -3,6 +3,7 @@
 // O RLS garante que o atleta só recebe os seus próprios dados.
 
 import { state } from '../store.js';
+import { saveOfflineCard } from '../offline-card.js';
 import { esc, euros, emptyHTML } from '../ui.js';
 import {
   upcomingEvents,
@@ -13,17 +14,32 @@ import {
   playerAttendanceStats,
   playerQuotas,
   nextPlayerSquadEvent,
+  playerRecentTrainings,
+  playerRecentForm,
+  playerUpcomingSquads,
 } from '../compute.js';
 import {
   EVENT_TYPE_LABEL,
   EVENT_TYPE_BADGE,
   ATTENDANCE_STATUSES,
+  ATTENDANCE_LABEL,
+  ATTENDANCE_BADGE,
   MONTHS,
   SQUAD_STATUS_LABEL,
   SQUAD_STATUS_BADGE,
   AVAILABILITY_LABEL,
   AVAILABILITY_BADGE,
+  WEEKDAYS,
 } from '../constants.js';
+
+// Data curta para as listas: "Dom 02/08". Em pt-PT o `weekday: 'short'` do
+// Intl devolve o nome inteiro ("domingo"), que parte a coluna em duas linhas —
+// daí usar as abreviaturas que a app já tem para a recorrência dos treinos.
+function shortDay(dt) {
+  const wd = WEEKDAYS.find((w) => w.n === dt.getDay())?.label || '';
+  const dm = dt.toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit' });
+  return `${wd} ${dm}`.trim();
+}
 
 export function renderPortal(container) {
   // O atleta da conta atual (o RLS limita state.players ao próprio registo).
@@ -49,6 +65,9 @@ export function renderPortal(container) {
   const quotas = playerQuotas(me.id);
   const nextSquad = nextPlayerSquadEvent(me.id);
   const availability = state.availability.find((a) => a.player_id === me.id);
+  const recent = playerRecentTrainings(me.id, 8);
+  const form = playerRecentForm(me.id, 5);
+  const squads = playerUpcomingSquads(me.id, 5);
 
   const greeting = greet();
   const first = (me.name || '').split(/\s+/)[0] || '';
@@ -119,12 +138,27 @@ export function renderPortal(container) {
                <strong class="stat-pct ${pctClass(att.rate)}">${att.rate}%</strong>
                <span class="muted">comparência em ${att.total} treino${att.total === 1 ? '' : 's'}</span>
              </div>
+             ${form
+               ? `<span class="portal-att__form">
+                    Últimos ${form.total}: <strong>${form.compareceu} de ${form.total}</strong>
+                  </span>`
+               : ''}
              <div class="portal-att__chips">
                ${ATTENDANCE_STATUSES.map((s) => `<span class="badge badge--${s.badge}">${esc(s.label)}: ${att.counts[s.key]}</span>`).join('')}
              </div>
-           </div>`
+           </div>
+           ${recent.length
+             ? `<ul class="portal-att-list">${recent.map(trainingRow).join('')}</ul>`
+             : ''}`
         : '<p class="muted" style="margin:0.3rem 0 0">Ainda sem registos de presença.</p>'}
     </section>
+
+    ${squads.length > 1 ? `
+    <section class="card">
+      <h2 class="section-title upcoming-card__title">As minhas convocatórias</h2>
+      <ul class="portal-squads">${squads.map(squadRow).join('')}</ul>
+    </section>
+    ` : ''}
 
     <section class="card">
       <h2 class="section-title upcoming-card__title">As minhas quotas</h2>
@@ -146,11 +180,57 @@ export function renderPortal(container) {
   if (qrEl) {
     import('../qrcode.js')
       .then(({ qrSvg, qrPayload }) => qrSvg(qrPayload(me)))
-      .then((svg) => { qrEl.innerHTML = svg; })
+      .then((svg) => {
+        qrEl.innerHTML = svg;
+        // Guarda-o no dispositivo: à entrada do pavilhão a rede falha, e é
+        // precisamente aí que o cartão faz falta.
+        saveOfflineCard({
+          name: me.name,
+          number: me.number,
+          team: team ? teamName(team) : '',
+          svg,
+        });
+      })
       .catch(() => {
         qrEl.innerHTML = '<p class="muted">Não foi possível desenhar o código.</p>';
       });
   }
+}
+
+// Uma linha do histórico de treinos: data + o que ficou registado.
+// Um treino que ninguém fechou aparece como "sem registo" e não como falta —
+// a diferença importa para o atleta, que não tem culpa do treino por fechar.
+function trainingRow({ event, attendance }) {
+  const day = shortDay(eventDateTime(event));
+  const status = attendance?.status;
+  const badge = status
+    ? `<span class="badge badge--${ATTENDANCE_BADGE[status]}">${esc(ATTENDANCE_LABEL[status])}${
+        status === 'atraso' && attendance.minutes_late ? ` ${attendance.minutes_late}'` : ''
+      }</span>`
+    : '<span class="badge badge--muted">Sem registo</span>';
+
+  return `
+    <li class="portal-att-row">
+      <span class="portal-att-row__day">${esc(day)}</span>
+      <span class="portal-att-row__title">${esc(event.title || 'Treino')}</span>
+      ${badge}
+    </li>
+  `;
+}
+
+function squadRow({ event, status }) {
+  const day = shortDay(eventDateTime(event));
+  return `
+    <li class="portal-att-row">
+      <span class="portal-att-row__day">${esc(day)}</span>
+      <span class="portal-att-row__title">
+        ${event.opponent ? `vs ${esc(event.opponent)}` : esc(event.title || 'Jogo')}
+      </span>
+      <span class="badge badge--${SQUAD_STATUS_BADGE[status] || 'info'}">
+        ${esc(SQUAD_STATUS_LABEL[status] || status)}
+      </span>
+    </li>
+  `;
 }
 
 function greet() {
