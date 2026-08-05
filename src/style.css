@@ -5297,10 +5297,13 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 /* --- Quiosque --------------------------------------------------------
    Ecrã cheio, por cima de tudo. Pensado para um tablet a 2-3 metros de
    distância: tipos grandes, cor a dizer o resultado antes de se ler. */
+/* Acima do layout da app (barra lateral 40-50) mas ABAIXO dos modais (100) e
+   dos toasts (400): o quiosque tapa a app, não tapa os avisos nem os diálogos
+   que possam abrir por cima dele. */
 .kiosk {
   position: fixed;
   inset: 0;
-  z-index: 120;
+  z-index: 90;
   background: var(--bg);
   overflow: auto;
 }
@@ -5343,13 +5346,96 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
   border-radius: var(--radius);
   box-shadow: var(--shadow-xs);
 }
+.kiosk__bar-id { min-width: 0; }
 .kiosk__bar-title {
   font-family: var(--font-title);
   font-size: 1.15rem;
   display: block;
   line-height: 1.1;
 }
-.kiosk__bar-sub { font-size: 0.85rem; }
+
+/* A sessão é um botão, não uma legenda: é assim que o treinador que chega
+   percebe que pode trocar para o treino dele sem sair do quiosque. */
+.kiosk__session {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: 100%;
+  margin-top: 0.15rem;
+  padding: 0.15rem 0.5rem 0.15rem 0.55rem;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border: 1px dashed var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.kiosk__session:hover {
+  color: var(--text);
+  border-style: solid;
+  border-color: var(--navy-300);
+}
+.kiosk__session > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kiosk__session-caret { flex: none; font-size: 0.7rem; }
+
+/* --- Painéis do quiosque (sessão, sair) ---
+   Vivem DENTRO do elemento do quiosque para continuarem visíveis em ecrã
+   inteiro — um diálogo montado no <body> não é desenhado nesse modo. */
+.kiosk__panel {
+  /* `fixed` para cobrir o ecrã mesmo com o palco do quiosque a fazer scroll.
+     O z-index fica contido no contexto do `.kiosk`, por isso não escapa por
+     cima dos modais da app. */
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(10, 22, 40, 0.55);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+.kiosk__panel-card {
+  width: min(460px, 100%);
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+.kiosk__picker {
+  list-style: none;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.kiosk__picker-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.7rem 0.8rem;
+  font: inherit;
+  text-align: left;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.kiosk__picker-btn:hover { border-color: var(--navy-300); }
+.kiosk__picker-btn.is-active {
+  border-color: var(--navy);
+  background: var(--navy-100);
+  font-weight: 600;
+}
+.kiosk__picker-tick { color: var(--navy); flex: none; }
 .kiosk__bar-actions {
   display: flex;
   align-items: center;

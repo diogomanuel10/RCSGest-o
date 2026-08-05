@@ -10,7 +10,6 @@ import { state, checkInByQr, dbErrorMessage } from '../store.js';
 import { esc } from '../ui.js';
 import { eventDateTime, eventTimeRange, teamById, teamName } from '../compute.js';
 import { createScanner, parseQrPayload, cameraErrorMessage } from '../qrcode.js';
-import { confirmDialog } from '../modal.js';
 
 // Leituras que ficaram por enviar (rede em baixo no pavilhão). Ficam também no
 // armazenamento local: se o tablet for recarregado a meio, não se perdem.
@@ -30,17 +29,17 @@ const REASON_MESSAGE = {
 };
 
 export function openQuiosque(preselectedEventId = null) {
-  // Treinos elegíveis: os de hoje e de amanhã (chega para escolher a sessão
-  // sem uma lista interminável).
-  const now = new Date();
-  const limit = new Date(now.getTime() + 36 * 3600 * 1000);
-  const trainings = state.events
-    .filter((e) => e.type === 'treino')
-    .filter((e) => {
-      const dt = eventDateTime(e);
-      return dt >= new Date(now.getFullYear(), now.getMonth(), now.getDate()) && dt <= limit;
-    })
-    .sort((a, b) => eventDateTime(a) - eventDateTime(b));
+  // Só os treinos DE HOJE: o quiosque é usado no próprio dia, e cada treinador
+  // que chega escolhe a sua sessão desta lista (ver o seletor na barra).
+  // Lida a cada abertura, não guardada: o tablet fica horas ligado e entretanto
+  // pode ter sido criado um treino no Calendário (ou passado a meia-noite).
+  const todayTrainings = () => {
+    const todayKey = new Date().toLocaleDateString('en-CA'); // AAAA-MM-DD local
+    return state.events
+      .filter((e) => e.type === 'treino' && e.date === todayKey)
+      .sort((a, b) => eventDateTime(a) - eventDateTime(b));
+  };
+  const trainings = todayTrainings();
 
   let eventId = preselectedEventId || '';
   let scanner = null;
@@ -72,20 +71,15 @@ export function openQuiosque(preselectedEventId = null) {
           </p>
 
           <div class="field">
-            <label for="kiosk-event">Sessão</label>
+            <label for="kiosk-event">Sessão de hoje</label>
             <select id="kiosk-event">
               <option value="">Automático — pelo escalão de cada atleta</option>
-              ${trainings.map((t) => {
-                const tm = teamById(t.team_id);
-                const dt = eventDateTime(t).toLocaleDateString('pt-PT', { weekday: 'short', day: '2-digit', month: 'short' });
-                const range = eventTimeRange(t);
-                const label = `${dt}${range ? ' ' + range : ''}${tm ? ' — ' + teamName(tm) : ''}`;
-                return `<option value="${t.id}" ${t.id === eventId ? 'selected' : ''}>${esc(label)}</option>`;
-              }).join('')}
+              ${trainings.map((t) => `<option value="${t.id}" ${t.id === eventId ? 'selected' : ''}>${esc(sessionLabel(t))}</option>`).join('')}
             </select>
             <p class="field__hint muted" style="margin:0.35rem 0 0;font-size:0.84rem">
-              No modo automático, cada cartão vai para o treino da equipa desse
-              atleta que estiver a decorrer — um só quiosque serve vários escalões.
+              ${trainings.length
+                ? 'Podes trocar de sessão a qualquer momento sem sair do quiosque. No modo automático, cada cartão vai para o treino da equipa desse atleta que estiver a decorrer.'
+                : 'Hoje não há treinos no Calendário. Em automático, o quiosque continua a aceitar cartões de qualquer treino que venha a existir.'}
             </p>
           </div>
 
@@ -108,24 +102,34 @@ export function openQuiosque(preselectedEventId = null) {
     overlay.querySelector('#kiosk-start').addEventListener('click', start);
   }
 
+  // Etiqueta de uma sessão: equipa + horas. É o que o treinador procura na
+  // lista, por isso a equipa vem primeiro.
+  function sessionLabel(ev) {
+    const tm = teamById(ev.team_id);
+    const range = eventTimeRange(ev);
+    return [tm ? teamName(tm) : 'Sem equipa', range, ev.title].filter(Boolean).join(' · ');
+  }
+
   // --- Ecrã 2: a ler ------------------------------------------------------
+  // Desenhado UMA vez. Trocar de sessão ou de câmara não pode voltar a escrever
+  // no `innerHTML` do palco: isso destruía o <video> e obrigava a repedir a
+  // câmara. As atualizações são todas em pontos concretos do DOM.
   function renderScanner() {
-    const ev = eventId ? state.events.find((e) => e.id === eventId) : null;
-    const tm = ev ? teamById(ev.team_id) : null;
     overlay.innerHTML = `
       <div class="kiosk__stage">
         <header class="kiosk__bar">
-          <div>
+          <div class="kiosk__bar-id">
             <strong class="kiosk__bar-title">Presenças</strong>
-            <span class="muted kiosk__bar-sub">
-              ${ev
-                ? esc(`${tm ? teamName(tm) + ' · ' : ''}${eventDateTime(ev).toLocaleDateString('pt-PT', { day: '2-digit', month: 'long' })}${eventTimeRange(ev) ? ' · ' + eventTimeRange(ev) : ''}`)
-                : 'Automático — pelo escalão de cada atleta'}
-            </span>
+            <button class="kiosk__session" type="button" id="kiosk-session"
+                    aria-label="Trocar de sessão de treino">
+              <span id="kiosk-session-label"></span>
+              <span class="kiosk__session-caret" aria-hidden="true">▾</span>
+            </button>
           </div>
           <div class="kiosk__bar-actions">
             <span class="kiosk__count"><strong id="kiosk-count">0</strong> registos</span>
             <span class="kiosk__pending hidden" id="kiosk-pending"></span>
+            <button class="btn btn--ghost btn--sm hidden" type="button" id="kiosk-camera">Trocar câmara</button>
             <button class="btn btn--ghost btn--sm" type="button" id="kiosk-full">Ecrã inteiro</button>
             <button class="btn btn--ghost btn--sm" type="button" id="kiosk-exit">Sair</button>
           </div>
@@ -151,7 +155,117 @@ export function openQuiosque(preselectedEventId = null) {
 
     overlay.querySelector('#kiosk-exit').addEventListener('click', tryClose);
     overlay.querySelector('#kiosk-full').addEventListener('click', toggleFullscreen);
+    overlay.querySelector('#kiosk-session').addEventListener('click', openSessionPicker);
+    overlay.querySelector('#kiosk-camera').addEventListener('click', switchCamera);
+    paintSession();
     paintPending();
+  }
+
+  // Sessão em vigor, escrita na barra.
+  function paintSession() {
+    const el = overlay.querySelector('#kiosk-session-label');
+    if (!el) return;
+    const ev = eventId ? state.events.find((e) => e.id === eventId) : null;
+    el.textContent = ev ? sessionLabel(ev) : 'Automático — pelo escalão de cada atleta';
+  }
+
+  // Troca de sessão sem sair do quiosque: o treinador que chega escolhe o seu
+  // treino de hoje e o quiosque continua a ler, sem repedir a câmara.
+  function openSessionPicker() {
+    const today = todayTrainings();
+    const rows = [
+      { id: '', label: 'Automático — pelo escalão de cada atleta' },
+      ...today.map((t) => ({ id: t.id, label: sessionLabel(t) })),
+    ];
+    const panel = kioskPanel({
+      title: 'Sessão de treino de hoje',
+      body: `
+        <ul class="kiosk__picker">
+          ${rows.map((r) => `
+            <li>
+              <button type="button" class="kiosk__picker-btn${r.id === eventId ? ' is-active' : ''}" data-session="${esc(r.id)}">
+                <span>${esc(r.label)}</span>
+                ${r.id === eventId ? '<span class="kiosk__picker-tick" aria-hidden="true">✓</span>' : ''}
+              </button>
+            </li>`).join('')}
+        </ul>
+        ${today.length ? '' : '<p class="muted" style="margin:0.6rem 0 0;font-size:0.88rem">Hoje não há treinos no Calendário.</p>'}
+      `,
+      actions: '<button class="btn btn--ghost" type="button" data-close>Fechar</button>',
+    });
+
+    panel.querySelectorAll('[data-session]').forEach((btn) =>
+      btn.addEventListener('click', () => {
+        eventId = btn.dataset.session;
+        paintSession();
+        scanner?.reset();
+        panel.close();
+      })
+    );
+  }
+
+  async function switchCamera() {
+    const btn = overlay.querySelector('#kiosk-camera');
+    if (!scanner || !btn) return;
+    btn.disabled = true;
+    try {
+      const label = await scanner.switchCamera();
+      btn.title = `A usar: ${label}`;
+      showResult({ kind: 'repetido', title: label, detail: 'Câmara trocada' });
+    } catch (err) {
+      showResult({ kind: 'erro', title: 'Câmara', detail: cameraErrorMessage(err) });
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  // O botão só faz sentido com mais do que uma câmara — num portátil com uma
+  // webcam só, trocar não muda nada e o botão seria uma promessa falsa. As
+  // câmaras só se conhecem depois de a permissão ser dada, daí ser aqui.
+  function paintCameraButton() {
+    const btn = overlay.querySelector('#kiosk-camera');
+    if (!btn || !scanner) return;
+    if (scanner.cameraCount() > 1) {
+      btn.classList.remove('hidden');
+      btn.title = `A usar: ${scanner.cameraLabel()}`;
+    } else {
+      btn.classList.add('hidden');
+    }
+  }
+
+  // Painel montado DENTRO do quiosque (e não no <body>, como o `confirmDialog`
+  // partilhado): em ecrã inteiro só é desenhado o que está dentro do elemento
+  // em ecrã inteiro, e um diálogo montado no body ficava invisível — era o que
+  // fazia o botão "Sair" parecer avariado.
+  function kioskPanel({ title, body, actions }) {
+    const host = document.createElement('div');
+    host.className = 'kiosk__panel';
+    host.innerHTML = `
+      <div class="card kiosk__panel-card" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+        <h2 class="section-title" style="margin-top:0">${esc(title)}</h2>
+        ${body}
+        <div class="modal__actions">${actions}</div>
+      </div>
+    `;
+    overlay.appendChild(host);
+
+    const close = () => {
+      host.remove();
+      document.removeEventListener('keydown', onKey);
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        close();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    host.addEventListener('mousedown', (e) => { if (e.target === host) close(); });
+    host.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', close));
+    host.querySelector('button')?.focus();
+
+    host.close = close;
+    return host;
   }
 
   async function start() {
@@ -168,6 +282,7 @@ export function openQuiosque(preselectedEventId = null) {
       el.classList.remove('hidden');
       return;
     }
+    paintCameraButton();
     keepAwake();
     retryTimer = setInterval(flushPending, RETRY_MS);
     flushPending();
@@ -358,14 +473,20 @@ export function openQuiosque(preselectedEventId = null) {
   }
 
   // --- Sair ---------------------------------------------------------------
-  async function tryClose() {
-    const ok = await confirmDialog(
-      pending.length
-        ? `Sair do modo quiosque? Há ${pending.length} leitura${pending.length === 1 ? '' : 's'} por sincronizar — ficam guardadas e são enviadas da próxima vez.`
-        : 'Sair do modo quiosque? A câmara deixa de registar presenças.',
-      { confirmLabel: 'Sair', danger: false }
-    );
-    if (ok) close();
+  function tryClose() {
+    const panel = kioskPanel({
+      title: 'Sair do modo quiosque?',
+      body: `<p class="modal__confirm-text" style="margin:0">${
+        pending.length
+          ? `Há ${pending.length} leitura${pending.length === 1 ? '' : 's'} por sincronizar — ficam guardadas e são enviadas da próxima vez.`
+          : 'A câmara deixa de registar presenças.'
+      }</p>`,
+      actions: `
+        <button class="btn btn--ghost" type="button" data-close>Continuar a ler</button>
+        <button class="btn btn--primary" type="button" data-exit>Sair</button>
+      `,
+    });
+    panel.querySelector('[data-exit]').addEventListener('click', close);
   }
 
   function close() {
