@@ -65,7 +65,10 @@ export function renderUtilizadores(container) {
       <p class="muted" style="margin-top:0">
         Define o papel de cada pessoa. Quem se regista começa em <strong>Leitura</strong>
         sem acesso a nada — escolhe os acessos para ele poder ver as secções.
-        Treinadores e atletas devem ser vinculados ao respetivo registo.
+        Treinadores devem ser vinculados ao respetivo registo. Para os
+        <strong>atletas</strong>, convida-os a partir da ficha deles (Plantéis →
+        atleta → Acesso ao portal): o link já vai ligado à ficha certa e não há
+        contas trocadas.
       </p>
       <div class="roles-legend">
         ${ROLES.map(
@@ -406,7 +409,12 @@ function inviteRow(inv) {
   const pending = st.key === 'pendente';
   return `
     <tr>
-      <td>${esc(inv.email || 'Qualquer pessoa com o link')}</td>
+      <td>
+        ${inv.player_id
+          ? `${esc(state.players.find((p) => p.id === inv.player_id)?.name || 'Atleta removido')}
+             <span class="badge badge--info">atleta</span>`
+          : esc(inv.email || 'Qualquer pessoa com o link')}
+      </td>
       <td>${esc(ROLE_LABEL[inv.role] || inv.role)}</td>
       <td><span class="badge badge--${st.badge}">${st.label}</span></td>
       <td>

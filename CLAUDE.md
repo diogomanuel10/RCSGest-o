@@ -23,6 +23,15 @@ conforme o `role` + RLS. Ver `supabase/multitenant.sql` (corre DEPOIS de
 - **Convites**: o coordenador gera um link `?invite=<token>` (RPC
   `create_invitation`); o convidado regista-se e o token é resgatado no arranque
   (RPC `redeem_invitation`, ver `app-shell.js`), ligando a conta ao clube.
+- **Convite de atleta** (`supabase/convite-atleta.sql`):
+  `org_invitations.player_id` deixa o convite nascer **já ligado a uma ficha**.
+  Gera-se no perfil do atleta ("Acesso ao portal"), onde o coordenador o escolhe
+  pelo NOME; o resgate preenche `players.user_id` sozinho. Isto existe porque
+  `profiles` **não guarda nome** — só email: sem isto o coordenador tinha de
+  adivinhar, por um `familia.costa@sapo.pt`, qual das contas era a Maria, e um
+  vínculo errado dá ao atleta as presenças, quotas e o **cartão QR** de outro.
+  O servidor força `role='atleta'`, valida que a ficha é do clube e substitui
+  qualquer convite pendente do mesmo atleta.
 - **Subscrições**: `organizations.status` (`trial`/`ativa`/`suspensa`/
   `cancelada`) + `trial_ends_at`. O *gate* em `app-shell.js` (`orgAccess()`)
   bloqueia clubes inativos (`subscription-blocked.js`).

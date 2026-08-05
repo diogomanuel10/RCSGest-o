@@ -242,13 +242,24 @@ export async function redeemInvitation(token) {
 }
 
 // Cria um convite para o clube atual e devolve a linha (com o token/link).
-export async function createInvitation(role, permissions, email) {
+// Com `playerId`, o convite nasce ligado a essa ficha de atleta: quem o
+// resgatar fica vinculado a ELA, sem o coordenador ter de adivinhar depois,
+// pelo email, qual das contas é qual (o servidor força o papel 'atleta').
+export async function createInvitation(role, permissions, email, playerId = null) {
   const { data, error } = await supabase.rpc('create_invitation', {
     p_role: role,
     p_permissions: permissions || [],
     p_email: email || null,
+    p_player_id: playerId,
   });
   if (error) throw error;
+  // Um convite de atleta substitui o pendente anterior do mesmo atleta (o
+  // servidor apaga-o), por isso a cache local também o tem de largar.
+  if (playerId) {
+    state.invitations = state.invitations.filter(
+      (i) => !(i.player_id === playerId && !i.used_at)
+    );
+  }
   state.invitations.unshift(data);
   notify();
   return data;

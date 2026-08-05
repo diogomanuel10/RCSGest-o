@@ -5631,3 +5631,19 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
   border-radius: var(--radius);
 }
 .portal-qr__code svg { width: 100%; height: auto; display: block; }
+
+/* Link de convite mostrado na ficha do atleta: tem de poder ser lido e
+   selecionado à mão quando a cópia automática falha (browser sem permissão
+   de clipboard). */
+.pd-invite-link {
+  margin: 0.6rem 0 0;
+  padding: 0.5rem 0.6rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
