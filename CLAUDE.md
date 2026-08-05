@@ -66,6 +66,8 @@ src/
   modal.js              Modal de formulário reutilizável + diálogo de confirmação
   style.css             Design system completo (tokens + componentes)
   players-xlsx.js       Importar atletas de .xlsx + gerar modelo (SheetJS lazy)
+  qrcode.js             Cartões QR: gerar, ler pela câmara, traduzir (libs lazy)
+  players-qr.js         Folha de cartões QR imprimíveis (A4, tamanho cartão)
   assets/logo.svg       Logótipo do clube (emblema SVG)
   views/
     config-help.js      Ecrã quando faltam as variáveis do Supabase
@@ -82,11 +84,14 @@ src/
     preparacao.js       Separador Prep. física (atletas + periodização + mapa de jogos)
     physical-file.js    Área de Prep. física do perfil (dados físicos, avaliações, controlo)
     calendario.js       Vista Calendário
+    presencas.js        Vista Presenças (marcar + estatísticas de comparência)
+    quiosque.js         Modo quiosque: câmara à entrada regista presenças por QR
     treinadores.js      Vista Treinadores
     definicoes.js       Vista Definições (época, meta, escalões, backup)
     utilizadores.js     Vista Utilizadores (gestão de papéis — só coordenador)
     arquivados.js       Vista Arquivados (registos inativos + repor — só coordenador)
 supabase/schema.sql     Tabelas, índices, RLS e dados iniciais (correr no Supabase)
+supabase/qrcode-presencas.sql  Presenças por QR: token do atleta + RPCs de check-in
 public/                 Ficheiros estáticos (modelo-atletas-rumia.xlsx)
 ```
 
@@ -317,6 +322,37 @@ separador antes de navegar (usado pelos cartões do Painel).
   as colunas por cabeçalho (Nome, Número, Ano de nascimento, Posição; aceita
   variações). Linhas sem nome são ignoradas. Insere em lote via `createRows`.
   O modelo descarrega-se por "Descarregar modelo" (ou de `public/`).
+- **Presenças por QR (modo quiosque)**: cada atleta tem um `players.qr_token`
+  (ver `supabase/qrcode-presencas.sql`). Um tablet à entrada fica em modo
+  quiosque (`quiosque.js`, aberto das Presenças) com a câmara ligada; o atleta
+  passa o cartão e a presença é registada sozinha.
+  - **O QR não leva o `id` do atleta**, leva o `qr_token` — que se regenera no
+    perfil do atleta quando um cartão se perde, sem tocar no registo.
+  - **A decisão é toda do servidor** (RPC `check_in_by_qr`, `security definer`):
+    que treino, se conta como `presente` ou `atraso`, e se o atleta é mesmo
+    daquela equipa e clube. O quiosque nunca escreve na tabela. Como o
+    `security definer` **não passa pelo RLS**, a função filtra `org_id` à mão —
+    incluindo ao ler as definições, senão herdava a tolerância de outro clube.
+  - **Sem treino escolhido**, a RPC procura o treino da equipa DO ATLETA mais
+    próximo de agora, dentro da janela configurada. É o que permite um só
+    quiosque à entrada a servir vários escalões ao mesmo tempo.
+  - **A decisão humana ganha à câmara**: um estado já marcado como `presente`,
+    `atraso` ou `justificado` não é sobreposto (passar o cartão duas vezes
+    devolve "já registado"); uma `falta` é corrigida pela leitura.
+  - `attendances.source` (`manual`|`qr`) e `checked_in_at` guardam a origem; a
+    lista de presenças mostra "Cartão QR" e a hora da passagem.
+  - **Fechar sessão** (`close_attendance_session`) marca `falta` a quem ficou
+    sem registo nenhum — sem isso os ausentes ficavam só "sem registo", que não
+    conta para a taxa de comparência.
+  - **Cartões**: `players-qr.js` gera uma folha A4 imprimível por equipa (nos
+    Plantéis, "Cartões QR"), para os escalões sem telemóvel; quem tem conta vê
+    o mesmo código no portal do atleta. As bibliotecas (`qrcode`, `jsqr`) são
+    carregadas dinamicamente — o quiosque e os cartões são chunks à parte.
+  - **Sem rede** (pavilhão com wifi fraca) as leituras ficam numa fila em
+    `localStorage` e são enviadas quando a ligação volta.
+  - Definições do clube: ligar/desligar, tolerância e janela do quiosque. A UI
+    só as mostra depois de a migração correr (`'qr_checkin_enabled' in
+    state.settings`).
 - **Avaliação de plantel**: `players.review_status` ∈ `pendente|mantem|sai`
   (omissão `pendente`). A vista `avaliacao.js` deixa o coordenador/treinador
   decidir, por equipa, quem fica na próxima época, com contadores. Não apaga

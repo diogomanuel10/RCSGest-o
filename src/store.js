@@ -631,12 +631,84 @@ export async function createRows(table, collection, rows) {
   return data;
 }
 
+// Registo de presença por leitura do cartão QR (modo quiosque).
+// Toda a decisão é do servidor (RPC `check_in_by_qr`): que treino, se conta
+// como presente ou atraso, e se o atleta é mesmo daquela equipa e clube. Aqui
+// só se sincroniza a cache e se devolve o resultado para o ecrã do quiosque.
+// Devolve `{ ok, reason?, status?, already?, minutes_late?, player?, event? }`.
+export async function checkInByQr(token, eventId = null) {
+  const { data, error } = await supabase.rpc('check_in_by_qr', {
+    p_token: token,
+    p_event_id: eventId,
+  });
+  if (error) throw error;
+  if (data?.ok && !data.already && data.event?.id && data.player?.id) {
+    const row = {
+      event_id: data.event.id,
+      player_id: data.player.id,
+      status: data.status,
+      minutes_late: data.minutes_late ?? null,
+      justification: null,
+      source: 'qr',
+      checked_in_at: new Date().toISOString(),
+    };
+    const i = state.attendances.findIndex(
+      (a) => a.event_id === row.event_id && a.player_id === row.player_id
+    );
+    if (i !== -1) state.attendances[i] = { ...state.attendances[i], ...row };
+    else state.attendances.push(row);
+    notify();
+  }
+  return data;
+}
+
+// Emite um cartão QR novo para o atleta: o token anterior deixa de registar
+// presenças (é o que se faz quando um cartão se perde). Precisa de reimprimir.
+export async function regeneratePlayerQr(playerId, token) {
+  const { data, error } = await supabase
+    .from('players')
+    .update({ qr_token: token })
+    .eq('id', playerId)
+    .select()
+    .single();
+  if (error) throw error;
+  const i = state.players.findIndex((p) => p.id === playerId);
+  if (i !== -1) state.players[i] = data;
+  toastOk('Cartão QR novo emitido. O anterior deixou de funcionar.');
+  notify();
+  return data;
+}
+
+// Fecha a sessão: marca falta a quem ficou sem qualquer registo neste treino.
+// Devolve quantas faltas foram criadas.
+export async function closeAttendanceSession(eventId) {
+  const { data, error } = await supabase.rpc('close_attendance_session', {
+    p_event_id: eventId,
+  });
+  if (error) throw error;
+  const created = Number(data) || 0;
+  if (created) {
+    const { data: rows, error: readErr } = await supabase
+      .from('attendances')
+      .select('*')
+      .eq('event_id', eventId);
+    if (readErr) throw readErr;
+    state.attendances = state.attendances.filter((a) => a.event_id !== eventId);
+    state.attendances.push(...(rows || []));
+    toastOk(`${created} falta${created === 1 ? '' : 's'} registada${created === 1 ? '' : 's'}.`);
+    notify();
+  } else {
+    toastOk('Todos os atletas já tinham registo.');
+  }
+  return created;
+}
+
 // Upsert de presença (cria ou atualiza — chave única event_id+player_id).
 export async function upsertAttendance(eventId, playerId, values) {
   const { data, error } = await supabase
     .from('attendances')
     .upsert(
-      { event_id: eventId, player_id: playerId, ...values },
+      { event_id: eventId, player_id: playerId, source: 'manual', ...values },
       { onConflict: 'event_id,player_id' }
     )
     .select()

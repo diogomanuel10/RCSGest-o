@@ -9,6 +9,7 @@ import {
   escalaoColor, positionColor,
 } from '../compute.js';
 import { openModal, confirmDialog } from '../modal.js';
+import { toastError } from '../toast.js';
 import { COACH_ROLE_LABEL, AVAILABILITY_LABEL } from '../constants.js';
 import { canEdit, canDelete, canAccess, isCoordenador } from '../permissions.js';
 import { planLimit, currentPlan } from '../plans.js';
@@ -180,6 +181,9 @@ export function renderPlanteis(container) {
   container.querySelectorAll('[data-template]').forEach((b) =>
     b.addEventListener('click', () => downloadPlayersTemplate())
   );
+  container.querySelectorAll('[data-qr-cards]').forEach((b) =>
+    b.addEventListener('click', () => printQrCards(b.dataset.qrCards, b))
+  );
   container.querySelectorAll('[data-player-view]').forEach((b) =>
     b.addEventListener('click', () => {
       const id = b.dataset.playerView;
@@ -308,6 +312,7 @@ function rosterHTML(team, canTeams, canPlayers, canRemovePlayers, filtering) {
           ? `<div class="roster__actions">
                <button class="btn btn--accent btn--sm" data-add-player="${team.id}" type="button">+ Atleta</button>
                <button class="btn btn--ghost btn--sm" data-import-player="${team.id}" type="button">Importar (xlsx)</button>
+               <button class="btn btn--ghost btn--sm" data-qr-cards="${team.id}" type="button">Cartões QR</button>
                <button class="btn btn--link btn--sm" data-template type="button">Descarregar modelo</button>
              </div>`
           : ''
@@ -580,6 +585,34 @@ function openPlayerForm(teamId, playerId) {
 }
 
 // Importa atletas de um ficheiro .xlsx para a equipa indicada.
+// Folha de cartões QR da equipa, pronta a imprimir e plastificar. É o que
+// permite usar o quiosque nos escalões de formação, onde quase ninguém tem
+// telemóvel — os cartões vivem na mochila, não no bolso.
+async function printQrCards(teamId, btn) {
+  const team = state.teams.find((t) => t.id === teamId);
+  const players = state.players
+    .filter((p) => p.team_id === teamId)
+    .sort((a, b) => (Number(a.number) || 999) - (Number(b.number) || 999));
+
+  if (!players.length) {
+    toastError('Esta equipa ainda não tem atletas.');
+    return;
+  }
+
+  const label = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'A gerar…';
+  try {
+    const { openQrCards } = await import('../players-qr.js');
+    await openQrCards(players, team);
+  } catch (err) {
+    toastError(err?.message || 'Não foi possível gerar os cartões.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = label;
+  }
+}
+
 function importPlayers(teamId) {
   const team = state.teams.find((t) => t.id === teamId);
   const input = document.createElement('input');

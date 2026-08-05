@@ -93,6 +93,17 @@ export function renderPortal(container) {
     </div>
     ` : ''}
 
+    ${me.qr_token ? `
+    <section class="card portal-qr">
+      <h2 class="section-title upcoming-card__title">O meu cartão</h2>
+      <p class="muted" style="margin:0.2rem 0 0.8rem;font-size:0.88rem">
+        Mostra este código no quiosque à entrada do treino para ficares com a
+        presença registada.
+      </p>
+      <div class="portal-qr__code" id="portal-qr" aria-label="O meu código QR"></div>
+    </section>
+    ` : ''}
+
     <section class="card">
       <h2 class="section-title upcoming-card__title">Próximos treinos e jogos</h2>
       ${upcoming.length
@@ -128,6 +139,18 @@ export function renderPortal(container) {
         : '<p class="muted" style="margin:0.3rem 0 0">Sem quotas registadas.</p>'}
     </section>
   `;
+
+  // O código QR é desenhado à parte: a biblioteca só é carregada para quem
+  // tem cartão, e o resto do portal aparece sem esperar por ela.
+  const qrEl = container.querySelector('#portal-qr');
+  if (qrEl) {
+    import('../qrcode.js')
+      .then(({ qrSvg, qrPayload }) => qrSvg(qrPayload(me)))
+      .then((svg) => { qrEl.innerHTML = svg; })
+      .catch(() => {
+        qrEl.innerHTML = '<p class="muted">Não foi possível desenhar o código.</p>';
+      });
+  }
 }
 
 function greet() {

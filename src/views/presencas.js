@@ -2,11 +2,13 @@
 // Seleciona um treino, mostra os atletas da equipa e permite marcar presença
 // com 4 estados: Presente / Atraso (com minutos) / Justificado (com texto) / Falta.
 
-import { state, upsertAttendance, dbErrorMessage } from '../store.js';
+import { state, upsertAttendance, closeAttendanceSession, dbErrorMessage } from '../store.js';
 import { esc, emptyHTML } from '../ui.js';
 import { eventDateTime, eventTimeRange, teamById, teamName } from '../compute.js';
 import { ATTENDANCE_STATUSES, ATTENDANCE_LABEL, ATTENDANCE_BADGE } from '../constants.js';
 import { canEdit } from '../permissions.js';
+import { confirmDialog } from '../modal.js';
+import { toastError } from '../toast.js';
 
 let selectedEventId = null;
 let presTab = 'sessao'; // 'sessao' | 'estatisticas'
@@ -87,12 +89,19 @@ export function renderPresencas(container) {
       })
     : '';
 
+  // O quiosque só aparece depois de a migração `qrcode-presencas.sql` correr
+  // (é ela que traz a coluna) e enquanto o clube o mantiver ligado.
+  const qrOn = editable && state.settings.qr_checkin_enabled === true;
+
   container.innerHTML = `
     <header class="page-head">
       <div>
         <h1 class="section-title">Presenças</h1>
         <p class="muted" style="margin:0;font-size:0.88rem">Registo de presenças nos treinos</p>
       </div>
+      ${qrOn
+        ? `<button class="btn btn--primary" id="pres-kiosk" type="button">Modo quiosque</button>`
+        : ''}
     </header>
 
     ${tabBar}
@@ -133,6 +142,15 @@ export function renderPresencas(container) {
       </div>
       <div class="progress"><div class="progress__bar" style="width:${pct}%"></div></div>
 
+      ${editable && team && totalPlayers && marked < totalPlayers
+        ? `<div class="row row--between row--wrap pres-close">
+             <span class="muted" style="font-size:0.85rem">
+               ${totalPlayers - marked} atleta${totalPlayers - marked === 1 ? '' : 's'} sem registo neste treino.
+             </span>
+             <button class="btn btn--ghost btn--sm" id="pres-close" type="button">Fechar sessão (marcar faltas)</button>
+           </div>`
+        : ''}
+
       ${!team
         ? '<p class="muted" style="margin:1rem 0 0">Este treino não tem equipa associada. Edita-o no Calendário para atribuir uma equipa.</p>'
         : !players.length
@@ -151,12 +169,37 @@ export function renderPresencas(container) {
     renderPresencas(container);
   });
 
+  // O quiosque (câmara + descodificador de QR) só é carregado a quem o abre.
+  container.querySelector('#pres-kiosk')?.addEventListener('click', async () => {
+    const { openQuiosque } = await import('./quiosque.js');
+    openQuiosque(selectedEventId);
+  });
+
   if (editable) {
     container.querySelectorAll('[data-status]').forEach((btn) => {
       btn.addEventListener('click', () =>
         handleStatusClick(btn, container, ev)
       );
     });
+    container.querySelector('#pres-close')?.addEventListener('click', () =>
+      closeSession(selectedEventId, totalPlayers - marked)
+    );
+  }
+}
+
+// "Fechar sessão": quem não passou o cartão nem foi marcado fica em falta.
+// É o passo que fecha o ciclo do quiosque — sem ele, ausentes ficavam apenas
+// "sem registo", que não conta para a taxa de comparência.
+async function closeSession(eventId, missing) {
+  const ok = await confirmDialog(
+    `Marcar falta a ${missing} atleta${missing === 1 ? '' : 's'} sem registo neste treino? Quem já tem estado não é alterado.`,
+    { confirmLabel: 'Marcar faltas', danger: false }
+  );
+  if (!ok) return;
+  try {
+    await closeAttendanceSession(eventId);
+  } catch (err) {
+    toastError(dbErrorMessage(err));
   }
 }
 
@@ -180,6 +223,13 @@ function playerRow(player, attendance, event, editable) {
           <span class="muted aval-row__meta">${[player.position, player.birth_year].filter(Boolean).map(esc).join(' · ') || '—'}</span>
           ${attendance?.minutes_late != null ? `<span class="pres-detail">${attendance.minutes_late} min de atraso</span>` : ''}
           ${attendance?.justification ? `<span class="pres-detail">${esc(attendance.justification)}</span>` : ''}
+          ${attendance?.source === 'qr'
+            ? `<span class="pres-detail pres-detail--qr" title="Registado pelo cartão QR no quiosque">Cartão QR${
+                attendance.checked_in_at
+                  ? ' · ' + new Date(attendance.checked_in_at).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })
+                  : ''
+              }</span>`
+            : ''}
         </div>
       </div>
       ${editable

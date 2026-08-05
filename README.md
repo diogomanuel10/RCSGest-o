@@ -48,7 +48,10 @@ As permissões são impostas pela base de dados (RLS), não só pela interface.
 3. Em **SQL Editor → New query**, cola e corre todo o ficheiro
    [`supabase/schema.sql`](supabase/schema.sql). Cria as tabelas, os perfis e
    papéis, as políticas de segurança (RLS) e os dados iniciais. Podes correr
-   mais do que uma vez.
+   mais do que uma vez. A seguir, e **por esta ordem**, corre os restantes
+   guiões da pasta `supabase/`: `notifications.sql`, `multitenant.sql`,
+   `plans.sql` e `qrcode-presencas.sql` (presenças por QR / modo quiosque).
+   Todos são seguros de re-executar.
 4. Em **Authentication → Sign In / Providers**, garante que
    **"Allow new users to sign up"** está **ativo** — a app permite criar conta
    por email e password no separador "Criar conta".
