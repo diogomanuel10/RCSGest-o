@@ -11,8 +11,10 @@
 // limitações ao treino (sem aceder ao detalhe clínico), além da última
 // avaliação física.
 
-import { state } from '../store.js';
+import { state, regeneratePlayerQr, dbErrorMessage } from '../store.js';
 import { esc, euros } from '../ui.js';
+import { confirmDialog } from '../modal.js';
+import { toastError } from '../toast.js';
 import {
   teamById,
   teamName,
@@ -214,11 +216,66 @@ function renderGeral(container, playerId, _opts = {}) {
         : '<p class="muted" style="margin:0.3rem 0 0">Sem quotas registadas.</p>'}
     </div>
 
+    ${player.qr_token && canEdit('players')
+      ? `<div class="pd-section" id="ap-qr">
+           <span class="pd-label">Cartão QR</span>
+           <div class="pd-qr">
+             <div class="pd-qr__code" id="ap-qr-code" aria-label="Código QR do atleta"></div>
+             <div class="pd-qr__side">
+               <p class="muted" style="margin:0 0 0.5rem;font-size:0.85rem">
+                 Passar este código no quiosque à entrada regista a presença no
+                 treino a decorrer.
+               </p>
+               <div class="row row--wrap" style="gap:0.5rem">
+                 <button class="btn btn--ghost btn--sm" type="button" id="ap-qr-print">Imprimir cartão</button>
+                 <button class="btn btn--ghost btn--sm" type="button" id="ap-qr-new">Emitir cartão novo</button>
+               </div>
+             </div>
+           </div>
+         </div>`
+      : ''}
+
     ${canEdit('documents') ? '<div id="ap-docs-placeholder"></div>' : ''}
   `;
 
   const docsEl = container.querySelector('#ap-docs-placeholder');
   if (docsEl) renderDocumentsInto(docsEl, playerId);
+  if (container.querySelector('#ap-qr')) wireQrCard(container, player, team);
+}
+
+// Cartão QR do atleta: pré-visualização, impressão de um cartão avulso e
+// emissão de um token novo (o que se faz quando um cartão se perde — o antigo
+// deixa de registar presenças).
+async function wireQrCard(container, player, team) {
+  const codeEl = container.querySelector('#ap-qr-code');
+  const { qrSvg, qrPayload, newQrToken } = await import('../qrcode.js');
+  try {
+    codeEl.innerHTML = await qrSvg(qrPayload(player));
+  } catch {
+    codeEl.innerHTML = '<span class="muted">Não foi possível desenhar o código.</span>';
+  }
+
+  container.querySelector('#ap-qr-print')?.addEventListener('click', async () => {
+    try {
+      const { openQrCards } = await import('../players-qr.js');
+      await openQrCards([player], team);
+    } catch (err) {
+      toastError(err?.message || 'Não foi possível gerar o cartão.');
+    }
+  });
+
+  container.querySelector('#ap-qr-new')?.addEventListener('click', async () => {
+    const ok = await confirmDialog(
+      `Emitir um cartão novo para ${player.name}? O cartão anterior deixa de registar presenças e tem de ser reimpresso.`,
+      { confirmLabel: 'Emitir novo', danger: false }
+    );
+    if (!ok) return;
+    try {
+      await regeneratePlayerQr(player.id, newQrToken());
+    } catch (err) {
+      toastError(dbErrorMessage(err));
+    }
+  });
 }
 
 function lastTestLabel(t) {

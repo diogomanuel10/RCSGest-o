@@ -199,6 +199,50 @@ export function renderDefinicoes(container) {
         </div>
       </form>
     </section>
+
+    ${'qr_checkin_enabled' in state.settings ? `
+    <section class="card settings-card">
+      <h2 class="section-title settings-card__title">Presenças por QR (modo quiosque)</h2>
+      <p class="muted" style="margin-top:0">
+        Com o modo quiosque, um tablet à entrada lê o cartão QR de cada atleta e
+        regista a presença sozinho. A marcação manual continua disponível.
+      </p>
+      <form id="qr-form">
+        <label class="coach-check" for="qr_checkin_enabled">
+          <input type="checkbox" id="qr_checkin_enabled" name="qr_checkin_enabled"
+                 ${state.settings.qr_checkin_enabled === false ? '' : 'checked'} />
+          <span>Permitir registo de presenças por QR</span>
+        </label>
+        <div class="field-grid" style="margin-top:0.8rem">
+          <div class="field">
+            <label for="qr_tolerance_min">Tolerância (minutos)</label>
+            <input type="number" id="qr_tolerance_min" name="qr_tolerance_min" min="0" max="60"
+                   value="${esc(String(state.settings.qr_tolerance_min ?? 5))}" />
+            <p class="field__hint muted" style="margin:0.25rem 0 0;font-size:0.82rem">
+              Passar o cartão depois deste tempo conta como atraso.
+            </p>
+          </div>
+          <div class="field">
+            <label for="qr_window_before_min">Abre o quiosque (min. antes)</label>
+            <input type="number" id="qr_window_before_min" name="qr_window_before_min" min="5" max="240"
+                   value="${esc(String(state.settings.qr_window_before_min ?? 60))}" />
+          </div>
+          <div class="field">
+            <label for="qr_window_after_min">Fecha o quiosque (min. depois)</label>
+            <input type="number" id="qr_window_after_min" name="qr_window_after_min" min="5" max="240"
+                   value="${esc(String(state.settings.qr_window_after_min ?? 90))}" />
+            <p class="field__hint muted" style="margin:0.25rem 0 0;font-size:0.82rem">
+              Fora desta janela o cartão não encontra treino para registar.
+            </p>
+          </div>
+        </div>
+        <p class="settings-msg hidden" id="qr-msg"></p>
+        <div class="row" style="justify-content:flex-end">
+          <button type="submit" class="btn btn--primary" id="save-qr">Guardar</button>
+        </div>
+      </form>
+    </section>
+    ` : ''}
     </div>
     </div>
 
@@ -276,6 +320,42 @@ export function renderDefinicoes(container) {
       showMsg(docAlertMsg, 'Alertas de documentos guardados.', 'ok');
     } catch (err) {
       showMsg(docAlertMsg, dbErrorMessage(err), 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Guardar';
+    }
+  });
+
+  // --- Presenças por QR (modo quiosque) ---
+  // A secção só existe depois da migração; sem ela não há nada para ligar.
+  const qrForm = container.querySelector('#qr-form');
+  const qrMsg = container.querySelector('#qr-msg');
+  qrForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const num = (name, min, max) => {
+      const v = Math.round(Number(qrForm[name].value));
+      return Number.isFinite(v) && v >= min && v <= max ? v : null;
+    };
+    const tolerance = num('qr_tolerance_min', 0, 60);
+    const before = num('qr_window_before_min', 5, 240);
+    const after = num('qr_window_after_min', 5, 240);
+    if (tolerance === null || before === null || after === null) {
+      showMsg(qrMsg, 'Confirma os minutos: tolerância 0–60 e janelas 5–240.', 'error');
+      return;
+    }
+    const btn = container.querySelector('#save-qr');
+    btn.disabled = true;
+    btn.textContent = 'A guardar…';
+    try {
+      await saveSettings({
+        qr_checkin_enabled: qrForm.qr_checkin_enabled.checked,
+        qr_tolerance_min: tolerance,
+        qr_window_before_min: before,
+        qr_window_after_min: after,
+      });
+      showMsg(qrMsg, 'Definições do quiosque guardadas.', 'ok');
+    } catch (err) {
+      showMsg(qrMsg, dbErrorMessage(err), 'error');
     } finally {
       btn.disabled = false;
       btn.textContent = 'Guardar';
