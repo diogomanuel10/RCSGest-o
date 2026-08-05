@@ -381,6 +381,19 @@ export const SQUAD_STATUSES = [
   { key: 'titular',   label: 'Titular',   badge: 'ok' },
   { key: 'suplente',  label: 'Suplente',  badge: 'warn' },
 ];
+// --- Respostas do atleta a um evento ---
+// O mesmo conjunto serve para confirmar uma convocatória e para avisar que
+// falta a um treino: do lado de quem treina o problema é o mesmo — saber com
+// quem conta. "Ainda não sei" existe porque a alternativa é o silêncio, que
+// não distingue quem não viu de quem não pode decidir.
+export const EVENT_RESPONSES = [
+  { key: 'vou',     label: 'Vou',           badge: 'ok' },
+  { key: 'duvida',  label: 'Ainda não sei', badge: 'warn' },
+  { key: 'nao_vou', label: 'Não vou',       badge: 'danger' },
+];
+export const EVENT_RESPONSE_LABEL = Object.fromEntries(EVENT_RESPONSES.map((r) => [r.key, r.label]));
+export const EVENT_RESPONSE_BADGE = Object.fromEntries(EVENT_RESPONSES.map((r) => [r.key, r.badge]));
+
 export const SQUAD_STATUS_LABEL = Object.fromEntries(SQUAD_STATUSES.map((s) => [s.key, s.label]));
 export const SQUAD_STATUS_BADGE = Object.fromEntries(SQUAD_STATUSES.map((s) => [s.key, s.badge]));
 

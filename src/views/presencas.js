@@ -4,7 +4,7 @@
 
 import { state, upsertAttendance, closeAttendanceSession, dbErrorMessage } from '../store.js';
 import { esc, emptyHTML } from '../ui.js';
-import { eventDateTime, eventTimeRange, teamById, teamName } from '../compute.js';
+import { eventDateTime, eventTimeRange, teamById, teamName, eventResponseSummary } from '../compute.js';
 import { ATTENDANCE_STATUSES, ATTENDANCE_LABEL, ATTENDANCE_BADGE } from '../constants.js';
 import { canEdit } from '../permissions.js';
 import { confirmDialog } from '../modal.js';
@@ -92,6 +92,9 @@ export function renderPresencas(container) {
   // O quiosque só aparece depois de a migração `qrcode-presencas.sql` correr
   // (é ela que traz a coluna) e enquanto o clube o mantiver ligado.
   const qrOn = editable && state.settings.qr_checkin_enabled === true;
+  // Quem avisou que não vem. Aparece ANTES da lista porque é o que o treinador
+  // quer saber ao chegar ao pavilhão — com quem pode contar hoje.
+  const avisos = eventResponseSummary(selectedEventId);
 
   container.innerHTML = `
     <header class="page-head">
@@ -127,6 +130,24 @@ export function renderPresencas(container) {
         </div>
       </div>
     </div>
+
+    ${avisos.ausentes.length
+      ? `<div class="card pres-avisos">
+           <strong class="pres-avisos__title">
+             ${avisos.ausentes.length} avisaram que não vêm
+           </strong>
+           <ul class="pres-avisos__list">
+             ${avisos.ausentes.map((a) => `
+               <li>
+                 <span class="pres-avisos__name">${esc(a.player.name)}</span>
+                 ${a.note ? `<span class="muted">— ${esc(a.note)}</span>` : '<span class="muted">— sem motivo indicado</span>'}
+               </li>`).join('')}
+           </ul>
+           <p class="muted pres-avisos__hint">
+             Um aviso não é uma justificação: marca tu o estado de cada um.
+           </p>
+         </div>`
+      : ''}
 
     <section class="cards-grid aval-summary" style="margin-bottom:1.2rem">
       ${summaryCard('Presentes', counts.presente, 'green')}

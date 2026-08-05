@@ -4,7 +4,8 @@
 import { state, ensureSquad, upsertSquadPlayer, removeSquadPlayer, dbErrorMessage } from '../store.js';
 import { esc } from '../ui.js';
 import { eventDateTime, eventTimeRange, teamById, teamName } from '../compute.js';
-import { SQUAD_STATUSES, SQUAD_STATUS_LABEL, SQUAD_STATUS_BADGE } from '../constants.js';
+import { SQUAD_STATUSES, SQUAD_STATUS_LABEL, SQUAD_STATUS_BADGE, EVENT_RESPONSE_LABEL, EVENT_RESPONSE_BADGE } from '../constants.js';
+import { playerEventResponse } from '../compute.js';
 import { canEdit } from '../permissions.js';
 
 export async function openSquadModal(eventId) {
@@ -37,6 +38,16 @@ export async function openSquadModal(eventId) {
       (p) => p.squad_id === squad.id && p.player_id === playerId
     );
     return sp ? sp.status : null;
+  }
+
+  // O que o atleta respondeu. É informação DELE, separada do estado que o
+  // treinador atribui: um atleta pode estar convocado e ter avisado que não
+  // pode ir — e é exatamente esse cruzamento que interessa ver aqui.
+  function respostaHTML(playerId) {
+    const r = playerEventResponse(playerId, event.id);
+    if (!r) return '';
+    return `<span class="badge badge--${EVENT_RESPONSE_BADGE[r.response]} squad-row__resp"
+      title="${esc(r.note || '')}">${esc(EVENT_RESPONSE_LABEL[r.response])}${r.note ? ' ·' : ''}</span>`;
   }
 
   function render() {
@@ -79,6 +90,7 @@ export async function openSquadModal(eventId) {
                       ${p.number ? `<span class="squad-row__num">${esc(p.number)}</span>` : ''}
                       <span class="squad-row__name">${esc(p.name)}</span>
                       ${p.position ? `<span class="muted" style="font-size:0.8rem">${esc(p.position)}</span>` : ''}
+                      ${respostaHTML(p.id)}
                     </div>
                     ${editable
                       ? `<div class="squad-row__actions">

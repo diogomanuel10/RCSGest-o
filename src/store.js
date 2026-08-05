@@ -83,6 +83,7 @@ export const state = {
   playerDocuments: [],    // documentos (exame médico, seguro, CC)
   squads: [],             // convocatórias (1:1 com evento jogo)
   squadPlayers: [],       // atletas em cada convocatória
+  eventResponses: [],     // o que o atleta respondeu a cada evento (vou/não vou)
   financialEntries: [],   // receitas e despesas do clube
   gamePlans: [],          // planos de jogo táticos
   objectives: [],         // objetivos / KPIs da época (manuais e automáticos)
@@ -132,6 +133,7 @@ export function resetState() {
   state.playerDocuments = [];
   state.squads = [];
   state.squadPlayers = [];
+  state.eventResponses = [];
   state.financialEntries = [];
   state.gamePlans = [];
   state.objectives = [];
@@ -300,7 +302,8 @@ export async function loadAll() {
   const [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects, episodes, sessions, appointments,
          physProfiles, medHistory, physTests, phases, mesocycles, gymSessions, gymExercises, gymAttendance, gameMinutes, availability,
          trainingPlans, trainingPlanItems, trainingEvaluations, trainingPlayerEvals,
-         playerDocuments, playerSizes, squads, squadPlayers, financialEntries, gamePlans, objectives] =
+         playerDocuments, playerSizes, squads, squadPlayers, financialEntries, gamePlans, objectives,
+         eventResponses] =
     await Promise.all([
       // Multi-tenant: o RLS limita as definições ao clube do utilizador, por
       // isso não filtramos por id — devolve a (única) linha do clube atual.
@@ -350,6 +353,9 @@ export async function loadAll() {
       supabase.from('game_plans').select('*').order('game_date', { ascending: false }),
       // Objetivos / KPIs.
       supabase.from('objectives').select('*').order('created_at'),
+      // Respostas do atleta aos eventos (convocatórias e treinos). Se a
+      // migração `comunicacao.sql` ainda não correu, fica vazio (ver abaixo).
+      supabase.from('event_responses').select('*'),
     ]);
 
   for (const res of [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects, episodes, sessions, appointments,
@@ -397,6 +403,9 @@ export async function loadAll() {
   state.financialEntries = financialEntries.data || [];
   state.gamePlans        = gamePlans.data        || [];
   state.objectives       = objectives.data       || [];
+  // Tolerante à migração em falta: sem `comunicacao.sql` a consulta devolve
+  // erro e a app segue sem respostas, em vez de não arrancar de todo.
+  state.eventResponses   = eventResponses.error ? [] : (eventResponses.data || []);
 
   // Coerência da cache: com pais arquivados (ex.: uma equipa), os filhos que os
   // referenciam não devem aparecer nos ecrãs ativos.
@@ -671,6 +680,42 @@ export async function checkInByQr(token, eventId = null) {
     notify();
   }
   return data;
+}
+
+// --- Comunicação clube <-> atleta ---------------------------------------
+
+// O atleta responde a um evento: 'vou' | 'nao_vou' | 'duvida'.
+// Toda a validação é do servidor (RPC `respond_to_event`): que só responde
+// pelo próprio, só a eventos da sua equipa e só ao que ainda não aconteceu.
+// Uma resposta NÃO é uma presença — é intenção; quem regista o que aconteceu
+// continua a ser o treinador ou o cartão QR.
+export async function respondToEvent(eventId, response, note = null) {
+  const { data, error } = await supabase.rpc('respond_to_event', {
+    p_event_id: eventId,
+    p_response: response,
+    p_note: note,
+  });
+  if (error) throw error;
+  const i = state.eventResponses.findIndex(
+    (r) => r.event_id === data.event_id && r.player_id === data.player_id
+  );
+  if (i !== -1) state.eventResponses[i] = data;
+  else state.eventResponses.push(data);
+  notify();
+  return data;
+}
+
+// Envia um aviso do clube a todos os atletas de uma equipa que tenham conta.
+// Devolve quantos foram avisados — é o número que a interface mostra, e diz
+// ao treinador quantos NÃO têm conta (a diferença para o plantel).
+export async function sendTeamAnnouncement(teamId, title, body) {
+  const { data, error } = await supabase.rpc('send_team_announcement', {
+    p_team_id: teamId,
+    p_title: title,
+    p_body: body,
+  });
+  if (error) throw error;
+  return Number(data) || 0;
 }
 
 // Emite um cartão QR novo para o atleta: o token anterior deixa de registar

@@ -51,8 +51,9 @@ As permissões são impostas pela base de dados (RLS), não só pela interface.
    mais do que uma vez. A seguir, e **por esta ordem**, corre os restantes
    guiões da pasta `supabase/`: `notifications.sql`, `multitenant.sql`,
    `plans.sql`, `qrcode-presencas.sql` (presenças por QR / modo quiosque),
-   `convite-atleta.sql` (convites ligados à ficha do atleta) e
-   `portal-atleta.sql`. Todos são seguros de re-executar.
+   `trainer-notifications.sql`, `convite-atleta.sql` (convites ligados à
+   ficha do atleta), `portal-atleta.sql` e `comunicacao.sql` (respostas do
+   atleta + avisos do clube). Todos são seguros de re-executar.
 4. Em **Authentication → Sign In / Providers**, garante que
    **"Allow new users to sign up"** está **ativo** — a app permite criar conta
    por email e password no separador "Criar conta".
