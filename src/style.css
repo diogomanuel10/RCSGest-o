@@ -5554,8 +5554,50 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 
 @media (max-width: 860px) {
   .kiosk__body { grid-template-columns: 1fr; }
-  .kiosk__camera { min-height: 34vh; }
-  .kiosk__feedback { min-height: 26vh; }
+  /* `vh` primeiro como recurso: browsers sem `dvh` ignoram a 2.ª linha. */
+  .kiosk__camera { min-height: 30vh; min-height: 30dvh; }
+  .kiosk__feedback { min-height: 24vh; min-height: 24dvh; }
+}
+
+/* --- Telemóvel ---
+   Um tablet tem espaço de sobra; num telemóvel a altura é o recurso escasso e
+   o quiosque tem de caber SEM scroll — quem passa o cartão não vai arrastar o
+   ecrã para ver se foi registado. Por isso a barra encolhe, as leituras
+   recentes ficam com altura fixa e o palco mede-se em `dvh` (a barra do
+   browser aparece e desaparece; `vh` deixaria o rodapé cortado). */
+@media (max-width: 560px) {
+  .kiosk__stage {
+    min-height: 100vh;
+    min-height: 100dvh;
+    gap: 0.5rem;
+    padding: 0.5rem;
+  }
+  .kiosk__bar {
+    padding: 0.5rem 0.7rem;
+    gap: 0.4rem 0.6rem;
+  }
+  .kiosk__bar-title { font-size: 1rem; }
+  .kiosk__session { font-size: 0.8rem; }
+  .kiosk__count { font-size: 0.8rem; }
+  .kiosk__count strong { font-size: 1rem; }
+  .kiosk__bar-actions { gap: 0.4rem; }
+  .kiosk__bar-actions .btn { padding: 0.3rem 0.6rem; font-size: 0.78rem; }
+  /* O ecrã inteiro é uma conveniência de tablet — no telemóvel não paga o
+     espaço que ocupa (e no iOS o Fullscreen API nem sequer existe). */
+  #kiosk-full { display: none; }
+
+  .kiosk__camera { min-height: 26vh; min-height: 26dvh; }
+  .kiosk__feedback { min-height: 22vh; min-height: 22dvh; padding: 1rem; }
+  .kiosk__result-icon { font-size: 2.4rem; }
+  .kiosk__result-detail { font-size: 1rem; }
+
+  .kiosk__recent {
+    flex: none;
+    max-height: 15vh;
+    max-height: 15dvh;
+    padding: 0.35rem 0.7rem;
+  }
+  .kiosk__recent-item { font-size: 0.82rem; }
 }
 
 /* --- Cartão QR no perfil do atleta --- */
