@@ -5647,3 +5647,87 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
   overflow-wrap: anywhere;
   user-select: all;
 }
+
+/* =====================================================================
+   Portal do atleta: histórico de treinos, convocatórias e cartão offline
+   ===================================================================== */
+
+/* Forma recente ao lado da média da época: "3 de 5" diz mais a um atleta em
+   novembro do que uma percentagem acumulada desde setembro. */
+.portal-att__form {
+  display: inline-block;
+  margin-top: 0.3rem;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 0.84rem;
+  color: var(--text-muted);
+}
+.portal-att__form strong { color: var(--text); }
+
+.portal-att-list,
+.portal-squads {
+  list-style: none;
+  margin: 0.9rem 0 0;
+  padding: 0.6rem 0 0;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.portal-att-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0;
+  font-size: 0.88rem;
+  border-bottom: 1px solid var(--surface-2);
+}
+.portal-att-row:last-child { border-bottom: 0; }
+.portal-att-row__day {
+  flex: none;
+  width: 4.6rem;
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.portal-att-row__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.portal-att-row .badge { flex: none; }
+
+/* --- Cartão sem ligação ---
+   Ecrã de recurso quando os dados não carregam. É o que o atleta tem à frente
+   à porta do pavilhão, por isso o código ocupa o centro e o resto é discreto. */
+.offline-card {
+  max-width: 420px;
+  margin: 2rem auto;
+  text-align: center;
+}
+.offline-card__title { margin: 0.6rem 0 0.2rem; }
+.offline-card__note {
+  margin: 0 0 1rem;
+  font-size: 0.88rem;
+}
+.offline-card__code {
+  width: min(260px, 70vw);
+  margin: 0 auto;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.offline-card__code svg { width: 100%; height: auto; display: block; }
+.offline-card__name {
+  margin: 0.9rem 0 0;
+  font-family: var(--font-title);
+  font-size: 1.3rem;
+  overflow-wrap: anywhere;
+}
+.offline-card__meta { margin: 0.2rem 0 0; font-size: 0.88rem; }
+.offline-card__retry { margin-top: 1.2rem; }

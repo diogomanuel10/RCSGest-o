@@ -331,6 +331,67 @@ export function playerAttendanceStats(playerId) {
   return { rate, total, counts, totalTrainings: trainings.length, semRegisto: trainings.length - total };
 }
 
+// Últimos treinos de um atleta, do mais recente para trás, com o estado dele
+// em cada um. Uma percentagem de época não diz a ninguém a que faltou — e é o
+// detalhe que o atleta reconhece ("faltei na terça") e sobre o qual pode agir.
+// `semRegisto` marca os treinos que ninguém chegou a fechar.
+export function playerRecentTrainings(playerId, limit = 8) {
+  const player = state.players.find((p) => p.id === playerId);
+  if (!player) return [];
+
+  const byEvent = new Map(
+    state.attendances
+      .filter((a) => a.player_id === playerId)
+      .map((a) => [a.event_id, a])
+  );
+
+  return state.events
+    .filter(
+      (e) => e.type === 'treino' && e.team_id === player.team_id && eventDateTime(e) <= new Date()
+    )
+    .sort((a, b) => eventDateTime(b) - eventDateTime(a))
+    .slice(0, limit)
+    .map((ev) => ({ event: ev, attendance: byEvent.get(ev.id) || null }));
+}
+
+// Comparência nos últimos N treinos (a forma recente, por oposição à média da
+// época). Só conta os treinos com registo — sem isso, um treino por fechar
+// contaria como falta e dava um retrato errado.
+export function playerRecentForm(playerId, last = 5) {
+  const rows = playerRecentTrainings(playerId, last).filter((r) => r.attendance);
+  if (!rows.length) return null;
+  const compareceu = rows.filter((r) =>
+    r.attendance.status === 'presente' || r.attendance.status === 'atraso'
+  ).length;
+  return { compareceu, total: rows.length, rate: Math.round((compareceu / rows.length) * 100) };
+}
+
+// Convocatórias de um atleta para os jogos que ainda vêm (a `nextPlayerSquadEvent`
+// devolve só o próximo). Ordenadas do mais próximo para o mais distante.
+export function playerUpcomingSquads(playerId, limit = 5) {
+  const now = new Date();
+  const mySquadIds = new Set(
+    state.squadPlayers
+      .filter((sp) => sp.player_id === playerId)
+      .map((sp) => sp.squad_id)
+  );
+  const eventStatus = new Map();
+  state.squads
+    .filter((s) => mySquadIds.has(s.id))
+    .forEach((s) => {
+      const sp = state.squadPlayers.find(
+        (p) => p.squad_id === s.id && p.player_id === playerId
+      );
+      eventStatus.set(s.event_id, sp?.status || 'convocado');
+    });
+
+  return state.events
+    .filter((e) => e.type === 'jogo' && eventStatus.has(e.id) && eventDateTime(e) >= now)
+    .sort((a, b) => eventDateTime(a) - eventDateTime(b))
+    .slice(0, limit)
+    .map((ev) => ({ event: ev, status: eventStatus.get(ev.id) }));
+}
+
 // --- Departamento Médico / Fisioterapia ---------------------------------
 
 // Episódios clínicos de UM atleta, do mais recente para o mais antigo
