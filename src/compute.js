@@ -392,6 +392,39 @@ export function playerUpcomingSquads(playerId, limit = 5) {
     .map((ev) => ({ event: ev, status: eventStatus.get(ev.id) }));
 }
 
+// --- Respostas do atleta a eventos --------------------------------------
+
+// O que um atleta respondeu a um evento (ou null se ainda não respondeu).
+export function playerEventResponse(playerId, eventId) {
+  return state.eventResponses.find(
+    (r) => r.player_id === playerId && r.event_id === eventId
+  ) || null;
+}
+
+// Resumo das respostas a um evento, para o treinador saber com quem conta:
+// contagens por resposta, quem avisou que não vai (com o motivo) e quantos
+// nem responderam. `semResposta` conta sobre o plantel da equipa do evento.
+export function eventResponseSummary(eventId) {
+  const ev = state.events.find((e) => e.id === eventId);
+  const counts = { vou: 0, duvida: 0, nao_vou: 0 };
+  if (!ev) return { counts, ausentes: [], semResposta: 0 };
+
+  const squad = state.players.filter((p) => p.team_id === ev.team_id);
+  const byPlayer = new Map(
+    state.eventResponses.filter((r) => r.event_id === eventId).map((r) => [r.player_id, r])
+  );
+
+  const ausentes = [];
+  let semResposta = 0;
+  for (const p of squad) {
+    const r = byPlayer.get(p.id);
+    if (!r) { semResposta += 1; continue; }
+    if (counts[r.response] !== undefined) counts[r.response] += 1;
+    if (r.response === 'nao_vou') ausentes.push({ player: p, note: r.note });
+  }
+  return { counts, ausentes, semResposta };
+}
+
 // --- Departamento Médico / Fisioterapia ---------------------------------
 
 // Episódios clínicos de UM atleta, do mais recente para o mais antigo

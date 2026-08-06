@@ -2,7 +2,9 @@
 // Mostra o calendário da equipa, as presenças do próprio e as suas quotas.
 // O RLS garante que o atleta só recebe os seus próprios dados.
 
-import { state } from '../store.js';
+import { state, respondToEvent, dbErrorMessage } from '../store.js';
+import { toastOk, toastError } from '../toast.js';
+import { getNotifications } from '../notifications.js';
 import { saveOfflineCard } from '../offline-card.js';
 import { esc, euros, emptyHTML } from '../ui.js';
 import {
@@ -14,6 +16,7 @@ import {
   playerAttendanceStats,
   playerQuotas,
   nextPlayerSquadEvent,
+  playerEventResponse,
   playerRecentTrainings,
   playerRecentForm,
   playerUpcomingSquads,
@@ -29,6 +32,7 @@ import {
   SQUAD_STATUS_BADGE,
   AVAILABILITY_LABEL,
   AVAILABILITY_BADGE,
+  EVENT_RESPONSES,
   WEEKDAYS,
 } from '../constants.js';
 
@@ -68,6 +72,11 @@ export function renderPortal(container) {
   const recent = playerRecentTrainings(me.id, 8);
   const form = playerRecentForm(me.id, 5);
   const squads = playerUpcomingSquads(me.id, 5);
+  // Avisos do clube: chegam pelas notificações (que o atleta já recebe no
+  // sino e por push), mas repetem-se aqui porque é no portal que ele vive.
+  const avisos = getNotifications()
+    .filter((n) => n.type === 'club_announcement')
+    .slice(0, 5);
 
   const greeting = greet();
   const first = (me.name || '').split(/\s+/)[0] || '';
@@ -123,10 +132,28 @@ export function renderPortal(container) {
     </section>
     ` : ''}
 
+    ${avisos.length ? `
+    <section class="card">
+      <h2 class="section-title upcoming-card__title">Avisos do clube</h2>
+      <ul class="portal-avisos">
+        ${avisos.map((n) => `
+          <li class="portal-aviso${n.read_at ? '' : ' portal-aviso--novo'}">
+            <strong class="portal-aviso__title">${esc(n.title)}</strong>
+            <p class="portal-aviso__body">${esc(n.body)}</p>
+            <span class="muted portal-aviso__when">${esc(whenText(n.created_at))}</span>
+          </li>`).join('')}
+      </ul>
+    </section>
+    ` : ''}
+
     <section class="card">
       <h2 class="section-title upcoming-card__title">Próximos treinos e jogos</h2>
+      <p class="muted" style="margin:0.2rem 0 0.6rem;font-size:0.86rem">
+        Diz ao teu treinador se contas ir. Avisar não é justificar a falta —
+        quem decide isso é ele.
+      </p>
       ${upcoming.length
-        ? `<ul class="portal-events">${upcoming.map(eventRow).join('')}</ul>`
+        ? `<ul class="portal-events">${upcoming.map((ev) => eventRow(ev, me.id)).join('')}</ul>`
         : '<p class="muted" style="margin:0.3rem 0 0">Sem eventos agendados.</p>'}
     </section>
 
@@ -173,6 +200,28 @@ export function renderPortal(container) {
         : '<p class="muted" style="margin:0.3rem 0 0">Sem quotas registadas.</p>'}
     </section>
   `;
+
+  // Responder a um evento. Um "não vou" pede o motivo: é o que transforma
+  // uma falta anónima em informação útil para quem treina.
+  container.querySelectorAll('[data-response]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const eventId = btn.dataset.event;
+      const response = btn.dataset.response;
+      let note = null;
+      if (response === 'nao_vou') {
+        note = prompt('Queres dizer porquê? (opcional)') ?? '';
+      }
+      const row = btn.closest('.portal-resp');
+      row.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+      try {
+        await respondToEvent(eventId, response, note || null);
+        toastOk('Resposta enviada. O teu treinador já sabe.');
+      } catch (err) {
+        toastError(dbErrorMessage(err));
+        row.querySelectorAll('button').forEach((b) => { b.disabled = false; });
+      }
+    });
+  });
 
   // O código QR é desenhado à parte: a biblioteca só é carregada para quem
   // tem cartão, e o resto do portal aparece sem esperar por ela.
@@ -245,14 +294,16 @@ function pctClass(pct) {
   return pct >= 70 ? 'stat-pct--ok' : pct >= 50 ? 'stat-pct--warn' : 'stat-pct--danger';
 }
 
-function eventRow(ev) {
+function eventRow(ev, playerId) {
   const dt = eventDateTime(ev);
-  const day = dt.toLocaleDateString('pt-PT', { weekday: 'short', day: '2-digit', month: 'short' });
+  const day = shortDay(dt);
   const range = eventTimeRange(ev);
   const meta = [
     ev.opponent ? `vs ${esc(ev.opponent)}` : '',
     ev.location ? esc(ev.location) : '',
   ].filter(Boolean).join(' · ');
+
+  const resp = playerEventResponse(playerId, ev.id);
 
   return `
     <li class="portal-event">
@@ -266,9 +317,30 @@ function eventRow(ev) {
           ${esc(ev.title || EVENT_TYPE_LABEL[ev.type] || 'Evento')}
         </span>
         ${meta ? `<span class="muted portal-event__meta">${meta}</span>` : ''}
+        ${resp?.note ? `<span class="muted portal-event__meta">“${esc(resp.note)}”</span>` : ''}
+        <div class="portal-resp" data-event="${esc(ev.id)}">
+          ${EVENT_RESPONSES.map((r) => `
+            <button type="button"
+              class="portal-resp__btn portal-resp__btn--${r.key}${resp?.response === r.key ? ' is-active' : ''}"
+              data-response="${r.key}" data-event="${esc(ev.id)}"
+              aria-pressed="${resp?.response === r.key}">
+              ${esc(r.label)}
+            </button>`).join('')}
+        </div>
       </div>
     </li>
   `;
+}
+
+// "há 2 dias" / "ontem" — para os avisos, onde a data exata interessa menos
+// do que saber se é coisa de agora.
+function whenText(iso) {
+  const d = new Date(iso);
+  const dias = Math.floor((Date.now() - d) / 86400000);
+  if (dias <= 0) return 'hoje';
+  if (dias === 1) return 'ontem';
+  if (dias < 7) return `há ${dias} dias`;
+  return d.toLocaleDateString('pt-PT', { day: '2-digit', month: 'long' });
 }
 
 function quotaLine(q) {

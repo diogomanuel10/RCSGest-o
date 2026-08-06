@@ -5731,3 +5731,60 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 }
 .offline-card__meta { margin: 0.2rem 0 0; font-size: 0.88rem; }
 .offline-card__retry { margin-top: 1.2rem; }
+
+/* =====================================================================
+   Comunicação clube <-> atleta
+   ===================================================================== */
+
+/* --- Respostas do atleta no portal --- */
+.portal-resp {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+.portal-resp__btn {
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.portal-resp__btn:hover:not(:disabled) { border-color: var(--navy-300); color: var(--text); }
+.portal-resp__btn:disabled { opacity: 0.55; cursor: default; }
+/* A resposta escolhida ganha a cor do seu significado — verde/âmbar/vermelho
+   é mais rápido de ler do que um contorno mais escuro. */
+.portal-resp__btn--vou.is-active     { background: var(--ok-bg);     border-color: var(--ok);     color: var(--ok); }
+.portal-resp__btn--duvida.is-active  { background: var(--warn-bg);   border-color: var(--warn);   color: var(--warn); }
+.portal-resp__btn--nao_vou.is-active { background: var(--danger-bg); border-color: var(--danger); color: var(--danger); }
+
+/* --- Avisos do clube no portal --- */
+.portal-avisos { list-style: none; margin: 0.4rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.portal-aviso {
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+}
+.portal-aviso--novo { border-left-color: var(--yellow); background: var(--surface); }
+.portal-aviso__title { display: block; font-size: 0.95rem; }
+.portal-aviso__body { margin: 0.2rem 0 0.3rem; font-size: 0.88rem; white-space: pre-wrap; }
+.portal-aviso__when { font-size: 0.78rem; }
+
+/* --- Avisos de falta na vista Presenças --- */
+.pres-avisos {
+  margin-bottom: 1.2rem;
+  border-left: 4px solid var(--warn);
+}
+.pres-avisos__title { display: block; margin-bottom: 0.4rem; }
+.pres-avisos__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.9rem; }
+.pres-avisos__name { font-weight: 600; }
+.pres-avisos__hint { margin: 0.6rem 0 0; font-size: 0.82rem; }
+
+/* Resposta do atleta na linha da convocatória. */
+.squad-row__resp { margin-left: 0.4rem; font-size: 0.72rem; }

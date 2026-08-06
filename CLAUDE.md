@@ -103,6 +103,7 @@ src/
 supabase/schema.sql     Tabelas, índices, RLS e dados iniciais (correr no Supabase)
 supabase/qrcode-presencas.sql  Presenças por QR: token do atleta + RPCs de check-in
 supabase/portal-atleta.sql     Portal: o atleta lê a sua própria disponibilidade
+supabase/comunicacao.sql       Respostas do atleta a eventos + avisos do clube
 public/                 Ficheiros estáticos (modelo-atletas-rumia.xlsx)
 ```
 
@@ -381,6 +382,25 @@ separador antes de navegar (usado pelos cartões do Painel).
   - Definições do clube: ligar/desligar, tolerância e janela do quiosque. A UI
     só as mostra depois de a migração correr (`'qr_checkin_enabled' in
     state.settings`).
+- **Comunicação clube ↔ atleta** (`supabase/comunicacao.sql`): o portal deixa
+  de ser só de leitura.
+  - **Atleta → clube**: `event_responses` (`vou`|`nao_vou`|`duvida` + motivo)
+    serve tanto para confirmar uma convocatória como para avisar que falta a um
+    treino — para quem treina o problema é o mesmo: saber com quem conta. Só se
+    escreve pela RPC `respond_to_event` (`security definer`), que valida que é o
+    próprio, que o evento é da sua equipa e que ainda não passou; a tabela não
+    tem política de escrita.
+  - **Uma resposta NÃO é uma presença.** Quem regista o que aconteceu continua a
+    ser o treinador ou o cartão QR. Se um "não vou" marcasse falta justificada
+    sozinho, o atleta justificava-se a si próprio — e isso é decisão de quem
+    treina. A vista Presenças mostra os avisos por cima da lista, para o
+    treinador decidir.
+  - **Notifica só o que interessa**: a equipa técnica é avisada quando alguém
+    passa a "não vou" (e não a cada "vou", que seria ruído).
+  - **Clube → atleta**: RPC `send_team_announcement` cria uma notificação por
+    atleta COM CONTA (reaproveita `notifications` + Web Push). Devolve quantos
+    foram avisados — o número mostra ao treinador quantos ainda não têm conta.
+    Enviado dos Plantéis ("Enviar aviso"); o treinador só avisa as suas equipas.
 - **Avaliação de plantel**: `players.review_status` ∈ `pendente|mantem|sai`
   (omissão `pendente`). A vista `avaliacao.js` deixa o coordenador/treinador
   decidir, por equipa, quem fica na próxima época, com contadores. Não apaga

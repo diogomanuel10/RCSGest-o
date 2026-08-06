@@ -1,7 +1,7 @@
 // Vista: Plantéis. Equipas agrupadas por género, com lista de atletas
 // expansível e operações de adicionar/editar/remover equipas e atletas.
 
-import { state, createRow, createRows, updateRow, archiveRow, saveTeamCoaches, dbErrorMessage } from '../store.js';
+import { state, createRow, createRows, updateRow, archiveRow, saveTeamCoaches, sendTeamAnnouncement, dbErrorMessage } from '../store.js';
 import { esc, emptyHTML, paginate, paginationHTML, wirePagination, PAGE_SIZE } from '../ui.js';
 import {
   teamName, teamCoaches, escaloes, currentCoach, coachTeams, positions,
@@ -9,7 +9,7 @@ import {
   escalaoColor, positionColor,
 } from '../compute.js';
 import { openModal, confirmDialog } from '../modal.js';
-import { toastError } from '../toast.js';
+import { toastError, toastOk } from '../toast.js';
 import { COACH_ROLE_LABEL, AVAILABILITY_LABEL } from '../constants.js';
 import { canEdit, canDelete, canAccess, isCoordenador } from '../permissions.js';
 import { planLimit, currentPlan } from '../plans.js';
@@ -184,6 +184,9 @@ export function renderPlanteis(container) {
   container.querySelectorAll('[data-qr-cards]').forEach((b) =>
     b.addEventListener('click', () => printQrCards(b.dataset.qrCards, b))
   );
+  container.querySelectorAll('[data-announce]').forEach((b) =>
+    b.addEventListener('click', () => openAnnounceForm(b.dataset.announce))
+  );
   container.querySelectorAll('[data-player-view]').forEach((b) =>
     b.addEventListener('click', () => {
       const id = b.dataset.playerView;
@@ -313,6 +316,7 @@ function rosterHTML(team, canTeams, canPlayers, canRemovePlayers, filtering) {
                <button class="btn btn--accent btn--sm" data-add-player="${team.id}" type="button">+ Atleta</button>
                <button class="btn btn--ghost btn--sm" data-import-player="${team.id}" type="button">Importar (xlsx)</button>
                <button class="btn btn--ghost btn--sm" data-qr-cards="${team.id}" type="button">Cartões QR</button>
+               <button class="btn btn--ghost btn--sm" data-announce="${team.id}" type="button">Enviar aviso</button>
                <button class="btn btn--link btn--sm" data-template type="button">Descarregar modelo</button>
              </div>`
           : ''
@@ -585,6 +589,40 @@ function openPlayerForm(teamId, playerId) {
 }
 
 // Importa atletas de um ficheiro .xlsx para a equipa indicada.
+// Aviso do clube para os atletas de uma equipa. Chega como notificação (e
+// push, a quem o tenha autorizado) e fica no portal de cada um.
+//
+// Só chega a quem tem CONTA. Por isso a contagem de destinatários é mostrada
+// antes de enviar: um treinador que veja "3 de 18" percebe logo que o canal
+// ainda não substitui o grupo de WhatsApp — e o número é o argumento para
+// convidar os restantes.
+function openAnnounceForm(teamId) {
+  const team = state.teams.find((t) => t.id === teamId);
+  const plantel = state.players.filter((p) => p.team_id === teamId);
+  const comConta = plantel.filter((p) => p.user_id).length;
+
+  if (!comConta) {
+    toastError('Nenhum atleta desta equipa tem conta na app. Convida-os no perfil de cada um.');
+    return;
+  }
+
+  openModal({
+    title: `Aviso — ${teamName(team)}`,
+    submitLabel: 'Enviar',
+    fields: [
+      {
+        name: 'title', label: 'Título', required: true,
+        hint: `Chega a ${comConta} de ${plantel.length} atleta${plantel.length === 1 ? '' : 's'} — só quem tem conta na app.`,
+      },
+      { name: 'body', label: 'Mensagem', type: 'textarea', required: true },
+    ],
+    onSubmit: async (values) => {
+      const n = await sendTeamAnnouncement(teamId, values.title, values.body);
+      toastOk(`Aviso enviado a ${n} atleta${n === 1 ? '' : 's'}.`);
+    },
+  });
+}
+
 // Folha de cartões QR da equipa, pronta a imprimir e plastificar. É o que
 // permite usar o quiosque nos escalões de formação, onde quase ninguém tem
 // telemóvel — os cartões vivem na mochila, não no bolso.
