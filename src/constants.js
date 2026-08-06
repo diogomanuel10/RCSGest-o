@@ -188,6 +188,13 @@ export const EQUIPMENT_CATEGORIES = [
   'Cones e material de treino',
   'Uniformes',
   'Material médico',
+  // Sala de musculação / ginásio
+  'Barras',
+  'Kettlebells',
+  'Power racks / Bancos',
+  'Bolas / Material livre',
+  'Discos',
+  'Ergómetros',
   'Outro',
 ];
 export const EQUIPMENT_CONDITIONS = [
