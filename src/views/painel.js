@@ -1,7 +1,7 @@
 // Vista: Painel (resumo do clube).
 // Cartões de métricas, barra de progresso da meta e próximos eventos.
 
-import { state, saveHiddenAlerts, dbErrorMessage } from '../store.js';
+import { state, savePainelPrefs, dbErrorMessage } from '../store.js';
 import { esc, euros } from '../ui.js';
 import {
   totalRaised,
@@ -26,6 +26,8 @@ import {
   expiringDocuments,
   objectivesNeedingAttention,
   trainingVsPlayingGaps,
+  clubRecord,
+  attendanceTrend,
   sport,
 } from '../compute.js';
 import {
@@ -49,6 +51,8 @@ import { openSeasonPlanning } from './planteis.js';
 import { DEFAULT_BRANDING } from '../branding.js';
 
 const ICON_MONEY = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v12m-3-3.5c0 1.38 1.34 2.5 3 2.5s3-1.12 3-2.5c0-1.74-1.35-2.17-3-2.5C10.35 11.67 9 11.24 9 9.5 9 8.12 10.34 7 12 7s3 1.12 3 2.5"/></svg>`;
+
+const ICON_TROPHY = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M17 5h3v2a3 3 0 0 1-3 3"/><path d="M7 5H4v2a3 3 0 0 0 3 3"/></svg>`;
 
 const ICON_CHART = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>`;
 
@@ -109,17 +113,24 @@ export function renderPainel(container) {
   const seeMedico = canAccess('medico');
   const attRoute = 'presencas';
   const injured = seeMedico ? injuredCount() : 0;
+  // Balanço competitivo e tendência das presenças: dois números que só existem
+  // depois de haver resultados e histórico suficiente.
+  const record = seeCalendar ? clubRecord(5) : { jogos: 0 };
+  const trend = seeAttendance ? attendanceTrend(30) : null;
 
   const metrics = [
-    seeSpon     && metricCard(ICON_MONEY, 'Angariado', euros(raised), `Meta: ${euros(goal)}`, 'accent', 'financeiro', 'patrocinios'),
-    seeSpon     && metricCard(ICON_CHART, 'Em contacto', inProgress, 'patrocínios a decorrer', 'blue', 'financeiro', 'patrocinios'),
-    seePlanteis && metricCard(ICON_USERS, 'Atletas', athletes, `em ${teamsCount} equipa${teamsCount === 1 ? '' : 's'}`, 'green', 'planteis'),
-    seeCoaches  && metricCard(ICON_COACH, 'Treinadores', coaches, 'na equipa técnica', 'purple', 'treinadores'),
-    seeAttendance && metricCard(ICON_CHECK, 'Presenças', att.rate == null ? '—' : att.rate + '%', att.total ? `média em ${att.total} registo${att.total === 1 ? '' : 's'}` : 'ainda sem registos', 'green', attRoute),
-    seeMedico   && metricCard(ICON_PULSE, 'Em tratamento', injured, injured ? `atleta${injured === 1 ? '' : 's'} com episódio ativo` : 'sem lesões ativas', injured > 0 ? 'accent' : 'green', 'saude'),
-    seeQuotas   && metricCard(ICON_CARD, 'Em dívida', euros(owed.total), owed.count ? `${owed.count} quota${owed.count === 1 ? '' : 's'} por pagar` : 'tudo regularizado', owed.total > 0 ? 'accent' : 'blue', 'financeiro', 'quotas'),
-    seePlanteis && metricCard(ICON_SHIELD, 'Equipas', teamsCount, 'plantéis ativos', 'blue', 'planteis'),
-    seeEquip    && metricCard(ICON_BOX, 'Equipamentos', state.equipment.length, equipReview ? `${equipReview} em mau estado` : 'inventário em dia', equipReview ? 'accent' : 'purple', 'equipamentos'),
+    seeSpon     && metricOn('angariado') && metricCard(ICON_MONEY, 'Angariado', euros(raised), `Meta: ${euros(goal)}`, 'accent', 'financeiro', 'patrocinios'),
+    seeSpon     && metricOn('em_contacto') && metricCard(ICON_CHART, 'Em contacto', inProgress, 'patrocínios a decorrer', 'blue', 'financeiro', 'patrocinios'),
+    seePlanteis && metricOn('atletas') && metricCard(ICON_USERS, 'Atletas', athletes, `em ${teamsCount} equipa${teamsCount === 1 ? '' : 's'}`, 'green', 'planteis'),
+    seeCoaches  && metricOn('treinadores') && metricCard(ICON_COACH, 'Treinadores', coaches, 'na equipa técnica', 'purple', 'treinadores'),
+    seeAttendance && metricOn('presencas') && metricCard(ICON_CHECK, 'Presenças', att.rate == null ? '—' : att.rate + '%', attendanceSub(att, trend), attendanceVariant(trend), attRoute),
+    seeMedico   && metricOn('em_tratamento') && metricCard(ICON_PULSE, 'Em tratamento', injured, injured ? `atleta${injured === 1 ? '' : 's'} com episódio ativo` : 'sem lesões ativas', injured > 0 ? 'accent' : 'green', 'saude'),
+    seeQuotas   && metricOn('em_divida') && metricCard(ICON_CARD, 'Em dívida', euros(owed.total), owed.count ? `${owed.count} quota${owed.count === 1 ? '' : 's'} por pagar` : 'tudo regularizado', owed.total > 0 ? 'accent' : 'blue', 'financeiro', 'quotas'),
+    seeCalendar && metricOn('balanco') && record.jogos > 0 && metricCard(
+      ICON_TROPHY, 'Balanço', `${record.vitorias}–${record.derrotas}`,
+      `${record.taxa}% de vitórias · últimos ${record.recentes.length}: ${record.recentesV}V`,
+      record.taxa >= 50 ? 'green' : 'accent', 'calendario'),
+    seeEquip    && metricOn('equipamentos') && metricCard(ICON_BOX, 'Equipamentos', state.equipment.length, equipReview ? `${equipReview} em mau estado` : 'inventário em dia', equipReview ? 'accent' : 'purple', 'equipamentos'),
   ].filter(Boolean);
 
   const steps = firstSteps();
@@ -134,8 +145,8 @@ export function renderPainel(container) {
         ${quick.map((q) => `
           <button class="btn btn--ghost btn--sm" data-quick="${q.key}" type="button">${esc(q.label)}</button>
         `).join('')}
-        ${availableAlerts().length
-          ? '<button class="btn btn--ghost btn--sm" id="alert-prefs" type="button">Avisos</button>'
+        ${availableAlerts().length || availableMetrics().length
+          ? '<button class="btn btn--ghost btn--sm" id="alert-prefs" type="button">Personalizar</button>'
           : ''}
       </div>
     </header>
@@ -370,26 +381,40 @@ const QUICK_HANDLERS = {
 // Configurar que avisos aparecem. Só lista os que o utilizador PODE ver: a
 // permissão manda, a preferência só escolhe dentro do que já era permitido.
 function openAlertPrefs(onSaved) {
-  const disponiveis = availableAlerts();
+  const metricas = availableMetrics();
+  const avisos = availableAlerts();
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
-    <div class="modal card" role="dialog" aria-modal="true" aria-labelledby="ap-title" style="width:min(480px,96vw)">
+    <div class="modal card" role="dialog" aria-modal="true" aria-labelledby="ap-title"
+         style="width:min(520px,96vw);max-height:90vh;display:flex;flex-direction:column">
       <div class="modal__head">
         <div>
-          <h2 class="section-title" id="ap-title">Avisos no painel</h2>
+          <h2 class="section-title" id="ap-title">O meu painel</h2>
           <p class="muted" style="margin:0;font-size:0.84rem">
-            Escolhe o que queres ver. A lista mostra só os avisos a que tens acesso.
+            Escolhe o que queres ver. A lista mostra só o que está ao teu alcance.
           </p>
         </div>
         <button class="modal__close" type="button" aria-label="Fechar">&times;</button>
       </div>
-      <div class="coach-checks" style="margin:0.6rem 0">
-        ${disponiveis.map((a) => `
-          <label class="coach-check">
-            <input type="checkbox" value="${esc(a.key)}" ${alertOn(a.key) ? 'checked' : ''} />
-            <span>${esc(a.label)}</span>
-          </label>`).join('')}
+      <div style="overflow-y:auto;flex:1">
+        ${metricas.length ? `
+          <p class="pd-label" style="margin:0.6rem 0 0.3rem">Indicadores</p>
+          <div class="coach-checks" data-group="metrics">
+            ${metricas.map((m) => `
+              <label class="coach-check">
+                <input type="checkbox" value="${esc(m.key)}" ${metricOn(m.key) ? 'checked' : ''} />
+                <span>${esc(m.label)}</span>
+              </label>`).join('')}
+          </div>` : ''}
+        <p class="pd-label" style="margin:1rem 0 0.3rem">Avisos</p>
+        <div class="coach-checks" data-group="alerts">
+          ${avisos.map((a) => `
+            <label class="coach-check">
+              <input type="checkbox" value="${esc(a.key)}" ${alertOn(a.key) ? 'checked' : ''} />
+              <span>${esc(a.label)}</span>
+            </label>`).join('')}
+        </div>
       </div>
       <p class="modal__error hidden" id="ap-err" role="alert"></p>
       <div class="modal__actions">
@@ -418,13 +443,14 @@ function openAlertPrefs(onSaved) {
     // Guardam-se os DESLIGADOS (ver ALERT_CATALOG). Os avisos a que o
     // utilizador não tem acesso não entram na lista — se um dia ganhar esse
     // acesso, o aviso aparece, em vez de ficar escondido sem ele saber porquê.
-    const hidden = Array.from(overlay.querySelectorAll('input[type=checkbox]'))
-      .filter((c) => !c.checked)
-      .map((c) => c.value);
+    const desligados = (grupo) =>
+      Array.from(overlay.querySelectorAll(`[data-group="${grupo}"] input[type=checkbox]`))
+        .filter((c) => !c.checked)
+        .map((c) => c.value);
     btn.disabled = true;
     btn.textContent = 'A guardar…';
     try {
-      await saveHiddenAlerts(hidden);
+      await savePainelPrefs(desligados('alerts'), desligados('metrics'));
       close();
       onSaved?.();
     } catch (err) {
@@ -434,6 +460,29 @@ function openAlertPrefs(onSaved) {
       btn.textContent = 'Guardar';
     }
   });
+}
+
+// Legenda do cartão de Presenças. A média da época é o número grande, mas é a
+// janela recente que diz se está a melhorar ou a piorar — e é isso que faz
+// alguém agir. Sem dados dos dois lados não se inventa uma seta.
+function attendanceSub(att, trend) {
+  if (!att.total) return 'ainda sem registos';
+  // Havendo tendência, é ela que ocupa a legenda: o número de registos é o
+  // menos acionável dos dois, e as duas coisas juntas partiam a linha.
+  if (trend?.recente) {
+    const seta = trend.delta == null ? ''
+      : trend.delta > 0 ? ` ↑${trend.delta}`
+      : trend.delta < 0 ? ` ↓${Math.abs(trend.delta)}`
+      : ' =';
+    return `últimos 30 dias: ${trend.recente.rate}%${seta}`;
+  }
+  return `média em ${att.total} registo${att.total === 1 ? '' : 's'}`;
+}
+
+// Uma descida acentuada da comparência não pode ficar com a mesma cor de
+// "está tudo bem" — é o sinal mais precoce de um escalão a esvaziar.
+function attendanceVariant(trend) {
+  return trend?.delta != null && trend.delta <= -10 ? 'accent' : 'green';
 }
 
 // Uma linha do resumo "Hoje".
@@ -482,6 +531,31 @@ export const ALERT_CATALOG = [
   { key: 'documentos',      label: 'Documentos a expirar',           can: () => canEdit('documents') },
   { key: 'presencas',       label: 'Presenças por marcar',           can: () => canEdit('attendances') },
 ];
+
+// Catálogo dos INDICADORES (os cartões de números no topo). Mesma regra dos
+// avisos: `can` é permissão e não se contorna; a preferência escolhe dentro
+// do que já era permitido.
+export const METRIC_CATALOG = [
+  { key: 'angariado',    label: 'Angariado',     can: () => canAccess('patrocinios') },
+  { key: 'em_contacto',  label: 'Em contacto',   can: () => canAccess('patrocinios') },
+  { key: 'atletas',      label: 'Atletas',       can: () => canAccess('planteis') },
+  { key: 'treinadores',  label: 'Treinadores',   can: () => canAccess('treinadores') },
+  { key: 'presencas',    label: 'Presenças',     can: () => canAccess('presencas') },
+  { key: 'em_tratamento',label: 'Em tratamento', can: () => canAccess('medico') },
+  { key: 'em_divida',    label: 'Em dívida',     can: () => canAccess('quotas') },
+  { key: 'balanco',      label: 'Balanço de jogos', can: () => canAccess('calendario') },
+  { key: 'equipamentos', label: 'Equipamentos',  can: () => canAccess('equipamentos') },
+];
+
+export function availableMetrics() {
+  if (!state.profile || !('hidden_metrics' in state.profile)) return [];
+  return METRIC_CATALOG.filter((m) => m.can());
+}
+
+export function metricOn(key) {
+  const hidden = state.profile?.hidden_metrics;
+  return !(Array.isArray(hidden) && hidden.includes(key));
+}
 
 // Avisos que este utilizador pode ver (permissão) — a base da configuração.
 export function availableAlerts() {

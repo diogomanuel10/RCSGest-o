@@ -406,18 +406,27 @@ separador antes de navegar (usado pelos cartões do Painel).
     fez. Quando há registo de alguém, quem não tem linha é porque não jogou. Os
     pontos de um atleta são ainda limitados ao total do jogo — mais do que isso é
     engano de digitação (validado também no ecrã de registo).
-- **Avisos do Painel** (`supabase/painel-avisos.sql`): o catálogo vive em
-  `ALERT_CATALOG` (painel.js) e cada aviso declara quem o **pode** ver (`can`).
-  A permissão manda; a preferência só escolhe dentro do que já era permitido.
-  - Guardam-se os avisos **escondidos** (`profiles.hidden_alerts`) e não os
-    visíveis: assim um aviso novo aparece a toda a gente por omissão, em vez de
-    ficar invisível a quem já tinha preferências gravadas.
-  - Escreve-se pela RPC `set_hidden_alerts`, **nunca** por update direto:
+- **Painel personalizável** (`supabase/painel-avisos.sql`): dois catálogos em
+  `painel.js` — `METRIC_CATALOG` (os cartões de números) e `ALERT_CATALOG` (a
+  lista "A precisar da tua atenção"). Cada entrada declara quem a **pode** ver
+  (`can`). A permissão manda; a preferência só escolhe dentro do que já era
+  permitido.
+  - Guardam-se os **escondidos** (`profiles.hidden_alerts` /
+    `profiles.hidden_metrics`) e não os visíveis: assim uma entrada nova aparece
+    a toda a gente por omissão, em vez de ficar invisível a quem já tinha
+    preferências gravadas.
+  - Escreve-se pela RPC `set_painel_prefs`, **nunca** por update direto:
     `profiles` só é editável pelo coordenador, e abrir a auto-edição deixaria
-    qualquer utilizador mudar o seu próprio `role`. A função toca só nessa
-    coluna e só na linha de quem chama.
-  - O botão está no **cabeçalho** do Painel e não no cartão dos avisos: quem
-    escondesse tudo ficaria sem forma de voltar atrás.
+    qualquer utilizador mudar o seu próprio `role`. A função toca só nessas
+    colunas e só na linha de quem chama. (`set_hidden_alerts` mantém-se como
+    invólucro, por compatibilidade.)
+  - O botão ("Personalizar") está no **cabeçalho** do Painel e não no cartão dos
+    avisos: quem escondesse tudo ficaria sem forma de voltar atrás.
+  - **Cartões**: `clubRecord()` dá o balanço competitivo (V–D, taxa, forma
+    recente) e `attendanceTrend()` dá a variação da comparência a 30 dias — um
+    número sem direção é trivia, e o cartão passa a âmbar quando a queda excede
+    10 pontos. Não há cartão de "Equipas": repetia o que já estava na legenda
+    de "Atletas".
 - **Treina muito, joga pouco** (`trainingVsPlayingGaps`): cruza a comparência
   nos treinos com a participação em jogo e assinala no Painel quem vai a tudo e
   quase não joga — dos sinais mais precoces de desistência na formação, e

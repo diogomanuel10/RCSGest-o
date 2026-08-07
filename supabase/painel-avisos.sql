@@ -47,40 +47,80 @@ alter table settings add column if not exists gap_min_jogos    integer not null 
 -- omissão em vez de ficar invisível a quem já tinha preferências gravadas.
 alter table profiles add column if not exists hidden_alerts jsonb not null default '[]'::jsonb;
 
+-- O mesmo para os INDICADORES (os cartões de números no topo do Painel). Um
+-- clube que não trabalha patrocínios não quer "Angariado 0 €" a ocupar espaço
+-- ao lado do que interessa. Coluna separada porque são duas listas distintas
+-- com catálogos distintos — juntá-las num só campo obrigava a prefixos.
+alter table profiles add column if not exists hidden_metrics jsonb not null default '[]'::jsonb;
+
 -- ---------------------------------------------------------------------
 -- 3. Cada utilizador guarda as SUAS preferências
 -- ---------------------------------------------------------------------
-create or replace function public.set_hidden_alerts(p_hidden jsonb)
+-- Limpa uma lista de chaves vinda do cliente: só texto curto, sem repetidos.
+-- A coluna é jsonb e não deve virar um sítio para guardar o que apetecer.
+create or replace function public.clean_pref_keys(p_keys jsonb)
+returns jsonb
+language sql
+immutable
+as $$
+  select coalesce(jsonb_agg(distinct value), '[]'::jsonb)
+    from jsonb_array_elements_text(p_keys) as t(value)
+   where length(value) between 1 and 40;
+$$;
+
+-- Guarda as DUAS listas de preferências do Painel de quem chama. Os
+-- parâmetros são opcionais: passar só um deixa o outro como está.
+create or replace function public.set_painel_prefs(
+  p_hidden_alerts  jsonb default null,
+  p_hidden_metrics jsonb default null
+)
 returns jsonb
 language plpgsql
 security definer
 set search_path = public
 as $$
 declare
-  v_clean jsonb;
+  v_row profiles%rowtype;
 begin
   if auth.uid() is null then
     raise exception 'Sem sessão.';
   end if;
-  if p_hidden is null or jsonb_typeof(p_hidden) <> 'array' then
+  if p_hidden_alerts is not null and jsonb_typeof(p_hidden_alerts) <> 'array' then
+    raise exception 'Preferências inválidas.';
+  end if;
+  if p_hidden_metrics is not null and jsonb_typeof(p_hidden_metrics) <> 'array' then
     raise exception 'Preferências inválidas.';
   end if;
 
-  -- Só se aceitam chaves de texto curtas: a coluna é jsonb e não deve virar
-  -- um sítio para guardar o que apetecer.
-  select coalesce(jsonb_agg(distinct value), '[]'::jsonb)
-    into v_clean
-    from jsonb_array_elements_text(p_hidden) as t(value)
-   where length(value) between 1 and 40;
-
-  -- A ÚNICA coluna que esta função escreve, e só na linha de quem chama.
+  -- As ÚNICAS colunas que esta função escreve, e só na linha de quem chama.
+  -- É por isso que existe: `profiles` não pode ter auto-edição por política,
+  -- senão qualquer utilizador mudava o seu próprio `role`.
   update public.profiles
-     set hidden_alerts = v_clean
-   where id = auth.uid();
+     set hidden_alerts  = case when p_hidden_alerts  is null then hidden_alerts
+                               else clean_pref_keys(p_hidden_alerts) end,
+         hidden_metrics = case when p_hidden_metrics is null then hidden_metrics
+                               else clean_pref_keys(p_hidden_metrics) end
+   where id = auth.uid()
+   returning * into v_row;
 
-  return v_clean;
+  return jsonb_build_object(
+    'hidden_alerts',  v_row.hidden_alerts,
+    'hidden_metrics', v_row.hidden_metrics
+  );
 end;
 $$;
 
-revoke all on function public.set_hidden_alerts(jsonb) from public, anon;
-grant execute on function public.set_hidden_alerts(jsonb) to authenticated;
+-- Mantida por compatibilidade: a versão anterior só tratava dos avisos.
+create or replace function public.set_hidden_alerts(p_hidden jsonb)
+returns jsonb
+language sql
+security definer
+set search_path = public
+as $$
+  select public.set_painel_prefs(p_hidden, null) -> 'hidden_alerts';
+$$;
+
+revoke all on function public.set_hidden_alerts(jsonb)  from public, anon;
+revoke all on function public.set_painel_prefs(jsonb, jsonb) from public, anon;
+grant execute on function public.set_hidden_alerts(jsonb)  to authenticated;
+grant execute on function public.set_painel_prefs(jsonb, jsonb) to authenticated;
