@@ -457,8 +457,19 @@ export function playerGameShare(playerId) {
   for (const e of jogos) {
     const total = gameTotalPoints(e.id);
     if (!total) continue; // sem parciais não há denominador
+
+    // Um jogo onde a participação NUNCA foi preenchida não conta. Contá-lo
+    // como "zero pontos" seria penalizar o atleta pelo registo que o treinador
+    // ainda não fez — e no início de uma época isso é quase toda a gente.
+    // Quando há registo de alguém, quem não tem linha é porque não jogou.
+    const temRegisto = state.gameMinutes.some((g) => g.event_id === e.id);
+    if (!temRegisto) continue;
+
     const gm = state.gameMinutes.find((g) => g.event_id === e.id && g.player_id === playerId);
-    jogados += gm?.points || 0;
+    // Não se pode jogar mais pontos do que os que o jogo teve. Um valor acima
+    // disso é engano de digitação; limitá-lo evita percentagens impossíveis
+    // (e um "222%" a passar por análise).
+    jogados += Math.min(gm?.points || 0, total);
     totais += total;
     contados += 1;
   }
@@ -468,6 +479,53 @@ export function playerGameShare(playerId) {
     jogos: contados,
     share: totais ? Math.round((jogados / totais) * 100) : null,
   };
+}
+
+// --- Cruzamento treino × jogo -------------------------------------------
+//
+// O atleta que vai a tudo e joga pouco é dos sinais mais precoces de
+// desistência na formação — e é invisível se se olhar para presenças e para
+// minutos/pontos em separado, que é como estavam até aqui.
+//
+// O que isto NÃO é: um juízo sobre o treinador. Um sub-16 pode ter razões
+// legítimas para não pôr alguém a jogar. O que a lista faz é obrigar a que
+// seja uma decisão consciente, em vez de uma coisa que simplesmente acontece
+// e de que só se dá conta quando o atleta sai.
+
+// Limiares. Deliberadamente exigentes: uma lista que assinala meio plantel
+// deixa de ser lida à terceira semana.
+const GAP_PRESENCA_MIN = 80;   // comparência a partir da qual "vem sempre"
+const GAP_JOGO_MAX     = 25;   // participação abaixo da qual "quase não joga"
+// Sem dados que cheguem, qualquer conclusão é ruído: um atleta com 2 treinos
+// e 1 jogo não diz nada a ninguém.
+const GAP_MIN_TREINOS  = 5;
+const GAP_MIN_JOGOS    = 3;
+
+// Atletas que treinam muito e jogam pouco, do caso mais gritante para o menos.
+// Só entram atletas com registos suficientes dos DOIS lados — e a participação
+// só é calculável em jogos com parciais (são eles o denominador).
+export function trainingVsPlayingGaps(limit = 5) {
+  const out = [];
+  for (const p of state.players) {
+    const att = playerAttendanceStats(p.id);
+    if (att.rate == null || att.total < GAP_MIN_TREINOS) continue;
+
+    const share = playerGameShare(p.id);
+    if (share.share == null || share.jogos < GAP_MIN_JOGOS) continue;
+
+    if (att.rate >= GAP_PRESENCA_MIN && share.share <= GAP_JOGO_MAX) {
+      out.push({
+        player: p,
+        team: teamById(p.team_id),
+        presenca: att.rate,
+        participacao: share.share,
+        treinos: att.total,
+        jogos: share.jogos,
+        gap: att.rate - share.share,
+      });
+    }
+  }
+  return out.sort((a, b) => b.gap - a.gap).slice(0, limit);
 }
 
 // --- Respostas do atleta a eventos --------------------------------------

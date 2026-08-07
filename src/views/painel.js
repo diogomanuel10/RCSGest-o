@@ -25,6 +25,8 @@ import {
   activeEpisode,
   expiringDocuments,
   objectivesNeedingAttention,
+  trainingVsPlayingGaps,
+  sport,
 } from '../compute.js';
 import {
   EVENT_TYPE_LABEL,
@@ -437,6 +439,22 @@ function buildActions() {
         route: 'objetivos',
         title: `${obj.title}${status === 'falhado' ? ' — fora de prazo' : ' — em risco'}`,
         sub,
+      });
+    });
+  }
+
+  // Treina muito, joga pouco. Fica ANTES das avaliações por decidir porque é
+  // informação com prazo: depois de o atleta sair, já não serve de nada.
+  if (canAccess('planteis')) {
+    // No voleibol a participação conta-se em pontos; nas modalidades com
+    // relógio, em minutos.
+    const unidade = sport() === 'voleibol' ? 'dos pontos' : 'dos minutos';
+    trainingVsPlayingGaps(3).forEach((g) => {
+      items.push({
+        variant: 'warn',
+        route: 'planteis',
+        title: `${g.player.name} treina muito e joga pouco`,
+        sub: `${g.presenca}% de presenças em ${g.treinos} treinos, mas ${g.participacao}% ${unidade} em ${g.jogos} jogos${g.team ? ' — ' + teamName(g.team) : ''}.`,
       });
     });
   }
