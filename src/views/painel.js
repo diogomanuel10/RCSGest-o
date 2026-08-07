@@ -26,6 +26,8 @@ import {
   expiringDocuments,
   objectivesNeedingAttention,
   trainingVsPlayingGaps,
+  clubRecord,
+  attendanceTrend,
   sport,
 } from '../compute.js';
 import {
@@ -49,6 +51,8 @@ import { openSeasonPlanning } from './planteis.js';
 import { DEFAULT_BRANDING } from '../branding.js';
 
 const ICON_MONEY = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v12m-3-3.5c0 1.38 1.34 2.5 3 2.5s3-1.12 3-2.5c0-1.74-1.35-2.17-3-2.5C10.35 11.67 9 11.24 9 9.5 9 8.12 10.34 7 12 7s3 1.12 3 2.5"/></svg>`;
+
+const ICON_TROPHY = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M17 5h3v2a3 3 0 0 1-3 3"/><path d="M7 5H4v2a3 3 0 0 0 3 3"/></svg>`;
 
 const ICON_CHART = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>`;
 
@@ -109,16 +113,23 @@ export function renderPainel(container) {
   const seeMedico = canAccess('medico');
   const attRoute = 'presencas';
   const injured = seeMedico ? injuredCount() : 0;
+  // Balanço competitivo e tendência das presenças: dois números que só existem
+  // depois de haver resultados e histórico suficiente.
+  const record = seeCalendar ? clubRecord(5) : { jogos: 0 };
+  const trend = seeAttendance ? attendanceTrend(30) : null;
 
   const metrics = [
     seeSpon     && metricCard(ICON_MONEY, 'Angariado', euros(raised), `Meta: ${euros(goal)}`, 'accent', 'financeiro', 'patrocinios'),
     seeSpon     && metricCard(ICON_CHART, 'Em contacto', inProgress, 'patrocínios a decorrer', 'blue', 'financeiro', 'patrocinios'),
     seePlanteis && metricCard(ICON_USERS, 'Atletas', athletes, `em ${teamsCount} equipa${teamsCount === 1 ? '' : 's'}`, 'green', 'planteis'),
     seeCoaches  && metricCard(ICON_COACH, 'Treinadores', coaches, 'na equipa técnica', 'purple', 'treinadores'),
-    seeAttendance && metricCard(ICON_CHECK, 'Presenças', att.rate == null ? '—' : att.rate + '%', att.total ? `média em ${att.total} registo${att.total === 1 ? '' : 's'}` : 'ainda sem registos', 'green', attRoute),
+    seeAttendance && metricCard(ICON_CHECK, 'Presenças', att.rate == null ? '—' : att.rate + '%', attendanceSub(att, trend), attendanceVariant(trend), attRoute),
     seeMedico   && metricCard(ICON_PULSE, 'Em tratamento', injured, injured ? `atleta${injured === 1 ? '' : 's'} com episódio ativo` : 'sem lesões ativas', injured > 0 ? 'accent' : 'green', 'saude'),
     seeQuotas   && metricCard(ICON_CARD, 'Em dívida', euros(owed.total), owed.count ? `${owed.count} quota${owed.count === 1 ? '' : 's'} por pagar` : 'tudo regularizado', owed.total > 0 ? 'accent' : 'blue', 'financeiro', 'quotas'),
-    seePlanteis && metricCard(ICON_SHIELD, 'Equipas', teamsCount, 'plantéis ativos', 'blue', 'planteis'),
+    seeCalendar && record.jogos > 0 && metricCard(
+      ICON_TROPHY, 'Balanço', `${record.vitorias}–${record.derrotas}`,
+      `${record.taxa}% de vitórias · últimos ${record.recentes.length}: ${record.recentesV}V`,
+      record.taxa >= 50 ? 'green' : 'accent', 'calendario'),
     seeEquip    && metricCard(ICON_BOX, 'Equipamentos', state.equipment.length, equipReview ? `${equipReview} em mau estado` : 'inventário em dia', equipReview ? 'accent' : 'purple', 'equipamentos'),
   ].filter(Boolean);
 
@@ -434,6 +445,29 @@ function openAlertPrefs(onSaved) {
       btn.textContent = 'Guardar';
     }
   });
+}
+
+// Legenda do cartão de Presenças. A média da época é o número grande, mas é a
+// janela recente que diz se está a melhorar ou a piorar — e é isso que faz
+// alguém agir. Sem dados dos dois lados não se inventa uma seta.
+function attendanceSub(att, trend) {
+  if (!att.total) return 'ainda sem registos';
+  // Havendo tendência, é ela que ocupa a legenda: o número de registos é o
+  // menos acionável dos dois, e as duas coisas juntas partiam a linha.
+  if (trend?.recente) {
+    const seta = trend.delta == null ? ''
+      : trend.delta > 0 ? ` ↑${trend.delta}`
+      : trend.delta < 0 ? ` ↓${Math.abs(trend.delta)}`
+      : ' =';
+    return `últimos 30 dias: ${trend.recente.rate}%${seta}`;
+  }
+  return `média em ${att.total} registo${att.total === 1 ? '' : 's'}`;
+}
+
+// Uma descida acentuada da comparência não pode ficar com a mesma cor de
+// "está tudo bem" — é o sinal mais precoce de um escalão a esvaziar.
+function attendanceVariant(trend) {
+  return trend?.delta != null && trend.delta <= -10 ? 'accent' : 'green';
 }
 
 // Uma linha do resumo "Hoje".

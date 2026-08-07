@@ -444,6 +444,69 @@ export function teamRecord(teamId) {
   return { jogos: jogos.length, vitorias, derrotas, setsFor, setsAgainst };
 }
 
+// Balanço competitivo do clube (todas as equipas que o utilizador vê — o RLS
+// já limitou `state.events`). Junta o total da época com a forma recente,
+// porque são perguntas diferentes: "como foi a época" e "como estamos agora".
+export function clubRecord(last = 5) {
+  const jogos = state.events
+    .filter((e) => e.type === 'jogo' && gameResult(e.id))
+    .sort((a, b) => eventDateTime(b) - eventDateTime(a));
+
+  let vitorias = 0, derrotas = 0;
+  for (const e of jogos) {
+    const r = gameResult(e.id);
+    if (r.sets_for > r.sets_against) vitorias += 1;
+    else if (r.sets_against > r.sets_for) derrotas += 1;
+  }
+
+  const recentes = jogos.slice(0, last).map((e) => {
+    const r = gameResult(e.id);
+    return r.sets_for > r.sets_against;
+  });
+
+  return {
+    jogos: jogos.length,
+    vitorias,
+    derrotas,
+    taxa: jogos.length ? Math.round((vitorias / jogos.length) * 100) : null,
+    recentes,                                        // do mais recente para trás
+    recentesV: recentes.filter(Boolean).length,
+  };
+}
+
+// Comparência nas últimas N janelas de dias, para dar DIREÇÃO ao número.
+// Uma percentagem sem comparação é trivia: 71% não diz se está a melhorar ou
+// a piorar, e é isso que faz alguém agir.
+export function attendanceTrend(days = 30) {
+  const now = new Date();
+  const ms = days * 86400000;
+  const rate = (desde, ate) => {
+    const ids = new Set(
+      state.events
+        .filter((e) => {
+          if (e.type !== 'treino') return false;
+          const dt = eventDateTime(e);
+          return dt >= desde && dt < ate;
+        })
+        .map((e) => e.id)
+    );
+    const atts = state.attendances.filter((a) => ids.has(a.event_id));
+    if (!atts.length) return null;
+    const compareceu = atts.filter((a) => a.status === 'presente' || a.status === 'atraso').length;
+    return { rate: Math.round((compareceu / atts.length) * 100), total: atts.length };
+  };
+
+  const recente = rate(new Date(now - ms), now);
+  const anterior = rate(new Date(now - 2 * ms), new Date(now - ms));
+  return {
+    recente,
+    anterior,
+    // Só há variação quando existem dados dos DOIS lados: comparar com o nada
+    // dava sempre uma subida imaginária no primeiro mês de uso.
+    delta: recente && anterior ? recente.rate - anterior.rate : null,
+  };
+}
+
 // Participação de um atleta em jogo: pontos que jogou sobre os pontos
 // disputados nos jogos em que a equipa dele teve resultado com parciais.
 // `share` é null quando não há denominador (sem parciais registados) — é
