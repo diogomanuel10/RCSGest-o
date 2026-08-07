@@ -53,7 +53,8 @@ As permissões são impostas pela base de dados (RLS), não só pela interface.
    `plans.sql`, `qrcode-presencas.sql` (presenças por QR / modo quiosque),
    `trainer-notifications.sql`, `convite-atleta.sql` (convites ligados à
    ficha do atleta), `portal-atleta.sql`, `comunicacao.sql` (respostas do
-   atleta + avisos do clube) e `resultados.sql` (resultados de jogo). Todos
+   atleta + avisos do clube), `resultados.sql` (resultados de jogo) e
+   `painel-avisos.sql` (limiares do clube + avisos por utilizador). Todos
    são seguros de re-executar.
 4. Em **Authentication → Sign In / Providers**, garante que
    **"Allow new users to sign up"** está **ativo** — a app permite criar conta

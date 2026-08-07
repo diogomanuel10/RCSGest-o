@@ -106,6 +106,7 @@ supabase/qrcode-presencas.sql  Presenças por QR: token do atleta + RPCs de chec
 supabase/portal-atleta.sql     Portal: o atleta lê a sua própria disponibilidade
 supabase/comunicacao.sql       Respostas do atleta a eventos + avisos do clube
 supabase/resultados.sql        Resultado dos jogos (final + parciais) e pontos jogados
+supabase/painel-avisos.sql     Limiares do clube + avisos escolhidos por utilizador
 public/                 Ficheiros estáticos (modelo-atletas-rumia.xlsx)
 ```
 
@@ -405,12 +406,26 @@ separador antes de navegar (usado pelos cartões do Painel).
     fez. Quando há registo de alguém, quem não tem linha é porque não jogou. Os
     pontos de um atleta são ainda limitados ao total do jogo — mais do que isso é
     engano de digitação (validado também no ecrã de registo).
+- **Avisos do Painel** (`supabase/painel-avisos.sql`): o catálogo vive em
+  `ALERT_CATALOG` (painel.js) e cada aviso declara quem o **pode** ver (`can`).
+  A permissão manda; a preferência só escolhe dentro do que já era permitido.
+  - Guardam-se os avisos **escondidos** (`profiles.hidden_alerts`) e não os
+    visíveis: assim um aviso novo aparece a toda a gente por omissão, em vez de
+    ficar invisível a quem já tinha preferências gravadas.
+  - Escreve-se pela RPC `set_hidden_alerts`, **nunca** por update direto:
+    `profiles` só é editável pelo coordenador, e abrir a auto-edição deixaria
+    qualquer utilizador mudar o seu próprio `role`. A função toca só nessa
+    coluna e só na linha de quem chama.
+  - O botão está no **cabeçalho** do Painel e não no cartão dos avisos: quem
+    escondesse tudo ficaria sem forma de voltar atrás.
 - **Treina muito, joga pouco** (`trainingVsPlayingGaps`): cruza a comparência
   nos treinos com a participação em jogo e assinala no Painel quem vai a tudo e
   quase não joga — dos sinais mais precoces de desistência na formação, e
-  invisível se se olhar para os dois números em separado. Limiares exigentes de
-  propósito (>=80% de presenças, <=25% de participação, mínimo 5 treinos e 3
-  jogos): uma lista que assinala meio plantel deixa de ser lida. **Não é um
+  invisível se se olhar para os dois números em separado. Limiares configuráveis nas
+  Definições (por omissão >=80% de presenças, <=25% de participação, mínimo 5
+  treinos e 3 jogos, e as Definições recusam presenças <= participação, que
+  inverteria o sentido do aviso): uma lista que assinala meio plantel deixa de
+  ser lida. **Não é um
   juízo sobre o treinador** — é obrigar a que seja decisão consciente em vez de
   uma coisa que simplesmente acontece.
 - **Comunicação clube ↔ atleta** (`supabase/comunicacao.sql`): o portal deixa

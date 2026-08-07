@@ -492,28 +492,40 @@ export function playerGameShare(playerId) {
 // seja uma decisão consciente, em vez de uma coisa que simplesmente acontece
 // e de que só se dá conta quando o atleta sai.
 
-// Limiares. Deliberadamente exigentes: uma lista que assinala meio plantel
-// deixa de ser lida à terceira semana.
-const GAP_PRESENCA_MIN = 80;   // comparência a partir da qual "vem sempre"
-const GAP_JOGO_MAX     = 25;   // participação abaixo da qual "quase não joga"
-// Sem dados que cheguem, qualquer conclusão é ruído: um atleta com 2 treinos
-// e 1 jogo não diz nada a ninguém.
-const GAP_MIN_TREINOS  = 5;
-const GAP_MIN_JOGOS    = 3;
+// Limiares, configuráveis nas Definições. Os valores por omissão são
+// deliberadamente exigentes: uma lista que assinala meio plantel deixa de ser
+// lida à terceira semana. E sem dados que cheguem qualquer conclusão é ruído —
+// um atleta com 2 treinos e 1 jogo não diz nada a ninguém.
+const GAP_DEFAULTS = {
+  gap_presenca_min: 80,  // comparência a partir da qual "vem sempre"
+  gap_jogo_max: 25,      // participação abaixo da qual "quase não joga"
+  gap_min_treinos: 5,
+  gap_min_jogos: 3,
+};
+
+export function gapThresholds() {
+  const out = {};
+  for (const [k, fallback] of Object.entries(GAP_DEFAULTS)) {
+    const v = Number(state.settings?.[k]);
+    out[k] = Number.isFinite(v) && v >= 0 ? v : fallback;
+  }
+  return out;
+}
 
 // Atletas que treinam muito e jogam pouco, do caso mais gritante para o menos.
 // Só entram atletas com registos suficientes dos DOIS lados — e a participação
 // só é calculável em jogos com parciais (são eles o denominador).
 export function trainingVsPlayingGaps(limit = 5) {
+  const t = gapThresholds();
   const out = [];
   for (const p of state.players) {
     const att = playerAttendanceStats(p.id);
-    if (att.rate == null || att.total < GAP_MIN_TREINOS) continue;
+    if (att.rate == null || att.total < t.gap_min_treinos) continue;
 
     const share = playerGameShare(p.id);
-    if (share.share == null || share.jogos < GAP_MIN_JOGOS) continue;
+    if (share.share == null || share.jogos < t.gap_min_jogos) continue;
 
-    if (att.rate >= GAP_PRESENCA_MIN && share.share <= GAP_JOGO_MAX) {
+    if (att.rate >= t.gap_presenca_min && share.share <= t.gap_jogo_max) {
       out.push({
         player: p,
         team: teamById(p.team_id),

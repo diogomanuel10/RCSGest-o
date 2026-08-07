@@ -1,7 +1,7 @@
 // Vista: Painel (resumo do clube).
 // Cartões de métricas, barra de progresso da meta e próximos eventos.
 
-import { state } from '../store.js';
+import { state, saveHiddenAlerts, dbErrorMessage } from '../store.js';
 import { esc, euros } from '../ui.js';
 import {
   totalRaised,
@@ -89,11 +89,11 @@ export function renderPainel(container) {
   const equipReview = equipmentNeedsAttention();
 
   const canMark = canEdit('attendances');
-  const toMark = canMark ? trainingsToMark(6) : [];
+  const toMark = canMark && alertOn('presencas') ? trainingsToMark(6) : [];
   const actions = buildActions();
   // Alertas de documentos a expirar/expirados/sem data (só para quem os pode ver).
   // A janela de antecedência vem das Definições (doc_alert_days).
-  const docAlerts = canEdit('documents') ? expiringDocuments() : [];
+  const docAlerts = canEdit('documents') && alertOn('documentos') ? expiringDocuments() : [];
   const today = todayEvents();
   const quick = quickActions();
 
@@ -130,9 +130,14 @@ export function renderPainel(container) {
         <h1 class="section-title">${esc(greeting())}${displayName() ? ', ' + esc(displayName()) : ''}</h1>
         <p class="muted" style="margin:0;font-size:0.9rem">${todayLine(today)}</p>
       </div>
-      ${quick.length ? `<div class="hero-actions">${quick.map((q) => `
-        <button class="btn btn--ghost btn--sm" data-quick="${q.key}" type="button">${esc(q.label)}</button>
-      `).join('')}</div>` : ''}
+      <div class="hero-actions">
+        ${quick.map((q) => `
+          <button class="btn btn--ghost btn--sm" data-quick="${q.key}" type="button">${esc(q.label)}</button>
+        `).join('')}
+        ${availableAlerts().length
+          ? '<button class="btn btn--ghost btn--sm" id="alert-prefs" type="button">Avisos</button>'
+          : ''}
+      </div>
     </header>
 
     ${steps ? stepsCard(steps) : ''}
@@ -211,6 +216,12 @@ export function renderPainel(container) {
       if (fn) fn();
     });
   });
+
+  // O botão vive no cabeçalho e não no cartão dos avisos: se estivesse no
+  // cartão, quem escondesse tudo ficava sem forma de voltar atrás.
+  container.querySelector('#alert-prefs')?.addEventListener('click', () =>
+    openAlertPrefs(() => renderPainel(container))
+  );
 }
 
 // --- Primeiros passos ----------------------------------------------------
@@ -356,6 +367,75 @@ const QUICK_HANDLERS = {
   sponsor: openSponsorForm,
 };
 
+// Configurar que avisos aparecem. Só lista os que o utilizador PODE ver: a
+// permissão manda, a preferência só escolhe dentro do que já era permitido.
+function openAlertPrefs(onSaved) {
+  const disponiveis = availableAlerts();
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal card" role="dialog" aria-modal="true" aria-labelledby="ap-title" style="width:min(480px,96vw)">
+      <div class="modal__head">
+        <div>
+          <h2 class="section-title" id="ap-title">Avisos no painel</h2>
+          <p class="muted" style="margin:0;font-size:0.84rem">
+            Escolhe o que queres ver. A lista mostra só os avisos a que tens acesso.
+          </p>
+        </div>
+        <button class="modal__close" type="button" aria-label="Fechar">&times;</button>
+      </div>
+      <div class="coach-checks" style="margin:0.6rem 0">
+        ${disponiveis.map((a) => `
+          <label class="coach-check">
+            <input type="checkbox" value="${esc(a.key)}" ${alertOn(a.key) ? 'checked' : ''} />
+            <span>${esc(a.label)}</span>
+          </label>`).join('')}
+      </div>
+      <p class="modal__error hidden" id="ap-err" role="alert"></p>
+      <div class="modal__actions">
+        <button class="btn btn--ghost" type="button" id="ap-cancel">Cancelar</button>
+        <button class="btn btn--primary" type="button" id="ap-save">Guardar</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  document.body.classList.add('no-scroll');
+
+  const close = () => {
+    overlay.remove();
+    if (!document.querySelector('.modal-overlay')) document.body.classList.remove('no-scroll');
+    document.removeEventListener('keydown', onKey);
+  };
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  document.addEventListener('keydown', onKey);
+  overlay.querySelector('.modal__close').addEventListener('click', close);
+  overlay.querySelector('#ap-cancel').addEventListener('click', close);
+  overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
+
+  overlay.querySelector('#ap-save').addEventListener('click', async () => {
+    const btn = overlay.querySelector('#ap-save');
+    const errEl = overlay.querySelector('#ap-err');
+    // Guardam-se os DESLIGADOS (ver ALERT_CATALOG). Os avisos a que o
+    // utilizador não tem acesso não entram na lista — se um dia ganhar esse
+    // acesso, o aviso aparece, em vez de ficar escondido sem ele saber porquê.
+    const hidden = Array.from(overlay.querySelectorAll('input[type=checkbox]'))
+      .filter((c) => !c.checked)
+      .map((c) => c.value);
+    btn.disabled = true;
+    btn.textContent = 'A guardar…';
+    try {
+      await saveHiddenAlerts(hidden);
+      close();
+      onSaved?.();
+    } catch (err) {
+      errEl.textContent = dbErrorMessage(err);
+      errEl.classList.remove('hidden');
+      btn.disabled = false;
+      btn.textContent = 'Guardar';
+    }
+  });
+}
+
 // Uma linha do resumo "Hoje".
 function todayRow(ev) {
   const team = teamById(ev.team_id);
@@ -385,12 +465,44 @@ function navTo(route) {
   document.querySelector(`[data-route="${route}"]`)?.click();
 }
 
+// Catálogo dos avisos do Painel. Cada um declara quem o PODE ver (`can`) —
+// isso não é preferência, é permissão, e nunca se contorna. A preferência do
+// utilizador só escolhe entre os que ele já podia ver.
+//
+// Guardam-se os avisos ESCONDIDOS e não os visíveis: assim um aviso novo
+// aparece a toda a gente por omissão, em vez de ficar invisível a quem já
+// tinha preferências gravadas.
+export const ALERT_CATALOG = [
+  { key: 'quotas',          label: 'Quotas por cobrar',              can: () => canEdit('quotas') },
+  { key: 'recrutamento',    label: 'Prospetos prontos a inscrever',  can: () => canEdit('prospects') },
+  { key: 'equipamentos',    label: 'Equipamento em mau estado',      can: () => canEdit('equipment') },
+  { key: 'objetivos',       label: 'Objetivos em risco',             can: () => canAccess('objetivos') },
+  { key: 'gap_treino_jogo', label: 'Treina muito, joga pouco',       can: () => canAccess('planteis') },
+  { key: 'avaliacoes',      label: 'Avaliações de atleta por decidir', can: () => canEdit('players') },
+  { key: 'documentos',      label: 'Documentos a expirar',           can: () => canEdit('documents') },
+  { key: 'presencas',       label: 'Presenças por marcar',           can: () => canEdit('attendances') },
+];
+
+// Avisos que este utilizador pode ver (permissão) — a base da configuração.
+export function availableAlerts() {
+  // Sem a migração `painel-avisos.sql` não há onde guardar a escolha: mais vale
+  // não oferecer o botão do que oferecer um que rebenta ao gravar.
+  if (!state.profile || !('hidden_alerts' in state.profile)) return [];
+  return ALERT_CATALOG.filter((a) => a.can());
+}
+
+// Um aviso está ligado? Escondido só se o utilizador o escondeu de propósito.
+export function alertOn(key) {
+  const hidden = state.profile?.hidden_alerts;
+  return !(Array.isArray(hidden) && hidden.includes(key));
+}
+
 // Constrói a lista de ações pendentes (cada uma navega para a sua secção).
 // Só inclui itens com algo por resolver; devolve [] se estiver tudo em dia.
 function buildActions() {
   const items = [];
 
-  if (canEdit('quotas')) {
+  if (canEdit('quotas') && alertOn('quotas')) {
     const qm = quotasThisMonth();
     if (qm.pendentes > 0) {
       items.push({
@@ -403,7 +515,7 @@ function buildActions() {
     }
   }
 
-  if (canEdit('prospects')) {
+  if (canEdit('prospects') && alertOn('recrutamento')) {
     const ready = prospectsReady();
     if (ready > 0) {
       items.push({
@@ -415,7 +527,7 @@ function buildActions() {
     }
   }
 
-  if (canEdit('equipment') && equipmentNeedsAttention() > 0) {
+  if (canEdit('equipment') && alertOn('equipamentos') && equipmentNeedsAttention() > 0) {
     const n = equipmentNeedsAttention();
     items.push({
       variant: 'danger',
@@ -427,7 +539,7 @@ function buildActions() {
 
   // Objetivos em risco ou fora de prazo. Sem isto, a secção Objetivos só se vê
   // indo lá de propósito — e um KPI que ninguém olha não serve de nada.
-  if (canAccess('objetivos')) {
+  if (canAccess('objetivos') && alertOn('objetivos')) {
     objectivesNeedingAttention().slice(0, 3).forEach(({ obj, status, met, total }) => {
       const sub = obj.scope === 'todas'
         ? `${met} de ${total} equipas a cumprir — abrir Objetivos.`
@@ -445,7 +557,7 @@ function buildActions() {
 
   // Treina muito, joga pouco. Fica ANTES das avaliações por decidir porque é
   // informação com prazo: depois de o atleta sair, já não serve de nada.
-  if (canAccess('planteis')) {
+  if (canAccess('planteis') && alertOn('gap_treino_jogo')) {
     // No voleibol a participação conta-se em pontos; nas modalidades com
     // relógio, em minutos.
     const unidade = sport() === 'voleibol' ? 'dos pontos' : 'dos minutos';
@@ -459,7 +571,7 @@ function buildActions() {
     });
   }
 
-  if (canEdit('players')) {
+  if (canEdit('players') && alertOn('avaliacoes')) {
     const pend = pendingReviews();
     if (pend > 0 && state.players.length > 0) {
       items.push({
