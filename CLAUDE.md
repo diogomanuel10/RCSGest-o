@@ -400,6 +400,19 @@ separador antes de navegar (usado pelos cartões do Painel).
     coisa contra os pontos disputados no jogo, que é a soma dos parciais. Sem
     eles, `playerGameShare` devolve `share: null` — prefere-se não mostrar nada
     a inventar uma percentagem.
+  - Um jogo cuja participação NUNCA foi preenchida não entra no cálculo: contá-lo
+    como "zero pontos" penalizava o atleta pelo registo que o treinador ainda não
+    fez. Quando há registo de alguém, quem não tem linha é porque não jogou. Os
+    pontos de um atleta são ainda limitados ao total do jogo — mais do que isso é
+    engano de digitação (validado também no ecrã de registo).
+- **Treina muito, joga pouco** (`trainingVsPlayingGaps`): cruza a comparência
+  nos treinos com a participação em jogo e assinala no Painel quem vai a tudo e
+  quase não joga — dos sinais mais precoces de desistência na formação, e
+  invisível se se olhar para os dois números em separado. Limiares exigentes de
+  propósito (>=80% de presenças, <=25% de participação, mínimo 5 treinos e 3
+  jogos): uma lista que assinala meio plantel deixa de ser lida. **Não é um
+  juízo sobre o treinador** — é obrigar a que seja decisão consciente em vez de
+  uma coisa que simplesmente acontece.
 - **Comunicação clube ↔ atleta** (`supabase/comunicacao.sql`): o portal deixa
   de ser só de leitura.
   - **Atleta → clube**: `event_responses` (`vou`|`nao_vou`|`duvida` + motivo)

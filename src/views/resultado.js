@@ -199,6 +199,19 @@ export function openResultModal(eventId) {
       value: li.querySelector('.res-player__in').value,
     }));
 
+    // Ninguém joga mais pontos do que os que o jogo teve. Apanhar o engano aqui
+    // é melhor do que o deixar entrar e adulterar as percentagens depois.
+    const totalPontos = sets.reduce((s, x) => s + x.points_for + x.points_against, 0);
+    if (emPontos && totalPontos) {
+      const excede = rows.find((r) => r.value !== '' && Number(r.value) > totalPontos);
+      if (excede) {
+        const nome = overlay.querySelector(`[data-player="${excede.playerId}"] .res-player__name`)?.textContent || 'Um atleta';
+        errEl.textContent = `${nome.trim()} tem mais pontos do que os ${totalPontos} que o jogo teve. Confirma o número.`;
+        errEl.classList.remove('hidden');
+        return;
+      }
+    }
+
     btn.disabled = true;
     btn.textContent = 'A guardar…';
     try {
