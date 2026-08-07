@@ -392,6 +392,84 @@ export function playerUpcomingSquads(playerId, limit = 5) {
     .map((ev) => ({ event: ev, status: eventStatus.get(ev.id) }));
 }
 
+// --- Resultados de jogo --------------------------------------------------
+
+// Resultado final de um jogo (ou null se ainda não foi registado).
+export function gameResult(eventId) {
+  return state.gameResults.find((r) => r.event_id === eventId) || null;
+}
+
+// Parciais de um jogo, por ordem de set.
+export function gameSetsOf(eventId) {
+  return state.gameSets
+    .filter((s) => s.event_id === eventId)
+    .sort((a, b) => a.set_number - b.set_number);
+}
+
+// Total de pontos disputados num jogo (soma dos parciais dos dois lados).
+// É o DENOMINADOR da participação: no voleibol não há relógio, por isso
+// "jogou 96 pontos" só diz alguma coisa contra o total do jogo.
+// Devolve 0 quando não há parciais — e é por isso que eles importam.
+export function gameTotalPoints(eventId) {
+  return gameSetsOf(eventId).reduce(
+    (sum, s) => sum + (s.points_for || 0) + (s.points_against || 0), 0
+  );
+}
+
+// Forma recente de uma equipa: os últimos N jogos COM resultado, do mais
+// recente para trás, com vitória/derrota já decidida.
+export function teamForm(teamId, last = 5) {
+  return state.events
+    .filter((e) => e.type === 'jogo' && e.team_id === teamId && gameResult(e.id))
+    .sort((a, b) => eventDateTime(b) - eventDateTime(a))
+    .slice(0, last)
+    .map((e) => {
+      const r = gameResult(e.id);
+      return { event: e, result: r, win: r.sets_for > r.sets_against };
+    });
+}
+
+// Balanço de uma equipa na época: vitórias, derrotas e sets.
+export function teamRecord(teamId) {
+  const jogos = state.events.filter(
+    (e) => e.type === 'jogo' && e.team_id === teamId && gameResult(e.id)
+  );
+  let vitorias = 0, derrotas = 0, setsFor = 0, setsAgainst = 0;
+  for (const e of jogos) {
+    const r = gameResult(e.id);
+    setsFor += r.sets_for;
+    setsAgainst += r.sets_against;
+    if (r.sets_for > r.sets_against) vitorias += 1; else derrotas += 1;
+  }
+  return { jogos: jogos.length, vitorias, derrotas, setsFor, setsAgainst };
+}
+
+// Participação de um atleta em jogo: pontos que jogou sobre os pontos
+// disputados nos jogos em que a equipa dele teve resultado com parciais.
+// `share` é null quando não há denominador (sem parciais registados) — é
+// preferível não mostrar nada a mostrar uma percentagem inventada.
+export function playerGameShare(playerId) {
+  const player = state.players.find((p) => p.id === playerId);
+  if (!player) return { jogados: 0, totais: 0, share: null, jogos: 0 };
+
+  const jogos = state.events.filter((e) => e.type === 'jogo' && e.team_id === player.team_id);
+  let jogados = 0, totais = 0, contados = 0;
+  for (const e of jogos) {
+    const total = gameTotalPoints(e.id);
+    if (!total) continue; // sem parciais não há denominador
+    const gm = state.gameMinutes.find((g) => g.event_id === e.id && g.player_id === playerId);
+    jogados += gm?.points || 0;
+    totais += total;
+    contados += 1;
+  }
+  return {
+    jogados,
+    totais,
+    jogos: contados,
+    share: totais ? Math.round((jogados / totais) * 100) : null,
+  };
+}
+
 // --- Respostas do atleta a eventos --------------------------------------
 
 // O que um atleta respondeu a um evento (ou null se ainda não respondeu).

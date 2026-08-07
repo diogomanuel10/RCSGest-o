@@ -96,6 +96,7 @@ src/
     calendario.js       Vista Calendário
     presencas.js        Vista Presenças (marcar + estatísticas de comparência)
     quiosque.js         Modo quiosque: câmara à entrada regista presenças por QR
+    resultado.js        Registo do resultado de um jogo (parciais + participação)
     treinadores.js      Vista Treinadores
     definicoes.js       Vista Definições (época, meta, escalões, backup)
     utilizadores.js     Vista Utilizadores (gestão de papéis — só coordenador)
@@ -104,6 +105,7 @@ supabase/schema.sql     Tabelas, índices, RLS e dados iniciais (correr no Supab
 supabase/qrcode-presencas.sql  Presenças por QR: token do atleta + RPCs de check-in
 supabase/portal-atleta.sql     Portal: o atleta lê a sua própria disponibilidade
 supabase/comunicacao.sql       Respostas do atleta a eventos + avisos do clube
+supabase/resultados.sql        Resultado dos jogos (final + parciais) e pontos jogados
 public/                 Ficheiros estáticos (modelo-atletas-rumia.xlsx)
 ```
 
@@ -382,6 +384,22 @@ separador antes de navegar (usado pelos cartões do Painel).
   - Definições do clube: ligar/desligar, tolerância e janela do quiosque. A UI
     só as mostra depois de a migração correr (`'qr_checkin_enabled' in
     state.settings`).
+- **Resultados de jogo** (`supabase/resultados.sql`): `game_results` (final em
+  sets, na perspetiva do clube) + `game_sets` (parciais). Quem regista é o
+  **treinador**, depois do jogo — e é por isso que o resultado NÃO vive em
+  `events`, que só o coordenador pode editar: as tabelas novas têm política
+  própria (coordenador, ou treinador nos jogos das suas equipas).
+  - **Os parciais mandam no final**: um trigger (`sync_game_result`) reconta
+    `sets_for`/`sets_against` a partir deles. Sem parciais, fica o que o
+    treinador escreveu à mão. Um valor com dois donos acaba em divergência.
+  - **No voleibol não há relógio**: a participação mede-se em PONTOS
+    (`game_minutes.points`), não em minutos. A coluna `minutes` mantém-se para
+    as modalidades com cronómetro — a app é multi-modalidade e `settings.sport`
+    decide qual aparece. O nome da tabela ficou herdado.
+  - **Os parciais são o denominador**: "jogou 96 pontos" só significa alguma
+    coisa contra os pontos disputados no jogo, que é a soma dos parciais. Sem
+    eles, `playerGameShare` devolve `share: null` — prefere-se não mostrar nada
+    a inventar uma percentagem.
 - **Comunicação clube ↔ atleta** (`supabase/comunicacao.sql`): o portal deixa
   de ser só de leitura.
   - **Atleta → clube**: `event_responses` (`vou`|`nao_vou`|`duvida` + motivo)
