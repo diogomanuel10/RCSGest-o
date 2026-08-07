@@ -25,6 +25,8 @@ import {
   physicalProfile,
   bmi,
   playerTests,
+  playerGameShare,
+  sport,
 } from '../compute.js';
 import {
   REVIEW_LABEL,
@@ -147,6 +149,10 @@ function renderGeral(container, playerId, _opts = {}) {
   const prof = physicalProfile(playerId);
   const imc = bmi(playerId);
   const lastTest = playerTests(playerId)[0];
+  // Participação em jogo. No voleibol conta-se em pontos (não há relógio); a
+  // percentagem só existe se houver parciais registados, que são o denominador.
+  const emPontos = sport() === 'voleibol';
+  const share = playerGameShare(playerId);
 
   container.innerHTML = `
     <div class="med-stats" style="margin-bottom:0.6rem">
@@ -202,6 +208,17 @@ function renderGeral(container, playerId, _opts = {}) {
            </div>`
         : '<p class="muted" style="margin:0.3rem 0 0">Ainda sem registos de presença.</p>'}
     </div>
+
+    ${share.jogos
+      ? `<div class="pd-section">
+           <span class="pd-label">Participação em jogo</span>
+           <div class="pd-grid">
+             ${dataItem(emPontos ? 'Pontos jogados' : 'Minutos jogados', String(share.jogados))}
+             ${dataItem('Do total disputado', share.share != null ? share.share + '%' : '')}
+             ${dataItem('Jogos com registo', String(share.jogos))}
+           </div>
+         </div>`
+      : ''}
 
     <div class="pd-section">
       <span class="pd-label">Quotas</span>

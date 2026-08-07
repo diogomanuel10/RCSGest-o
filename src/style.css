@@ -5788,3 +5788,84 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 
 /* Resposta do atleta na linha da convocatória. */
 .squad-row__resp { margin-left: 0.4rem; font-size: 0.72rem; }
+
+/* =====================================================================
+   Resultados de jogo (final + parciais) e participação
+   ===================================================================== */
+
+.event-row__result {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.3rem;
+  flex-wrap: wrap;
+}
+.event-row__parciais { font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+
+.res-block { margin-bottom: 1.4rem; }
+.res-block__title {
+  font-family: var(--font-title);
+  font-size: 1rem;
+  margin: 0 0 0.2rem;
+}
+.res-block__hint { margin: 0 0 0.7rem; font-size: 0.84rem; }
+
+/* Grelha dos parciais: rótulo + nós + eles. Colunas fixas para os números
+   ficarem alinhados de set para set — lê-se a coluna de cima a baixo. */
+.res-sets { display: flex; flex-direction: column; gap: 0.35rem; max-width: 320px; }
+.res-sets__head,
+.res-set {
+  display: grid;
+  grid-template-columns: 3rem 1fr 1fr;
+  gap: 0.5rem;
+  align-items: center;
+}
+.res-sets__head span {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-align: center;
+}
+.res-set__label { font-size: 0.85rem; color: var(--text-muted); }
+.res-set__in {
+  width: 100%;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.res-final {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-top: 0.8rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.res-final__label { font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.res-final__score { font-family: var(--font-title); font-size: 1.6rem; line-height: 1; }
+.res-final__score--win  { color: var(--ok); }
+.res-final__score--loss { color: var(--danger); }
+.res-final__score--draw { color: var(--text-muted); }
+.res-final__points { font-size: 0.8rem; }
+
+.res-players { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.25rem; }
+.res-player {
+  display: grid;
+  grid-template-columns: 2.2rem 1fr 5rem;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--surface-2);
+}
+.res-player:last-child { border-bottom: 0; }
+.res-player__num { color: var(--text-muted); font-variant-numeric: tabular-nums; text-align: center; }
+.res-player__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.res-player__in { text-align: center; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 520px) {
+  .res-sets { max-width: none; }
+  .res-player { grid-template-columns: 2rem 1fr 4.5rem; }
+}

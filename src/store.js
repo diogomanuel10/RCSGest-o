@@ -84,6 +84,8 @@ export const state = {
   squads: [],             // convocatórias (1:1 com evento jogo)
   squadPlayers: [],       // atletas em cada convocatória
   eventResponses: [],     // o que o atleta respondeu a cada evento (vou/não vou)
+  gameResults: [],        // resultado final de cada jogo (sets)
+  gameSets: [],           // parciais de cada set
   financialEntries: [],   // receitas e despesas do clube
   gamePlans: [],          // planos de jogo táticos
   objectives: [],         // objetivos / KPIs da época (manuais e automáticos)
@@ -134,6 +136,8 @@ export function resetState() {
   state.squads = [];
   state.squadPlayers = [];
   state.eventResponses = [];
+  state.gameResults = [];
+  state.gameSets = [];
   state.financialEntries = [];
   state.gamePlans = [];
   state.objectives = [];
@@ -303,7 +307,7 @@ export async function loadAll() {
          physProfiles, medHistory, physTests, phases, mesocycles, gymSessions, gymExercises, gymAttendance, gameMinutes, availability,
          trainingPlans, trainingPlanItems, trainingEvaluations, trainingPlayerEvals,
          playerDocuments, playerSizes, squads, squadPlayers, financialEntries, gamePlans, objectives,
-         eventResponses] =
+         eventResponses, gameResults, gameSets] =
     await Promise.all([
       // Multi-tenant: o RLS limita as definições ao clube do utilizador, por
       // isso não filtramos por id — devolve a (única) linha do clube atual.
@@ -356,6 +360,9 @@ export async function loadAll() {
       // Respostas do atleta aos eventos (convocatórias e treinos). Se a
       // migração `comunicacao.sql` ainda não correu, fica vazio (ver abaixo).
       supabase.from('event_responses').select('*'),
+      // Resultados de jogo (final + parciais). Tolerante à migração em falta.
+      supabase.from('game_results').select('*'),
+      supabase.from('game_sets').select('*').order('set_number'),
     ]);
 
   for (const res of [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects, episodes, sessions, appointments,
@@ -406,6 +413,8 @@ export async function loadAll() {
   // Tolerante à migração em falta: sem `comunicacao.sql` a consulta devolve
   // erro e a app segue sem respostas, em vez de não arrancar de todo.
   state.eventResponses   = eventResponses.error ? [] : (eventResponses.data || []);
+  state.gameResults      = gameResults.error   ? [] : (gameResults.data   || []);
+  state.gameSets         = gameSets.error      ? [] : (gameSets.data      || []);
 
   // Coerência da cache: com pais arquivados (ex.: uma equipa), os filhos que os
   // referenciam não devem aparecer nos ecrãs ativos.
@@ -680,6 +689,76 @@ export async function checkInByQr(token, eventId = null) {
     notify();
   }
   return data;
+}
+
+// --- Resultados de jogo ---------------------------------------------------
+
+// Grava o resultado de um jogo: o final e (opcionalmente) os parciais por set.
+// Quando há parciais, é um trigger no servidor que reconta o final a partir
+// deles — por isso a cache é recarregada do que ficou gravado, e não do que
+// foi enviado. Um valor com dois donos acaba sempre em divergência.
+export async function saveGameResult(eventId, { setsFor, setsAgainst, notes, sets }) {
+  const { error: resErr } = await supabase
+    .from('game_results')
+    .upsert(
+      { event_id: eventId, sets_for: setsFor, sets_against: setsAgainst, notes: notes || null, updated_at: new Date().toISOString() },
+      { onConflict: 'event_id' }
+    );
+  if (resErr) throw resErr;
+
+  // Os parciais são substituídos em bloco: é mais simples (e mais seguro) do
+  // que reconciliar set a set quando o treinador apaga um set a mais.
+  const { error: delErr } = await supabase.from('game_sets').delete().eq('event_id', eventId);
+  if (delErr) throw delErr;
+
+  const rows = (sets || []).filter((s) => s.points_for != null || s.points_against != null);
+  if (rows.length) {
+    const { error: insErr } = await supabase.from('game_sets').insert(
+      rows.map((s, i) => ({
+        event_id: eventId,
+        set_number: i + 1,
+        points_for: Number(s.points_for) || 0,
+        points_against: Number(s.points_against) || 0,
+      }))
+    );
+    if (insErr) throw insErr;
+  }
+
+  await reloadGameData(eventId);
+  toastOk('Resultado guardado.');
+  notify();
+}
+
+// Guarda os pontos jogados por cada atleta num jogo (voleibol) ou os minutos
+// (modalidades com relógio). Só grava quem tem valor: um atleta sem número
+// não é o mesmo que um atleta com zero.
+export async function saveGameParticipation(eventId, rows) {
+  const toSave = rows.filter((r) => r.value != null && r.value !== '');
+  if (toSave.length) {
+    const { error } = await supabase.from('game_minutes').upsert(
+      toSave.map((r) => ({ event_id: eventId, player_id: r.playerId, [r.field]: Number(r.value) })),
+      { onConflict: 'event_id,player_id' }
+    );
+    if (error) throw error;
+  }
+  const clear = rows.filter((r) => r.value === '' || r.value == null).map((r) => r.playerId);
+  if (clear.length) {
+    await supabase.from('game_minutes').delete().eq('event_id', eventId).in('player_id', clear);
+  }
+  const { data } = await supabase.from('game_minutes').select('*').eq('event_id', eventId);
+  state.gameMinutes = state.gameMinutes.filter((g) => g.event_id !== eventId).concat(data || []);
+  notify();
+}
+
+// Recarrega o resultado e os parciais de um jogo a partir da BD.
+async function reloadGameData(eventId) {
+  const [res, sets] = await Promise.all([
+    supabase.from('game_results').select('*').eq('event_id', eventId).maybeSingle(),
+    supabase.from('game_sets').select('*').eq('event_id', eventId).order('set_number'),
+  ]);
+  state.gameResults = state.gameResults.filter((r) => r.event_id !== eventId);
+  if (res.data) state.gameResults.push(res.data);
+  state.gameSets = state.gameSets.filter((s) => s.event_id !== eventId).concat(sets.data || []);
 }
 
 // --- Comunicação clube <-> atleta ---------------------------------------

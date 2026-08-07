@@ -3,8 +3,9 @@
 
 import { state, createRow, createRows, updateRow, archiveRow, dbErrorMessage } from '../store.js';
 import { openSquadModal } from './convocatorias.js';
+import { openResultModal } from './resultado.js';
 import { esc, emptyHTML } from '../ui.js';
-import { eventDateTime, eventTimeRange, teamById, teamName, escalaoColor } from '../compute.js';
+import { eventDateTime, eventTimeRange, teamById, teamName, escalaoColor, gameResult, gameSetsOf } from '../compute.js';
 import { openModal, confirmDialog } from '../modal.js';
 import { openAthleteProfile } from './athlete-profile.js';
 import { findPlanForEvent, openGamePlanForEvent } from './plano-jogo.js';
@@ -129,6 +130,7 @@ export function renderCalendario(container) {
   container.querySelectorAll('[data-edit]').forEach((b) => b.addEventListener('click', () => openForm(b.dataset.edit)));
   container.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => remove(b.dataset.del)));
   container.querySelectorAll('[data-squad]').forEach((b) => b.addEventListener('click', () => openSquadModal(b.dataset.squad)));
+  container.querySelectorAll('[data-result]').forEach((b) => b.addEventListener('click', () => openResultModal(b.dataset.result)));
   container.querySelectorAll('[data-new-day]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); openForm(null, b.dataset.newDay); }));
   container.querySelectorAll('[data-appt]').forEach((b) => b.addEventListener('click', () => openAthleteProfile(b.dataset.appt, { tab: 'fisioterapia' })));
   container.querySelectorAll('[data-plan-event]').forEach((b) => b.addEventListener('click', () => {
@@ -446,6 +448,7 @@ function eventRow(ev, isPast, editable) {
           <span class="badge badge--${EVENT_TYPE_BADGE[ev.type] || 'muted'}" style="margin-right:0.4rem">${esc(EVENT_TYPE_LABEL[ev.type] || ev.type)}</span>${esc(ev.title || EVENT_TYPE_LABEL[ev.type] || 'Evento')}
         </div>
         ${meta ? `<span class="event-row__meta">${meta}</span>` : ''}
+        ${resultBadge(ev)}
         ${ev.type === 'jogo' && nConvocados > 0
           ? `<span class="badge badge--info" style="margin-top:0.3rem;display:inline-block">${nConvocados} convocado${nConvocados !== 1 ? 's' : ''}</span>`
           : ''}
@@ -454,6 +457,7 @@ function eventRow(ev, isPast, editable) {
         ${showPlan ? `<button class="btn btn--ghost btn--sm" data-plan-event="${ev.id}" type="button">${hasPlan ? 'Plano ✓' : 'Preparar plano'}</button>` : ''}
         ${showTraining ? `<button class="btn btn--ghost btn--sm" data-training-plan="${ev.id}" type="button">${hasTraining ? 'Plano ✓' : 'Preparar treino'}</button>` : ''}
         ${canSquad ? `<button class="btn btn--ghost btn--sm" data-squad="${ev.id}" type="button">Convocar</button>` : ''}
+        ${canResult(ev) ? `<button class="btn btn--ghost btn--sm" data-result="${ev.id}" type="button">${gameResult(ev.id) ? 'Resultado ✓' : 'Registar resultado'}</button>` : ''}
         ${editable
           ? `<button class="btn btn--ghost btn--sm" data-edit="${ev.id}" type="button">Editar</button>
              <button class="btn btn--danger btn--sm" data-del="${ev.id}" type="button">Remover</button>`
@@ -797,4 +801,33 @@ export function openEventForm() {
 }
 export function openRecurrentTrainings() {
   openRecurrentModal();
+}
+
+
+// Quem regista o resultado: quem marca convocatórias (coordenador e treinador
+// da equipa), e só depois de o jogo ter acontecido — registar o resultado de
+// um jogo que ainda não se jogou não faz sentido.
+function canResult(ev) {
+  return canEdit('squads')
+    && ev.type === 'jogo'
+    && ev.team_id
+    && eventDateTime(ev) <= new Date();
+}
+
+// Resultado na linha do evento: o marcador em sets e, se houver parciais, os
+// sets escritos por extenso — que é como um treinador lê um jogo.
+function resultBadge(ev) {
+  const r = gameResult(ev.id);
+  if (!r) return '';
+  const venceu = r.sets_for > r.sets_against;
+  const parciais = gameSetsOf(ev.id)
+    .map((s) => `${s.points_for}-${s.points_against}`)
+    .join(' · ');
+  return `
+    <span class="event-row__result">
+      <strong class="badge badge--${venceu ? 'ok' : r.sets_for === r.sets_against ? 'muted' : 'danger'}">
+        ${r.sets_for}–${r.sets_against}
+      </strong>
+      ${parciais ? `<span class="muted event-row__parciais">${esc(parciais)}</span>` : ''}
+    </span>`;
 }
