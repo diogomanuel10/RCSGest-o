@@ -200,6 +200,54 @@ export function renderDefinicoes(container) {
       </form>
     </section>
 
+    ${'gap_presenca_min' in state.settings ? `
+    <section class="card settings-card">
+      <h2 class="section-title settings-card__title">Aviso "treina muito, joga pouco"</h2>
+      <p class="muted" style="margin-top:0">
+        O Painel assinala atletas que vão a quase todos os treinos e quase não
+        entram em jogo — dos primeiros sinais de desistência. Aqui defines a
+        partir de que valores isso conta para o teu clube.
+      </p>
+      <form id="gap-form">
+        <div class="field-grid">
+          <div class="field">
+            <label for="gap_presenca_min">Presenças a partir de (%)</label>
+            <input type="number" id="gap_presenca_min" name="gap_presenca_min" min="0" max="100"
+                   value="${esc(String(state.settings.gap_presenca_min ?? 80))}" />
+            <p class="field__hint muted" style="margin:0.25rem 0 0;font-size:0.82rem">
+              Acima disto considera-se que o atleta "vem sempre".
+            </p>
+          </div>
+          <div class="field">
+            <label for="gap_jogo_max">Participação até (%)</label>
+            <input type="number" id="gap_jogo_max" name="gap_jogo_max" min="0" max="100"
+                   value="${esc(String(state.settings.gap_jogo_max ?? 25))}" />
+            <p class="field__hint muted" style="margin:0.25rem 0 0;font-size:0.82rem">
+              Abaixo disto considera-se que "quase não joga".
+            </p>
+          </div>
+          <div class="field">
+            <label for="gap_min_treinos">Mínimo de treinos</label>
+            <input type="number" id="gap_min_treinos" name="gap_min_treinos" min="1" max="100"
+                   value="${esc(String(state.settings.gap_min_treinos ?? 5))}" />
+          </div>
+          <div class="field">
+            <label for="gap_min_jogos">Mínimo de jogos</label>
+            <input type="number" id="gap_min_jogos" name="gap_min_jogos" min="1" max="100"
+                   value="${esc(String(state.settings.gap_min_jogos ?? 3))}" />
+            <p class="field__hint muted" style="margin:0.25rem 0 0;font-size:0.82rem">
+              Abaixo destes mínimos não há dados que cheguem para concluir nada.
+            </p>
+          </div>
+        </div>
+        <p class="settings-msg hidden" id="gap-msg"></p>
+        <div class="row" style="justify-content:flex-end">
+          <button type="submit" class="btn btn--primary" id="save-gap">Guardar</button>
+        </div>
+      </form>
+    </section>
+    ` : ''}
+
     ${'qr_checkin_enabled' in state.settings ? `
     <section class="card settings-card">
       <h2 class="section-title settings-card__title">Presenças por QR (modo quiosque)</h2>
@@ -320,6 +368,45 @@ export function renderDefinicoes(container) {
       showMsg(docAlertMsg, 'Alertas de documentos guardados.', 'ok');
     } catch (err) {
       showMsg(docAlertMsg, dbErrorMessage(err), 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Guardar';
+    }
+  });
+
+  // --- Aviso "treina muito, joga pouco" ---
+  const gapForm = container.querySelector('#gap-form');
+  const gapMsg = container.querySelector('#gap-msg');
+  gapForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const num = (name, min, max) => {
+      const v = Math.round(Number(gapForm[name].value));
+      return Number.isFinite(v) && v >= min && v <= max ? v : null;
+    };
+    const values = {
+      gap_presenca_min: num('gap_presenca_min', 0, 100),
+      gap_jogo_max: num('gap_jogo_max', 0, 100),
+      gap_min_treinos: num('gap_min_treinos', 1, 100),
+      gap_min_jogos: num('gap_min_jogos', 1, 100),
+    };
+    if (Object.values(values).some((v) => v === null)) {
+      showMsg(gapMsg, 'Confirma os valores: percentagens 0–100 e mínimos 1–100.', 'error');
+      return;
+    }
+    // Um limiar de presenças abaixo do de participação inverte o sentido do
+    // aviso e assinalaria toda a gente.
+    if (values.gap_presenca_min <= values.gap_jogo_max) {
+      showMsg(gapMsg, 'A percentagem de presenças tem de ser maior do que a de participação.', 'error');
+      return;
+    }
+    const btn = container.querySelector('#save-gap');
+    btn.disabled = true;
+    btn.textContent = 'A guardar…';
+    try {
+      await saveSettings(values);
+      showMsg(gapMsg, 'Limiares guardados.', 'ok');
+    } catch (err) {
+      showMsg(gapMsg, dbErrorMessage(err), 'error');
     } finally {
       btn.disabled = false;
       btn.textContent = 'Guardar';

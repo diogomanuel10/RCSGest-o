@@ -691,6 +691,22 @@ export async function checkInByQr(token, eventId = null) {
   return data;
 }
 
+// Guarda os avisos do Painel que ESTE utilizador escolheu esconder.
+// Passa por RPC e não por um update direto: `profiles` só é editável pelo
+// coordenador, e abrir a auto-edição da tabela deixaria qualquer utilizador
+// mudar o seu próprio `role`. A função no servidor escreve só esta coluna, e
+// só na linha de quem a chama.
+export async function saveHiddenAlerts(hidden) {
+  const { data, error } = await supabase.rpc('set_hidden_alerts', {
+    p_hidden: hidden || [],
+  });
+  if (error) throw error;
+  if (state.profile) state.profile.hidden_alerts = data || [];
+  toastOk('Avisos atualizados.');
+  notify();
+  return data;
+}
+
 // --- Resultados de jogo ---------------------------------------------------
 
 // Grava o resultado de um jogo: o final e (opcionalmente) os parciais por set.
