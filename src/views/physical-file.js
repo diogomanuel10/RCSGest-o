@@ -19,6 +19,8 @@ import {
   playerMedicalHistory,
   bmi,
   playerTests,
+  playerTestProgress,
+  testName,
   playerGymStats,
   playerGameMinutes,
   eventDateTime,
@@ -28,7 +30,6 @@ import {
   DOMINANT_HANDS,
   DOMINANT_HAND_LABEL,
   PHYSICAL_TEST_TYPES,
-  PHYSICAL_TEST_LABEL,
   PHYSICAL_TEST_UNIT,
 } from '../constants.js';
 import { canEdit } from '../permissions.js';
@@ -36,7 +37,11 @@ import { canEdit } from '../permissions.js';
 const fmtDate = (d) =>
   d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-PT', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
 
-const testName = (t) => (t.type === 'outro' && t.label ? t.label : PHYSICAL_TEST_LABEL[t.type] || t.type);
+// A direção da variação já vem calculada (`playerTestProgress`): aqui só se
+// escolhe como se mostra. "Neutro" é deliberadamente cinzento — num teste sem
+// lado bom declarado (IMC), pintar de verde ou vermelho seria inventar juízo.
+const DIRECTION_BADGE = { melhor: 'ok', pior: 'danger', igual: 'muted', neutro: 'info' };
+const DIRECTION_LABEL = { melhor: 'Melhorou', pior: 'Regrediu', igual: 'Sem alteração', neutro: 'Variação' };
 
 // Renderiza a área de preparação física de um atleta no contentor indicado.
 export function renderPhysicalInto(container, playerId, { editable } = {}) {
@@ -48,6 +53,7 @@ export function renderPhysicalInto(container, playerId, { editable } = {}) {
   const prof = physicalProfile(playerId);
   const hist = playerMedicalHistory(playerId);
   const tests = playerTests(playerId);
+  const progress = playerTestProgress(playerId);
   const gym = playerGymStats(playerId);
   const games = playerGameMinutes(playerId);
   const imc = bmi(playerId);
@@ -77,6 +83,17 @@ export function renderPhysicalInto(container, playerId, { editable } = {}) {
            ${fieldBlock('Medicação', hist.medication)}`
         : '<p class="muted" style="margin:0.2rem 0 0">Sem história clínica registada.</p>'}
     </div>
+
+    ${progress.some((p) => p.medicoes > 1) ? `
+    <div class="pd-section">
+      <span class="pd-label">Evolução</span>
+      <p class="muted" style="margin:0.1rem 0 0.5rem;font-size:0.8rem">
+        Da primeira à última medição de cada teste.
+      </p>
+      <div class="pf-progress">
+        ${progress.filter((p) => p.medicoes > 1).map(progressCard).join('')}
+      </div>
+    </div>` : ''}
 
     <div class="pd-section">
       <div class="cf-section-head">
@@ -138,6 +155,56 @@ function dataItem(label, value) {
 function fieldBlock(label, value) {
   if (!value) return '';
   return `<div class="pd-notes"><span class="pd-label">${esc(label)}</span><p>${esc(value)}</p></div>`;
+}
+
+// Cartão de evolução de um teste: primeiro valor → último, a variação e a
+// série desenhada. O número sozinho ("41 cm") não diz se o trabalho resultou.
+function progressCard(p) {
+  const unit = p.unit ? ' ' + p.unit : '';
+  const sinal = p.delta > 0 ? '+' : '';
+  const variacao = `${sinal}${p.delta}${unit}${p.pct != null ? ` (${sinal}${p.pct}%)` : ''}`;
+  return `
+    <div class="pf-progress__card">
+      <div class="pf-progress__head">
+        <span class="pf-progress__name">${esc(p.label)}</span>
+        <span class="badge badge--${DIRECTION_BADGE[p.direction] || 'muted'}">${esc(DIRECTION_LABEL[p.direction] || '')}</span>
+      </div>
+      <p class="pf-progress__values">
+        <span class="muted">${esc(String(p.first.value))}${esc(unit)}</span>
+        <span aria-hidden="true">→</span>
+        <strong>${esc(String(p.last.value))}${esc(unit)}</strong>
+      </p>
+      <p class="pf-progress__delta">${esc(variacao)}</p>
+      ${sparkline(p)}
+      <p class="muted pf-progress__meta">
+        ${p.medicoes} medições · ${esc(fmtDate(p.first.date))} a ${esc(fmtDate(p.last.date))}
+      </p>
+    </div>`;
+}
+
+// Linha da série, normalizada ao seu próprio mínimo/máximo. É um esboço da
+// forma da evolução, não um gráfico com escala — os números exatos estão logo
+// por cima e na tabela abaixo.
+function sparkline(p) {
+  const vals = p.rows.map((r) => Number(r.value));
+  const min = Math.min(...vals);
+  const max = Math.max(...vals);
+  const span = max - min;
+  const w = 100, h = 28, pad = 3;
+  const pts = vals.map((v, i) => {
+    const x = vals.length === 1 ? w / 2 : pad + (i * (w - pad * 2)) / (vals.length - 1);
+    // Série constante (span 0) desenha-se a meio: dividir por zero dava NaN.
+    const y = span ? h - pad - ((v - min) / span) * (h - pad * 2) : h / 2;
+    return `${Math.round(x * 10) / 10},${Math.round(y * 10) / 10}`;
+  });
+  const last = pts[pts.length - 1].split(',');
+  return `
+    <svg class="pf-spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img"
+         aria-label="Evolução de ${esc(p.label)}: ${p.medicoes} medições">
+      <polyline points="${pts.join(' ')}" fill="none" stroke="currentColor" stroke-width="1.6"
+                stroke-linecap="round" stroke-linejoin="round" />
+      <circle cx="${last[0]}" cy="${last[1]}" r="2.2" fill="currentColor" />
+    </svg>`;
 }
 
 function testRowHTML(t, editable) {

@@ -109,6 +109,22 @@ export function renderDefinicoes(container) {
 
     <div class="${panelClass('estrutura')}" data-panel="estrutura">
     <div class="settings-stack">
+    ${coordenador ? `
+    <section class="card settings-card">
+      <h2 class="section-title settings-card__title">Virar a época</h2>
+      <p class="muted" style="margin-top:0">
+        Época atual: <strong>${esc(state.settings.season || '—')}</strong>.
+        O assistente aplica de uma vez as decisões da Avaliação de plantel a
+        todo o clube: sobe de escalão quem fica, arquiva quem sai, repõe as
+        avaliações e regista a época nova. Mostra tudo antes de aplicar, e
+        quem for arquivado pode ser reposto nos Arquivados.
+      </p>
+      <div class="row" style="justify-content:flex-end">
+        <button class="btn btn--primary" id="open-rollover" type="button">Abrir assistente</button>
+      </div>
+    </section>
+    ` : ''}
+
     <section class="card settings-card">
       <h2 class="section-title settings-card__title">Escalões</h2>
       <p class="muted" style="margin-top:0">
@@ -243,6 +259,54 @@ export function renderDefinicoes(container) {
         <p class="settings-msg hidden" id="gap-msg"></p>
         <div class="row" style="justify-content:flex-end">
           <button type="submit" class="btn btn--primary" id="save-gap">Guardar</button>
+        </div>
+      </form>
+    </section>
+    ` : ''}
+
+    ${'drop_pontos' in state.settings ? `
+    <section class="card settings-card">
+      <h2 class="section-title settings-card__title">Aviso de queda de comparência</h2>
+      <p class="muted" style="margin-top:0">
+        A taxa de presenças do clube é uma média, e uma média esconde o atleta
+        que vinha sempre e deixou de vir. Aqui defines a partir de quando essa
+        queda individual passa a ser assinalada no Painel.
+      </p>
+      <form id="drop-form">
+        <div class="field-grid">
+          <div class="field">
+            <label for="drop_recentes">Treinos da janela recente</label>
+            <input type="number" id="drop_recentes" name="drop_recentes" min="2" max="30"
+                   value="${esc(String(state.settings.drop_recentes ?? 5))}" />
+            <p class="field__hint muted" style="margin:0.25rem 0 0;font-size:0.82rem">
+              Comparam-se estes últimos treinos com os anteriores.
+            </p>
+          </div>
+          <div class="field">
+            <label for="drop_pontos">Queda a partir de (pontos)</label>
+            <input type="number" id="drop_pontos" name="drop_pontos" min="5" max="100"
+                   value="${esc(String(state.settings.drop_pontos ?? 30))}" />
+          </div>
+          <div class="field">
+            <label for="drop_base_min">Comparência anterior mínima (%)</label>
+            <input type="number" id="drop_base_min" name="drop_base_min" min="0" max="100"
+                   value="${esc(String(state.settings.drop_base_min ?? 60))}" />
+            <p class="field__hint muted" style="margin:0.25rem 0 0;font-size:0.82rem">
+              Só há queda em quem tinha o hábito de vir.
+            </p>
+          </div>
+          <div class="field">
+            <label for="drop_faltas_seguidas">Faltas seguidas</label>
+            <input type="number" id="drop_faltas_seguidas" name="drop_faltas_seguidas" min="2" max="20"
+                   value="${esc(String(state.settings.drop_faltas_seguidas ?? 3))}" />
+            <p class="field__hint muted" style="margin:0.25rem 0 0;font-size:0.82rem">
+              Assinala mesmo quem ainda tem média alta — a média demora a cair.
+            </p>
+          </div>
+        </div>
+        <p class="settings-msg hidden" id="drop-msg"></p>
+        <div class="row" style="justify-content:flex-end">
+          <button type="submit" class="btn btn--primary" id="save-drop">Guardar</button>
         </div>
       </form>
     </section>
@@ -407,6 +471,46 @@ export function renderDefinicoes(container) {
       showMsg(gapMsg, 'Limiares guardados.', 'ok');
     } catch (err) {
       showMsg(gapMsg, dbErrorMessage(err), 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Guardar';
+    }
+  });
+
+  // --- Virar a época (assistente) ---
+  // Carregado a pedido: é uma operação anual e não tem de pesar no arranque.
+  container.querySelector('#open-rollover')?.addEventListener('click', async () => {
+    const { openSeasonRollover } = await import('./nova-epoca.js');
+    openSeasonRollover();
+  });
+
+  // --- Aviso de queda de comparência ---
+  const dropForm = container.querySelector('#drop-form');
+  const dropMsg = container.querySelector('#drop-msg');
+  dropForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const num = (name, min, max) => {
+      const v = Math.round(Number(dropForm[name].value));
+      return Number.isFinite(v) && v >= min && v <= max ? v : null;
+    };
+    const values = {
+      drop_recentes: num('drop_recentes', 2, 30),
+      drop_pontos: num('drop_pontos', 5, 100),
+      drop_base_min: num('drop_base_min', 0, 100),
+      drop_faltas_seguidas: num('drop_faltas_seguidas', 2, 20),
+    };
+    if (Object.values(values).some((v) => v === null)) {
+      showMsg(dropMsg, 'Confirma os valores: cada campo tem de estar dentro dos limites indicados.', 'error');
+      return;
+    }
+    const btn = container.querySelector('#save-drop');
+    btn.disabled = true;
+    btn.textContent = 'A guardar…';
+    try {
+      await saveSettings(values);
+      showMsg(dropMsg, 'Limiares guardados.', 'ok');
+    } catch (err) {
+      showMsg(dropMsg, dbErrorMessage(err), 'error');
     } finally {
       btn.disabled = false;
       btn.textContent = 'Guardar';

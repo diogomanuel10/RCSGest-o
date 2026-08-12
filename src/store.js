@@ -1067,6 +1067,58 @@ export async function restoreRow(table, id) {
   toastEntity(table, 'repost');
 }
 
+// --- Viragem de época -----------------------------------------------------
+//
+// Aplica de uma vez as decisões já tomadas na Avaliação de plantel: sobe de
+// equipa quem fica, arquiva quem sai, repõe as avaliações a "pendente" para a
+// época nova e grava a nova época nas Definições.
+//
+// Vai em lote de propósito. A alternativa — chamar `archiveRow` por atleta —
+// faria um `loadAll()` e um toast por cada um: com 200 atletas são 200 voltas
+// à base de dados e uma torrente de avisos por cima de uma operação que é
+// conceptualmente UMA. Aqui é uma escrita por grupo e um `loadAll()` no fim.
+//
+// Nada é apagado: quem sai fica arquivado e pode ser reposto nos Arquivados.
+export async function applySeasonRollover({ moves = [], archives = [], resets = [], season }) {
+  const now = new Date().toISOString();
+
+  // Movimentos agrupados por equipa de destino: um update por destino.
+  const porDestino = new Map();
+  for (const m of moves) {
+    if (!porDestino.has(m.teamId)) porDestino.set(m.teamId, []);
+    porDestino.get(m.teamId).push(m.playerId);
+  }
+  for (const [teamId, ids] of porDestino) {
+    const { error } = await supabase.from('players').update({ team_id: teamId }).in('id', ids);
+    if (error) throw error;
+  }
+
+  if (archives.length) {
+    const { error } = await supabase
+      .from('players').update({ archived_at: now }).in('id', archives);
+    if (error) throw error;
+  }
+
+  // Repor as avaliações: as decisões da época que acabou não valem para a
+  // seguinte, e mantê-las faria a Avaliação abrir já toda decidida.
+  if (resets.length) {
+    const { error } = await supabase
+      .from('players').update({ review_status: 'pendente' }).in('id', resets);
+    if (error) throw error;
+  }
+
+  if (season) {
+    const orgId = state.org?.id || state.profile?.org_id;
+    const query = supabase.from('settings').update({ season });
+    const { error } = await (orgId ? query.eq('org_id', orgId) : query.eq('id', state.settings.id));
+    if (error) throw error;
+  }
+
+  await loadAll();
+  toastOk('Época virada.');
+  return { movidos: moves.length, arquivados: archives.length, repostos: resets.length };
+}
+
 export async function deleteRow(table, collection, id) {
   const { error } = await supabase.from(table).delete().eq('id', id);
   if (error) throw error;

@@ -3835,6 +3835,65 @@ button.metric--nav:focus-visible {
   margin-top: 0.4rem;
 }
 
+/* Resumo do assistente de viragem de época */
+.ne-summary {
+  margin: 0.3rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.9rem;
+}
+.ne-summary li {
+  margin-bottom: 0.2rem;
+}
+
+/* Evolução das avaliações físicas (um cartão por teste) */
+.pf-progress {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 0.6rem;
+}
+.pf-progress__card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  padding: 0.6rem 0.7rem;
+}
+.pf-progress__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  margin-bottom: 0.35rem;
+}
+.pf-progress__name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.pf-progress__values {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  margin: 0;
+  font-size: 0.95rem;
+}
+.pf-progress__delta {
+  margin: 0.1rem 0 0.3rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.pf-progress__meta {
+  margin: 0.3rem 0 0;
+  font-size: 0.72rem;
+}
+.pf-spark {
+  display: block;
+  width: 100%;
+  height: 28px;
+  /* Segue a cor primária do clube (o branding reescreve --navy-500). */
+  color: var(--navy-500);
+}
+
 /* Macrociclo (fases da época) */
 .phase-track {
   display: flex;

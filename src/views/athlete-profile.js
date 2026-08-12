@@ -94,7 +94,10 @@ export function renderAthleteProfilePage(container, playerId, { onEdit, onBack }
             <span class="muted pd-hero__meta">${headMeta(player)}</span>
           </div>
         </div>
-        ${onEdit ? '<button class="btn btn--primary" data-ap-edit type="button">Editar dados</button>' : ''}
+        <div class="row" style="gap:0.4rem">
+          <button class="btn btn--ghost" data-ap-report type="button">Ficha (imprimir)</button>
+          ${onEdit ? '<button class="btn btn--primary" data-ap-edit type="button">Editar dados</button>' : ''}
+        </div>
       </header>
 
       <div class="ap-tabs" role="tablist">
@@ -118,6 +121,16 @@ export function renderAthleteProfilePage(container, playerId, { onEdit, onBack }
 
   container.querySelector('[data-ap-back]')?.addEventListener('click', () => onBack?.());
   container.querySelector('[data-ap-edit]')?.addEventListener('click', () => onEdit?.());
+  // Ficha imprimível: só inclui as secções que quem a gera já podia ver na
+  // app. O módulo é um chunk à parte, carregado a pedido.
+  container.querySelector('[data-ap-report]')?.addEventListener('click', async () => {
+    try {
+      const { openAthleteReport } = await import('../athlete-report.js');
+      openAthleteReport(playerId);
+    } catch (err) {
+      toastError(err.message || 'Não foi possível gerar a ficha.');
+    }
+  });
   container.querySelectorAll('[data-tab]').forEach((b) =>
     b.addEventListener('click', () => { _activeTab = b.dataset.tab; paintTab(); })
   );

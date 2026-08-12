@@ -5,6 +5,7 @@ import { state, createRow, createRows, updateRow, archiveRow, dbErrorMessage } f
 import { openSquadModal } from './convocatorias.js';
 import { openResultModal } from './resultado.js';
 import { esc, emptyHTML } from '../ui.js';
+import { toastError } from '../toast.js';
 import { eventDateTime, eventTimeRange, teamById, teamName, escalaoColor, gameResult, gameSetsOf } from '../compute.js';
 import { openModal, confirmDialog } from '../modal.js';
 import { openAthleteProfile } from './athlete-profile.js';
@@ -131,6 +132,18 @@ export function renderCalendario(container) {
   container.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => remove(b.dataset.del)));
   container.querySelectorAll('[data-squad]').forEach((b) => b.addEventListener('click', () => openSquadModal(b.dataset.squad)));
   container.querySelectorAll('[data-result]').forEach((b) => b.addEventListener('click', () => openResultModal(b.dataset.result)));
+  // Resumo pós-jogo: folha imprimível com o que já foi registado. O módulo é
+  // carregado só quando alguém pede o resumo (chunk à parte).
+  container.querySelectorAll('[data-report]').forEach((b) =>
+    b.addEventListener('click', async () => {
+      try {
+        const { openGameReport } = await import('../game-report.js');
+        openGameReport(b.dataset.report);
+      } catch (err) {
+        toastError(err.message || 'Não foi possível gerar o resumo.');
+      }
+    })
+  );
   container.querySelectorAll('[data-new-day]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); openForm(null, b.dataset.newDay); }));
   container.querySelectorAll('[data-appt]').forEach((b) => b.addEventListener('click', () => openAthleteProfile(b.dataset.appt, { tab: 'fisioterapia' })));
   container.querySelectorAll('[data-plan-event]').forEach((b) => b.addEventListener('click', () => {
@@ -458,6 +471,7 @@ function eventRow(ev, isPast, editable) {
         ${showTraining ? `<button class="btn btn--ghost btn--sm" data-training-plan="${ev.id}" type="button">${hasTraining ? 'Plano ✓' : 'Preparar treino'}</button>` : ''}
         ${canSquad ? `<button class="btn btn--ghost btn--sm" data-squad="${ev.id}" type="button">Convocar</button>` : ''}
         ${canResult(ev) ? `<button class="btn btn--ghost btn--sm" data-result="${ev.id}" type="button">${gameResult(ev.id) ? 'Resultado ✓' : 'Registar resultado'}</button>` : ''}
+        ${ev.type === 'jogo' && gameResult(ev.id) ? `<button class="btn btn--ghost btn--sm" data-report="${ev.id}" type="button">Resumo</button>` : ''}
         ${editable
           ? `<button class="btn btn--ghost btn--sm" data-edit="${ev.id}" type="button">Editar</button>
              <button class="btn btn--danger btn--sm" data-del="${ev.id}" type="button">Remover</button>`

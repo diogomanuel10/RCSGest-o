@@ -271,24 +271,33 @@ export const DOMINANT_HAND_LABEL = Object.fromEntries(
 
 // Tipos de teste/avaliação física (antropometria + performance). `unit` é a
 // unidade sugerida; `outro` permite etiqueta livre.
+//
+// `better` diz para que lado do número está a melhoria — sem isso não se pode
+// dizer se uma variação é progresso ou regressão: subir 3 cm no CMJ é bom,
+// subir 0,3 s no sprint é mau. `null` = depende do contexto (o IMC de um
+// atleta a ganhar massa sobe, e isso não é bom nem mau por si só) e nesses
+// casos mostra-se a variação sem juízo de valor.
 export const PHYSICAL_TEST_TYPES = [
-  { key: 'massa_gorda',     label: '% Massa gorda',          unit: '%' },
-  { key: 'massa_muscular',  label: '% Massa muscular',       unit: '%' },
-  { key: 'imc',             label: 'IMC',                    unit: '' },
-  { key: '1rm_peso_morto',  label: '1RM Peso morto',         unit: 'kg' },
-  { key: '1rm_agachamento', label: '1RM Agachamento',        unit: 'kg' },
-  { key: '1rm_supino',      label: '1RM Supino',             unit: 'kg' },
-  { key: 'aperto_mao',      label: 'Aperto de mão (preensão)', unit: 'kg' },
-  { key: 'salto_bloco',     label: 'Salto em altura (bloco)', unit: 'cm' },
-  { key: 'cmj',             label: 'Salto CMJ',              unit: 'cm' },
-  { key: 'sprint_20m',      label: 'Sprint 20 m',            unit: 's' },
-  { key: 'outro',           label: 'Outro',                  unit: '' },
+  { key: 'massa_gorda',     label: '% Massa gorda',          unit: '%',  better: 'down' },
+  { key: 'massa_muscular',  label: '% Massa muscular',       unit: '%',  better: 'up' },
+  { key: 'imc',             label: 'IMC',                    unit: '',   better: null },
+  { key: '1rm_peso_morto',  label: '1RM Peso morto',         unit: 'kg', better: 'up' },
+  { key: '1rm_agachamento', label: '1RM Agachamento',        unit: 'kg', better: 'up' },
+  { key: '1rm_supino',      label: '1RM Supino',             unit: 'kg', better: 'up' },
+  { key: 'aperto_mao',      label: 'Aperto de mão (preensão)', unit: 'kg', better: 'up' },
+  { key: 'salto_bloco',     label: 'Salto em altura (bloco)', unit: 'cm', better: 'up' },
+  { key: 'cmj',             label: 'Salto CMJ',              unit: 'cm', better: 'up' },
+  { key: 'sprint_20m',      label: 'Sprint 20 m',            unit: 's',  better: 'down' },
+  { key: 'outro',           label: 'Outro',                  unit: '',   better: null },
 ];
 export const PHYSICAL_TEST_LABEL = Object.fromEntries(
   PHYSICAL_TEST_TYPES.map((t) => [t.key, t.label])
 );
 export const PHYSICAL_TEST_UNIT = Object.fromEntries(
   PHYSICAL_TEST_TYPES.map((t) => [t.key, t.unit])
+);
+export const PHYSICAL_TEST_BETTER = Object.fromEntries(
+  PHYSICAL_TEST_TYPES.map((t) => [t.key, t.better])
 );
 
 // Objetivo dominante de um mesociclo / treino.

@@ -5,6 +5,7 @@ import { isClubWide } from './permissions.js';
 import {
   TIER_VALUE, IN_PROGRESS_STATUSES, DEFAULT_ESCALOES,
   DEFAULT_SPORT, SPORT_POSITIONS, DEFAULT_POSITIONS, DOC_TYPE_LABEL, DOCUMENT_TYPES,
+  PHYSICAL_TEST_LABEL, PHYSICAL_TEST_UNIT, PHYSICAL_TEST_BETTER,
 } from './constants.js';
 
 // Tipos de documento que deviam ter data de validade (exame médico, seguro…).
@@ -507,6 +508,167 @@ export function attendanceTrend(days = 30) {
   };
 }
 
+// --- Queda individual de comparência -------------------------------------
+//
+// A tendência do clube (`attendanceTrend`) é uma média, e uma média esconde
+// exatamente o caso que interessa: o atleta que sempre veio a tudo e deixou de
+// vir. Enquanto o plantel inteiro compensa, o número global não mexe — e
+// quando mexe já é tarde.
+
+const DROP_DEFAULTS = {
+  drop_recentes: 5,      // treinos da janela recente
+  drop_base_min: 60,     // comparência anterior a partir da qual havia hábito
+  drop_pontos: 30,       // queda (em pontos) a partir da qual se assinala
+  drop_faltas_seguidas: 3,
+};
+
+export function dropThresholds() {
+  const out = {};
+  for (const [k, fallback] of Object.entries(DROP_DEFAULTS)) {
+    const v = Number(state.settings?.[k]);
+    out[k] = Number.isFinite(v) && v > 0 ? v : fallback;
+  }
+  return out;
+}
+
+// Queda de comparência de UM atleta: compara os últimos N treinos COM registo
+// com os anteriores. Devolve null quando não há dados dos dois lados — sem
+// termo de comparação não há queda, há só um número.
+//
+// Conta também as faltas seguidas mais recentes: três seguidas são um sinal
+// mesmo quando a média da época ainda está alta, porque a média demora a cair.
+export function playerAttendanceDrop(playerId) {
+  const t = dropThresholds();
+  const rows = playerRecentTrainings(playerId, t.drop_recentes * 3)
+    .filter((r) => r.attendance);                  // treinos por fechar não contam
+  if (rows.length < t.drop_recentes + 2) return null;
+
+  const compareceu = (r) =>
+    r.attendance.status === 'presente' || r.attendance.status === 'atraso';
+
+  // `playerRecentTrainings` vem do mais recente para trás.
+  const recentes = rows.slice(0, t.drop_recentes);
+  const anteriores = rows.slice(t.drop_recentes);
+  const taxa = (list) => Math.round((list.filter(compareceu).length / list.length) * 100);
+
+  const recente = taxa(recentes);
+  const anterior = taxa(anteriores);
+
+  let seguidas = 0;
+  for (const r of rows) {
+    if (compareceu(r)) break;
+    if (r.attendance.status === 'falta') seguidas += 1;
+    else break;                                    // uma justificada quebra a série
+  }
+
+  return {
+    recente,
+    anterior,
+    delta: recente - anterior,
+    faltasSeguidas: seguidas,
+    treinosRecentes: recentes.length,
+    treinosAnteriores: anteriores.length,
+  };
+}
+
+// Atletas cuja comparência caiu, do caso mais grave para o menos.
+// Dois motivos entram na lista, e são coisas diferentes:
+//   'queda'    — vinha e deixou de vir (o hábito quebrou-se)
+//   'seguidas' — faltou às últimas N seguidas (ainda pode ter média alta)
+export function attendanceDrops(limit = 5) {
+  const t = dropThresholds();
+  const out = [];
+  for (const p of state.players) {
+    const d = playerAttendanceDrop(p.id);
+    if (!d) continue;
+
+    const queda = d.anterior >= t.drop_base_min && d.delta <= -t.drop_pontos;
+    const seguidas = d.faltasSeguidas >= t.drop_faltas_seguidas;
+    if (!queda && !seguidas) continue;
+
+    out.push({
+      player: p,
+      team: teamById(p.team_id),
+      motivo: queda ? 'queda' : 'seguidas',
+      ...d,
+    });
+  }
+  // A queda de hábito ordena-se pela magnitude; as faltas seguidas ficam
+  // ordenadas entre si pelo número de faltas.
+  return out
+    .sort((a, b) => (a.delta - b.delta) || (b.faltasSeguidas - a.faltasSeguidas))
+    .slice(0, limit);
+}
+
+// --- Histórico de lesões --------------------------------------------------
+//
+// Os episódios clínicos acumulam-se e nunca são lidos em conjunto. Duas
+// perguntas que o fisioterapeuta faz e que os dados já respondem: quanto tempo
+// demora a alta, e quais são as zonas que voltam sempre.
+
+// Dias entre a lesão e a alta de um episódio (null se faltar alguma data).
+export function episodeReturnDays(ep) {
+  if (!ep.injury_date || !ep.discharge_date) return null;
+  const dias = Math.round(
+    (new Date(ep.discharge_date) - new Date(ep.injury_date)) / 86400000
+  );
+  return dias >= 0 ? dias : null;                  // datas trocadas não contam
+}
+
+// Estatística de lesões por zona do corpo, da zona mais problemática para a
+// menos. `recidivas` conta os atletas com MAIS DO QUE UM episódio na mesma
+// zona — é o número que diz se a alta está a ser dada cedo demais.
+export function injuryStats() {
+  const zonas = new Map();
+  for (const ep of state.clinicalEpisodes) {
+    const zona = (ep.body_area || '').trim() || 'Sem zona indicada';
+    if (!zonas.has(zona)) zonas.set(zona, { zona, episodios: 0, porAtleta: new Map(), dias: [], ativos: 0 });
+    const z = zonas.get(zona);
+    z.episodios += 1;
+    z.porAtleta.set(ep.player_id, (z.porAtleta.get(ep.player_id) || 0) + 1);
+    if (ep.status !== 'alta') z.ativos += 1;
+    const d = episodeReturnDays(ep);
+    if (d != null) z.dias.push(d);
+  }
+
+  return [...zonas.values()]
+    .map((z) => ({
+      zona: z.zona,
+      episodios: z.episodios,
+      atletas: z.porAtleta.size,
+      // Atletas que lesionaram a MESMA zona mais do que uma vez.
+      recidivas: [...z.porAtleta.values()].filter((n) => n > 1).length,
+      ativos: z.ativos,
+      // Média só sobre os episódios com alta e com as duas datas: incluir os
+      // que ainda decorrem daria um tempo de retorno artificialmente curto.
+      diasMedios: z.dias.length
+        ? Math.round(z.dias.reduce((s, d) => s + d, 0) / z.dias.length)
+        : null,
+      comAlta: z.dias.length,
+    }))
+    .sort((a, b) => b.recidivas - a.recidivas || b.episodios - a.episodios);
+}
+
+// Resumo do histórico de lesões de um atleta: total, em curso, zonas que se
+// repetiram e tempo médio até à alta.
+export function playerInjurySummary(playerId) {
+  const eps = state.clinicalEpisodes.filter((e) => e.player_id === playerId);
+  const porZona = new Map();
+  const dias = [];
+  for (const ep of eps) {
+    const zona = (ep.body_area || '').trim();
+    if (zona) porZona.set(zona, (porZona.get(zona) || 0) + 1);
+    const d = episodeReturnDays(ep);
+    if (d != null) dias.push(d);
+  }
+  return {
+    total: eps.length,
+    emCurso: eps.filter((e) => e.status !== 'alta').length,
+    zonasRepetidas: [...porZona.entries()].filter(([, n]) => n > 1).map(([z, n]) => ({ zona: z, n })),
+    diasMedios: dias.length ? Math.round(dias.reduce((s, d) => s + d, 0) / dias.length) : null,
+  };
+}
+
 // Participação de um atleta em jogo: pontos que jogou sobre os pontos
 // disputados nos jogos em que a equipa dele teve resultado com parciais.
 // `share` é null quando não há denominador (sem parciais registados) — é
@@ -819,6 +981,80 @@ export function playerTests(playerId) {
   return state.physicalTests
     .filter((t) => t.player_id === playerId)
     .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+}
+
+// Nome de um teste: a etiqueta livre quando é do tipo "outro", senão a do
+// catálogo. Vive aqui (e não na vista) porque a evolução agrupa por ele.
+export function testName(t) {
+  return t.type === 'outro' && t.label ? t.label : (PHYSICAL_TEST_LABEL[t.type] || t.type);
+}
+
+// Evolução das avaliações físicas de um atleta, um bloco por teste.
+//
+// Mostrar só a última medição desperdiça o trabalho de medir: o que interessa
+// ao preparador não é "salta 41 cm", é "saltava 37 e agora salta 41". Cada
+// bloco traz a série completa (para desenhar), a primeira e a última medição,
+// a variação absoluta e relativa, e a DIREÇÃO dessa variação — que depende do
+// teste (ver `better` em constants.js) e não do sinal do número.
+//
+// Testes com uma só medição entram na mesma, com `delta: null`: dizem que o
+// registo existe e que falta repetir para haver evolução.
+export function playerTestProgress(playerId) {
+  const groups = new Map();
+  for (const t of state.physicalTests) {
+    if (t.player_id !== playerId) continue;
+    if (t.value == null || !t.date) continue;      // sem valor não há evolução
+    // Agrupa pelo nome visível: dois "outro" com etiquetas diferentes são
+    // testes diferentes, e o mesmo tipo com etiquetas iguais é o mesmo teste.
+    const key = t.type === 'outro' ? `outro:${t.label || ''}` : t.type;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(t);
+  }
+
+  const out = [];
+  for (const [key, rows] of groups) {
+    rows.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    const first = rows[0];
+    const last = rows[rows.length - 1];
+    const type = first.type;
+    const unit = last.unit || PHYSICAL_TEST_UNIT[type] || '';
+    const better = PHYSICAL_TEST_BETTER[type] ?? null;
+
+    let delta = null, pct = null, direction = null;
+    if (rows.length > 1) {
+      delta = Math.round((Number(last.value) - Number(first.value)) * 100) / 100;
+      const base = Math.abs(Number(first.value));
+      pct = base ? Math.round((delta / base) * 100) : null;
+      if (delta === 0) direction = 'igual';
+      // Sem `better` declarado, a variação mostra-se sem juízo de valor: um
+      // IMC que sobe pode ser massa muscular ganha, e chamar-lhe "pior" seria
+      // dizer ao preparador uma coisa que os dados não sustentam.
+      else if (better === null) direction = 'neutro';
+      else if ((delta > 0 && better === 'up') || (delta < 0 && better === 'down')) direction = 'melhor';
+      else direction = 'pior';
+    }
+
+    out.push({
+      key,
+      type,
+      label: testName(last),
+      unit,
+      better,
+      rows,                                        // série completa, por data
+      first,
+      last,
+      delta,
+      pct,
+      direction,
+      medicoes: rows.length,
+    });
+  }
+  // Os testes com evolução primeiro (são os que dizem alguma coisa), depois
+  // por nome para a lista ser estável entre re-desenhos.
+  return out.sort((a, b) => {
+    if ((b.medicoes > 1) !== (a.medicoes > 1)) return b.medicoes > 1 ? 1 : -1;
+    return a.label.localeCompare(b.label);
+  });
 }
 
 // Fases (macrociclo) de uma equipa, ordenadas por data de início.
