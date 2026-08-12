@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+# Trocar pelo domínio real antes de publicar.
+Sitemap: https://www.rumia.pt/sitemap.xml
