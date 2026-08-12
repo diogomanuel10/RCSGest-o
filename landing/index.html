@@ -2,31 +2,58 @@
 <html lang="pt-PT">
 <head>
 <meta charset="UTF-8" />
+<!-- Marca já aqui que há JS, para o menu do telemóvel nunca aparecer aberto e
+     a saltar depois de a página pintar. -->
+<script>document.documentElement.classList.add('js');</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Rumia — Gestão desportiva para clubes</title>
-<meta name="description" content="A tua gestão desportiva, simples. Plantéis, calendário, presenças, departamento médico, preparação física, finanças e patrocínios — todo o clube numa só plataforma." />
+<meta name="description" content="A tua gestão desportiva, simples. Plantéis, calendário, presenças por QR, departamento médico, preparação física, finanças e patrocínios — todo o clube numa só plataforma." />
 <meta name="theme-color" content="#143b61" />
 <link rel="icon" type="image/png" href="logo-mark.png" />
+<link rel="apple-touch-icon" href="logo-mark.png" />
 
-<!-- Open Graph (partilha em redes sociais) -->
+<!--
+  ┌──────────────────────────────────────────────────────────────────────────┐
+  │  ANTES DE PUBLICAR — trocar em TODA a página (Localizar/Substituir):      │
+  │                                                                          │
+  │  1. https://www.rumia.pt   → o teu domínio real. Aparece no <link rel=    │
+  │     "canonical">, no og:url e nas imagens de partilha. Um canonical       │
+  │     errado diz ao Google que a página verdadeira é outra — pior do que    │
+  │     não ter nenhum.                                                       │
+  │  2. duospike410@gmail.com  → o email de contacto. Um endereço no teu      │
+  │     domínio (ex.: geral@rumia.pt) vale mais aqui do que um Gmail: quem    │
+  │     te vai confiar dados clínicos de menores repara nisso.                │
+  │  3. privacidade.html / termos.html → rever com quem de direito e          │
+  │     preencher a identificação do responsável pelo tratamento.             │
+  └──────────────────────────────────────────────────────────────────────────┘
+-->
+<link rel="canonical" href="https://www.rumia.pt/" />
+<meta name="robots" content="index, follow, max-image-preview:large" />
+
+<!-- Open Graph (partilha em redes sociais). Os URLs das imagens têm de ser
+     ABSOLUTOS: o WhatsApp, o LinkedIn e o Facebook não resolvem caminhos
+     relativos e ficam sem pré-visualização. -->
+<meta property="og:site_name" content="Rumia" />
+<meta property="og:locale" content="pt_PT" />
 <meta property="og:title" content="Rumia — Gestão desportiva para clubes" />
 <meta property="og:description" content="Todo o teu clube numa só plataforma. A tua gestão desportiva, simples." />
 <meta property="og:type" content="website" />
-<!-- Imagem de partilha (1200×630). Nota: para pré-visualização garantida em
-     todas as redes, define aqui o URL ABSOLUTO quando tiveres o domínio
-     (ex.: https://o-teu-dominio.pt/landing/og-cover.png). -->
-<meta property="og:image" content="og-cover.png" />
+<meta property="og:url" content="https://www.rumia.pt/" />
+<meta property="og:image" content="https://www.rumia.pt/og-cover.jpg" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
 <meta property="og:image:alt" content="Rumia — Todo o teu clube numa só plataforma." />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="Rumia — Gestão desportiva para clubes" />
 <meta name="twitter:description" content="Todo o teu clube numa só plataforma. A tua gestão desportiva, simples." />
-<meta name="twitter:image" content="og-cover.png" />
+<meta name="twitter:image" content="https://www.rumia.pt/og-cover.jpg" />
 
+<!-- As fontes são carregadas sem bloquear o desenho da página: o browser pinta
+     já com a fonte do sistema e troca quando estas chegarem (display=swap). -->
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" />
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" /></noscript>
 
 <style>
   /* =====================================================================
@@ -156,12 +183,43 @@
   .nav__links a { color: var(--muted); transition: color 0.15s ease; }
   .nav__links a:hover { color: var(--ink); }
   .nav__cta { display: flex; gap: 0.7rem; align-items: center; }
-  .nav__cta .btn { padding: 0.6rem 1.1rem; font-size: 0.95rem; }
-  @media (max-width: 860px) {
-    .nav__links { display: none; }
+  .nav__cta .btn { padding: 0.6rem 1.1rem; font-size: 0.95rem; white-space: nowrap; }
+
+  /* Botão do menu: só existe no telemóvel, e só quando há JS para o abrir.
+     Sem JS fica escondido e os links ficam visíveis (ver .no-js abaixo), em vez
+     de deixar quem entra pelo telemóvel sem navegação nenhuma. */
+  .nav__toggle {
+    display: none;
+    background: transparent; border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm); padding: 0.5rem; cursor: pointer;
+    color: var(--ink); line-height: 0;
   }
-  @media (max-width: 520px) {
-    .nav__cta .btn--ghost { display: none; }
+  .nav__toggle:focus-visible { outline: 3px solid var(--yellow); outline-offset: 2px; }
+  .nav__toggle svg { width: 22px; height: 22px; }
+  .nav__toggle .ic-close, .nav__toggle[aria-expanded="true"] .ic-open { display: none; }
+  .nav__toggle[aria-expanded="true"] .ic-close { display: block; }
+  @media (max-width: 860px) {
+    html.js .nav__toggle { display: inline-flex; }
+    html.js .nav__links { display: none; }
+    html.js .nav__links.open {
+      display: flex;
+      position: absolute; top: 100%; left: 0; right: 0;
+      flex-direction: column; gap: 0;
+      background: var(--paper);
+      border-bottom: 1px solid var(--border);
+      padding: 0.5rem 24px 1.1rem;
+      margin-left: 0;
+      box-shadow: var(--shadow);
+    }
+    html.js .nav__links.open a { padding: 0.75rem 0; font-size: 1.05rem; border-top: 1px solid var(--border); }
+    html.js .nav__links.open a:first-child { border-top: none; }
+    /* Sem JS: os links ficam numa segunda linha, sempre visíveis. */
+    html:not(.js) .nav__inner { height: auto; flex-wrap: wrap; padding-top: 0.8rem; padding-bottom: 0.8rem; }
+    html:not(.js) .nav__links { width: 100%; margin-left: 0; order: 3; gap: 1.1rem; flex-wrap: wrap; }
+  }
+  @media (max-width: 620px) {
+    .nav__cta .btn { padding: 0.55rem 0.85rem; font-size: 0.88rem; }
+    .brand { font-size: 1.2rem; }
   }
 
   /* --- Hero --- */
@@ -226,7 +284,9 @@
   .mock-side .item .ic { width: 13px; height: 13px; border-radius: 4px; background: currentColor; opacity: 0.6; flex: 0 0 auto; }
   .mock-side .grp { font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.09em; font-weight: 700; color: var(--muted); opacity: 0.65; padding: 0.4rem 0.55rem 0.05rem; }
   .mock-row .esc { width: 9px; height: 9px; border-radius: 2px; flex: 0 0 auto; }
-  .mock-main { padding: 1.1rem 1.2rem; }
+  /* min-width:0 — sem isto uma coluna de grelha nunca encolhe abaixo do seu
+     conteúdo e a janela do produto empurrava a página para o lado no telemóvel. */
+  .mock-main { padding: 1.1rem 1.2rem; min-width: 0; }
   .mock-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; margin-bottom: 1rem; }
   .stat { background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px; padding: 0.6rem 0.7rem; }
   .stat .n { font-family: var(--font-display); font-weight: 700; font-size: 1.35rem; color: var(--navy); }
@@ -320,6 +380,26 @@
   .miniapp .bar { height: 8px; border-radius: 4px; background: var(--surface-2); }
   .miniapp .bar.short { width: 60%; }
 
+  /* Cartão do quiosque QR (visual do destaque) */
+  .kioskcard { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.4rem; }
+  .kioskcard__scan {
+    position: relative; overflow: hidden;
+    background: var(--navy); border-radius: var(--radius-sm);
+    padding: 1.6rem; display: grid; place-items: center; margin-bottom: 1rem;
+  }
+  .kioskcard__scan svg { width: 132px; height: 132px; fill: none; stroke: rgba(255,255,255,0.5); stroke-width: 5; }
+  .kioskcard__scan svg .f { fill: var(--yellow); stroke: none; }
+  .kioskcard__beam {
+    position: absolute; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--yellow), transparent);
+    box-shadow: 0 0 12px rgba(242, 183, 5, 0.8);
+    animation: scan 2.8s ease-in-out infinite;
+  }
+  @keyframes scan { 0%, 100% { top: 12%; } 50% { top: 88%; } }
+  .kioskcard__log { display: flex; flex-direction: column; }
+  .kioskcard__log .mock-row { font-size: 0.88rem; }
+  .kioskcard__log .pill { font-size: 0.72rem; }
+
   /* --- Como funciona (3 passos) --- */
   .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.1rem; }
   @media (max-width: 760px) { .steps { grid-template-columns: 1fr; } }
@@ -382,6 +462,7 @@
   .plan__desc { color: var(--muted); font-size: 0.88rem; min-height: 3.6em; margin: 0.3rem 0 1rem; }
   .plan__price { font-family: var(--font-display); font-weight: 700; font-size: 2.4rem; line-height: 1; color: var(--ink); }
   .plan__price .per { font-size: 1rem; font-weight: 500; color: var(--muted); font-family: var(--font-body); }
+  .plan__year { font-size: 0.82rem; color: var(--muted); margin: 0.45rem 0 0; }
   .plan__list { list-style: none; padding: 0; margin: 1.4rem 0 1.8rem; display: flex; flex-direction: column; gap: 0.65rem; font-size: 0.9rem; }
   .plan > .btn { margin-top: auto; }
   .plan__list li { display: flex; gap: 0.55rem; align-items: flex-start; }
@@ -436,7 +517,7 @@
   .footer__inner { display: flex; justify-content: space-between; align-items: center; gap: 1.5rem; flex-wrap: wrap; }
   .footer__brand { display: flex; align-items: center; gap: 0.6rem; color: #fff; font-family: var(--font-display); font-weight: 700; font-size: 1.2rem; }
   .footer__brand .emblem { width: 28px; height: 28px; }
-  .footer__links { display: flex; gap: 1.4rem; font-size: 0.92rem; }
+  .footer__links { display: flex; gap: 0.9rem 1.4rem; font-size: 0.92rem; flex-wrap: wrap; }
   .footer__links a:hover { color: #fff; }
   .footer__legal { width: 100%; border-top: 1px solid rgba(255,255,255,0.1); margin-top: 2rem; padding-top: 1.5rem; font-size: 0.85rem; color: #7f9bba; }
 
@@ -448,6 +529,79 @@
   html.reveal-on .reveal.in { opacity: 1; transform: none; }
   @media (prefers-reduced-motion: reduce) { html.reveal-on .reveal { opacity: 1; transform: none; } }
 </style>
+
+<!-- Dados estruturados: dizem ao Google o que é a página. O bloco FAQPage tem
+     de espelhar EXATAMENTE as perguntas visíveis mais abaixo — marcar respostas
+     que o visitante não vê é motivo de penalização. Ao editar o FAQ, editar
+     aqui também. -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "name": "Rumia",
+      "url": "https://www.rumia.pt/",
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "Web",
+      "inLanguage": "pt-PT",
+      "description": "Plataforma de gestão desportiva para clubes: plantéis, calendário, presenças por QR, departamento médico, preparação física, quotas, finanças e patrocínios.",
+      "offers": [
+        { "@type": "Offer", "name": "Solo", "price": "9", "priceCurrency": "EUR" },
+        { "@type": "Offer", "name": "Treinador+", "price": "19", "priceCurrency": "EUR" },
+        { "@type": "Offer", "name": "Essencial", "price": "29", "priceCurrency": "EUR" },
+        { "@type": "Offer", "name": "Clube", "price": "49", "priceCurrency": "EUR" },
+        { "@type": "Offer", "name": "Clube+", "price": "79", "priceCurrency": "EUR" }
+      ]
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "A Rumia serve para outras modalidades além do voleibol?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Sim. Escolhes a modalidade do clube — voleibol, futebol, futsal, andebol, basquetebol ou outra — e as posições adaptam-se automaticamente. Toda a gestão (equipas, escalões, calendário, presenças, departamento médico) serve qualquer modalidade coletiva." }
+        },
+        {
+          "@type": "Question",
+          "name": "Posso personalizar com a marca do meu clube?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Podes. O coordenador define o nome, o lema, as cores e o emblema, e toda a aplicação passa a mostrar a identidade do teu clube." }
+        },
+        {
+          "@type": "Question",
+          "name": "Os meus dados estão seguros?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Sim. Cada pessoa entra com a sua conta e só acede ao que o seu papel permite — uma regra imposta na própria base de dados. Podes exportar uma cópia de segurança de todos os dados a qualquer momento." }
+        },
+        {
+          "@type": "Question",
+          "name": "Preciso de instalar alguma coisa?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Não. A Rumia funciona no navegador, no telemóvel, tablet ou computador. Pode ser adicionada ao ecrã inicial como uma app." }
+        },
+        {
+          "@type": "Question",
+          "name": "Como funcionam as presenças por cartão QR?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Cada atleta tem um cartão com um código próprio. Um tablet à entrada fica em modo quiosque e regista a presença quando o cartão passa — é o servidor que decide a que treino corresponde e se conta como presença ou atraso. Se a rede falhar, as leituras ficam guardadas e são enviadas quando voltar. O treinador continua a poder marcar tudo à mão." }
+        },
+        {
+          "@type": "Question",
+          "name": "E os dados clínicos dos atletas? E o RGPD?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Os dados do departamento médico só são acessíveis ao coordenador e ao fisioterapeuta — uma regra imposta na base de dados. O treinador vê apenas se o atleta está apto, limitado ou em recuperação. Para dados de atletas menores, o clube é o responsável pelo tratamento e deve recolher o consentimento do encarregado de educação." }
+        },
+        {
+          "@type": "Question",
+          "name": "Os preços incluem IVA? Posso mudar de plano?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Os valores indicados são mensais e não incluem IVA à taxa legal em vigor. Podes subir ou descer de plano a qualquer momento e não há fidelização — o pagamento anual dá dois meses." }
+        },
+        {
+          "@type": "Question",
+          "name": "Como começo?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Fala connosco e tratamos do arranque contigo: criamos o clube, importamos os atletas que já tens em Excel e configuramos os acessos da equipa técnica. O clube arranca em período de demonstração." }
+        }
+      ]
+    }
+  ]
+}
+</script>
 </head>
 <body>
 
@@ -459,14 +613,19 @@
       <img class="emblem" src="logo-mark.png" alt="" width="34" height="34" />
       Rumia
     </a>
-    <nav class="nav__links" aria-label="Principal">
+    <nav class="nav__links" id="nav-links" aria-label="Principal">
       <a href="#funcionalidades">Funcionalidades</a>
+      <a href="#por-dentro">Por dentro</a>
       <a href="#como-funciona">Como funciona</a>
       <a href="#precos">Preços</a>
       <a href="#faq">FAQ</a>
     </nav>
     <div class="nav__cta">
       <a class="btn btn--primary" href="#contacto">Falar connosco</a>
+      <button class="nav__toggle" type="button" aria-controls="nav-links" aria-expanded="false" aria-label="Abrir menu">
+        <svg class="ic-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="3" y1="7" x2="21" y2="7"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="17" x2="21" y2="17"/></svg>
+        <svg class="ic-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/></svg>
+      </button>
     </div>
   </div>
 </header>
@@ -557,7 +716,22 @@
       <div class="feature reveal">
         <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg></div>
         <h3>Presenças</h3>
-        <p>Marcação rápida de presenças e faltas, com lembretes ao treinador e estatísticas por atleta.</p>
+        <p>Marcação rápida de presenças e faltas, com lembretes ao treinador e estatísticas de comparência por atleta.</p>
+      </div>
+      <div class="feature reveal">
+        <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3z"/><path d="M20 14v3"/><path d="M17 20h4"/></svg></div>
+        <h3>Presenças por cartão QR</h3>
+        <p>Um tablet à entrada, o atleta passa o cartão e a presença fica registada — sem chamada, sem papel. Funciona mesmo com a rede em baixo.</p>
+      </div>
+      <div class="feature reveal">
+        <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></div>
+        <h3>Avisos que vão ter contigo</h3>
+        <p>Exames a caducar, quotas em dívida, comparência a cair, atletas que treinam muito e jogam pouco — chegam por notificação, sem alguém ter de ir procurar.</p>
+      </div>
+      <div class="feature reveal">
+        <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg></div>
+        <h3>Relatórios imprimíveis</h3>
+        <p>Ficha do atleta para o encarregado de educação, resumo do jogo para o balneário, cartões QR por equipa — em A4, prontos a imprimir.</p>
       </div>
       <div class="feature reveal">
         <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
@@ -587,7 +761,7 @@
       <div class="feature reveal">
         <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div>
         <h3>Portal do atleta</h3>
-        <p>Cada atleta com a sua página pessoal: convocatórias, presenças, quotas e disponibilidade.</p>
+        <p>Cada atleta com a sua página pessoal: responde às convocatórias, avisa que falta ao treino e consulta presenças, quotas e o seu cartão QR.</p>
       </div>
     </div>
   </div>
@@ -603,19 +777,31 @@
     </div>
     <div class="shots">
       <figure class="shot reveal">
-        <img src="shots/planteis.png" width="1440" height="900" loading="lazy" alt="Ecrã de Plantéis: equipas por escalão e fichas de atleta com presenças, quotas e disponibilidade." />
+        <picture>
+          <source srcset="shots/planteis.webp" type="image/webp" />
+          <img src="shots/planteis.png" width="1440" height="900" loading="lazy" decoding="async" alt="Ecrã de Plantéis: equipas por escalão e fichas de atleta com presenças, quotas e disponibilidade." />
+        </picture>
         <figcaption><strong>Plantéis</strong> — equipas por escalão, com presenças, quotas e disponibilidade de cada atleta.</figcaption>
       </figure>
       <figure class="shot reveal">
-        <img src="shots/painel.png" width="1440" height="900" loading="lazy" alt="Painel do clube: eventos de hoje e indicadores de gestão." />
+        <picture>
+          <source srcset="shots/painel.webp" type="image/webp" />
+          <img src="shots/painel.png" width="1440" height="900" loading="lazy" decoding="async" alt="Painel do clube: eventos de hoje e indicadores de gestão." />
+        </picture>
         <figcaption><strong>Painel</strong> — o pulso do clube num relance: hoje, angariado, presenças, dívidas e mais.</figcaption>
       </figure>
       <figure class="shot reveal">
-        <img src="shots/calendario.png" width="1440" height="900" loading="lazy" alt="Calendário em vista de semana com treinos e jogos por equipa." />
+        <picture>
+          <source srcset="shots/calendario.webp" type="image/webp" />
+          <img src="shots/calendario.png" width="1440" height="900" loading="lazy" decoding="async" alt="Calendário em vista de semana com treinos e jogos por equipa." />
+        </picture>
         <figcaption><strong>Calendário</strong> — vistas de lista, semana e mês; exporta para o Google/Apple Calendar.</figcaption>
       </figure>
       <figure class="shot reveal">
-        <img src="shots/recrutamento.png" width="1440" height="900" loading="lazy" alt="Funil de recrutamento em quadro Kanban, do observado ao confirmado." />
+        <picture>
+          <source srcset="shots/recrutamento.webp" type="image/webp" />
+          <img src="shots/recrutamento.png" width="1440" height="900" loading="lazy" decoding="async" alt="Funil de recrutamento em quadro Kanban, do observado ao confirmado." />
+        </picture>
         <figcaption><strong>Recrutamento</strong> — funil de prospetos, do observado ao confirmado, com conversão em atleta.</figcaption>
       </figure>
     </div>
@@ -648,6 +834,31 @@
     </div>
 
     <div class="highlight__row rev reveal">
+      <div class="txt">
+        <span class="eyebrow">Presenças sem chamada</span>
+        <h3>O cartão passa, a presença fica</h3>
+        <p>Marcar presenças à mão rouba os primeiros minutos de cada treino — e é o registo que mais falha. Um tablet à entrada em modo quiosque resolve-o: o atleta passa o cartão e o servidor decide o resto.</p>
+        <ul class="checklist">
+          <li><span class="tick">✓</span> Um só quiosque serve vários escalões ao mesmo tempo</li>
+          <li><span class="tick">✓</span> Distingue presença de atraso, pela tolerância que definires</li>
+          <li><span class="tick">✓</span> Sem rede? As leituras esperam e sobem quando a ligação voltar</li>
+          <li><span class="tick">✓</span> O treinador corrige sempre à mão — a decisão humana ganha à câmara</li>
+        </ul>
+      </div>
+      <div class="kioskcard" aria-hidden="true">
+        <div class="kioskcard__scan">
+          <svg viewBox="0 0 100 100" role="img"><rect x="8" y="8" width="26" height="26" rx="3"/><rect x="66" y="8" width="26" height="26" rx="3"/><rect x="8" y="66" width="26" height="26" rx="3"/><rect x="16" y="16" width="10" height="10" class="f"/><rect x="74" y="16" width="10" height="10" class="f"/><rect x="16" y="74" width="10" height="10" class="f"/><rect x="46" y="44" width="8" height="8" class="f"/><rect x="66" y="58" width="8" height="8" class="f"/><rect x="80" y="72" width="8" height="8" class="f"/><rect x="58" y="80" width="8" height="8" class="f"/></svg>
+          <span class="kioskcard__beam"></span>
+        </div>
+        <div class="kioskcard__log">
+          <div class="mock-row"><span class="av"></span><span class="nm">Beatriz Faria</span><span class="pill pill--ok">Presente · 18:57</span></div>
+          <div class="mock-row"><span class="av"></span><span class="nm">Rui Tavares</span><span class="pill pill--ok">Presente · 18:59</span></div>
+          <div class="mock-row"><span class="av"></span><span class="nm">Mariana Sá</span><span class="pill pill--warn">Atraso · 19:12</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="highlight__row reveal">
       <div class="txt">
         <span class="eyebrow">Marca própria</span>
         <h3>A tua identidade, não a nossa</h3>
@@ -725,13 +936,14 @@
     <div class="section-head reveal">
       <span class="eyebrow">Preços simples</span>
       <h2>Um plano para cada fase do clube</h2>
-      <p>Sem fidelização. Do treinador sozinho ao clube completo — sobe de plano quando cresceres.</p>
+      <p>Sem fidelização, com período de demonstração para experimentares com os teus dados. Do treinador sozinho ao clube completo — sobe de plano quando cresceres.</p>
     </div>
     <div class="plans">
       <div class="plan reveal">
         <div class="plan__name">Solo</div>
         <p class="plan__desc">Um treinador, um escalão.</p>
         <div class="plan__price">9€<span class="per"> /mês</span></div>
+        <p class="plan__year">ou 90€/ano — dois meses grátis</p>
         <ul class="plan__list">
           <li><span class="tick">✓</span> Plantel e fichas de atleta</li>
           <li><span class="tick">✓</span> Calendário, presenças e convocatórias</li>
@@ -745,6 +957,7 @@
         <div class="plan__name">Treinador+</div>
         <p class="plan__desc">Um treinador com vários escalões e coordenação técnica.</p>
         <div class="plan__price">19€<span class="per"> /mês</span></div>
+        <p class="plan__year">ou 190€/ano — dois meses grátis</p>
         <ul class="plan__list">
           <li><span class="tick">✓</span> Tudo do Solo, para várias equipas</li>
           <li><span class="tick">✓</span> Recrutamento, objetivos e patrocínios</li>
@@ -757,6 +970,7 @@
         <div class="plan__name">Essencial</div>
         <p class="plan__desc">Gestão administrativa do clube: sócios, material e documentos.</p>
         <div class="plan__price">29€<span class="per"> /mês</span></div>
+        <p class="plan__year">ou 290€/ano — dois meses grátis</p>
         <ul class="plan__list">
           <li><span class="tick">✓</span> Tudo do Treinador+</li>
           <li><span class="tick">✓</span> Quotas (ficha de sócio)</li>
@@ -772,6 +986,7 @@
         <div class="plan__name">Clube</div>
         <p class="plan__desc">Clube completo, com equipa técnica e médica.</p>
         <div class="plan__price">49€<span class="per"> /mês</span></div>
+        <p class="plan__year">ou 490€/ano — dois meses grátis</p>
         <ul class="plan__list">
           <li><span class="tick">✓</span> Tudo do Essencial</li>
           <li><span class="tick">✓</span> Departamento médico / fisioterapia</li>
@@ -785,6 +1000,7 @@
         <div class="plan__name">Clube+</div>
         <p class="plan__desc">Tudo, com visão de direção e análise avançada.</p>
         <div class="plan__price">79€<span class="per"> /mês</span></div>
+        <p class="plan__year">ou 790€/ano — dois meses grátis</p>
         <ul class="plan__list">
           <li><span class="tick">✓</span> Tudo do Clube</li>
           <li><span class="tick">✓</span> Financeiro (visão de direção)</li>
@@ -794,7 +1010,10 @@
         <a class="btn btn--ghost" href="#contacto">Falar connosco</a>
       </div>
     </div>
-    <p class="pricing__note">Precisas de algo à medida (federação, vários clubes)? <a href="#contacto" style="color:var(--navy-500);font-weight:600">Fala connosco</a>.</p>
+    <p class="pricing__note">
+      Valores por clube, sem IVA à taxa legal em vigor. Muda ou cancela quando quiseres.<br />
+      Precisas de algo à medida (federação, vários clubes)? <a href="#contacto" style="color:var(--navy-500);font-weight:600">Fala connosco</a>.
+    </p>
   </div>
 </section>
 
@@ -823,8 +1042,20 @@
         <p>Não. A Rumia funciona no navegador, no telemóvel, tablet ou computador. Pode ser adicionada ao ecrã inicial como uma app.</p>
       </details>
       <details class="qa">
+        <summary>Como funcionam as presenças por cartão QR?</summary>
+        <p>Cada atleta tem um cartão com um código próprio (imprimes uma folha A4 por equipa, ou o atleta mostra-o no telemóvel). Um tablet à entrada fica em modo quiosque e regista a presença quando o cartão passa — é o servidor que decide a que treino corresponde e se conta como presença ou atraso. Se a rede falhar, as leituras ficam guardadas e são enviadas quando voltar. O treinador continua a poder marcar tudo à mão: a decisão humana ganha sempre à câmara.</p>
+      </details>
+      <details class="qa">
+        <summary>E os dados clínicos dos atletas? E o RGPD?</summary>
+        <p>Os dados do departamento médico só são acessíveis ao coordenador e ao fisioterapeuta — uma regra imposta na base de dados, não apenas escondida no ecrã. Nem o treinador da equipa vê o processo clínico: vê apenas se o atleta está apto, limitado ou em recuperação, que é o que precisa para treinar. Para dados de atletas menores, o clube é o responsável pelo tratamento e deve recolher o consentimento do encarregado de educação; ver a <a href="privacidade.html" style="color:var(--navy-500);font-weight:600">política de privacidade</a>.</p>
+      </details>
+      <details class="qa">
+        <summary>Os preços incluem IVA? Posso mudar de plano?</summary>
+        <p>Os valores indicados são mensais e <strong>não incluem IVA</strong> à taxa legal em vigor. Podes subir ou descer de plano a qualquer momento e não há fidelização — o pagamento anual dá dois meses.</p>
+      </details>
+      <details class="qa">
         <summary>Como começo?</summary>
-        <p>Escolhe um plano e fala connosco. Ajudamos a colocar o teu clube a funcionar, incluindo a importação dos atletas que já tens em Excel.</p>
+        <p>Fala connosco e tratamos do arranque contigo: criamos o clube, importamos os atletas que já tens em Excel e configuramos os acessos da equipa técnica. O clube arranca em período de demonstração, para experimentares com os teus dados antes de decidir.</p>
       </details>
     </div>
   </div>
@@ -836,10 +1067,12 @@
     <h2>Pronto para simplificar a gestão do teu clube?</h2>
     <p>Fala connosco e ajudamos a colocar o teu clube a funcionar, com os teus dados.</p>
     <div class="final__actions">
-      <!-- Substitui pelo teu email/formulário de contacto real -->
-      <a class="btn btn--primary" href="mailto:duospike410@gmail.com?subject=Quero%20conhecer%20a%20Rumia">Falar connosco</a>
+      <!-- Substitui pelo teu email/formulário de contacto real. O corpo já leva
+           as perguntas cuja resposta precisas para preparar o arranque. -->
+      <a class="btn btn--primary" href="mailto:duospike410@gmail.com?subject=Quero%20conhecer%20a%20Rumia&amp;body=Ol%C3%A1%2C%0A%0AClube%3A%20%0AModalidade%3A%20%0ANº%20de%20escal%C3%B5es%3A%20%0ANº%20de%20atletas%3A%20%0A%0AGostava%20de%20saber%20mais%20sobre%20a%20Rumia.%0A">Falar connosco</a>
       <a class="btn btn--on-navy" href="#precos">Ver planos</a>
     </div>
+    <p style="color:#94aecb;font-size:0.9rem;margin:1.6rem 0 0">Respondemos em 24 horas úteis. Ajudamos na importação dos atletas que já tens em Excel.</p>
   </div>
 </section>
 
@@ -855,6 +1088,8 @@
         <a href="#funcionalidades">Funcionalidades</a>
         <a href="#precos">Preços</a>
         <a href="#faq">FAQ</a>
+        <a href="privacidade.html">Privacidade</a>
+        <a href="termos.html">Termos</a>
         <a href="mailto:duospike410@gmail.com">Contacto</a>
       </nav>
     </div>
@@ -867,6 +1102,25 @@
 <script>
   // Ano automático no rodapé.
   document.getElementById('ano').textContent = new Date().getFullYear();
+
+  // Menu do telemóvel. O estado vive no aria-expanded do botão e numa classe do
+  // <nav>: é o mesmo interruptor para a acessibilidade e para o CSS.
+  const navToggle = document.querySelector('.nav__toggle');
+  const navLinks = document.getElementById('nav-links');
+  const setNav = (open) => {
+    navToggle.setAttribute('aria-expanded', String(open));
+    navToggle.setAttribute('aria-label', open ? 'Fechar menu' : 'Abrir menu');
+    navLinks.classList.toggle('open', open);
+  };
+  navToggle.addEventListener('click', () => {
+    setNav(navToggle.getAttribute('aria-expanded') !== 'true');
+  });
+  // Saltar para uma âncora com o menu aberto tapava o destino.
+  navLinks.addEventListener('click', (e) => { if (e.target.closest('a')) setNav(false); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setNav(false); });
+  // Ao passar para desktop o menu deixa de existir; fica fechado para não
+  // reaparecer aberto quando se voltar a estreitar a janela.
+  window.matchMedia('(min-width: 861px)').addEventListener('change', () => setNav(false));
 
   // Revelação suave ao rolar (respeita "movimento reduzido").
   const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;

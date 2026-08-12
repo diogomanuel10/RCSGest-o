@@ -1,0 +1,102 @@
+/* =====================================================================
+   Rumia — folhas legais (privacidade, termos)
+   Estilo próprio, deliberadamente sóbrio: estes documentos são para ler,
+   não para converter. Partilha só os tokens de cor com a landing.
+   ===================================================================== */
+:root {
+  --navy: #143b61;
+  --navy-700: #0f2e4b;
+  --navy-500: #1e5080;
+  --yellow: #f2b705;
+
+  --ink: #16202e;
+  --muted: #566579;
+  --paper: #f4f7fc;
+  --surface: #ffffff;
+  --surface-2: #eef3fa;
+  --border: #e0e7f1;
+
+  --font-display: 'Barlow Semi Condensed', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #e9eff7;
+    --muted: #9db0c6;
+    --paper: #0b1622;
+    --surface: #12233a;
+    --surface-2: #0f1d30;
+    --border: #22374f;
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  background: var(--paper);
+  color: var(--ink);
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap { width: 100%; max-width: 800px; margin: 0 auto; padding: 0 24px; }
+a { color: var(--navy-500); }
+@media (prefers-color-scheme: dark) { a { color: var(--yellow); } }
+a:focus-visible { outline: 3px solid var(--yellow); outline-offset: 2px; }
+
+/* --- Barra --- */
+.legal-nav { background: var(--surface); border-bottom: 1px solid var(--border); }
+.legal-nav .wrap { display: flex; align-items: center; justify-content: space-between; gap: 1rem; height: 64px; }
+.legal-nav .brand {
+  display: flex; align-items: center; gap: 0.55rem;
+  font-family: var(--font-display); font-weight: 700; font-size: 1.25rem;
+  color: var(--ink); text-decoration: none;
+}
+.legal-nav .brand img { display: block; }
+.legal-nav .back { font-size: 0.92rem; text-decoration: none; }
+.legal-nav .back:hover { text-decoration: underline; }
+
+/* --- Documento --- */
+.doc { padding: 3rem 24px 4.5rem; }
+.doc h1 {
+  font-family: var(--font-display); font-weight: 700;
+  font-size: clamp(2rem, 5vw, 2.8rem); line-height: 1.1; margin: 0 0 0.4rem;
+}
+.doc h2 {
+  font-family: var(--font-display); font-weight: 600;
+  font-size: 1.45rem; line-height: 1.2; margin: 2.6rem 0 0.7rem;
+  padding-top: 1.4rem; border-top: 1px solid var(--border);
+}
+.doc h2:first-of-type { border-top: none; padding-top: 0; }
+.doc p, .doc li { font-size: 1rem; }
+.doc ul { padding-left: 1.2rem; }
+.doc li { margin-bottom: 0.5rem; }
+.doc .meta { color: var(--muted); font-size: 0.92rem; margin: 0 0 2rem; }
+
+/* Aviso de rascunho — visível de propósito: publicar isto por preencher é
+   pior do que não ter página nenhuma. */
+.draft {
+  background: color-mix(in srgb, var(--yellow) 16%, var(--surface));
+  border: 1px solid var(--yellow);
+  border-radius: 10px;
+  padding: 1rem 1.2rem;
+  margin-bottom: 2.5rem;
+  font-size: 0.95rem;
+}
+
+/* Campos por preencher antes de publicar. */
+.fill { background: color-mix(in srgb, var(--yellow) 22%, transparent); border-radius: 4px; padding: 0 0.15em; }
+
+table { width: 100%; border-collapse: collapse; margin: 1rem 0 1.5rem; font-size: 0.94rem; display: block; overflow-x: auto; }
+th, td { text-align: left; vertical-align: top; padding: 0.7rem 0.8rem; border-bottom: 1px solid var(--border); }
+th { font-family: var(--font-display); font-weight: 600; background: var(--surface-2); white-space: nowrap; }
+
+/* --- Rodapé --- */
+.legal-foot { background: var(--navy-700); color: #a9c0da; padding: 2rem 0; font-size: 0.92rem; }
+.legal-foot .wrap { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.legal-foot nav { display: flex; gap: 1.2rem; }
+.legal-foot a { color: #a9c0da; text-decoration: none; }
+.legal-foot a:hover { color: #fff; text-decoration: underline; }

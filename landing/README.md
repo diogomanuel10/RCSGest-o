@@ -6,6 +6,29 @@ logótipo real da app em `logo-mark.png` (o símbolo "R", recortado de
 `public/logo.png`). Abre diretamente no navegador e faz deploy em qualquer
 alojamento de sites estáticos — basta publicar a pasta `landing/` inteira.
 
+## Ficheiros
+
+| Ficheiro | O que é |
+|----------|---------|
+| `index.html` | A página. HTML, CSS e JS num só ficheiro. |
+| `privacidade.html` · `termos.html` | Páginas legais (**modelos por preencher** — ver abaixo). |
+| `legal.css` | Estilo das páginas legais. Só elas o usam. |
+| `robots.txt` · `sitemap.xml` | Indexação. Têm o domínio lá dentro. |
+| `og-cover.jpg` | Imagem de partilha (1200×630). É a versão servida. |
+| `og-cover.png` | Original em alta (2400×1260), guardado para regerar. |
+| `shots/*.webp` | Ecrãs reais servidos ao visitante (1440px, ~55 KB cada). |
+| `shots/*.png` | Originais em alta, e recurso para browsers sem WebP. |
+
+As capturas são servidas em WebP com `<picture>` e o PNG como alternativa. Para
+substituir uma captura, guarda o PNG novo em `shots/` e regenera o WebP:
+
+```bash
+python3 -c "
+from PIL import Image
+im = Image.open('shots/planteis.png')
+im.resize((1440, round(im.height*1440/im.width)), Image.LANCZOS).save('shots/planteis.webp','WEBP',quality=80,method=6)"
+```
+
 ## Pré-visualizar localmente
 
 Basta abrir o ficheiro:
@@ -25,18 +48,32 @@ python3 -m http.server 8080 --directory landing
 
 ## Antes de publicar — o que editar
 
-Tudo está em `landing/index.html`:
+**Por ordem de importância:**
 
-- **Preços** — os valores (`19€`, `39€`, `69€`) e o que cada plano inclui são
-  **exemplos**. Procura pela secção `id="precos"` (tem um comentário de aviso) e
-  ajusta ao teu modelo de negócio.
-- **Contacto / CTA** — os botões apontam para `mailto:duospike410@gmail.com`.
-  Para trocar, procura por `duospike410@gmail.com` (ou substitui por um
-  formulário/checkout).
-- **Textos** — hero, funcionalidades e FAQ estão prontos, mas afina o tom à
-  vontade.
-- Não há dados falsos de clientes nem números inventados de "clubes a usar" —
-  acrescenta prova social só quando for verdadeira.
+1. **Domínio** — procura por `https://www.rumia.pt` em `index.html`,
+   `privacidade.html`, `termos.html`, `robots.txt` e `sitemap.xml` e troca pelo
+   teu. Aparece no `canonical`, no `og:url` e nas imagens de partilha. Um
+   `canonical` errado diz ao Google que a página verdadeira é outra — é pior do
+   que não ter nenhum, e as imagens de partilha **têm** de ser URLs absolutos ou
+   o WhatsApp e o LinkedIn ficam sem pré-visualização.
+2. **Páginas legais** — `privacidade.html` e `termos.html` são modelos: os
+   campos por preencher estão entre parênteses retos e realçados a amarelo no
+   ecrã, e cada página abre com um aviso visível. Preenche-os, confirma a lista
+   de subcontratantes que usas mesmo e submete a revisão de quem de direito.
+   Publicar isto por preencher é pior do que não ter página nenhuma.
+3. **Contacto / CTA** — os botões apontam para `mailto:duospike410@gmail.com`.
+   Um endereço no teu domínio vale mais aqui do que um Gmail: quem te vai
+   confiar dados clínicos de menores repara nisso.
+4. **Preços** — os valores (`9€` a `79€`) são **exemplos**; os nomes, módulos e
+   limites dos planos batem com os da app (ver `supabase/plans.sql`). Ao mudar um
+   preço, muda-o também no bloco JSON-LD do `<head>` — os dados estruturados que
+   não correspondem ao que está na página são motivo de penalização.
+5. **Textos** — hero, funcionalidades e FAQ estão prontos, mas afina o tom à
+   vontade. Ao editar o FAQ, atualiza o `FAQPage` do JSON-LD.
+6. Não há dados falsos de clientes nem números inventados de "clubes a usar" —
+   acrescenta prova social só quando for verdadeira. **É o que falta a esta
+   página**: um testemunho real ou o nome de um clube-piloto muda-a mais do que
+   qualquer ajuste de design.
 
 ## Publicar (opções gratuitas)
 
@@ -53,5 +90,8 @@ Depois, aponta o teu domínio (ex.: `rumia.pt`) para o alojamento escolhido.
 - Identidade alinhada com a app: azul-marinho `#143b61` + amarelo `#f2b705`,
   tipos **Barlow Semi Condensed** (títulos) e **Inter** (corpo).
 - Suporta tema claro e escuro automaticamente (`prefers-color-scheme`).
-- As "capturas" do produto são mocks em CSS (não são imagens). Quando tiveres
-  capturas reais da app, podes substituí-las para dar mais impacto.
+- A janela do produto no hero, o cartão de papéis e o quiosque QR são mocks em
+  CSS (não são imagens); a secção "Por dentro" usa capturas reais da app.
+- O menu do telemóvel só se transforma em painel quando há JS. Sem JS, os links
+  ficam numa segunda linha da barra — nunca escondidos, que era o que acontecia
+  antes.
