@@ -54,9 +54,11 @@ conforme o `role` + RLS. Ver `supabase/multitenant.sql` (corre DEPOIS de
 - **Convites (UI)**: em `utilizadores.js` o coordenador cria convites (papel +
   acessos), copia o link `?invite=<token>` e revoga-os. A lista vem de
   `state.invitations`.
-- **Pendente (follow-up)**: a Edge Function `attendance-reminder` corre com
-  chave de serviço (sem `auth.uid()`), por isso as notificações que cria ficam
-  com `org_id` nulo — precisa de iterar por clube e definir `org_id`.
+- **Trabalhos com chave de serviço**: o `attendance-reminder` (Edge Function e
+  versão pg_cron) e o `send_weekly_digest` correm sem `auth.uid()`, por isso
+  **não passam pelo RLS**: cada um define o `org_id` à mão a partir da linha de
+  origem (o evento, o clube). É a mesma regra do `check_in_by_qr` — num job com
+  chave de serviço, o isolamento entre clubes é escrito à mão ou não existe.
 
 ## Estrutura de pastas
 
@@ -78,6 +80,9 @@ src/
   qrcode.js             Cartões QR: gerar, ler pela câmara, traduzir (libs lazy)
   players-qr.js         Folha de cartões QR imprimíveis (A4, tamanho cartão)
   offline-card.js       Cartão QR guardado no dispositivo (ecrã de recurso sem rede)
+  report-sheet.js       Folha A4 imprimível: janela, estilos e blocos comuns
+  athlete-report.js     Ficha do atleta imprimível (usa report-sheet)
+  game-report.js        Resumo pós-jogo imprimível (usa report-sheet)
   assets/logo.svg       Logótipo do clube (emblema SVG)
   views/
     config-help.js      Ecrã quando faltam as variáveis do Supabase
@@ -89,7 +94,7 @@ src/
     athlete-profile.js  Perfil do Atleta (modal unificado com separadores)
     avaliacao.js        Vista Avaliação de plantel (Mantém/Sai/Pendente)
     saude.js            Vista Saúde & Física (orquestra Médico + Prep. Física)
-    medico.js           Separador Fisioterapia (atletas + agenda)
+    medico.js           Separador Fisioterapia (atletas + agenda + histórico de lesões)
     clinical-file.js    Área de Fisioterapia do perfil (episódios, sessões, atendimentos)
     preparacao.js       Separador Prep. física (atletas + periodização + mapa de jogos)
     physical-file.js    Área de Prep. física do perfil (dados físicos, avaliações, controlo)
@@ -98,7 +103,8 @@ src/
     quiosque.js         Modo quiosque: câmara à entrada regista presenças por QR
     resultado.js        Registo do resultado de um jogo (parciais + participação)
     treinadores.js      Vista Treinadores
-    definicoes.js       Vista Definições (época, meta, escalões, backup)
+    definicoes.js       Vista Definições (época, meta, escalões, limiares, backup)
+    nova-epoca.js       Assistente de viragem de época (só coordenador)
     utilizadores.js     Vista Utilizadores (gestão de papéis — só coordenador)
     arquivados.js       Vista Arquivados (registos inativos + repor — só coordenador)
 supabase/schema.sql     Tabelas, índices, RLS e dados iniciais (correr no Supabase)
@@ -107,6 +113,7 @@ supabase/portal-atleta.sql     Portal: o atleta lê a sua própria disponibilida
 supabase/comunicacao.sql       Respostas do atleta a eventos + avisos do clube
 supabase/resultados.sql        Resultado dos jogos (final + parciais) e pontos jogados
 supabase/painel-avisos.sql     Limiares do clube + avisos escolhidos por utilizador
+supabase/resumo-semanal.sql    Resumo semanal (notificação + push) e limiares de queda
 public/                 Ficheiros estáticos (modelo-atletas-rumia.xlsx)
 ```
 
@@ -456,10 +463,67 @@ separador antes de navegar (usado pelos cartões do Painel).
     atleta COM CONTA (reaproveita `notifications` + Web Push). Devolve quantos
     foram avisados — o número mostra ao treinador quantos ainda não têm conta.
     Enviado dos Plantéis ("Enviar aviso"); o treinador só avisa as suas equipas.
+- **Queda individual de comparência** (`attendanceDrops`): a taxa do clube é uma
+  média, e uma média esconde precisamente o caso que interessa — o atleta que
+  vinha a tudo e deixou de vir. Enquanto o resto do plantel compensa, o número
+  global não mexe; quando mexe, já é tarde. Compara os últimos N treinos COM
+  registo com os anteriores (treinos por fechar não contam, senão contariam como
+  faltas) e assinala por dois motivos distintos: `queda` (o hábito quebrou-se) e
+  `seguidas` (faltou às últimas N — assinala mesmo com média alta, porque a
+  média demora a cair). Quando ambos se aplicam ganha a `queda`, que diz mais.
+  Limiares nas Definições (`drop_*`, ver `supabase/resumo-semanal.sql`).
+- **Histórico de lesões** (`injuryStats`, separador Histórico do Dept. Médico):
+  lê em conjunto os episódios que já estavam registados um a um. Agrupa por
+  `body_area` e responde a duas perguntas que ninguém conseguia responder ficha
+  a ficha: quanto tempo demora a alta e que zonas voltam sempre. Uma
+  **recidiva** é um atleta com mais do que um episódio na mesma zona — é o
+  número que diz se a alta está a ser dada cedo demais. A média de dias só conta
+  episódios com alta e com as duas datas: incluir os que ainda decorrem daria um
+  tempo de retorno mais curto do que o real.
+- **Evolução física** (`playerTestProgress`): mostrar só a última medição
+  desperdiça o trabalho de medir — o que interessa não é "salta 41 cm", é
+  "saltava 37 e agora salta 41". A **direção** da variação não é o sinal do
+  número: cada teste declara `better` (`up`/`down`/`null`) em `constants.js`,
+  porque subir 3 cm no CMJ é bom e subir 0,3 s no sprint é mau. Com `better`
+  nulo (IMC) mostra-se a variação **sem juízo de valor**: um IMC que sobe pode
+  ser massa muscular ganha, e chamar-lhe "pior" seria dizer uma coisa que os
+  dados não sustentam.
+- **Resumo semanal** (`supabase/resumo-semanal.sql`): documentos a caducar,
+  quotas em dívida, atletas em tratamento e avaliações por decidir chegam ao
+  coordenador e à direção por notificação + Web Push, à segunda de manhã. O
+  Painel já calculava tudo isto, mas só quem o ABRE é que via — e um exame
+  médico caducado é um risco legal, não um cartão bonito. Uma semana sem nada
+  pendente **não gera notificação**: um resumo que chega sempre a dizer "está
+  tudo bem" deixa de ser lido, e quando houver mesmo alguma coisa passa
+  despercebido. Corre com chave de serviço, por isso filtra `org_id` à mão.
 - **Avaliação de plantel**: `players.review_status` ∈ `pendente|mantem|sai`
   (omissão `pendente`). A vista `avaliacao.js` deixa o coordenador/treinador
   decidir, por equipa, quem fica na próxima época, com contadores. Não apaga
   ninguém — é só planeamento. Editável por quem tem `canEdit('players')`.
+- **Viragem de época** (`nova-epoca.js`, Definições → Estrutura, só coordenador):
+  a Avaliação decide *quem* fica; o assistente aplica essa decisão a todo o
+  clube de uma vez — sobe de equipa quem fica, arquiva quem sai, repõe as
+  avaliações a `pendente` e grava a época nova.
+  - **Propõe, não decide.** A equipa de destino sugerida é a do escalão seguinte
+    (a ordem é a configurada nas Definições) com o mesmo género, quando essa
+    equipa existe; caso contrário fica onde está. Tudo é mostrado antes de
+    aplicar e o destino de cada equipa pode ser mudado.
+  - **Quem está `pendente` não se mexe.** Uma decisão que não foi tomada não é
+    uma decisão — subir ou arquivar por omissão seria decidir em nome de quem
+    não decidiu.
+  - **Vai em lote** (`applySeasonRollover` no `store.js`): uma escrita por grupo
+    e um `loadAll()` no fim. Chamar `archiveRow` por atleta faria 200 idas à
+    base de dados e 200 toasts numa operação que é conceptualmente uma só.
+  - Nada é apagado: quem sai fica arquivado e pode ser reposto nos Arquivados.
+- **Relatórios imprimíveis** (`report-sheet.js` + `athlete-report.js` /
+  `game-report.js`): folhas A4 geradas no browser a partir do `state`, no molde
+  do `players-qr.js` (janela nova, autónoma, com botão de imprimir). Servem
+  para o que a app não consegue: entregar a ficha ao encarregado de educação,
+  afixar o resumo do jogo no balneário, anexar um documento a um email.
+  - **A folha respeita as permissões de quem a gera**: sem `canAccess('medico')`
+    ou `canAccess('fisica')` as secções nem são construídas. Imprimir não pode
+    ser uma porta lateral para dados reservados.
+  - São chunks à parte, carregados só quando alguém pede o relatório.
 - **Departamento Médico / Fisioterapia**: processo clínico digital do atleta.
   - `clinical_episodes` — episódios clínicos (ex.: lesões) com `status`
     (`ativo|recuperacao|alta`), avaliação inicial, diagnóstico funcional, plano

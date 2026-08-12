@@ -26,6 +26,7 @@ import {
   expiringDocuments,
   objectivesNeedingAttention,
   trainingVsPlayingGaps,
+  attendanceDrops,
   clubRecord,
   attendanceTrend,
   sport,
@@ -527,6 +528,7 @@ export const ALERT_CATALOG = [
   { key: 'equipamentos',    label: 'Equipamento em mau estado',      can: () => canEdit('equipment') },
   { key: 'objetivos',       label: 'Objetivos em risco',             can: () => canAccess('objetivos') },
   { key: 'gap_treino_jogo', label: 'Treina muito, joga pouco',       can: () => canAccess('planteis') },
+  { key: 'queda_presencas', label: 'Quedas de comparência',          can: () => canAccess('presencas') },
   { key: 'avaliacoes',      label: 'Avaliações de atleta por decidir', can: () => canEdit('players') },
   { key: 'documentos',      label: 'Documentos a expirar',           can: () => canEdit('documents') },
   { key: 'presencas',       label: 'Presenças por marcar',           can: () => canEdit('attendances') },
@@ -641,6 +643,25 @@ function buildActions() {
         route: 'planteis',
         title: `${g.player.name} treina muito e joga pouco`,
         sub: `${g.presenca}% de presenças em ${g.treinos} treinos, mas ${g.participacao}% ${unidade} em ${g.jogos} jogos${g.team ? ' — ' + teamName(g.team) : ''}.`,
+      });
+    });
+  }
+
+  // Quedas de comparência. A tendência do clube é uma média e uma média
+  // esconde o caso individual: enquanto o resto do plantel compensa, o número
+  // global não mexe — e quando mexe o atleta já desistiu.
+  if (canAccess('presencas') && alertOn('queda_presencas')) {
+    attendanceDrops(3).forEach((d) => {
+      const equipa = d.team ? ' — ' + teamName(d.team) : '';
+      items.push({
+        variant: 'warn',
+        route: 'presencas',
+        title: d.motivo === 'seguidas'
+          ? `${d.player.name} faltou aos últimos ${d.faltasSeguidas} treinos`
+          : `${d.player.name} deixou de aparecer aos treinos`,
+        sub: d.motivo === 'seguidas'
+          ? `Vinha a ${d.anterior}% antes destas faltas${equipa}.`
+          : `De ${d.anterior}% para ${d.recente}% nos últimos ${d.treinosRecentes} treinos${equipa}.`,
       });
     });
   }

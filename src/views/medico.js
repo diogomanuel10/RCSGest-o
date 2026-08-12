@@ -5,6 +5,8 @@
 //     clínico atual; abrir a ficha clínica de cada um.
 //   • Agenda  — atendimentos de fisioterapia marcados, cruzados com o
 //     calendário de treinos para evitar conflitos.
+//   • Histórico — o que os episódios já registados dizem em conjunto: tempo
+//     médio até à alta e zonas que voltam a lesionar-se (recidivas).
 
 import { state } from '../store.js';
 import { esc, emptyHTML, paginate, paginationHTML, wirePagination, PAGE_SIZE } from '../ui.js';
@@ -14,6 +16,7 @@ import {
   escalaoColor,
   activeEpisode,
   injuredCount,
+  injuryStats,
   apptDateTime,
   upcomingTrainings,
 } from '../compute.js';
@@ -31,7 +34,7 @@ import { openModal } from '../modal.js';
 import { openAppointmentForm } from './clinical-file.js';
 import { openAthleteProfile } from './athlete-profile.js';
 
-let tab = 'atletas'; // 'atletas' | 'agenda'
+let tab = 'atletas'; // 'atletas' | 'agenda' | 'historico'
 let search = '';
 let page = 1;
 
@@ -45,6 +48,7 @@ export function renderMedico(container) {
       <div class="cal-toggle" role="group" aria-label="Separador">
         <button class="cal-toggle__btn ${tab === 'atletas' ? 'cal-toggle__btn--active' : ''}" data-tab="atletas" type="button">Atletas</button>
         <button class="cal-toggle__btn ${tab === 'agenda' ? 'cal-toggle__btn--active' : ''}" data-tab="agenda" type="button">Agenda</button>
+        <button class="cal-toggle__btn ${tab === 'historico' ? 'cal-toggle__btn--active' : ''}" data-tab="historico" type="button">Histórico</button>
       </div>
     </header>
 
@@ -53,7 +57,9 @@ export function renderMedico(container) {
       <span class="badge badge--${injured ? 'danger' : 'ok'}">${injured} em tratamento</span>
     </div>
 
-    ${tab === 'atletas' ? renderAtletas(editable) : renderAgenda(editable)}
+    ${tab === 'atletas' ? renderAtletas(editable)
+      : tab === 'agenda' ? renderAgenda(editable)
+      : renderHistorico()}
   `;
 
   container.querySelectorAll('[data-tab]').forEach((b) =>
@@ -90,6 +96,67 @@ function wireAthleteButtons(container) {
     if (list) list.innerHTML = athleteListHTML();
     wireAthleteButtons(container);
   });
+}
+
+// --- Separador Histórico --------------------------------------------------
+//
+// Os episódios já estavam todos registados; o que faltava era lê-los em
+// conjunto. Duas perguntas que ninguém conseguia responder atleta a atleta:
+// quanto tempo demora uma alta neste clube, e que zonas voltam sempre.
+
+function renderHistorico() {
+  const zonas = injuryStats();
+  const total = state.clinicalEpisodes.length;
+
+  if (!total) {
+    return `<section class="card">${emptyHTML(
+      'Ainda não há episódios clínicos registados. O histórico aparece à medida que a ficha de cada atleta for sendo preenchida.'
+    )}</section>`;
+  }
+
+  // Média do clube: só episódios com alta e com as duas datas.
+  const comAlta = zonas.reduce((s, z) => s + z.comAlta, 0);
+  const somaDias = zonas.reduce((s, z) => s + (z.diasMedios != null ? z.diasMedios * z.comAlta : 0), 0);
+  const mediaClube = comAlta ? Math.round(somaDias / comAlta) : null;
+  const recidivas = zonas.reduce((s, z) => s + z.recidivas, 0);
+
+  return `
+    <section class="card">
+      <h2 class="section-title upcoming-card__title">Retorno e recidivas</h2>
+      <div class="med-stats" style="margin:0.4rem 0 0.8rem">
+        <span class="badge badge--muted">${total} episódio${total === 1 ? '' : 's'}</span>
+        <span class="badge badge--info">${mediaClube != null ? mediaClube + ' dias até à alta (média)' : 'sem altas com datas'}</span>
+        <span class="badge badge--${recidivas ? 'warn' : 'ok'}">${recidivas} recidiva${recidivas === 1 ? '' : 's'}</span>
+      </div>
+      <p class="muted" style="margin:0 0 0.6rem;font-size:0.8rem">
+        A média só conta episódios com alta e com data de lesão e de alta preenchidas —
+        incluir os que ainda decorrem daria um tempo de retorno mais curto do que o real.
+        Uma <strong>recidiva</strong> é um atleta que lesionou a mesma zona mais do que uma vez.
+      </p>
+      <div class="scroll-x"><table class="players-table">
+        <thead><tr>
+          <th>Zona</th><th>Episódios</th><th>Atletas</th><th>Recidivas</th><th>Dias até à alta</th><th>Em curso</th>
+        </tr></thead>
+        <tbody>${zonas.map(zonaRowHTML).join('')}</tbody>
+      </table></div>
+    </section>
+  `;
+}
+
+function zonaRowHTML(z) {
+  return `
+    <tr>
+      <td>${esc(z.zona)}</td>
+      <td>${z.episodios}</td>
+      <td>${z.atletas}</td>
+      <td>${z.recidivas
+        ? `<span class="badge badge--warn">${z.recidivas}</span>`
+        : '<span class="muted">—</span>'}</td>
+      <td>${z.diasMedios != null
+        ? `${z.diasMedios} <span class="muted">(${z.comAlta} com alta)</span>`
+        : '<span class="muted">—</span>'}</td>
+      <td>${z.ativos || '<span class="muted">—</span>'}</td>
+    </tr>`;
 }
 
 // --- Separador Atletas ----------------------------------------------------
