@@ -34,6 +34,7 @@ const ENTITY_LABEL = {
   orders: 'Encomenda',
   objectives: 'Objetivo',
   documents: 'Documento',
+  tactical_scenarios: 'Cenário',
 };
 
 // Etiquetas femininas — o particípio concorda em género («Equipa guardada»).
@@ -88,6 +89,8 @@ export const state = {
   gameSets: [],           // parciais de cada set
   financialEntries: [],   // receitas e despesas do clube
   gamePlans: [],          // planos de jogo táticos
+  tacticalScenarios: [],  // cenários de decisão tática (free ball, 3x3)
+  tacticalAnswers: [],    // respostas dos atletas aos cenários
   objectives: [],         // objetivos / KPIs da época (manuais e automáticos)
   profile: null, // perfil do utilizador atual (com o papel/role)
   profiles: [], // todos os perfis (preenchido só se o utilizador for coordenador)
@@ -140,6 +143,8 @@ export function resetState() {
   state.gameSets = [];
   state.financialEntries = [];
   state.gamePlans = [];
+  state.tacticalScenarios = [];
+  state.tacticalAnswers = [];
   state.objectives = [];
   state.profile = null;
   state.profiles = [];
@@ -307,7 +312,7 @@ export async function loadAll() {
          physProfiles, medHistory, physTests, phases, mesocycles, gymSessions, gymExercises, gymAttendance, gameMinutes, availability,
          trainingPlans, trainingPlanItems, trainingEvaluations, trainingPlayerEvals,
          playerDocuments, playerSizes, squads, squadPlayers, financialEntries, gamePlans, objectives,
-         eventResponses, gameResults, gameSets] =
+         eventResponses, gameResults, gameSets, tacticalScenarios, tacticalAnswers] =
     await Promise.all([
       // Multi-tenant: o RLS limita as definições ao clube do utilizador, por
       // isso não filtramos por id — devolve a (única) linha do clube atual.
@@ -363,6 +368,9 @@ export async function loadAll() {
       // Resultados de jogo (final + parciais). Tolerante à migração em falta.
       supabase.from('game_results').select('*'),
       supabase.from('game_sets').select('*').order('set_number'),
+      // Decisão tática. Tolerante à migração em falta (ver abaixo).
+      supabase.from('tactical_scenarios').select('*').order('created_at', { ascending: false }),
+      supabase.from('tactical_answers').select('*'),
     ]);
 
   for (const res of [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects, episodes, sessions, appointments,
@@ -415,6 +423,10 @@ export async function loadAll() {
   state.eventResponses   = eventResponses.error ? [] : (eventResponses.data || []);
   state.gameResults      = gameResults.error   ? [] : (gameResults.data   || []);
   state.gameSets         = gameSets.error      ? [] : (gameSets.data      || []);
+  // Sem `tatica.sql` a consulta devolve erro e a secção fica simplesmente
+  // vazia, em vez de impedir a app de arrancar.
+  state.tacticalScenarios = tacticalScenarios.error ? [] : (tacticalScenarios.data || []);
+  state.tacticalAnswers   = tacticalAnswers.error   ? [] : (tacticalAnswers.data   || []);
 
   // Coerência da cache: com pais arquivados (ex.: uma equipa), os filhos que os
   // referenciam não devem aparecer nos ecrãs ativos.
@@ -802,6 +814,53 @@ export async function respondToEvent(eventId, response, note = null) {
   if (i !== -1) state.eventResponses[i] = data;
   else state.eventResponses.push(data);
   notify();
+  return data;
+}
+
+// Guarda alterações a um cenário de decisão tática, SEM toast.
+//
+// Exceção deliberada à regra "a confirmação de gravação vem do store"
+// (ver CLAUDE.md): a vista grava sozinha a cada peça arrastada e a cada campo
+// mudado, e um aviso por gesto tornava o ecrã ilegível — a montar um cenário
+// são dezenas de gravações em poucos segundos. A confirmação visível aqui é o
+// próprio campo, que mostra sempre o estado guardado. Publicar (a única ação
+// com efeito para fora do ecrã) avisa à parte, na vista.
+export async function saveScenario(id, patch) {
+  const { data, error } = await supabase
+    .from('tactical_scenarios')
+    .update(patch)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  const i = state.tacticalScenarios.findIndex((r) => r.id === id);
+  if (i !== -1) state.tacticalScenarios[i] = data;
+  // Sem notify(): a vista redesenha-se a si própria no fim de cada gesto, e um
+  // re-desenho global a meio de um arrasto lutava com o que o dedo está a fazer.
+  return data;
+}
+
+// Grava a resposta de um atleta a um cenário de decisão tática.
+//
+// Só a PRIMEIRA resposta é dado — a tabela tem `unique (scenario_id, player_id)`
+// e nenhuma política de UPDATE. Repetir depois de ver a correção é treino
+// legítimo, mas já não é uma leitura, por isso o conflito é engolido em
+// silêncio em vez de dar erro ao atleta: ele não fez nada de errado.
+export async function saveTacticalAnswer(scenarioId, playerId, chosen, verdict) {
+  const { data, error } = await supabase
+    .from('tactical_answers')
+    .insert({ scenario_id: scenarioId, player_id: playerId, chosen, verdict })
+    .select()
+    .maybeSingle();
+
+  if (error) {
+    if (error.code === '23505') return null; // já tinha respondido
+    throw error;
+  }
+  if (data) {
+    state.tacticalAnswers.push(data);
+    notify();
+  }
   return data;
 }
 

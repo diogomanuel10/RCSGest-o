@@ -459,3 +459,49 @@ export const PROSPECT_LABEL = Object.fromEntries(
 export const PROSPECT_BADGE = Object.fromEntries(
   ALL_PROSPECT_STATUSES.map((s) => [s.key, s.badge])
 );
+
+// --- Decisão Tática -------------------------------------------------------
+//
+// Cada cenário treina a decisão de UMA posição, e as decisões caem em duas
+// famílias que mudam o gesto da atleta:
+//
+//   • `token: 'bola'`   — a pergunta é PARA ONDE vai a bola (distribuidora,
+//     atacante, serviço). Ela arrasta a bola até à opção.
+//   • `token: 'atleta'` — a pergunta é ONDE ME COLOCO (bloco, defesa, receção).
+//     Ela arrasta a sua própria peça.
+//
+// `optionKind` diz o que são as opções: outra jogadora (para quem jogo), uma
+// zona do campo (onde ponho a bola) ou uma posição (onde me coloco).
+//
+// A fatia de campo desenhada não vem daqui: é calculada a partir das peças de
+// cada cenário (`viewBoxFor` em tactical-court.js). Uma janela fixa por posição
+// partia-se assim que o treinador arrastasse uma peça para fora dela.
+export const TACTICAL_ROLES = [
+  { key: 'distribuidora', label: 'Distribuidora', token: 'bola',   optionKind: 'jogadora',
+    question: 'Para quem jogas a bola?' },
+  { key: 'atacante',      label: 'Atacante',      token: 'bola',   optionKind: 'zona',
+    question: 'Onde colocas a bola?' },
+  { key: 'servico',       label: 'Serviço',       token: 'bola',   optionKind: 'zona',
+    question: 'Para onde serves?' },
+  { key: 'bloco',         label: 'Bloco',         token: 'atleta', optionKind: 'posicao',
+    question: 'Onde te colocas?' },
+  { key: 'defesa',        label: 'Defesa',        token: 'atleta', optionKind: 'posicao',
+    question: 'Onde te colocas?' },
+  { key: 'rececao',       label: 'Receção',       token: 'atleta', optionKind: 'posicao',
+    question: 'Onde te colocas?' },
+];
+export const TACTICAL_ROLE_LABEL = Object.fromEntries(TACTICAL_ROLES.map((r) => [r.key, r.label]));
+export const TACTICAL_ROLE = Object.fromEntries(TACTICAL_ROLES.map((r) => [r.key, r]));
+
+// Que posições do plantel (`players.position`) correspondem a cada papel do
+// cenário. Serve para o portal mostrar primeiro à atleta o que é DELA — o
+// cruzamento é por palavra-chave porque `settings.positions` é configurável
+// pelo clube e cada um chama-lhes o que quer ("Distribuidor", "Passador"…).
+export const TACTICAL_ROLE_MATCH = {
+  distribuidora: ['distribuid', 'passador', 'levantador', 'setter'],
+  atacante:      ['atacante', 'ponta', 'oposto', 'central', 'zona 4', 'zona 2', 'extremo'],
+  servico:       [], // toda a gente serve
+  bloco:         ['central', 'bloco', 'ponta', 'oposto'],
+  defesa:        ['libero', 'líbero', 'defesa', 'ponta', 'recetor'],
+  rececao:       ['libero', 'líbero', 'recetor', 'ponta', 'extremo'],
+};

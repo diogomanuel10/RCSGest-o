@@ -1,677 +1,568 @@
-// Vista: Decisão Tática (PROTÓTIPO).
+// Vista: Decisão Tática.
 //
-// Treino de decisão para distribuidoras. O cenário é sempre o mesmo molde:
-// free ball perfeita, 3 atacantes nossas, 3 blocadoras adversárias. A atleta
-// não desenha nada nem posiciona ninguém — arrasta a BOLA para a atacante que
-// escolhe. É um só gesto, porque a decisão da distribuidora é um destino, não
-// uma posição.
+// Treino de decisão para TODAS as posições. O treinador monta o cenário
+// arrastando as peças; a atleta responde no portal com um só gesto.
 //
-// O que torna isto leitura de bloco e não um puzzle é o tempo: as blocadoras
-// têm posição inicial E final, movem-se durante ~1,5s e CONGELAM. A direção do
-// movimento é a informação que se lê em jogo; uma fotografia estática dava a
-// posição final de bandeja e escondia o movimento que a produziu.
+// O modelo é o mesmo em todas as posições porque todas as decisões de
+// voleibol têm a mesma forma — ver `tactical-court.js`. Aqui trata-se da
+// autoria: escolher a posição que se treina, arrastar as peças, marcar as
+// opções e escrever a razão de cada uma.
 //
-// Não há resposta única: cada atacante é classificada `otima|aceitavel|ma` com
-// uma razão escrita. Uma resposta certa só ensinaria a preferência do treinador.
-// Pela mesma razão não há nota, percentagem acumulada nem comparação entre
-// atletas — isso trocava exploração por decorar.
-//
-// PROTÓTIPO: os cenários vivem em localStorage, não no Supabase. Serve para
-// avaliar a sensação de uso antes de investir no SQL, no RLS e no portal.
+// Duas regras que atravessam tudo:
+//   • O cenário move-se e CONGELA. Cada peça tem posição inicial e final; é o
+//     movimento que se lê em jogo, não a posição final.
+//   • Não há resposta certa. Cada opção é ótima/aceitável/má com uma razão, e
+//     a atleta vê-as todas depois de responder. Por isso o resumo conta por
+//     OPÇÃO e nunca por atleta — ver `answerSummary`.
 
-import { esc } from '../ui.js';
+import { state, createRow, deleteRow, saveScenario, dbErrorMessage } from '../store.js';
+import { esc, emptyHTML } from '../ui.js';
 import { confirmDialog } from '../modal.js';
 import { toastOk, toastError } from '../toast.js';
-import { canEdit } from '../permissions.js';
+import { canEdit, isClubWide } from '../permissions.js';
+import { TACTICAL_ROLES, TACTICAL_ROLE_LABEL } from '../constants.js';
+import {
+  blankScenario,
+  courtSVG,
+  makeDraggable,
+  renderDrill,
+  roleOf,
+  optionName,
+  pieceName,
+  pieceHeight,
+  VERDICTS,
+  VERDICT_KEYS,
+} from '../tactical-court.js';
 
-const STORE_KEY = 'rumia:tatica:proto:v1';
-
-// ─── Geometria do campo, em METROS ──────────────────────────────────────────
-// Guardar as posições em metros (e não em píxeis) faz o mesmo cenário desenhar
-// bem num telemóvel de 320px e num projetor, sem tocar nos dados: o viewBox do
-// SVG trata da escala sozinho.
-// Mostra-se uma FATIA do campo (dos 3 m adversários aos ~6 m dos nossos) e não
-// os 18 m oficiais: a decisão em free ball vive toda à volta da rede, e desenhar
-// o fundo do campo vazio só encolhia as peças que interessam. Por isso os bordos
-// de cima e de baixo não têm linha — são cortes, não linhas de fundo.
-const COURT = {
-  width: 9,        // largura oficial
-  netY: 3,         // a rede; acima dela vê-se a faixa da frente adversária
-  backY: 9.5,      // até onde desenhamos o nosso campo (corte, não linha de fundo)
-  attackY: 6,      // linha de ataque (3 m da rede)
-};
-const VIEWBOX = '-0.8 -0.8 10.6 11.1';
-
-const PLAYER_R = 0.46;
-const BALL_R = 0.3;
-const DROP_RADIUS = 1.3;   // tolerância para largar a bola em cima de uma atacante
-const ANIM_MS = 1500;
-
-const VERDICTS = {
-  otima:     { label: 'Ótima',     color: 'var(--ok)',     bg: 'var(--ok-bg)' },
-  aceitavel: { label: 'Aceitável', color: 'var(--warn)',   bg: 'var(--warn-bg)' },
-  ma:        { label: 'Má',        color: 'var(--danger)', bg: 'var(--danger-bg)' },
-};
-const VERDICT_KEYS = Object.keys(VERDICTS);
-
-// Molde de partida: 5-1 em free ball, distribuidora entrada da zona 1.
-function blankScenario() {
-  return {
-    id: `s${Date.now().toString(36)}`,
-    title: 'Free ball — bloco a fechar ao meio',
-    note: '',
-    setter: { x: 6.5, y: 6.0 },
-    attackers: [
-      { id: 'a4', label: 'Z4', name: 'Ponta esquerda', x: 1.3, y: 4.5, verdict: 'aceitavel', reason: '' },
-      { id: 'a3', label: 'Z3', name: 'Central',        x: 4.5, y: 3.9, verdict: 'otima',     reason: '' },
-      { id: 'a2', label: 'Z2', name: 'Oposto',         x: 7.9, y: 4.5, verdict: 'ma',        reason: '' },
-    ],
-    blockers: [
-      { id: 'b4', label: 'B1', x: 1.4, y: 2.3, x2: 2.2, y2: 2.3 },
-      { id: 'b3', label: 'B2', x: 4.5, y: 2.3, x2: 4.5, y2: 2.3 },
-      { id: 'b2', label: 'B3', x: 7.6, y: 2.3, x2: 6.8, y2: 2.3 },
-    ],
-  };
-}
-
-// ─── Persistência do protótipo ──────────────────────────────────────────────
-function loadScenarios() {
-  try {
-    const raw = localStorage.getItem(STORE_KEY);
-    const list = raw ? JSON.parse(raw) : null;
-    return Array.isArray(list) && list.length ? list : [blankScenario()];
-  } catch {
-    return [blankScenario()];
-  }
-}
-
-function saveScenarios(list) {
-  try {
-    localStorage.setItem(STORE_KEY, JSON.stringify(list));
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-// ─── Estado local da vista (persiste entre re-desenhos, como nas outras) ────
-let scenarios = null;
+// Estado local de UI (persiste entre re-desenhos, como nas outras vistas).
 let currentId = null;
-let mode = 'treinador';   // 'treinador' (autoria) | 'atleta' (exercício)
-let editTarget = 'inicial'; // 'inicial' | 'final' — que posição do bloco se arrasta
-let phase = 'pronto';     // atleta: 'pronto' | 'a-mover' | 'decidir' | 'resposta'
-let answerId = null;      // atacante escolhida pela atleta
-let animRAF = null;
+let mode = 'treinador';     // 'treinador' (autoria) | 'atleta' (pré-visualização)
+let editTarget = 'inicial'; // 'inicial' | 'final' — que posição das peças se arrasta
+let teamFilter = '';
+let roleFilter = '';
+let stopDrill = null;
+
+// Cenários visíveis. O RLS já filtra no servidor; isto é só a barra.
+function visibleScenarios() {
+  let list = state.tacticalScenarios || [];
+  if (teamFilter) list = list.filter((s) => s.team_id === teamFilter);
+  if (roleFilter) list = list.filter((s) => s.role === roleFilter);
+  return list;
+}
+
+// Equipas que o utilizador pode gerir (mesma regra do plano de jogo).
+function myTeams() {
+  if (isClubWide()) return state.teams;
+  const coachRecord = state.coaches.find((c) => c.user_id === state.profile?.id);
+  if (!coachRecord) return [];
+  const mine = new Set(
+    state.teamCoaches.filter((tc) => tc.coach_id === coachRecord.id).map((tc) => tc.team_id)
+  );
+  return state.teams.filter((t) => mine.has(t.id));
+}
 
 function current() {
-  return scenarios.find((s) => s.id === currentId) || scenarios[0];
+  const list = visibleScenarios();
+  return list.find((s) => s.id === currentId) || list[0] || null;
 }
 
-function persist() {
-  if (!saveScenarios(scenarios)) toastError('Não foi possível guardar o cenário neste dispositivo.');
+// Atletas elegíveis para ligar a uma peça: as da equipa do cenário (ou todas,
+// se for um cenário de clube).
+function rosterFor(scenario) {
+  return scenario.team_id
+    ? state.players.filter((p) => p.team_id === scenario.team_id)
+    : state.players;
 }
 
-// ─── Desenho do campo ───────────────────────────────────────────────────────
-function courtHTML(scenario) {
-  const { width, netY, backY, attackY } = COURT;
-
-  const attackers = scenario.attackers
-    .map(
-      (a) => `
-      <g class="tb-piece tb-piece--att" data-piece="att" data-id="${a.id}"
-         transform="translate(${a.x} ${a.y})">
-        <circle r="${PLAYER_R}" class="tb-att-dot" />
-        <text class="tb-piece-label" y="0.16">${esc(a.label)}</text>
-      </g>`
-    )
-    .join('');
-
-  // Fantasma da posição inicial + traço até à final: sem isto o treinador não
-  // vê que movimento acabou de definir.
-  const blockers = scenario.blockers
-    .map((b) => {
-      const moved = Math.abs(b.x2 - b.x) > 0.05 || Math.abs(b.y2 - b.y) > 0.05;
-      const ghost =
-        mode === 'treinador' && moved
-          ? `<circle class="tb-ghost" cx="${b.x}" cy="${b.y}" r="${PLAYER_R}" />
-             <line class="tb-ghost-line" x1="${b.x}" y1="${b.y}" x2="${b.x2}" y2="${b.y2}" />`
-          : '';
-      // Em autoria mostra-se a peça na posição que se está a editar. No
-      // exercício começa na inicial (a animação move-a a partir daí), mas
-      // assim que o bloco congela fica na FINAL — incluindo no re-desenho da
-      // resposta, senão a atleta via o bloco saltar de volta ao início e
-      // perdia a imagem sobre a qual acabou de decidir.
-      const frozen = mode === 'atleta' && (phase === 'decidir' || phase === 'resposta');
-      const shown =
-        frozen || (mode === 'treinador' && editTarget === 'final')
-          ? { x: b.x2, y: b.y2 }
-          : { x: b.x, y: b.y };
-      return `
-        ${ghost}
-        <g class="tb-piece tb-piece--blk" data-piece="blk" data-id="${b.id}"
-           transform="translate(${shown.x} ${shown.y})">
-          <circle r="${PLAYER_R}" class="tb-blk-dot" />
-          <text class="tb-piece-label" y="0.16">${esc(b.label)}</text>
-        </g>`;
-    })
-    .join('');
-
-  // Depois de responder a bola fica em cima de quem foi escolhida: o gesto tem
-  // de deixar rasto, senão a resposta some-se e sobra só o texto ao lado.
-  const picked = phase === 'resposta' && scenario.attackers.find((a) => a.id === answerId);
-  const ball = picked
-    ? { x: picked.x, y: picked.y - 0.72 }
-    : { x: scenario.setter.x, y: scenario.setter.y - 0.95 };
-
-  return `
-    <svg class="tb-court" viewBox="${VIEWBOX}" role="img"
-         aria-label="Campo de voleibol com três atacantes e três blocadoras adversárias">
-      <!-- faixa adversária + nosso campo -->
-      <rect class="tb-opp"   x="0" y="0"        width="${width}" height="${netY}" />
-      <rect class="tb-floor" x="0" y="${netY}"  width="${width}" height="${backY - netY}" />
-      <line class="tb-line"  x1="0"        y1="0" x2="0"        y2="${backY}" />
-      <line class="tb-line"  x1="${width}" y1="0" x2="${width}" y2="${backY}" />
-      <line class="tb-line"  x1="0" y1="${attackY}" x2="${width}" y2="${attackY}" />
-      <line class="tb-net"   x1="0" y1="${netY}"    x2="${width}" y2="${netY}" />
-      <text class="tb-side-label" x="0.18" y="0.62">adversário</text>
-
-      ${blockers}
-      ${attackers}
-
-      <g class="tb-piece tb-piece--setter" data-piece="setter" data-id="setter"
-         transform="translate(${scenario.setter.x} ${scenario.setter.y})">
-        <circle r="${PLAYER_R}" class="tb-setter-dot" />
-        <text class="tb-piece-label" y="0.16">D</text>
-      </g>
-
-      <g class="tb-ball" data-piece="ball" transform="translate(${ball.x} ${ball.y})">
-        <circle r="${BALL_R}" class="tb-ball-dot" />
-      </g>
-    </svg>`;
-}
-
-// ─── Conversão ecrã → metros ────────────────────────────────────────────────
-function toCourt(svg, evt) {
-  const pt = svg.createSVGPoint();
-  pt.x = evt.clientX;
-  pt.y = evt.clientY;
-  const ctm = svg.getScreenCTM();
-  if (!ctm) return null;
-  const p = pt.matrixTransform(ctm.inverse());
-  return { x: p.x, y: p.y };
-}
-
-const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
-
-// ─── Painel lateral: autoria ────────────────────────────────────────────────
-function authorPanelHTML(scenario) {
-  const cards = scenario.attackers
-    .map((a) => {
-      const v = VERDICTS[a.verdict] || VERDICTS.aceitavel;
-      return `
-      <div class="tb-att-card" data-att="${a.id}">
-        <div class="tb-att-card__head">
-          <span class="tb-tag" style="background:${v.bg};color:${v.color}">${esc(a.label)}</span>
-          <input class="tb-name" data-field="name" value="${esc(a.name)}"
-                 aria-label="Nome da atacante ${esc(a.label)}" />
-        </div>
-        <div class="tb-verdicts" role="group" aria-label="Qualidade da opção ${esc(a.label)}">
-          ${VERDICT_KEYS.map(
-            (k) => `
-            <button type="button" class="tb-verdict${a.verdict === k ? ' is-on' : ''}"
-                    data-verdict="${k}"
-                    style="${a.verdict === k ? `background:${VERDICTS[k].bg};color:${VERDICTS[k].color};border-color:${VERDICTS[k].color}` : ''}">
-              ${VERDICTS[k].label}
-            </button>`
-          ).join('')}
-        </div>
-        <textarea class="tb-reason" data-field="reason" rows="2"
-                  placeholder="Porquê? (a atleta vê isto depois de responder)"
-                  aria-label="Razão para ${esc(a.label)}">${esc(a.reason)}</textarea>
-      </div>`;
-    })
-    .join('');
-
-  return `
-    <div class="tb-panel">
-      <label class="tb-field">
-        <span>Título do cenário</span>
-        <input id="tb-title" value="${esc(scenario.title)}" />
-      </label>
-
-      <div class="tb-toggle" role="group" aria-label="Que posição do bloco estou a arrastar">
-        <button type="button" class="tb-toggle__btn${editTarget === 'inicial' ? ' is-on' : ''}"
-                data-target="inicial">Posição inicial</button>
-        <button type="button" class="tb-toggle__btn${editTarget === 'final' ? ' is-on' : ''}"
-                data-target="final">Posição final</button>
-      </div>
-      <p class="tb-hint">
-        ${editTarget === 'inicial'
-          ? 'Arrasta as blocadoras para onde estão quando a bola sai. Depois passa a “Posição final”.'
-          : 'Arrasta as blocadoras para onde chegam ao fim de 1,5 s. O traço mostra o movimento que a atleta vai ler.'}
-      </p>
-
-      <h3 class="tb-panel__title">As três opções</h3>
-      ${cards}
-
-      <label class="tb-field">
-        <span>Nota do treinador (opcional)</span>
-        <textarea id="tb-note" rows="2"
-          placeholder="Contexto: marcador, adversário, o que se está a trabalhar…">${esc(scenario.note)}</textarea>
-      </label>
-    </div>`;
-}
-
-// ─── Painel lateral: exercício ──────────────────────────────────────────────
-function athletePanelHTML(scenario) {
-  if (phase === 'pronto') {
-    return `
-      <div class="tb-panel tb-panel--center">
-        <h3 class="tb-panel__title">${esc(scenario.title)}</h3>
-        <p class="tb-hint">
-          Free ball perfeita. O bloco vai mover-se durante 1,5 segundos e depois congela.
-          Lê para onde vão as blocadoras e arrasta a bola para quem devias jogar.
-        </p>
-        <button class="btn btn--primary" data-act="start">Começar</button>
-      </div>`;
-  }
-  if (phase === 'a-mover') {
-    return `
-      <div class="tb-panel tb-panel--center">
-        <p class="tb-watch" role="status">A ler o bloco…</p>
-      </div>`;
-  }
-  if (phase === 'decidir') {
-    return `
-      <div class="tb-panel tb-panel--center">
-        <p class="tb-watch tb-watch--go" role="status">Decide.</p>
-        <p class="tb-hint">Arrasta a bola para a atacante que escolhes.</p>
-      </div>`;
-  }
-
-  // phase === 'resposta'
-  const picked = scenario.attackers.find((a) => a.id === answerId);
-  const v = VERDICTS[picked?.verdict] || VERDICTS.aceitavel;
-  const others = scenario.attackers.filter((a) => a.id !== answerId);
-
-  return `
-    <div class="tb-panel">
-      <div class="tb-result" style="background:${v.bg};border-color:${v.color}">
-        <strong style="color:${v.color}">${v.label}</strong>
-        <span>Escolheste a ${esc(picked?.name || picked?.label || '')}</span>
-      </div>
-      ${picked?.reason ? `<p class="tb-reason-out">${esc(picked.reason)}</p>` : ''}
-
-      <h3 class="tb-panel__title">As outras opções</h3>
-      ${others
-        .map((a) => {
-          const ov = VERDICTS[a.verdict] || VERDICTS.aceitavel;
-          return `
-          <div class="tb-alt">
-            <span class="tb-tag" style="background:${ov.bg};color:${ov.color}">${ov.label}</span>
-            <div>
-              <strong>${esc(a.name || a.label)}</strong>
-              ${a.reason ? `<p class="tb-reason-out">${esc(a.reason)}</p>` : ''}
-            </div>
-          </div>`;
-        })
-        .join('')}
-      ${scenario.note ? `<p class="tb-note-out">${esc(scenario.note)}</p>` : ''}
-      <button class="btn btn--ghost" data-act="again">Repetir</button>
-    </div>`;
+// Resumo das respostas. Conta por OPÇÃO e não por atleta: o que interessa ao
+// treinador é "metade do plantel jogou na ponta com a central livre" — um
+// problema de treino. Uma percentagem de acerto por atleta seria uma nota, e
+// uma nota troca exploração por decorar.
+function answerSummary(scenario) {
+  const rows = (state.tacticalAnswers || []).filter((a) => a.scenario_id === scenario.id);
+  if (!rows.length) return null;
+  return {
+    total: rows.length,
+    byChoice: scenario.options.map((o) => ({ opt: o, n: rows.filter((r) => r.chosen === o.id).length })),
+  };
 }
 
 // ─── Vista ──────────────────────────────────────────────────────────────────
 export function renderTatica(container) {
-  if (!scenarios) scenarios = loadScenarios();
-  if (!current()) currentId = scenarios[0].id;
-  const scenario = current();
-  const canAuthor = canEdit('players');
+  const canAuthor = canEdit('tactical');
   if (!canAuthor) mode = 'atleta';
 
-  cancelAnim();
+  stopDrill?.();
+  stopDrill = null;
+
+  const scenario = current();
+  const teams = myTeams();
+  const list = visibleScenarios();
 
   container.innerHTML = `
     <header class="page-head">
       <div>
         <h1 class="section-title">Decisão Tática</h1>
         <p class="muted" style="margin:0;font-size:0.88rem">
-          Protótipo · free ball, 3 atacantes, 3 blocadoras · guardado só neste dispositivo
+          Cenários de leitura de jogo para cada posição — a atleta lê e decide
         </p>
       </div>
-      ${canAuthor
+      ${canAuthor && scenario
         ? `<div class="tb-modes" role="group" aria-label="Modo">
-             <button type="button" class="tb-toggle__btn${mode === 'treinador' ? ' is-on' : ''}" data-mode="treinador">Criar cenário</button>
-             <button type="button" class="tb-toggle__btn${mode === 'atleta' ? ' is-on' : ''}" data-mode="atleta">Ver como atleta</button>
+             <button type="button" class="tb-toggle__btn${mode === 'treinador' ? ' is-on' : ''}" data-mode="treinador">Editar</button>
+             <button type="button" class="tb-toggle__btn${mode === 'atleta' ? ' is-on' : ''}" data-mode="atleta">Pré-visualizar</button>
            </div>`
         : ''}
     </header>
 
-    ${canAuthor
-      ? `<div class="tb-bar">
-           <label class="tb-field tb-field--inline">
+    <div class="tb-bar">
+      <label class="tb-field tb-field--inline">
+        <span>Equipa</span>
+        <select id="tb-team-filter">
+          <option value="">Todas</option>
+          ${teams.map((t) => `<option value="${t.id}"${teamFilter === t.id ? ' selected' : ''}>${esc(t.name)}</option>`).join('')}
+        </select>
+      </label>
+      <label class="tb-field tb-field--inline">
+        <span>Posição</span>
+        <select id="tb-role-filter">
+          <option value="">Todas</option>
+          ${TACTICAL_ROLES.map((r) => `<option value="${r.key}"${roleFilter === r.key ? ' selected' : ''}>${esc(r.label)}</option>`).join('')}
+        </select>
+      </label>
+      ${list.length
+        ? `<label class="tb-field tb-field--inline">
              <span>Cenário</span>
              <select id="tb-pick">
-               ${scenarios.map((s) => `<option value="${s.id}"${s.id === scenario.id ? ' selected' : ''}>${esc(s.title)}</option>`).join('')}
+               ${list
+                 .map((s) => `<option value="${s.id}"${s.id === scenario?.id ? ' selected' : ''}>${esc(TACTICAL_ROLE_LABEL[s.role] || s.role)} · ${esc(s.title)}${s.published ? '' : ' (rascunho)'}</option>`)
+                 .join('')}
              </select>
-           </label>
-           <button class="btn btn--ghost btn--sm" data-act="new">Novo</button>
-           <button class="btn btn--ghost btn--sm" data-act="dup">Duplicar</button>
-           <button class="btn btn--danger btn--sm" data-act="del"${scenarios.length < 2 ? ' disabled' : ''}>Apagar</button>
-         </div>`
-      : ''}
+           </label>`
+        : ''}
+      ${canAuthor
+        ? `<button class="btn btn--primary btn--sm" data-act="new">Novo cenário</button>
+           ${scenario ? `<button class="btn btn--ghost btn--sm" data-act="dup">Duplicar</button>
+           <button class="btn btn--danger btn--sm" data-act="del">Apagar</button>` : ''}`
+        : ''}
+    </div>
 
-    <div class="tb-layout">
-      <div class="tb-court-wrap">${courtHTML(scenario)}</div>
-      <div class="tb-side" data-side>
-        ${mode === 'treinador' ? authorPanelHTML(scenario) : athletePanelHTML(scenario)}
-      </div>
-    </div>`;
+    <div data-body></div>`;
 
-  wire(container, scenario, canAuthor);
+  const body = container.querySelector('[data-body]');
+
+  if (!scenario) {
+    body.innerHTML = emptyHTML(
+      canAuthor
+        ? 'Ainda não há cenários. Cria o primeiro — escolhes a posição e o molde vem já montado.'
+        : 'Ainda não há cenários publicados para ti.'
+    );
+  } else if (mode === 'atleta') {
+    // Pré-visualização: corre o exercício tal e qual, mas SEM gravar resposta —
+    // o treinador a experimentar o seu próprio cenário não é um dado.
+    const host = document.createElement('div');
+    body.appendChild(host);
+    stopDrill = renderDrill(host, scenario, { onAnswer: null });
+  } else {
+    renderAuthor(body, scenario);
+  }
+
+  wireBar(container, scenario, canAuthor);
 }
 
-function redraw(container) {
+function refresh(container) {
   renderTatica(container);
 }
 
-function cancelAnim() {
-  if (animRAF) cancelAnimationFrame(animRAF);
-  animRAF = null;
-}
+// ─── Barra ──────────────────────────────────────────────────────────────────
+function wireBar(container, scenario, canAuthor) {
+  container.querySelector('#tb-team-filter')?.addEventListener('change', (e) => {
+    teamFilter = e.target.value;
+    currentId = null;
+    refresh(container);
+  });
 
-function wire(container, scenario, canAuthor) {
-  const svg = container.querySelector('.tb-court');
-  const side = container.querySelector('[data-side]');
+  container.querySelector('#tb-role-filter')?.addEventListener('change', (e) => {
+    roleFilter = e.target.value;
+    currentId = null;
+    refresh(container);
+  });
 
-  // ── Barra de cenários ──
   container.querySelector('#tb-pick')?.addEventListener('change', (e) => {
     currentId = e.target.value;
-    phase = 'pronto';
-    answerId = null;
-    redraw(container);
+    refresh(container);
   });
 
-  container.querySelector('[data-act="new"]')?.addEventListener('click', () => {
-    const s = blankScenario();
-    scenarios.push(s);
-    currentId = s.id;
-    persist();
-    redraw(container);
-  });
+  container.querySelector('[data-act="new"]')?.addEventListener('click', () => newScenario(container));
 
-  container.querySelector('[data-act="dup"]')?.addEventListener('click', () => {
-    const copy = structuredClone(scenario);
-    copy.id = `s${Date.now().toString(36)}`;
-    copy.title = `${scenario.title} (cópia)`;
-    scenarios.push(copy);
-    currentId = copy.id;
-    persist();
-    toastOk('Cenário duplicado.');
-    redraw(container);
+  container.querySelector('[data-act="dup"]')?.addEventListener('click', async () => {
+    try {
+      const row = await createRow('tactical_scenarios', 'tacticalScenarios', {
+        team_id: scenario.team_id,
+        role: scenario.role,
+        title: `${scenario.title} (cópia)`,
+        note: scenario.note,
+        actor: scenario.actor,
+        options: scenario.options,
+        pieces: scenario.pieces,
+        published: false, // uma cópia nasce rascunho: ainda vai ser mexida
+        created_by: state.profile?.id || null,
+      });
+      currentId = row?.id || null;
+      refresh(container);
+    } catch (e) {
+      toastError(dbErrorMessage(e));
+    }
   });
 
   container.querySelector('[data-act="del"]')?.addEventListener('click', async () => {
     const ok = await confirmDialog(
-      `Apagar o cenário “${scenario.title}”? Não é possível repor.`,
+      `Apagar o cenário “${scenario.title}”? As respostas dos atletas são apagadas com ele.`,
       { confirmLabel: 'Apagar', danger: true }
     );
     if (!ok) return;
-    scenarios = scenarios.filter((s) => s.id !== scenario.id);
-    currentId = scenarios[0]?.id || null;
-    persist();
-    redraw(container);
+    try {
+      await deleteRow('tactical_scenarios', 'tacticalScenarios', scenario.id);
+      currentId = null;
+      refresh(container);
+    } catch (e) {
+      toastError(dbErrorMessage(e));
+    }
   });
 
-  // ── Modo ──
   container.querySelectorAll('[data-mode]').forEach((btn) =>
     btn.addEventListener('click', () => {
       mode = btn.dataset.mode;
-      phase = 'pronto';
-      answerId = null;
-      redraw(container);
+      refresh(container);
     })
   );
+}
 
-  if (mode === 'treinador' && canAuthor) wireAuthor(container, scenario, svg);
-  else wireAthlete(container, scenario, svg, side);
+// A posição escolhe-se ANTES de criar: é ela que decide o molde, o gesto e a
+// fatia de campo. Mudá-la depois deitava fora o cenário montado, por isso
+// pergunta-se primeiro em vez de ser um campo editável.
+function newScenario(container) {
+  // Um cenário sem equipa é do CLUBE (chega a todos os escalões) e só o
+  // coordenador o pode criar. Para o treinador nasce na equipa filtrada ou na
+  // primeira que ele treina — nunca em "todos" por omissão.
+  const mine = myTeams();
+  const teamId = teamFilter || (isClubWide() ? null : mine[0]?.id || null);
+  if (!isClubWide() && !teamId) {
+    toastError('Ainda não tens equipas atribuídas. Pede ao coordenador para te ligar a um plantel.');
+    return;
+  }
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal card" role="dialog" aria-modal="true" aria-label="Nova posição a treinar">
+      <h2 class="section-title">Que posição vais treinar?</h2>
+      <p class="muted" style="margin:0.2rem 0 0.9rem;font-size:0.88rem">
+        O molde vem já montado e a pergunta muda com a posição.
+      </p>
+      <div class="tb-roles">
+        ${TACTICAL_ROLES.map(
+          (r) => `
+          <button type="button" class="tb-role-card" data-role="${r.key}">
+            <strong>${esc(r.label)}</strong>
+            <span class="muted">${esc(r.question)}</span>
+            <span class="tb-role-card__gesture">${r.token === 'bola' ? 'arrasta a bola' : 'arrasta a sua peça'}</span>
+          </button>`
+        ).join('')}
+      </div>
+      <div class="modal__actions">
+        <button type="button" class="btn btn--ghost" data-cancel>Cancelar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.body.classList.add('no-scroll');
+
+  const close = () => {
+    overlay.remove();
+    if (!document.querySelector('.modal-overlay')) document.body.classList.remove('no-scroll');
+    document.removeEventListener('keydown', onKey);
+  };
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  document.addEventListener('keydown', onKey);
+  overlay.querySelector('[data-cancel]').addEventListener('click', close);
+  overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
+  overlay.querySelector('[data-cancel]').focus();
+
+  overlay.querySelectorAll('[data-role]').forEach((btn) =>
+    btn.addEventListener('click', async () => {
+      close();
+      try {
+        const row = await createRow('tactical_scenarios', 'tacticalScenarios', {
+          ...blankScenario(btn.dataset.role),
+          team_id: teamId,
+          created_by: state.profile?.id || null,
+        });
+        currentId = row?.id || null;
+        roleFilter = '';
+        mode = 'treinador';
+        refresh(container);
+      } catch (e) {
+        toastError(dbErrorMessage(e));
+      }
+    })
+  );
 }
 
 // ─── Autoria ────────────────────────────────────────────────────────────────
-function wireAuthor(container, scenario, svg) {
-  container.querySelectorAll('[data-target]').forEach((btn) =>
+function renderAuthor(body, scenario) {
+  const role = roleOf(scenario);
+  const teams = myTeams();
+  const roster = rosterFor(scenario);
+  const summary = answerSummary(scenario);
+
+  body.innerHTML = `
+    <div class="tb-layout">
+      <div class="tb-court-wrap">
+        ${courtSVG({ scenario, at: editTarget, ghosts: true })}
+      </div>
+      <div class="tb-side">
+        <div class="tb-panel">
+          <div class="tb-role-head">
+            <span class="tb-tag tb-tag--role">${esc(role.label)}</span>
+            <span class="muted">${esc(role.question)}</span>
+          </div>
+
+          <label class="tb-field">
+            <span>Título do cenário</span>
+            <input id="tb-title" value="${esc(scenario.title)}" />
+          </label>
+
+          <label class="tb-field">
+            <span>Equipa</span>
+            <select id="tb-team">
+              ${isClubWide() ? `<option value=""${scenario.team_id ? '' : ' selected'}>Todo o clube</option>` : ''}
+              ${teams.map((t) => `<option value="${t.id}"${scenario.team_id === t.id ? ' selected' : ''}>${esc(t.name)}</option>`).join('')}
+            </select>
+          </label>
+          ${isClubWide()
+            ? ''
+            : '<p class="tb-hint tb-hint--tight">Só podes criar cenários para as tuas equipas. Publicar para o clube inteiro é do coordenador.</p>'}
+
+          <div class="tb-toggle" role="group" aria-label="Que posição das peças estou a arrastar">
+            <button type="button" class="tb-toggle__btn${editTarget === 'inicial' ? ' is-on' : ''}" data-target="inicial">Posição inicial</button>
+            <button type="button" class="tb-toggle__btn${editTarget === 'final' ? ' is-on' : ''}" data-target="final">Posição final</button>
+          </div>
+          <p class="tb-hint">
+            ${editTarget === 'inicial'
+              ? 'Arrasta as peças para onde estão no início da jogada. Depois passa a “Posição final”.'
+              : 'Arrasta as peças para onde chegam ao fim de 1,5 s. O traço mostra o movimento que a atleta vai ler.'}
+          </p>
+        </div>
+
+        <div class="tb-panel">
+          <h3 class="tb-panel__title">As opções</h3>
+          <p class="tb-hint tb-hint--tight">
+            ${role.optionKind === 'jogadora'
+              ? 'Para quem ela pode jogar. Arrasta-as no campo para as pores onde estão.'
+              : role.optionKind === 'zona'
+                ? 'As zonas onde ela pode pôr a bola. Arrasta os alvos no campo.'
+                : 'Os sítios onde ela se pode colocar. Arrasta-os no campo.'}
+          </p>
+          ${scenario.options.map((o) => optionCardHTML(o, role, roster)).join('')}
+        </div>
+
+        <div class="tb-panel">
+          <label class="tb-field">
+            <span>Nota do treinador (opcional)</span>
+            <textarea id="tb-note" rows="2"
+              placeholder="Contexto: marcador, adversário, o que se está a trabalhar…">${esc(scenario.note || '')}</textarea>
+          </label>
+
+          <label class="tb-check">
+            <input type="checkbox" id="tb-pub"${scenario.published ? ' checked' : ''} />
+            <span>Publicado — visível no portal das atletas</span>
+          </label>
+          <p class="tb-hint">
+            Enquanto for rascunho fica só para ti. Um cenário meio feito que chegasse
+            à atleta ensinava o erro.
+          </p>
+        </div>
+
+        ${summary ? summaryHTML(summary) : ''}
+      </div>
+    </div>`;
+
+  wireAuthor(body, scenario);
+}
+
+function optionCardHTML(o, role, roster) {
+  const v = VERDICTS[o.verdict] || VERDICTS.aceitavel;
+  const height = pieceHeight(o);
+  return `
+    <div class="tb-att-card" data-opt="${esc(o.id)}">
+      <div class="tb-att-card__head">
+        <span class="tb-tag" style="background:${v.bg};color:${v.color}">${esc(o.label)}</span>
+        ${role.optionKind === 'jogadora'
+          ? `<select class="tb-name" data-field="player_id" aria-label="Atleta na posição ${esc(o.label)}">
+               <option value="">— sem ficha (genérica) —</option>
+               ${roster.map((p) => `<option value="${p.id}"${o.player_id === p.id ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}
+             </select>`
+          : `<input class="tb-name" data-field="label" value="${esc(o.label || '')}"
+                    placeholder="Nome da opção (ex.: Diagonal)" aria-label="Nome da opção" />`}
+      </div>
+      ${role.optionKind === 'jogadora' && o.player_id
+        ? `<p class="tb-hint tb-hint--tight">${esc(pieceName(o))}${height ? ` · ${height} cm` : ''}</p>`
+        : role.optionKind === 'jogadora'
+          ? `<input class="tb-name" data-field="name" value="${esc(o.name || '')}"
+                    placeholder="Etiqueta (ex.: Ponta esquerda)" aria-label="Etiqueta da posição ${esc(o.label)}" />`
+          : ''}
+      <div class="tb-verdicts" role="group" aria-label="Qualidade da opção ${esc(o.label)}">
+        ${VERDICT_KEYS.map(
+          (k) => `
+          <button type="button" class="tb-verdict${o.verdict === k ? ' is-on' : ''}" data-verdict="${k}"
+                  style="${o.verdict === k ? `background:${VERDICTS[k].bg};color:${VERDICTS[k].color};border-color:${VERDICTS[k].color}` : ''}">
+            ${VERDICTS[k].label}
+          </button>`
+        ).join('')}
+      </div>
+      <textarea class="tb-reason" data-field="reason" rows="2"
+                placeholder="Porquê? (a atleta vê isto depois de responder)"
+                aria-label="Razão para ${esc(o.label)}">${esc(o.reason || '')}</textarea>
+    </div>`;
+}
+
+// O resumo mostra QUANTAS escolheram cada opção, e mais nada. Sem nomes, sem
+// percentagem de acerto, sem ranking: o que se quer ver é se o plantel leu o
+// jogo da mesma maneira, não quem falhou.
+function summaryHTML({ total, byChoice }) {
+  return `
+    <div class="tb-panel">
+      <h3 class="tb-panel__title">O que o plantel respondeu</h3>
+      <p class="tb-hint tb-hint--tight">${total} resposta${total === 1 ? '' : 's'} · só a primeira de cada atleta conta</p>
+      ${byChoice
+        .map(({ opt, n }) => {
+          const v = VERDICTS[opt.verdict] || VERDICTS.aceitavel;
+          const pct = total ? Math.round((n / total) * 100) : 0;
+          return `
+          <div class="tb-sum">
+            <div class="tb-sum__head">
+              <span class="tb-tag" style="background:${v.bg};color:${v.color}">${v.label}</span>
+              <strong>${esc(optionName(opt))}</strong>
+              <span class="muted">${n}</span>
+            </div>
+            <div class="progress"><div class="progress__bar" style="width:${pct}%;background:${v.color}"></div></div>
+          </div>`;
+        })
+        .join('')}
+    </div>`;
+}
+
+function wireAuthor(body, scenario) {
+  const save = async (patch) => {
+    try {
+      await saveScenario(scenario.id, patch);
+    } catch (e) {
+      toastError(dbErrorMessage(e));
+    }
+  };
+
+  body.querySelectorAll('[data-target]').forEach((btn) =>
     btn.addEventListener('click', () => {
       editTarget = btn.dataset.target;
-      redraw(container);
+      renderAuthor(body, scenario);
     })
   );
 
-  const title = container.querySelector('#tb-title');
-  title?.addEventListener('change', () => {
-    scenario.title = title.value.trim() || 'Cenário sem título';
-    persist();
-    redraw(container);
+  const title = body.querySelector('#tb-title');
+  title?.addEventListener('change', () => save({ title: title.value.trim() || 'Cenário sem título' }));
+
+  const team = body.querySelector('#tb-team');
+  team?.addEventListener('change', () => {
+    // Mudar de equipa invalida as fichas ligadas (são de outro plantel): as
+    // peças voltam a genéricas em vez de apontarem para atletas que já não
+    // pertencem ao cenário.
+    const options = scenario.options.map((o) => ({ ...o, player_id: null }));
+    const pieces = scenario.pieces.map((p) => ({ ...p, player_id: null }));
+    save({ team_id: team.value || null, options, pieces });
   });
 
-  const note = container.querySelector('#tb-note');
-  note?.addEventListener('change', () => {
-    scenario.note = note.value;
-    persist();
+  const note = body.querySelector('#tb-note');
+  note?.addEventListener('change', () => save({ note: note.value }));
+
+  const pub = body.querySelector('#tb-pub');
+  pub?.addEventListener('change', () => {
+    save({ published: pub.checked });
+    toastOk(pub.checked ? 'Cenário publicado às atletas.' : 'Cenário voltou a rascunho.');
   });
 
-  container.querySelectorAll('.tb-att-card').forEach((card) => {
-    const att = scenario.attackers.find((a) => a.id === card.dataset.att);
-    if (!att) return;
+  body.querySelectorAll('.tb-att-card').forEach((card) => {
+    const id = card.dataset.opt;
+    const patchOption = (changes) =>
+      save({ options: scenario.options.map((o) => (o.id === id ? { ...o, ...changes } : o)) });
 
     card.querySelectorAll('[data-field]').forEach((input) =>
       input.addEventListener('change', () => {
-        att[input.dataset.field] = input.value;
-        persist();
+        const field = input.dataset.field;
+        patchOption({ [field]: field === 'player_id' ? input.value || null : input.value });
       })
     );
 
     card.querySelectorAll('[data-verdict]').forEach((btn) =>
-      btn.addEventListener('click', () => {
-        att.verdict = btn.dataset.verdict;
-        persist();
-        redraw(container);
-      })
+      btn.addEventListener('click', () => patchOption({ verdict: btn.dataset.verdict }))
     );
   });
 
-  // Arrastar peças. Pointer events (e não dragstart do HTML5) porque isto tem
-  // de funcionar ao toque no telemóvel, que é onde vai ser usado.
-  makeDraggable(svg, (id, kind, pos) => {
-    if (kind === 'setter') {
-      scenario.setter = pos;
-    } else if (kind === 'att') {
-      const a = scenario.attackers.find((x) => x.id === id);
-      if (a) Object.assign(a, pos);
-    } else if (kind === 'blk') {
-      const b = scenario.blockers.find((x) => x.id === id);
-      if (!b) return;
-      if (editTarget === 'final') {
-        b.x2 = pos.x;
-        b.y2 = pos.y;
-      } else {
-        // Mover a inicial arrasta a final junto quando ainda não há movimento
-        // definido — senão a peça "partia-se" em duas à primeira arrastada.
-        const still = Math.abs(b.x2 - b.x) < 0.05 && Math.abs(b.y2 - b.y) < 0.05;
-        if (still) {
-          b.x2 = pos.x;
-          b.y2 = pos.y;
-        }
-        b.x = pos.x;
-        b.y = pos.y;
+  // Arrastar peças. O estado só sobe à base de dados quando o dedo/rato larga
+  // — durante o arrasto atualiza-se o SVG e o objeto local, senão seria uma
+  // escrita por cada pixel percorrido.
+  const svg = body.querySelector('.tb-court');
+  const draft = {
+    actor: { ...scenario.actor },
+    options: scenario.options.map((o) => ({ ...o })),
+    pieces: scenario.pieces.map((p) => ({ ...p })),
+  };
+
+  const find = (kind, id) => {
+    if (kind === 'actor') return draft.actor;
+    if (kind === 'opt') return draft.options.find((o) => o.id === id);
+    return draft.pieces.find((p) => p.id === id);
+  };
+
+  makeDraggable(
+    svg,
+    (kind, id) => {
+      const target = find(kind, id);
+      // As opções seguem a natureza do cenário: uma zona pode estar do lado de
+      // lá, uma jogadora nossa não.
+      if (kind === 'opt') return { kind: roleOf(scenario).optionKind === 'jogadora' ? 'jogadora' : 'zona', side: 'nos' };
+      if (kind === 'actor') return { kind: 'jogadora', side: 'nos' };
+      return target;
+    },
+    (id, kind, pos) => {
+      const target = find(kind, id);
+      if (!target) return;
+      // As opções e o ator não animam — só as peças de contexto têm posição
+      // final. Uma opção que se mexesse durante a jogada deixava de ser um
+      // alvo estável para onde arrastar.
+      if (kind === 'ctx' && editTarget === 'final') {
+        target.x2 = pos.x;
+        target.y2 = pos.y;
+        return;
       }
+      if (kind === 'ctx') {
+        // Mover a inicial arrasta a final junto enquanto ainda não houver
+        // movimento definido — senão a peça "partia-se" em duas à primeira
+        // arrastada, antes de o treinador perceber o modelo.
+        const still =
+          Math.abs((target.x2 ?? target.x) - target.x) < 0.05 &&
+          Math.abs((target.y2 ?? target.y) - target.y) < 0.05;
+        if (still) {
+          target.x2 = pos.x;
+          target.y2 = pos.y;
+        }
+      }
+      target.x = pos.x;
+      target.y = pos.y;
+    },
+    async () => {
+      Object.assign(scenario, structuredClone(draft));
+      await save({ actor: draft.actor, options: draft.options, pieces: draft.pieces });
+      renderAuthor(body, scenario);
     }
-  }, () => {
-    persist();
-    redraw(container);
-  });
-}
-
-// Limites por tipo de peça: as blocadoras vivem do lado de lá da rede, as
-// nossas do lado de cá. Sem isto arrastava-se uma central para dentro do
-// campo adversário e o cenário deixava de fazer sentido.
-function limitsFor(kind) {
-  if (kind === 'blk') return { minY: 0.6, maxY: COURT.netY - 0.35 };
-  return { minY: COURT.netY + 0.5, maxY: COURT.backY - 0.5 };
-}
-
-function makeDraggable(svg, onMove, onEnd) {
-  if (!svg) return;
-  let active = null;
-
-  svg.querySelectorAll('[data-piece]').forEach((g) => {
-    const kind = g.dataset.piece;
-    if (kind === 'ball') return;
-    g.classList.add('is-draggable');
-
-    g.addEventListener('pointerdown', (e) => {
-      e.preventDefault();
-      active = { g, kind, id: g.dataset.id };
-      g.setPointerCapture(e.pointerId);
-      g.classList.add('is-dragging');
-    });
-
-    g.addEventListener('pointermove', (e) => {
-      if (!active || active.g !== g) return;
-      const p = toCourt(svg, e);
-      if (!p) return;
-      const lim = limitsFor(kind);
-      const pos = {
-        x: clamp(p.x, PLAYER_R, COURT.width - PLAYER_R),
-        y: clamp(p.y, lim.minY, lim.maxY),
-      };
-      g.setAttribute('transform', `translate(${pos.x} ${pos.y})`);
-      onMove(active.id, kind, pos);
-    });
-
-    const end = (e) => {
-      if (!active || active.g !== g) return;
-      g.classList.remove('is-dragging');
-      try { g.releasePointerCapture(e.pointerId); } catch { /* já libertado */ }
-      active = null;
-      onEnd();
-    };
-    g.addEventListener('pointerup', end);
-    g.addEventListener('pointercancel', end);
-  });
-}
-
-// ─── Exercício ──────────────────────────────────────────────────────────────
-function wireAthlete(container, scenario, svg, side) {
-  container.querySelector('[data-act="start"]')?.addEventListener('click', () => {
-    runBlockMove(container, scenario, svg, side);
-  });
-
-  container.querySelector('[data-act="again"]')?.addEventListener('click', () => {
-    phase = 'pronto';
-    answerId = null;
-    redraw(container);
-  });
-
-  if (phase === 'decidir') wireBallDrag(container, scenario, svg);
-}
-
-// As blocadoras movem-se da posição inicial para a final e ficam lá. Congelar
-// (e não voltar atrás) é de propósito: é a posição final que ela tem de ler,
-// depois de ver como se lá chegou.
-function runBlockMove(container, scenario, svg, side) {
-  phase = 'a-mover';
-  side.innerHTML = athletePanelHTML(scenario);
-
-  const nodes = scenario.blockers
-    .map((b) => ({ b, g: svg.querySelector(`[data-piece="blk"][data-id="${b.id}"]`) }))
-    .filter((n) => n.g);
-
-  const finish = () => {
-    nodes.forEach(({ b, g }) => g.setAttribute('transform', `translate(${b.x2} ${b.y2})`));
-    phase = 'decidir';
-    side.innerHTML = athletePanelHTML(scenario);
-    wireAthlete(container, scenario, svg, side);
-  };
-
-  // Quem pediu menos movimento não leva animação nenhuma — mostra-se a posição
-  // final e dá-se tempo de leitura equivalente.
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    setTimeout(finish, ANIM_MS);
-    return;
-  }
-
-  const t0 = performance.now();
-  const step = (now) => {
-    const k = Math.min(1, (now - t0) / ANIM_MS);
-    const e = k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2; // ease-in-out
-    nodes.forEach(({ b, g }) => {
-      g.setAttribute('transform', `translate(${b.x + (b.x2 - b.x) * e} ${b.y + (b.y2 - b.y) * e})`);
-    });
-    if (k < 1) animRAF = requestAnimationFrame(step);
-    else { animRAF = null; finish(); }
-  };
-  animRAF = requestAnimationFrame(step);
-}
-
-function wireBallDrag(container, scenario, svg) {
-  const ball = svg.querySelector('[data-piece="ball"]');
-  if (!ball) return;
-  ball.classList.add('is-draggable');
-
-  const start = { x: scenario.setter.x, y: scenario.setter.y - 0.95 };
-  let dragging = false;
-
-  const nearest = (p) => {
-    let best = null;
-    let bestD = Infinity;
-    scenario.attackers.forEach((a) => {
-      const d = Math.hypot(a.x - p.x, a.y - p.y);
-      if (d < bestD) { bestD = d; best = a; }
-    });
-    return bestD <= DROP_RADIUS ? best : null;
-  };
-
-  const highlight = (att) => {
-    svg.querySelectorAll('[data-piece="att"]').forEach((g) =>
-      g.classList.toggle('is-target', !!att && g.dataset.id === att.id)
-    );
-  };
-
-  ball.addEventListener('pointerdown', (e) => {
-    e.preventDefault();
-    dragging = true;
-    ball.setPointerCapture(e.pointerId);
-    ball.classList.add('is-dragging');
-  });
-
-  ball.addEventListener('pointermove', (e) => {
-    if (!dragging) return;
-    const p = toCourt(svg, e);
-    if (!p) return;
-    ball.setAttribute('transform', `translate(${p.x} ${p.y})`);
-    highlight(nearest(p));
-  });
-
-  const end = (e) => {
-    if (!dragging) return;
-    dragging = false;
-    ball.classList.remove('is-dragging');
-    try { ball.releasePointerCapture(e.pointerId); } catch { /* já libertado */ }
-
-    const p = toCourt(svg, e);
-    const att = p && nearest(p);
-    highlight(null);
-
-    if (!att) {
-      // Largar no vazio não é uma resposta errada — é um gesto falhado.
-      ball.setAttribute('transform', `translate(${start.x} ${start.y})`);
-      return;
-    }
-    answerId = att.id;
-    phase = 'resposta';
-    redraw(container);
-  };
-
-  ball.addEventListener('pointerup', end);
-  ball.addEventListener('pointercancel', end);
+  );
 }

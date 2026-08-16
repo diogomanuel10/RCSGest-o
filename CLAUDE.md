@@ -80,6 +80,7 @@ src/
   qrcode.js             Cartões QR: gerar, ler pela câmara, traduzir (libs lazy)
   players-qr.js         Folha de cartões QR imprimíveis (A4, tamanho cartão)
   offline-card.js       Cartão QR guardado no dispositivo (ecrã de recurso sem rede)
+  tactical-court.js     Campo em SVG + exercício de decisão (todas as posições)
   report-sheet.js       Folha A4 imprimível: janela, estilos e blocos comuns
   athlete-report.js     Ficha do atleta imprimível (usa report-sheet)
   game-report.js        Resumo pós-jogo imprimível (usa report-sheet)
@@ -102,6 +103,7 @@ src/
     presencas.js        Vista Presenças (marcar + estatísticas de comparência)
     quiosque.js         Modo quiosque: câmara à entrada regista presenças por QR
     resultado.js        Registo do resultado de um jogo (parciais + participação)
+    tatica.js           Vista Decisão Tática (cenários por posição; atleta responde no portal)
     treinadores.js      Vista Treinadores
     definicoes.js       Vista Definições (época, meta, escalões, limiares, backup)
     nova-epoca.js       Assistente de viragem de época (só coordenador)
@@ -112,6 +114,7 @@ supabase/qrcode-presencas.sql  Presenças por QR: token do atleta + RPCs de chec
 supabase/portal-atleta.sql     Portal: o atleta lê a sua própria disponibilidade
 supabase/comunicacao.sql       Respostas do atleta a eventos + avisos do clube
 supabase/resultados.sql        Resultado dos jogos (final + parciais) e pontos jogados
+supabase/tatica.sql            Decisão Tática: cenários de leitura de jogo + respostas
 supabase/painel-avisos.sql     Limiares do clube + avisos escolhidos por utilizador
 supabase/resumo-semanal.sql    Resumo semanal (notificação + push) e limiares de queda
 public/                 Ficheiros estáticos (modelo-atletas-rumia.xlsx)
@@ -392,6 +395,69 @@ separador antes de navegar (usado pelos cartões do Painel).
   - Definições do clube: ligar/desligar, tolerância e janela do quiosque. A UI
     só as mostra depois de a migração correr (`'qr_checkin_enabled' in
     state.settings`).
+- **Decisão Tática** (`supabase/tatica.sql`, `tactical-court.js`): treino de
+  DECISÃO — não de execução — para TODAS as posições. O treinador monta o
+  cenário arrastando as peças (`views/tatica.js`); a atleta responde no portal
+  com **um só gesto**.
+  - **Uma forma serve todas as posições.** Todas as decisões de voleibol são:
+    um campo, qualquer coisa que se move e congela, um conjunto de opções
+    classificadas, e um token que se arrasta. O que muda é só o token e as
+    opções — daí `TACTICAL_ROLES` em `constants.js` ter apenas `token`
+    (`bola`|`atleta`) e `optionKind` (`jogadora`|`zona`|`posicao`):
+
+    | Família | Posições | Pergunta | Gesto |
+    |---|---|---|---|
+    | para onde vai a bola | distribuidora, atacante, serviço | para quem / que zona? | arrasta a **bola** |
+    | onde me coloco | bloco, defesa, receção | fecho ou fico? | arrasta a **sua peça** |
+
+  - **As opções são MARCADAS pelo treinador**, também nas de posicionamento.
+    Medir a distância a um sítio "certo" reintroduzia uma resposta única com
+    tolerância — e uma central 40 cm ao lado não errou nada.
+  - **O cenário move-se e congela.** QUALQUER peça tem posição inicial (`x`,`y`)
+    e final (`x2`,`y2`); animam 1,5 s e param. É o MOVIMENTO que se lê em jogo:
+    duas centrais podem ocupar o mesmo sítio numa fotografia e significar coisas
+    opostas. Não há lista de "blocadoras": numa jogada de central quem se desloca
+    é o distribuidor adversário, numa receção é a própria bola — uma lista com
+    nome de posição fixava a ferramenta numa só pergunta.
+  - **Não há resposta certa**: cada opção é `otima|aceitavel|ma` com uma razão
+    escrita, e a atleta vê-as todas depois de responder. Por isso
+    `tactical_answers` **não tem coluna de pontuação** e o resumo
+    (`answerSummary`) conta por OPÇÃO e nunca por atleta: meio plantel a jogar
+    na ponta com a central livre é um problema de treino, não uma nota.
+  - **Só a primeira resposta é dado**: `unique (scenario_id, player_id)` e
+    nenhuma política de UPDATE. Repetir depois de ver a correção é treino
+    legítimo (a app deixa), mas já não é uma leitura — o conflito é engolido em
+    silêncio, que o atleta não fez nada de errado.
+  - **A fatia de campo é calculada, não configurada** (`viewWindow`): o viewBox
+    ajusta-se às peças do cenário, com a rede sempre visível. Desenhar os 18 m
+    encolhia o que interessa, mas uma janela fixa por posição partia-se assim
+    que o treinador arrastasse uma peça para fora dela — foi o que aconteceu
+    com o serviço, que atravessa o campo todo.
+  - **As peças ligam-se a fichas reais** (`player_id`) e mostram a altura de
+    `physical_profiles`: é o que faz o matchup deixar de ser abstrato, e o que
+    justifica isto viver na Rumia em vez de ser uma app de tática à parte.
+    Mudar a equipa do cenário desliga as fichas (são de outro plantel).
+  - **Rascunho vs publicado**: só `published` chega ao portal. Um cenário meio
+    feito ensinaria o erro. O RLS reforça-o — o atleta só lê publicados da sua
+    equipa.
+  - **Quem escreve o quê**: o treinador cria cenários SÓ nas suas equipas
+    (`team_coaches`); um cenário sem equipa é do clube — chega a todos os
+    escalões — e é exclusivo do coordenador. A política `tsc_write` é por isso
+    assimétrica em relação à `tsc_read`: o treinador **lê** os de clube mas não
+    os pode escrever. Sem isso, um treinador de séniores publicava um cenário
+    aos infantis.
+  - **No portal a atleta vê primeiro os da SUA posição** (`TACTICAL_ROLE_MATCH`
+    cruza `players.position` por palavra-chave, porque `settings.positions` é
+    configurável pelo clube), com um botão para abrir os restantes: perceber a
+    decisão de quem lhe joga a bola é dos usos mais valiosos.
+  - **Posições em METROS** do campo real (largura 0–9, rede em y=3, o nosso
+    campo a crescer para y maior) e não em píxeis, para o mesmo cenário desenhar
+    bem no telemóvel e no projetor.
+  - O arrasto usa **pointer events** e não `dragstart` do HTML5 — tem de
+    funcionar ao toque, que é onde vai ser usado.
+  - A gravação é automática e **silenciosa** (`saveScenario` no `store.js`,
+    exceção deliberada à regra dos toasts): montar um cenário são dezenas de
+    escritas em segundos, e um aviso por gesto tornava o ecrã ilegível.
 - **Resultados de jogo** (`supabase/resultados.sql`): `game_results` (final em
   sets, na perspetiva do clube) + `game_sets` (parciais). Quem regista é o
   **treinador**, depois do jogo — e é por isso que o resultado NÃO vive em
