@@ -32,6 +32,7 @@ export const SECTIONS = [
   { key: 'recrutamento', label: 'Recrutamento' },
   { key: 'financeiro',   label: 'Financeiro' },
   { key: 'plano-jogo',  label: 'Plano de Jogo' },
+  { key: 'tatica',      label: 'Decisão Tática' },
 ];
 const SECTION_KEYS = new Set(SECTIONS.map((s) => s.key));
 
@@ -104,6 +105,9 @@ const EDIT_ROLES = {
   training_plans: ['coordenador', 'treinador'],
   // Convocatórias: coordenador e treinador (o treinador só nas suas equipas — RLS).
   squads: ['coordenador', 'treinador'],
+  // Cenários de decisão tática: coordenador e treinador (nas suas equipas — RLS).
+  // O atleta responde no portal, não constrói.
+  tactical: ['coordenador', 'treinador'],
   // Gestão financeira: coordenador e direção.
   finances: ['coordenador', 'direcao'],
   // Objetivos / KPIs: todos consultam; só o coordenador cria/edita.

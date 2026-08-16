@@ -6116,3 +6116,99 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 @media (max-width: 900px) {
   .tb-layout { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Decisão Tática — autoria, resumo e entrada no portal */
+.tb-hint--tight { margin-top: -0.2rem; }
+
+.tb-check { display: flex; gap: 0.5rem; align-items: center; font-size: 0.88rem; cursor: pointer; }
+.tb-check input { width: 1rem; height: 1rem; }
+
+.tb-sum { display: flex; flex-direction: column; gap: 0.3rem; }
+.tb-sum + .tb-sum { margin-top: 0.55rem; }
+.tb-sum__head { display: flex; gap: 0.5rem; align-items: center; font-size: 0.86rem; }
+.tb-sum__head strong { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.tb-side { display: flex; flex-direction: column; gap: 0.75rem; }
+
+/* No modal do portal o campo manda: o painel passa para baixo mesmo em ecrã
+   largo, para a atleta ter o campo o maior possível no momento de decidir. */
+.tb-layout--compact { grid-template-columns: minmax(0, 1fr); }
+.tb-layout--compact .tb-court-wrap { border: 0; box-shadow: none; padding: 0; background: transparent; }
+.tb-layout--compact .tb-panel { border: 0; box-shadow: none; padding: 0.5rem 0 0; }
+
+.portal-drills { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.portal-drill {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.portal-drill__text { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
+.portal-drill__text strong { font-size: 0.92rem; }
+.portal-drill__text .badge { align-self: flex-start; }
+
+/* Decisão Tática — posições, zonas e alvos */
+.tb-our-dot  { fill: var(--navy-500); stroke: var(--surface); }
+/* As opções que são SÍTIOS (zonas, posições) desenham-se como alvos e não
+   como jogadoras: um círculo cheio leria-se como "está aqui alguém". */
+.tb-zone-dot {
+  fill: var(--yellow);
+  fill-opacity: 0.16;
+  stroke: var(--yellow-600);
+  stroke-width: 0.07;
+  stroke-dasharray: 0.2 0.14;
+}
+.tb-zone-label {
+  fill: var(--text);
+  font-size: 0.26px;
+  font-weight: 600;
+  text-anchor: middle;
+  font-family: var(--font-body);
+  pointer-events: none;
+}
+.tb-piece--zone.is-target .tb-zone-dot { fill-opacity: 0.4; stroke-dasharray: none; stroke-width: 0.12; }
+.tb-piece--opt.is-target .tb-att-dot   { stroke: var(--yellow); stroke-width: 0.16; }
+
+.tb-token { cursor: default; }
+.tb-token.is-draggable { cursor: grab; touch-action: none; }
+.tb-token.is-dragging  { cursor: grabbing; }
+
+.tb-tag--role {
+  background: var(--navy-100);
+  color: var(--navy);
+  align-self: flex-start;
+}
+.tb-role-head { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; font-size: 0.85rem; }
+
+/* Escolher a posição ao criar um cenário */
+.tb-roles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0.5rem;
+}
+.tb-role-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  text-align: left;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font: inherit;
+  color: var(--text);
+  cursor: pointer;
+}
+.tb-role-card:hover { border-color: var(--navy-300); background: var(--surface); }
+.tb-role-card strong { font-family: var(--font-title); font-size: 1rem; }
+.tb-role-card .muted { font-size: 0.82rem; }
+.tb-role-card__gesture { font-size: 0.75rem; color: var(--navy-500); }
+
+/* O campo pode ficar alto (vista das duas metades); limita-se para não empurrar
+   o painel para fora do ecrã em desktop. */
+.tb-court-wrap { display: flex; justify-content: center; }
+.tb-court { max-height: 74vh; }

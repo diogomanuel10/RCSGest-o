@@ -85,10 +85,9 @@ const NAV = [
   { key: 'treinadores',  label: 'Treinadores',   icon: ICONS.treinadores,  render: renderTreinadores,   group: 'desportivo' },
   { key: 'recrutamento', label: 'Recrutamento',  icon: ICONS.recrutamento, render: renderRecrutamento,  group: 'desportivo' },
   { key: 'plano-jogo',   label: 'Plano de Jogo', icon: ICONS['plano-jogo'], render: renderPlanoJogo,    group: 'desportivo' },
-  // PROTÓTIPO: visível a todos os papéis (incluindo o atleta, que é quem faz o
-  // exercício) porque ainda não há chave de secção nem RLS para isto. Quando
-  // passar a definitivo entra em SECTION_KEYS como as restantes.
-  { key: 'tatica',       label: 'Decisão Tática', icon: ICONS.tatica,      render: renderTatica,        group: 'desportivo', alias: 'distribuidora leitura de bloco free ball cenários decisão', can: () => true },
+  // O atleta não entra por aqui: os cenários chegam-lhe pelo portal ("A minha
+  // página"), junto ao resto do que é dele.
+  { key: 'tatica',       label: 'Decisão Tática', icon: ICONS.tatica,      render: renderTatica,        group: 'desportivo', alias: 'distribuidora leitura de bloco free ball cenários decisão' },
 
   { key: 'saude',        label: 'Saúde & Física', icon: ICONS.medico,      render: renderSaude,         group: 'desportivo', alias: 'fisioterapia lesões dept. médico preparação física ginásio periodização', can: () => canAccess('medico') || canAccess('fisica') },
 

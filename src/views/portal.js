@@ -2,10 +2,11 @@
 // Mostra o calendário da equipa, as presenças do próprio e as suas quotas.
 // O RLS garante que o atleta só recebe os seus próprios dados.
 
-import { state, respondToEvent, dbErrorMessage } from '../store.js';
+import { state, respondToEvent, saveTacticalAnswer, dbErrorMessage } from '../store.js';
 import { toastOk, toastError } from '../toast.js';
 import { getNotifications } from '../notifications.js';
 import { saveOfflineCard } from '../offline-card.js';
+import { renderDrill, roleOf } from '../tactical-court.js';
 import { esc, euros, emptyHTML } from '../ui.js';
 import {
   upcomingEvents,
@@ -34,7 +35,24 @@ import {
   AVAILABILITY_BADGE,
   EVENT_RESPONSES,
   WEEKDAYS,
+  TACTICAL_ROLE_LABEL,
+  TACTICAL_ROLE_MATCH,
 } from '../constants.js';
+
+// Estado local: a atleta pediu para ver também os cenários de outras posições?
+let drillsShowAll = false;
+
+// A posição do cenário casa com a da atleta? O cruzamento é por palavra-chave
+// porque `settings.positions` é configurável pelo clube — um chama-lhe
+// "Distribuidor", outro "Passador", e nenhum tem de saber que isto existe.
+// Sem posição na ficha, mostra-se tudo: é melhor do que esconder.
+function roleMatchesPlayer(role, position) {
+  const keys = TACTICAL_ROLE_MATCH[role];
+  if (!keys || !keys.length) return true;   // ex.: serviço — toda a gente serve
+  if (!position) return true;
+  const p = position.toLowerCase();
+  return keys.some((k) => p.includes(k));
+}
 
 // Data curta para as listas: "Dom 02/08". Em pt-PT o `weekday: 'short'` do
 // Intl devolve o nome inteiro ("domingo"), que parte a coluna em duas linhas —
@@ -77,6 +95,21 @@ export function renderPortal(container) {
   const avisos = getNotifications()
     .filter((n) => n.type === 'club_announcement')
     .slice(0, 5);
+
+  // Cenários de decisão tática publicados para ela. O RLS já só lhe entrega os
+  // publicados da sua equipa (ou do clube); o filtro aqui é defensivo.
+  const allDrills = (state.tacticalScenarios || []).filter(
+    (sc) => sc.published && (!sc.team_id || sc.team_id === me.team_id)
+  );
+  // Por omissão mostram-se os da POSIÇÃO dela — é o que ela veio fazer. Mas
+  // pode abrir os restantes: uma central perceber a decisão de quem lhe joga a
+  // bola é provavelmente a coisa mais útil que aqui há.
+  const mineDrills = allDrills.filter((sc) => roleMatchesPlayer(sc.role, me.position));
+  const drills = drillsShowAll || !mineDrills.length ? allDrills : mineDrills;
+  const otherCount = allDrills.length - mineDrills.length;
+  const answered = new Set(
+    (state.tacticalAnswers || []).filter((a) => a.player_id === me.id).map((a) => a.scenario_id)
+  );
 
   const greeting = greet();
   const first = (me.name || '').split(/\s+/)[0] || '';
@@ -146,6 +179,36 @@ export function renderPortal(container) {
     </section>
     ` : ''}
 
+    ${drills.length ? `
+    <section class="card">
+      <h2 class="section-title upcoming-card__title">Decisão tática</h2>
+      <p class="muted" style="margin:0.2rem 0 0.8rem;font-size:0.86rem">
+        Lê o que se passa no campo e escolhe o que farias. Não há uma resposta
+        certa — no fim vês o que o teu treinador pensa de cada opção.
+      </p>
+      <ul class="portal-drills">
+        ${drills.map((sc) => `
+          <li class="portal-drill">
+            <div class="portal-drill__text">
+              <span class="tb-tag tb-tag--role">${esc(TACTICAL_ROLE_LABEL[sc.role] || sc.role)}</span>
+              <strong>${esc(sc.title)}</strong>
+              ${answered.has(sc.id) ? '<span class="badge badge--muted">já respondeste</span>' : ''}
+            </div>
+            <button class="btn btn--sm btn--primary" data-drill="${sc.id}">
+              ${answered.has(sc.id) ? 'Repetir' : 'Começar'}
+            </button>
+          </li>`).join('')}
+      </ul>
+      ${mineDrills.length && otherCount
+        ? `<button class="btn btn--link" data-drills-toggle style="margin-top:0.6rem">
+             ${drillsShowAll
+               ? 'Mostrar só os da minha posição'
+               : `Ver também os das outras posições (${otherCount})`}
+           </button>`
+        : ''}
+    </section>
+    ` : ''}
+
     <section class="card">
       <h2 class="section-title upcoming-card__title">Próximos treinos e jogos</h2>
       <p class="muted" style="margin:0.2rem 0 0.6rem;font-size:0.86rem">
@@ -200,6 +263,21 @@ export function renderPortal(container) {
         : '<p class="muted" style="margin:0.3rem 0 0">Sem quotas registadas.</p>'}
     </section>
   `;
+
+  // Abrir um cenário de decisão tática. Corre num modal para ela ficar só com
+  // o campo à frente — no telemóvel, o resto do portal à volta roubava-lhe o
+  // ecrã precisamente no momento em que tem de ler o bloco.
+  container.querySelector('[data-drills-toggle]')?.addEventListener('click', () => {
+    drillsShowAll = !drillsShowAll;
+    renderPortal(container);
+  });
+
+  container.querySelectorAll('[data-drill]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const sc = state.tacticalScenarios.find((x) => x.id === btn.dataset.drill);
+      if (sc) openDrillModal(sc, me);
+    });
+  });
 
   // Responder a um evento. Um "não vou" pede o motivo: é o que transforma
   // uma falta anónima em informação útil para quem treina.
@@ -357,4 +435,46 @@ function quotaLine(q) {
         : '<span class="badge badge--warn">Pendente</span>'}
     </li>
   `;
+}
+
+// Modal do exercício de decisão tática.
+//
+// O exercício em si vem de `tactical-court.js` — é o MESMO código que o
+// treinador vê ao pré-visualizar. Aqui só se trata do invólucro e de gravar a
+// resposta.
+//
+// A gravação é silenciosa de propósito: a atleta não precisa de saber que
+// ficou registado, e um aviso a dizer "resposta guardada" no momento em que
+// ela está a ler a correção só a distraía do que interessa. Se falhar, também
+// não se grita — o exercício valeu-lhe à mesma.
+function openDrillModal(scenario, me) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal card modal--wide" role="dialog" aria-modal="true" aria-label="${esc(scenario.title)}">
+      <button type="button" class="modal__close" aria-label="Fechar">&times;</button>
+      <div data-drill-host></div>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.body.classList.add('no-scroll');
+
+  let stop = null;
+  const close = () => {
+    stop?.();
+    overlay.remove();
+    if (!document.querySelector('.modal-overlay')) document.body.classList.remove('no-scroll');
+    document.removeEventListener('keydown', onKey);
+  };
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  document.addEventListener('keydown', onKey);
+  overlay.querySelector('.modal__close').addEventListener('click', close);
+  overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
+  overlay.querySelector('.modal__close').focus();
+
+  stop = renderDrill(overlay.querySelector('[data-drill-host]'), scenario, {
+    compact: true,
+    onAnswer: (att) => {
+      saveTacticalAnswer(scenario.id, me.id, att.id, att.verdict).catch(() => {});
+    },
+  });
 }
