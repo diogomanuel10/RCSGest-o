@@ -59,7 +59,7 @@ import { openSponsorForm } from './patrocinios.js';
 import { openFinanceiroTab } from './financeiro.js';
 import { openAthleteProfile } from './athlete-profile.js';
 import { confirmDialog } from '../modal.js';
-import { openSquadModal } from './convocatorias.js';
+import { setSelectedEvent } from './presencas.js';
 import { openResultModal } from './resultado.js';
 import { toastError } from '../toast.js';
 import { openSeasonPlanning } from './planteis.js';
@@ -1178,7 +1178,7 @@ function coachTodayRow(ev) {
       </div>
       <div style="display:flex;gap:0.4rem;align-items:center;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
         ${isJogo
-          ? `${canEdit('squads') && ev.team_id ? `<button class="btn btn--ghost btn--sm" data-squad-event="${ev.id}" type="button">Convocatória</button>` : ''}
+          ? `${canEdit('squads') && canAccess('presencas') && ev.team_id ? `<button class="btn btn--ghost btn--sm" data-squad-event="${ev.id}" type="button">Convocatória</button>` : ''}
              ${canEdit('game_results') ? `<button class="btn btn--accent btn--sm" data-result-event="${ev.id}" type="button">Resultado</button>` : ''}`
           : `<button class="btn btn--ghost btn--sm" data-plan-event="${ev.id}" type="button">Plano</button>
              ${canEdit('attendances') ? `<button class="btn btn--accent btn--sm" data-mark-event="${ev.id}" type="button">Marcar</button>` : ''}`}
@@ -1267,7 +1267,10 @@ function wireCoachPainel(container, antigos) {
     btn.addEventListener('click', () => openResultModal(btn.dataset.resultEvent))
   );
   container.querySelectorAll('[data-squad-event]').forEach((btn) =>
-    btn.addEventListener('click', () => openSquadModal(btn.dataset.squadEvent))
+    btn.addEventListener('click', () => {
+      setSelectedEvent(btn.dataset.squadEvent);
+      navTo('presencas');
+    })
   );
   container.querySelectorAll('[data-nav]').forEach((el) =>
     el.addEventListener('click', () => {

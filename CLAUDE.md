@@ -35,8 +35,14 @@ conforme o `role` + RLS. Ver `supabase/multitenant.sql` (corre DEPOIS de
 - **Subscrições**: `organizations.status` (`trial`/`ativa`/`suspensa`/
   `cancelada`) + `trial_ends_at`. O *gate* em `app-shell.js` (`orgAccess()`)
   bloqueia clubes inativos (`subscription-blocked.js`).
-- **Planos** (tabela `plans`, ver `supabase/plans.sql`): 5 níveis (Solo,
-  Treinador+, Essencial, Clube, Clube+) via `organizations.plan`. São
+- **Planos** (tabela `plans`, ver `supabase/plans.sql`): 3 níveis (Treinador,
+  Clube, Clube+) via `organizations.plan`. Eram cinco — o nível de entrada mais
+  barato ancorava o preço de todos os outros, e escolher entre "Essencial" e
+  "Clube" obrigava o clube a decidir, antes de experimentar, se ia querer
+  departamento médico. Os planos antigos (`solo`, `treinador_plus`,
+  `essencial`) mapeiam sempre PARA CIMA em `PLAN_ALIASES`, e
+  `supabase/plans-consolidacao.sql` move os clubes na base de dados: tirar um
+  módulo a quem já o usava é a forma mais rápida de o perder. São
   **editáveis** pelo admin da plataforma em `admin.js` (Plataforma → Planos):
   módulos premium incluídos (`quotas`, `medico`, `fisica`, `equipamentos`,
   `encomendas`, `documentos`, `financeiro`, `ia` — catálogo em
@@ -68,7 +74,7 @@ src/
   main.js               Arranque: config -> login -> app shell (router de sessão)
   supabase.js           Cria o cliente Supabase e deteta variáveis em falta
   auth.js               Login/logout/sessão + mensagens de erro em PT
-  store.js              Camada de dados: cache em memória, CRUD, backup, eventos
+  store.js              Camada de dados: cache em memória, CRUD, eventos
   compute.js            Cálculos derivados (totais, próximos eventos, nomes…)
   permissions.js        Papéis e capacidades (canEdit, canManageUsers…)
   constants.js          Valores partilhados (níveis, estados, escalões, etc.)
@@ -89,7 +95,8 @@ src/
     config-help.js      Ecrã quando faltam as variáveis do Supabase
     login.js            Ecrã de login
     app-shell.js        Layout (top bar + barra lateral colapsável + router)
-    painel.js           Vista Painel
+    inicio.js           Secção Painel (separadores Resumo + Objetivos)
+    painel.js           Vista Painel (o resumo, diferente por papel)
     patrocinios.js      Separador Patrocínios (dentro do Financeiro)
     planteis.js         Vista Plantéis (CRUD + importar atletas via .xlsx)
     athlete-profile.js  Perfil do Atleta (modal unificado com separadores)
@@ -100,13 +107,14 @@ src/
     preparacao.js       Separador Prep. física (atletas + periodização + mapa de jogos)
     physical-file.js    Área de Prep. física do perfil (dados físicos, avaliações, controlo)
     calendario.js       Vista Calendário
-    presencas.js        Vista Presenças (marcar + estatísticas de comparência)
+    presencas.js        Quem vem a um evento: presenças (treino) ou convocatória (jogo)
     quiosque.js         Modo quiosque: câmara à entrada regista presenças por QR
     resultado.js        Registo do resultado de um jogo (parciais + participação)
-    tatica.js           Vista Decisão Tática (cenários por posição; atleta responde no portal)
+    treino.js           Secção Treino (separadores Exercícios + Decisão Tática)
+    tatica.js           Decisão Tática (cenários por posição; atleta responde no portal)
     exercicios.js       Biblioteca de exercícios do clube (+ escolher da biblioteca)
     treinadores.js      Vista Treinadores
-    definicoes.js       Vista Definições (época, meta, escalões, limiares, backup)
+    definicoes.js       Vista Definições (época, meta, escalões, limiares)
     nova-epoca.js       Assistente de viragem de época (só coordenador)
     utilizadores.js     Vista Utilizadores (gestão de papéis — só coordenador)
     arquivados.js       Vista Arquivados (registos inativos + repor — só coordenador)
@@ -152,7 +160,13 @@ browser desfaz o último passo e os links são partilháveis.
 - `loadAll()` — vai buscar tudo ao Supabase em paralelo (uma vez).
 - `createRow / updateRow / deleteRow` — operações genéricas que atualizam o
   Supabase **e** a cache local, e depois notificam.
-- `saveSettings`, `replaceAllData` (importar backup), `snapshot` (exportar).
+- `saveSettings`.
+  Não há exportar/importar backup em `.json`: existiu, exportava seis das mais
+  de quarenta tabelas e a importação apagava eventos, atletas, equipas,
+  patrocínios e treinadores (com tudo o que deles dependia, em cascata). Um
+  ficheiro chamado "backup" que restaura um quinto dos dados e destrói o resto
+  é pior do que não existir. A exportação dos dados de um titular (RGPD) é
+  coisa à parte, por atleta, e está por fazer.
 - `subscribe(fn)` — padrão observador. O `app-shell` subscreve e re-desenha a
   vista atual sempre que os dados mudam. **Não há estado de UI na base de
   dados** — só dados.
@@ -237,6 +251,8 @@ camada extra.
 
 | Secção         | Separadores (permissão)                                             |
 |----------------|---------------------------------------------------------------------|
+| `painel`       | Resumo (`painel`) · Objetivos (`objetivos`)                          |
+| `treino`       | Exercícios (`exercicios`) · Decisão tática (`tatica`)                |
 | `financeiro`   | Livro-razão (`financeiro`) · Patrocínios (`patrocinios`) · Quotas (`quotas`) |
 | `saude`        | Fisioterapia (`medico`) · Prep. física (`fisica`)                    |
 | `equipamentos` | Inventário (`equipamentos`) · Encomendas (`encomendas`)              |
@@ -246,8 +262,10 @@ A entrada só aparece se **alguma** das suas permissões passar (ver `can` no
 separador antes de navegar (usado pelos cartões do Painel).
 
 - **Endereços antigos**: `LEGACY_ROUTES` no `app-shell` redirecciona `#/medico`,
-  `#/fisica`, `#/quotas` e `#/patrocinios` para a secção que os absorveu, já no
-  separador certo — links partilhados e favoritos continuam a funcionar.
+  `#/fisica`, `#/quotas`, `#/patrocinios`, `#/exercicios`, `#/tatica` e
+  `#/objetivos` para a secção que os absorveu, já no separador certo — links
+  partilhados e favoritos continuam a funcionar. Pelo mesmo motivo, o `navTo()`
+  do Painel escreve no hash quando a rota já não tem botão na barra lateral.
 - **Pesquisa**: cada entrada do `NAV` pode ter `alias` com o que vive lá dentro
   (ex.: "quotas patrocínios" no Financeiro), para quem procura pelo nome da
   coisa e não pelo da secção.
@@ -552,6 +570,23 @@ separador antes de navegar (usado pelos cartões do Painel).
   ser lida. **Não é um
   juízo sobre o treinador** — é obrigar a que seja decisão consciente em vez de
   uma coisa que simplesmente acontece.
+- **"Quem vem" é um ecrã só, por evento** (`presencas.js`): a convocatória era
+  um modal do Calendário, a resposta do atleta decorava dois ecrãs diferentes e
+  as presenças eram uma secção à parte que só via treinos. São três perguntas
+  sobre o MESMO evento e as mesmas pessoas, e ninguém as faz em separado.
+  Escolhe-se o evento e o ecrã adapta-se ao tipo:
+  - **treino** → respostas + presenças (Presente / Atraso / Justificado / Falta),
+    com o quiosque QR e o "fechar sessão";
+  - **jogo** → respostas + convocatória (convocado / titular / suplente).
+
+  A separação por tipo é deliberada: `attendanceStats` conta TODAS as presenças
+  que existirem, por isso marcar presenças em jogos misturaria comparência ao
+  treino com participação em jogo — os dois números que o
+  `trainingVsPlayingGaps` cruza precisamente por serem diferentes. Quem jogou
+  mede-se em pontos, no registo do resultado. O Calendário e o Painel deixam de
+  abrir um modal: escolhem o evento (`setSelectedEvent`) e navegam para cá, e o
+  botão só aparece a quem tem acesso à secção.
+
 - **Comunicação clube ↔ atleta** (`supabase/comunicacao.sql`): o portal deixa
   de ser só de leitura.
   - **Atleta → clube**: `event_responses` (`vou`|`nao_vou`|`duvida` + motivo)
