@@ -528,8 +528,15 @@ function todayRow(ev) {
 }
 
 // Navega para uma secção, reaproveitando os botões da barra lateral.
+//
+// Nem toda a rota tem botão: os Objetivos passaram a ser um separador do
+// Painel e deixaram de ter entrada própria. Nesses casos escreve-se no hash,
+// que é a fonte de verdade da navegação — o app-shell trata do resto
+// (LEGACY_ROUTES abre a secção já no separador certo).
 function navTo(route) {
-  document.querySelector(`[data-route="${route}"]`)?.click();
+  const btn = document.querySelector(`[data-route="${route}"]`);
+  if (btn) btn.click();
+  else location.hash = `#/${route}`;
 }
 
 // Catálogo dos avisos do Painel. Cada um declara quem o PODE ver (`can`) —
