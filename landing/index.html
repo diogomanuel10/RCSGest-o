@@ -546,9 +546,9 @@
       "inLanguage": "pt-PT",
       "description": "Plataforma de gestão desportiva para clubes: plantéis, calendário, presenças por QR, departamento médico, preparação física, quotas, finanças e patrocínios.",
       "offers": [
-        { "@type": "Offer", "name": "Treinador", "priceCurrency": "EUR", "availability": "https://schema.org/InStock" },
-        { "@type": "Offer", "name": "Clube", "priceCurrency": "EUR", "availability": "https://schema.org/InStock" },
-        { "@type": "Offer", "name": "Clube+", "priceCurrency": "EUR", "availability": "https://schema.org/InStock" }
+        { "@type": "Offer", "name": "Treinador", "price": "19", "priceCurrency": "EUR" },
+        { "@type": "Offer", "name": "Clube", "price": "49", "priceCurrency": "EUR" },
+        { "@type": "Offer", "name": "Clube+", "price": "79", "priceCurrency": "EUR" }
       ]
     },
     {
@@ -587,7 +587,7 @@
         {
           "@type": "Question",
           "name": "Os preços incluem IVA? Posso mudar de plano?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Os valores são mensais e não incluem IVA à taxa legal em vigor. Podes subir ou descer de plano a qualquer momento e não há fidelização." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Os valores são mensais e não incluem IVA à taxa legal em vigor. Podes subir ou descer de plano a qualquer momento, não há fidelização, e o pagamento anual dá dois meses." }
         },
         {
           "@type": "Question",
@@ -921,9 +921,9 @@
 <!-- ================= PREÇOS ================= -->
 <!--
   ┌──────────────────────────────────────────────────────────────────┐
-  │  PREÇOS POR DEFINIR. Cada plano mostra "—" onde vai o montante.  │
-  │  Procura por PRECO-POR-DEFINIR e substitui os três blocos:       │
-  │  o valor mensal (.plan__price) e a linha anual (.plan__year).    │
+  │  Preços: 19 / 49 / 79 € por mês, ou dez meses no pagamento       │
+  │  anual. Para os mudar, procura por PRECO e ajusta os três        │
+  │  blocos: o valor mensal (.plan__price) e a linha anual.          │
   │                                                                  │
   │  Os NOMES, MÓDULOS e LIMITES batem com os da app (Treinador ·    │
   │  Clube · Clube+ — ver supabase/plans.sql e src/plans.js). Se     │
@@ -941,9 +941,9 @@
       <div class="plan reveal">
         <div class="plan__name">Treinador</div>
         <p class="plan__desc">Um treinador e os seus escalões.</p>
-        <!-- PRECO-POR-DEFINIR -->
-        <div class="plan__price">—<span class="per"> /mês</span></div>
-        <p class="plan__year">sob consulta</p>
+        <!-- PRECO -->
+        <div class="plan__price">19€<span class="per"> /mês</span></div>
+        <p class="plan__year">ou 190€/ano — dois meses grátis</p>
         <ul class="plan__list">
           <li><span class="tick">✓</span> Plantéis e fichas de atleta</li>
           <li><span class="tick">✓</span> Calendário, presenças por QR e convocatórias</li>
@@ -957,9 +957,9 @@
         <span class="plan__badge">Mais popular</span>
         <div class="plan__name">Clube</div>
         <p class="plan__desc">O clube completo, com equipa técnica e médica.</p>
-        <!-- PRECO-POR-DEFINIR -->
-        <div class="plan__price">—<span class="per"> /mês</span></div>
-        <p class="plan__year">sob consulta</p>
+        <!-- PRECO -->
+        <div class="plan__price">49€<span class="per"> /mês</span></div>
+        <p class="plan__year">ou 490€/ano — dois meses grátis</p>
         <ul class="plan__list">
           <li><span class="tick">✓</span> Tudo do Treinador, sem limite de escalões</li>
           <li><span class="tick">✓</span> Quotas (ficha de sócio), equipamentos e encomendas</li>
@@ -973,9 +973,9 @@
       <div class="plan reveal">
         <div class="plan__name">Clube+</div>
         <p class="plan__desc">Tudo, com visão de direção e análise avançada.</p>
-        <!-- PRECO-POR-DEFINIR -->
-        <div class="plan__price">—<span class="per"> /mês</span></div>
-        <p class="plan__year">sob consulta</p>
+        <!-- PRECO -->
+        <div class="plan__price">79€<span class="per"> /mês</span></div>
+        <p class="plan__year">ou 790€/ano — dois meses grátis</p>
         <ul class="plan__list">
           <li><span class="tick">✓</span> Tudo do Clube</li>
           <li><span class="tick">✓</span> Financeiro (visão de direção)</li>
@@ -1026,7 +1026,7 @@
       </details>
       <details class="qa">
         <summary>Os preços incluem IVA? Posso mudar de plano?</summary>
-        <p>Os valores são mensais e <strong>não incluem IVA</strong> à taxa legal em vigor. Podes subir ou descer de plano a qualquer momento e não há fidelização.</p>
+        <p>Os valores são mensais e <strong>não incluem IVA</strong> à taxa legal em vigor. Podes subir ou descer de plano a qualquer momento, não há fidelização, e o pagamento anual dá dois meses.</p>
       </details>
       <details class="qa">
         <summary>Como começo?</summary>
