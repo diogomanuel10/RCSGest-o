@@ -1478,68 +1478,15 @@ export async function saveSettings(values) {
   return data;
 }
 
-// --- Backup: substituir todos os dados (importar) ------------------------
-// Apaga o que existe e insere o conteúdo do backup, respeitando a ordem das
-// relações (filhos primeiro a apagar, pais primeiro a inserir).
-export async function replaceAllData(backup) {
-  const delFilter = (q) => q.not('id', 'is', null);
-
-  // Apagar (ordem segura para as chaves estrangeiras).
-  for (const table of ['events', 'players', 'teams', 'sponsors', 'coaches']) {
-    const { error } = await delFilter(supabase.from(table).delete());
-    if (error) throw error;
-  }
-
-  // Inserir (pais primeiro). Só insere se houver linhas. Remove o org_id das
-  // linhas para o DEFAULT (current_org_id) reatribuir ao clube atual — assim um
-  // backup pode ser reimportado noutro clube sem colidir com o isolamento.
-  const insertOrder = ['coaches', 'teams', 'players', 'sponsors', 'events'];
-  for (const table of insertOrder) {
-    const rows = backup[table];
-    if (Array.isArray(rows) && rows.length) {
-      const clean = rows.map(({ org_id, ...rest }) => rest);
-      const { error } = await supabase.from(table).insert(clean);
-      if (error) throw error;
-    }
-  }
-
-  // Definições (linha única).
-  if (backup.settings) {
-    const { season, goal, escaloes, sport, positions, doc_alert_days,
-            club_name, app_name, motto,
-            brand_primary, brand_accent, logo } = backup.settings;
-    const values = { season, goal };
-    if (Array.isArray(escaloes)) values.escaloes = escaloes;
-    // Modalidade e posições (se o backup as trouxer).
-    if (sport !== undefined) values.sport = sport;
-    if (Array.isArray(positions)) values.positions = positions;
-    if (doc_alert_days !== undefined) values.doc_alert_days = doc_alert_days;
-    // Marca do clube (se o backup a trouxer).
-    if (club_name !== undefined) values.club_name = club_name;
-    if (app_name !== undefined) values.app_name = app_name;
-    if (motto !== undefined) values.motto = motto;
-    if (brand_primary !== undefined) values.brand_primary = brand_primary;
-    if (brand_accent !== undefined) values.brand_accent = brand_accent;
-    if (logo !== undefined) values.logo = logo;
-    await saveSettings(values);
-  }
-
-  await loadAll();
-}
-
-// Snapshot de todos os dados, para exportar.
-export function snapshot() {
-  return {
-    version: 1,
-    exportedAt: new Date().toISOString(),
-    settings: state.settings,
-    coaches: state.coaches,
-    teams: state.teams,
-    players: state.players,
-    sponsors: state.sponsors,
-    events: state.events,
-  };
-}
+// Nota: a cópia de segurança em .json (exportar/importar) foi removida.
+// Prometia uma coisa que não cumpria: exportava SEIS tabelas de mais de
+// quarenta — sem presenças, quotas, dados clínicos, físicos ou financeiros —
+// e a importação APAGAVA eventos, atletas, equipas, patrocínios e treinadores,
+// levando atrás, em cascata, tudo o que dependia deles. Um ficheiro chamado
+// "backup" que restaura um quinto dos dados e destrói o resto é pior do que
+// não existir. As cópias de segurança da base de dados são responsabilidade do
+// Supabase; a exportação dos dados de um titular (RGPD) fica por fazer e é
+// coisa à parte, por atleta e não por clube.
 
 // Mensagens de erro de base de dados em português europeu.
 export function dbErrorMessage(error) {

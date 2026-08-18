@@ -33,14 +33,15 @@ create policy "plans_write" on plans for all to authenticated
 
 -- Seed inicial (só insere o que faltar; não mexe no que já personalizaste).
 insert into plans (key, name, sort, description, features, max_escaloes, max_users) values
-  ('solo',           'Solo',       1, 'Um treinador, um escalão.',
-     '[]'::jsonb, 1, 1),
-  ('treinador_plus', 'Treinador+', 2, 'Um treinador com vários escalões e coordenação técnica.',
+  ('treinador',  'Treinador', 1, 'Um treinador e os seus escalões: plantéis, calendário, presenças e treino.',
      '[]'::jsonb, 3, 2),
-  ('essencial',      'Essencial',  3, 'Gestão do clube com ficha de sócio, material e documentos.',
-     '["quotas","equipamentos","encomendas","documentos"]'::jsonb, null, 5),
-  ('clube',          'Clube',      4, 'Clube completo: médico, preparação física, material e documentos.',
+  ('clube',      'Clube',     2, 'O clube completo: ficha de sócio, material, documentos, fisioterapia e preparação física.',
      '["quotas","equipamentos","encomendas","documentos","medico","fisica"]'::jsonb, null, 15),
-  ('clube_plus',     'Clube+',     5, 'Tudo, mais visão de direção (financeiro) e análise/IA.',
+  ('clube_plus', 'Clube+',    3, 'Tudo, mais visão de direção (financeiro) e análise/IA.',
      '["quotas","equipamentos","encomendas","documentos","medico","fisica","financeiro","ia"]'::jsonb, null, null)
 on conflict (key) do nothing;
+
+-- Se já correste a versão de CINCO planos (Solo, Treinador+, Essencial), corre
+-- também `plans-consolidacao.sql`: move os clubes desses planos para os novos e
+-- remove-os da tabela. Este ficheiro sozinho não lhes toca, de propósito — o
+-- seed nunca mexe em dados existentes.

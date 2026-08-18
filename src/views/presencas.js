@@ -1,11 +1,30 @@
-// Vista: Presenças nos treinos.
-// Seleciona um treino, mostra os atletas da equipa e permite marcar presença
-// com 4 estados: Presente / Atraso (com minutos) / Justificado (com texto) / Falta.
+// Vista: quem vem — um evento de cada vez.
+//
+// "Quem vem" andava dividido por três sítios: a convocatória (modal aberto do
+// Calendário), a resposta do atleta (a decorar dois ecrãs diferentes) e o
+// registo de presenças (esta secção, só para treinos). São perguntas
+// diferentes sobre o MESMO evento e as mesmas pessoas, e ninguém as faz em
+// separado: escolhe-se o evento e quer-se ver tudo o que se sabe sobre quem lá
+// vai estar. Passam a ser um só ecrã, escolhido pelo tipo do evento:
+//
+//   • treino → respostas + presenças (Presente / Atraso / Justificado / Falta)
+//   • jogo   → respostas + convocatória (convocado / titular / suplente)
+//
+// A separação por tipo é deliberada e não é preguiça. Presença é registo de
+// treino: `attendanceStats` conta TODAS as presenças que existirem, e marcar
+// presenças em jogos misturaria comparência ao treino com participação em
+// jogo — dois números que a app usa para coisas opostas (ver
+// `trainingVsPlayingGaps`). Quem jogou mede-se em pontos, no registo do
+// resultado.
 
-import { state, upsertAttendance, closeAttendanceSession, dbErrorMessage } from '../store.js';
+import { state, upsertAttendance, closeAttendanceSession,
+         ensureSquad, upsertSquadPlayer, removeSquadPlayer, dbErrorMessage } from '../store.js';
 import { esc, emptyHTML } from '../ui.js';
-import { eventDateTime, eventTimeRange, teamById, teamName, eventResponseSummary } from '../compute.js';
-import { ATTENDANCE_STATUSES, ATTENDANCE_LABEL, ATTENDANCE_BADGE } from '../constants.js';
+import { eventDateTime, eventTimeRange, teamById, teamName, eventResponseSummary,
+         playerEventResponse } from '../compute.js';
+import { ATTENDANCE_STATUSES, ATTENDANCE_LABEL, ATTENDANCE_BADGE,
+         SQUAD_STATUSES, SQUAD_STATUS_LABEL, SQUAD_STATUS_BADGE,
+         EVENT_RESPONSE_LABEL, EVENT_RESPONSE_BADGE } from '../constants.js';
 import { canEdit } from '../permissions.js';
 import { confirmDialog } from '../modal.js';
 import { toastError } from '../toast.js';
@@ -14,8 +33,10 @@ let selectedEventId = null;
 let presTab = 'sessao'; // 'sessao' | 'estatisticas'
 let summaryTeamId = '';
 
-// Pré-seleciona uma sessão de treino (usado pelo atalho do Painel).
-export function setSelectedTraining(id) {
+// Pré-seleciona um evento (usado pelos atalhos do Painel e do Calendário —
+// tanto para marcar presenças num treino como para abrir a convocatória de um
+// jogo, que é agora o mesmo ecrã).
+export function setSelectedEvent(id) {
   selectedEventId = id;
   presTab = 'sessao';
 }
@@ -23,20 +44,22 @@ export function setSelectedTraining(id) {
 export function renderPresencas(container) {
   const editable = canEdit('attendances');
 
-  // Treinos ordenados do mais recente para o mais antigo
-  const trainings = state.events
-    .filter((e) => e.type === 'treino')
+  const canSquad = canEdit('squads');
+
+  // Treinos E jogos, do mais recente para o mais antigo.
+  const eventos = state.events
+    .filter((e) => e.type === 'treino' || e.type === 'jogo')
     .sort((a, b) => eventDateTime(b) - eventDateTime(a));
 
-  if (!trainings.length) {
+  if (!eventos.length) {
     container.innerHTML = `
       <header class="page-head">
         <div>
           <h1 class="section-title">Presenças</h1>
-          <p class="muted" style="margin:0;font-size:0.88rem">Registo de presenças nos treinos</p>
+          <p class="muted" style="margin:0;font-size:0.88rem">Quem foi convocado, quem avisou e quem apareceu</p>
         </div>
       </header>
-      ${emptyHTML('Ainda não há treinos registados no Calendário.')}
+      ${emptyHTML('Ainda não há treinos nem jogos registados no Calendário.')}
     `;
     return;
   }
@@ -56,12 +79,13 @@ export function renderPresencas(container) {
     return;
   }
 
-  if (!selectedEventId || !trainings.some((e) => e.id === selectedEventId)) {
-    // Seleciona o treino mais recente por omissão
-    selectedEventId = trainings[0].id;
+  if (!selectedEventId || !eventos.some((e) => e.id === selectedEventId)) {
+    // Seleciona o evento mais recente por omissão
+    selectedEventId = eventos[0].id;
   }
 
-  const ev = trainings.find((e) => e.id === selectedEventId);
+  const ev = eventos.find((e) => e.id === selectedEventId);
+  const isGame = ev?.type === 'jogo';
   const team = teamById(ev?.team_id);
   const players = team
     ? state.players
@@ -79,6 +103,20 @@ export function renderPresencas(container) {
       counts[a.status] = (counts[a.status] || 0) + 1;
     });
 
+  // Convocatória do evento (só existe em jogos). O estado de cada atleta vem
+  // de `squad_players`; sem linha, não está convocado.
+  const squad = state.squads.find((sq) => sq.event_id === selectedEventId) || null;
+  const squadStatus = (playerId) => {
+    if (!squad) return null;
+    const sp = state.squadPlayers.find((x) => x.squad_id === squad.id && x.player_id === playerId);
+    return sp ? sp.status : null;
+  };
+  const squadCounts = players.reduce((acc, p) => {
+    const st = squadStatus(p.id);
+    if (st !== null) { acc.total++; acc[st] = (acc[st] || 0) + 1; }
+    return acc;
+  }, { total: 0, convocado: 0, titular: 0, suplente: 0 });
+
   const totalPlayers = players.length;
   const marked = counts.presente + counts.atraso + counts.justificado + counts.falta;
   const pct = totalPlayers ? Math.round((marked / totalPlayers) * 100) : 0;
@@ -91,7 +129,7 @@ export function renderPresencas(container) {
 
   // O quiosque só aparece depois de a migração `qrcode-presencas.sql` correr
   // (é ela que traz a coluna) e enquanto o clube o mantiver ligado.
-  const qrOn = editable && state.settings.qr_checkin_enabled === true;
+  const qrOn = editable && !isGame && state.settings.qr_checkin_enabled === true;
   // Quem avisou que não vem. Aparece ANTES da lista porque é o que o treinador
   // quer saber ao chegar ao pavilhão — com quem pode contar hoje.
   const avisos = eventResponseSummary(selectedEventId);
@@ -112,15 +150,17 @@ export function renderPresencas(container) {
     <div class="presenca-picker card" style="margin-bottom:1.2rem">
       <div class="row row--between row--wrap" style="gap:0.8rem">
         <div style="min-width:260px;flex:1">
-          <label for="pres-event">Sessão de treino</label>
+          <label for="pres-event">Treino ou jogo</label>
           <select id="pres-event">
-            ${trainings.map((t) => {
+            ${eventos.map((t) => {
               const dt = eventDateTime(t).toLocaleDateString('pt-PT', {
                 day: '2-digit', month: 'short', year: 'numeric',
               });
               const tm = teamById(t.team_id);
               const range = eventTimeRange(t);
-              const label = `${dt}${range ? ' ' + range : ''}${tm ? ' — ' + teamName(tm) : ''}${t.title ? ' — ' + t.title : ''}`;
+              const tipo = t.type === 'jogo' ? 'Jogo' : 'Treino';
+              const vs = t.type === 'jogo' && t.opponent ? ' vs ' + t.opponent : '';
+              const label = `${tipo} · ${dt}${range ? ' ' + range : ''}${tm ? ' — ' + teamName(tm) : ''}${vs}${t.title ? ' — ' + t.title : ''}`;
               return `<option value="${t.id}" ${t.id === selectedEventId ? 'selected' : ''}>${esc(label)}</option>`;
             }).join('')}
           </select>
@@ -144,26 +184,44 @@ export function renderPresencas(container) {
                </li>`).join('')}
            </ul>
            <p class="muted pres-avisos__hint">
-             Um aviso não é uma justificação: marca tu o estado de cada um.
+             ${isGame
+               ? 'Um aviso não é uma decisão: a convocatória continua a ser tua.'
+               : 'Um aviso não é uma justificação: marca tu o estado de cada um.'}
            </p>
          </div>`
       : ''}
 
     <section class="cards-grid aval-summary" style="margin-bottom:1.2rem">
-      ${summaryCard('Presentes', counts.presente, 'green')}
-      ${summaryCard('Atrasos', counts.atraso, 'warn')}
-      ${summaryCard('Justificados', counts.justificado, 'info')}
-      ${summaryCard('Faltas', counts.falta, 'red')}
+      ${isGame
+        ? `${summaryCard('Convocados', squadCounts.total, 'info')}
+           ${summaryCard('Titulares', squadCounts.titular, 'green')}
+           ${summaryCard('Suplentes', squadCounts.suplente, 'warn')}
+           ${summaryCard('Fora', totalPlayers - squadCounts.total, '')}`
+        : `${summaryCard('Presentes', counts.presente, 'green')}
+           ${summaryCard('Atrasos', counts.atraso, 'warn')}
+           ${summaryCard('Justificados', counts.justificado, 'info')}
+           ${summaryCard('Faltas', counts.falta, 'red')}`}
     </section>
 
     <section class="card">
       <div class="goal-card__header">
-        <h2 class="section-title goal-card__title">Lista de atletas</h2>
-        <span class="goal-card__pct">${pct}% registado</span>
+        <h2 class="section-title goal-card__title">${isGame ? 'Convocatória' : 'Lista de atletas'}</h2>
+        <span class="goal-card__pct">${isGame
+          ? `${squadCounts.total} de ${totalPlayers}`
+          : `${pct}% registado`}</span>
       </div>
-      <div class="progress"><div class="progress__bar" style="width:${pct}%"></div></div>
+      ${isGame ? '' : `<div class="progress"><div class="progress__bar" style="width:${pct}%"></div></div>`}
 
-      ${editable && team && totalPlayers && marked < totalPlayers
+      ${isGame && canSquad && totalPlayers
+        ? `<div class="row row--wrap pres-close" style="gap:0.5rem">
+             <button class="btn btn--ghost btn--sm" id="squad-all" type="button">Convocar todos</button>
+             ${squadCounts.total
+               ? '<button class="btn btn--ghost btn--sm" id="squad-clear" type="button">Limpar convocatória</button>'
+               : ''}
+           </div>`
+        : ''}
+
+      ${!isGame && editable && team && totalPlayers && marked < totalPlayers
         ? `<div class="row row--between row--wrap pres-close">
              <span class="muted" style="font-size:0.85rem">
                ${totalPlayers - marked} atleta${totalPlayers - marked === 1 ? '' : 's'} sem registo neste treino.
@@ -173,11 +231,20 @@ export function renderPresencas(container) {
         : ''}
 
       ${!team
-        ? '<p class="muted" style="margin:1rem 0 0">Este treino não tem equipa associada. Edita-o no Calendário para atribuir uma equipa.</p>'
+        ? `<p class="muted" style="margin:1rem 0 0">Este ${isGame ? 'jogo' : 'treino'} não tem equipa associada. Edita-o no Calendário para atribuir uma equipa.</p>`
         : !players.length
         ? '<p class="muted" style="margin:1rem 0 0">Sem atletas nesta equipa.</p>'
-        : `<ul class="pres-list">${players.map((p) => playerRow(p, attendanceMap[p.id], ev, editable)).join('')}</ul>`
+        : `<ul class="pres-list">${players.map((p) => isGame
+            ? squadRow(p, squadStatus(p.id), ev, canSquad)
+            : playerRow(p, attendanceMap[p.id], ev, editable)).join('')}</ul>`
       }
+
+      ${isGame
+        ? `<p class="muted pres-avisos__hint" style="margin-top:0.9rem">
+             Quem jogou mede-se no registo do resultado, não aqui: a convocatória
+             diz quem foi chamado, não quantos pontos disputou.
+           </p>`
+        : ''}
     </section>
   `;
 
@@ -196,7 +263,7 @@ export function renderPresencas(container) {
     openQuiosque(selectedEventId);
   });
 
-  if (editable) {
+  if (editable && !isGame) {
     container.querySelectorAll('[data-status]').forEach((btn) => {
       btn.addEventListener('click', () =>
         handleStatusClick(btn, container, ev)
@@ -206,6 +273,87 @@ export function renderPresencas(container) {
       closeSession(selectedEventId, totalPlayers - marked)
     );
   }
+
+  if (isGame && canSquad) {
+    const withError = async (fn) => {
+      try { await fn(); } catch (err) { toastError(dbErrorMessage(err)); }
+    };
+    container.querySelectorAll('[data-squad-status]').forEach((btn) => {
+      btn.addEventListener('click', () => withError(async () => {
+        const sq = await ensureSquad(selectedEventId);
+        await upsertSquadPlayer(sq.id, btn.dataset.player, btn.dataset.squadStatus);
+      }));
+    });
+    container.querySelectorAll('[data-squad-remove]').forEach((btn) => {
+      btn.addEventListener('click', () => withError(async () => {
+        if (squad) await removeSquadPlayer(squad.id, btn.dataset.squadRemove);
+      }));
+    });
+    container.querySelector('#squad-all')?.addEventListener('click', () => withError(async () => {
+      const sq = await ensureSquad(selectedEventId);
+      // Só os que ainda não têm estado: convocar todos não desfaz titulares
+      // e suplentes já escolhidos.
+      for (const p of players) {
+        if (squadStatus(p.id) === null) await upsertSquadPlayer(sq.id, p.id, 'convocado');
+      }
+    }));
+    container.querySelector('#squad-clear')?.addEventListener('click', async () => {
+      const ok = await confirmDialog(
+        `Limpar a convocatória deste jogo (${squadCounts.total} atleta${squadCounts.total === 1 ? '' : 's'})?`,
+        { confirmLabel: 'Limpar', danger: true }
+      );
+      if (!ok) return;
+      withError(async () => {
+        for (const p of players) {
+          if (squadStatus(p.id) !== null) await removeSquadPlayer(squad.id, p.id);
+        }
+      });
+    });
+  }
+}
+
+// Uma linha da convocatória: o atleta, o que ELE respondeu e o estado que o
+// treinador lhe deu. Os dois lados aparecem juntos de propósito — um atleta
+// convocado que avisou que não pode ir é exatamente o cruzamento que interessa
+// ver, e era o que obrigava a abrir dois ecrãs.
+function squadRow(player, status, event, editable) {
+  return `
+    <li class="pres-row pres-row--${status || 'none'}" data-player-row="${player.id}">
+      <div class="aval-row__player">
+        <span class="aval-row__num">${esc(player.number || '—')}</span>
+        <div>
+          <span class="aval-row__name">${esc(player.name)}</span>
+          <span class="muted aval-row__meta">${[player.position, player.birth_year].filter(Boolean).map(esc).join(' · ') || '—'}</span>
+          ${respostaHTML(player.id, event)}
+        </div>
+      </div>
+      ${editable
+        ? `<div class="pres-actions">
+            ${SQUAD_STATUSES.map((sq) => `
+              <button type="button"
+                class="pres-btn ${status === sq.key ? 'is-active' : ''}"
+                data-squad-status="${sq.key}" data-player="${player.id}"
+                title="${esc(sq.label)}">${esc(sq.label)}</button>`).join('')}
+            ${status !== null
+              ? `<button type="button" class="pres-btn" data-squad-remove="${player.id}"
+                   title="Retirar da convocatória">✕</button>`
+              : ''}
+           </div>`
+        : status !== null
+          ? `<span class="badge badge--${SQUAD_STATUS_BADGE[status]}">${esc(SQUAD_STATUS_LABEL[status])}</span>`
+          : '<span class="badge badge--muted">Não convocado</span>'
+      }
+    </li>
+  `;
+}
+
+// O que o atleta respondeu ao evento. É informação DELE, separada do estado
+// que o treinador atribui.
+function respostaHTML(playerId, event) {
+  const r = playerEventResponse(playerId, event?.id);
+  if (!r) return '';
+  return `<span class="pres-detail"><span class="badge badge--${EVENT_RESPONSE_BADGE[r.response]}">${
+    esc(EVENT_RESPONSE_LABEL[r.response])}</span>${r.note ? ' ' + esc(r.note) : ''}</span>`;
 }
 
 // "Fechar sessão": quem não passou o cartão nem foi marcado fica em falta.
@@ -242,6 +390,7 @@ function playerRow(player, attendance, event, editable) {
         <div>
           <span class="aval-row__name">${esc(player.name)}</span>
           <span class="muted aval-row__meta">${[player.position, player.birth_year].filter(Boolean).map(esc).join(' · ') || '—'}</span>
+          ${respostaHTML(player.id, event)}
           ${attendance?.minutes_late != null ? `<span class="pres-detail">${attendance.minutes_late} min de atraso</span>` : ''}
           ${attendance?.justification ? `<span class="pres-detail">${esc(attendance.justification)}</span>` : ''}
           ${attendance?.source === 'qr'

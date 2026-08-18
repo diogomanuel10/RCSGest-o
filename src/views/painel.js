@@ -59,7 +59,7 @@ import { openSponsorForm } from './patrocinios.js';
 import { openFinanceiroTab } from './financeiro.js';
 import { openAthleteProfile } from './athlete-profile.js';
 import { confirmDialog } from '../modal.js';
-import { openSquadModal } from './convocatorias.js';
+import { setSelectedEvent } from './presencas.js';
 import { openResultModal } from './resultado.js';
 import { toastError } from '../toast.js';
 import { openSeasonPlanning } from './planteis.js';
@@ -528,8 +528,15 @@ function todayRow(ev) {
 }
 
 // Navega para uma secção, reaproveitando os botões da barra lateral.
+//
+// Nem toda a rota tem botão: os Objetivos passaram a ser um separador do
+// Painel e deixaram de ter entrada própria. Nesses casos escreve-se no hash,
+// que é a fonte de verdade da navegação — o app-shell trata do resto
+// (LEGACY_ROUTES abre a secção já no separador certo).
 function navTo(route) {
-  document.querySelector(`[data-route="${route}"]`)?.click();
+  const btn = document.querySelector(`[data-route="${route}"]`);
+  if (btn) btn.click();
+  else location.hash = `#/${route}`;
 }
 
 // Catálogo dos avisos do Painel. Cada um declara quem o PODE ver (`can`) —
@@ -1171,7 +1178,7 @@ function coachTodayRow(ev) {
       </div>
       <div style="display:flex;gap:0.4rem;align-items:center;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
         ${isJogo
-          ? `${canEdit('squads') && ev.team_id ? `<button class="btn btn--ghost btn--sm" data-squad-event="${ev.id}" type="button">Convocatória</button>` : ''}
+          ? `${canEdit('squads') && canAccess('presencas') && ev.team_id ? `<button class="btn btn--ghost btn--sm" data-squad-event="${ev.id}" type="button">Convocatória</button>` : ''}
              ${canEdit('game_results') ? `<button class="btn btn--accent btn--sm" data-result-event="${ev.id}" type="button">Resultado</button>` : ''}`
           : `<button class="btn btn--ghost btn--sm" data-plan-event="${ev.id}" type="button">Plano</button>
              ${canEdit('attendances') ? `<button class="btn btn--accent btn--sm" data-mark-event="${ev.id}" type="button">Marcar</button>` : ''}`}
@@ -1260,7 +1267,10 @@ function wireCoachPainel(container, antigos) {
     btn.addEventListener('click', () => openResultModal(btn.dataset.resultEvent))
   );
   container.querySelectorAll('[data-squad-event]').forEach((btn) =>
-    btn.addEventListener('click', () => openSquadModal(btn.dataset.squadEvent))
+    btn.addEventListener('click', () => {
+      setSelectedEvent(btn.dataset.squadEvent);
+      navTo('presencas');
+    })
   );
   container.querySelectorAll('[data-nav]').forEach((el) =>
     el.addEventListener('click', () => {

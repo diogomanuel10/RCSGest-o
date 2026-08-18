@@ -17,7 +17,7 @@ e treinadores**, com login e dados guardados numa base de dados Supabase.
 - **Calendário** — eventos por ordem cronológica, com filtros e distinção
   entre passado e futuro.
 - **Treinadores** — fichas com contacto, notas e equipas que orientam.
-- **Definições** — época e meta editáveis; exportar/importar backup `.json`.
+- **Definições** — época, meta, identidade do clube, escalões e limiares.
 - **Utilizadores** — o coordenador define o papel de cada pessoa.
 
 ## Papéis (permissões)
@@ -50,7 +50,8 @@ As permissões são impostas pela base de dados (RLS), não só pela interface.
    papéis, as políticas de segurança (RLS) e os dados iniciais. Podes correr
    mais do que uma vez. A seguir, e **por esta ordem**, corre os restantes
    guiões da pasta `supabase/`: `notifications.sql`, `multitenant.sql`,
-   `plans.sql`, `qrcode-presencas.sql` (presenças por QR / modo quiosque),
+   `plans.sql` (e `plans-consolidacao.sql`, se já tinhas os cinco planos
+   antigos), `qrcode-presencas.sql` (presenças por QR / modo quiosque),
    `trainer-notifications.sql`, `convite-atleta.sql` (convites ligados à
    ficha do atleta), `portal-atleta.sql`, `comunicacao.sql` (respostas do
    atleta + avisos do clube), `resultados.sql` (resultados de jogo),

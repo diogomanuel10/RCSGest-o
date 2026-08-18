@@ -435,8 +435,7 @@
 
   /* --- Preços --- */
   .pricing { background: var(--paper); }
-  .plans { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.8rem; align-items: stretch; }
-  @media (max-width: 1040px) { .plans { grid-template-columns: repeat(3, 1fr); max-width: 680px; margin: 0 auto; } }
+  .plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; align-items: stretch; max-width: 1000px; margin: 0 auto; }
   @media (max-width: 640px) { .plans { grid-template-columns: 1fr; max-width: 400px; } }
   .plan {
     background: var(--surface);
@@ -547,11 +546,9 @@
       "inLanguage": "pt-PT",
       "description": "Plataforma de gestão desportiva para clubes: plantéis, calendário, presenças por QR, departamento médico, preparação física, quotas, finanças e patrocínios.",
       "offers": [
-        { "@type": "Offer", "name": "Solo", "price": "9", "priceCurrency": "EUR" },
-        { "@type": "Offer", "name": "Treinador+", "price": "19", "priceCurrency": "EUR" },
-        { "@type": "Offer", "name": "Essencial", "price": "29", "priceCurrency": "EUR" },
-        { "@type": "Offer", "name": "Clube", "price": "49", "priceCurrency": "EUR" },
-        { "@type": "Offer", "name": "Clube+", "price": "79", "priceCurrency": "EUR" }
+        { "@type": "Offer", "name": "Treinador", "priceCurrency": "EUR", "availability": "https://schema.org/InStock" },
+        { "@type": "Offer", "name": "Clube", "priceCurrency": "EUR", "availability": "https://schema.org/InStock" },
+        { "@type": "Offer", "name": "Clube+", "priceCurrency": "EUR", "availability": "https://schema.org/InStock" }
       ]
     },
     {
@@ -570,7 +567,7 @@
         {
           "@type": "Question",
           "name": "Os meus dados estão seguros?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Sim. Cada pessoa entra com a sua conta e só acede ao que o seu papel permite — uma regra imposta na própria base de dados. Podes exportar uma cópia de segurança de todos os dados a qualquer momento." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Sim. Cada pessoa entra com a sua conta e só acede ao que o seu papel permite — uma regra imposta na própria base de dados. Os dados de cada clube estão isolados dos de qualquer outro, também ao nível da base de dados." }
         },
         {
           "@type": "Question",
@@ -590,7 +587,7 @@
         {
           "@type": "Question",
           "name": "Os preços incluem IVA? Posso mudar de plano?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Os valores indicados são mensais e não incluem IVA à taxa legal em vigor. Podes subir ou descer de plano a qualquer momento e não há fidelização — o pagamento anual dá dois meses." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Os valores são mensais e não incluem IVA à taxa legal em vigor. Podes subir ou descer de plano a qualquer momento e não há fidelização." }
         },
         {
           "@type": "Question",
@@ -924,59 +921,34 @@
 <!-- ================= PREÇOS ================= -->
 <!--
   ┌──────────────────────────────────────────────────────────────────┐
-  │  ATENÇÃO: os preços (€/mês) abaixo são VALORES DE EXEMPLO.         │
-  │  Os NOMES, MÓDULOS e LIMITES de cada plano batem com os da app    │
-  │  (Solo · Treinador+ · Essencial · Clube · Clube+ — ver plans.sql).│
-  │  Ajusta só os montantes ao teu modelo de negócio antes de         │
-  │  publicar. Procura por "/mês" em cada .plan.                      │
+  │  PREÇOS POR DEFINIR. Cada plano mostra "—" onde vai o montante.  │
+  │  Procura por PRECO-POR-DEFINIR e substitui os três blocos:       │
+  │  o valor mensal (.plan__price) e a linha anual (.plan__year).    │
+  │                                                                  │
+  │  Os NOMES, MÓDULOS e LIMITES batem com os da app (Treinador ·    │
+  │  Clube · Clube+ — ver supabase/plans.sql e src/plans.js). Se     │
+  │  mudares um plano no editor da Plataforma, atualiza aqui também. │
   └──────────────────────────────────────────────────────────────────┘
 -->
 <section class="pricing" id="precos">
   <div class="wrap">
     <div class="section-head reveal">
       <span class="eyebrow">Preços simples</span>
-      <h2>Um plano para cada fase do clube</h2>
-      <p>Sem fidelização, com período de demonstração para experimentares com os teus dados. Do treinador sozinho ao clube completo — sobe de plano quando cresceres.</p>
+      <h2>Três planos, sem letras pequenas</h2>
+      <p>Sem fidelização, com período de demonstração para experimentares com os teus dados. Do treinador com os seus escalões ao clube completo — sobe de plano quando cresceres.</p>
     </div>
     <div class="plans">
       <div class="plan reveal">
-        <div class="plan__name">Solo</div>
-        <p class="plan__desc">Um treinador, um escalão.</p>
-        <div class="plan__price">9€<span class="per"> /mês</span></div>
-        <p class="plan__year">ou 90€/ano — dois meses grátis</p>
+        <div class="plan__name">Treinador</div>
+        <p class="plan__desc">Um treinador e os seus escalões.</p>
+        <!-- PRECO-POR-DEFINIR -->
+        <div class="plan__price">—<span class="per"> /mês</span></div>
+        <p class="plan__year">sob consulta</p>
         <ul class="plan__list">
-          <li><span class="tick">✓</span> Plantel e fichas de atleta</li>
-          <li><span class="tick">✓</span> Calendário, presenças e convocatórias</li>
-          <li><span class="tick">✓</span> Plano de jogo, avaliação e estatísticas</li>
-          <li><span class="tick">✓</span> 1 escalão · 1 utilizador</li>
-        </ul>
-        <a class="btn btn--ghost" href="#contacto">Falar connosco</a>
-      </div>
-
-      <div class="plan reveal">
-        <div class="plan__name">Treinador+</div>
-        <p class="plan__desc">Um treinador com vários escalões e coordenação técnica.</p>
-        <div class="plan__price">19€<span class="per"> /mês</span></div>
-        <p class="plan__year">ou 190€/ano — dois meses grátis</p>
-        <ul class="plan__list">
-          <li><span class="tick">✓</span> Tudo do Solo, para várias equipas</li>
-          <li><span class="tick">✓</span> Recrutamento, objetivos e patrocínios</li>
+          <li><span class="tick">✓</span> Plantéis e fichas de atleta</li>
+          <li><span class="tick">✓</span> Calendário, presenças por QR e convocatórias</li>
+          <li><span class="tick">✓</span> Treino, plano de jogo, avaliação e estatísticas</li>
           <li><span class="tick">✓</span> Até 3 escalões · 2 utilizadores</li>
-        </ul>
-        <a class="btn btn--ghost" href="#contacto">Falar connosco</a>
-      </div>
-
-      <div class="plan reveal">
-        <div class="plan__name">Essencial</div>
-        <p class="plan__desc">Gestão administrativa do clube: sócios, material e documentos.</p>
-        <div class="plan__price">29€<span class="per"> /mês</span></div>
-        <p class="plan__year">ou 290€/ano — dois meses grátis</p>
-        <ul class="plan__list">
-          <li><span class="tick">✓</span> Tudo do Treinador+</li>
-          <li><span class="tick">✓</span> Quotas (ficha de sócio)</li>
-          <li><span class="tick">✓</span> Equipamentos e encomendas</li>
-          <li><span class="tick">✓</span> Documentos (RGPD)</li>
-          <li><span class="tick">✓</span> Escalões ilimitados · até 5 utilizadores</li>
         </ul>
         <a class="btn btn--ghost" href="#contacto">Falar connosco</a>
       </div>
@@ -984,13 +956,15 @@
       <div class="plan plan--featured reveal">
         <span class="plan__badge">Mais popular</span>
         <div class="plan__name">Clube</div>
-        <p class="plan__desc">Clube completo, com equipa técnica e médica.</p>
-        <div class="plan__price">49€<span class="per"> /mês</span></div>
-        <p class="plan__year">ou 490€/ano — dois meses grátis</p>
+        <p class="plan__desc">O clube completo, com equipa técnica e médica.</p>
+        <!-- PRECO-POR-DEFINIR -->
+        <div class="plan__price">—<span class="per"> /mês</span></div>
+        <p class="plan__year">sob consulta</p>
         <ul class="plan__list">
-          <li><span class="tick">✓</span> Tudo do Essencial</li>
-          <li><span class="tick">✓</span> Departamento médico / fisioterapia</li>
-          <li><span class="tick">✓</span> Preparação física</li>
+          <li><span class="tick">✓</span> Tudo do Treinador, sem limite de escalões</li>
+          <li><span class="tick">✓</span> Quotas (ficha de sócio), equipamentos e encomendas</li>
+          <li><span class="tick">✓</span> Documentos (RGPD)</li>
+          <li><span class="tick">✓</span> Fisioterapia e preparação física</li>
           <li><span class="tick">✓</span> Até 15 utilizadores</li>
         </ul>
         <a class="btn btn--primary" href="#contacto">Escolher Clube</a>
@@ -999,8 +973,9 @@
       <div class="plan reveal">
         <div class="plan__name">Clube+</div>
         <p class="plan__desc">Tudo, com visão de direção e análise avançada.</p>
-        <div class="plan__price">79€<span class="per"> /mês</span></div>
-        <p class="plan__year">ou 790€/ano — dois meses grátis</p>
+        <!-- PRECO-POR-DEFINIR -->
+        <div class="plan__price">—<span class="per"> /mês</span></div>
+        <p class="plan__year">sob consulta</p>
         <ul class="plan__list">
           <li><span class="tick">✓</span> Tudo do Clube</li>
           <li><span class="tick">✓</span> Financeiro (visão de direção)</li>
@@ -1035,7 +1010,7 @@
       </details>
       <details class="qa">
         <summary>Os meus dados estão seguros?</summary>
-        <p>Sim. Cada pessoa entra com a sua conta e só acede ao que o seu papel permite — uma regra imposta na própria base de dados. Podes exportar uma cópia de segurança de todos os dados a qualquer momento.</p>
+        <p>Sim. Cada pessoa entra com a sua conta e só acede ao que o seu papel permite — uma regra imposta na própria base de dados. Os dados de cada clube estão isolados dos de qualquer outro, também ao nível da base de dados.</p>
       </details>
       <details class="qa">
         <summary>Preciso de instalar alguma coisa?</summary>
@@ -1051,7 +1026,7 @@
       </details>
       <details class="qa">
         <summary>Os preços incluem IVA? Posso mudar de plano?</summary>
-        <p>Os valores indicados são mensais e <strong>não incluem IVA</strong> à taxa legal em vigor. Podes subir ou descer de plano a qualquer momento e não há fidelização — o pagamento anual dá dois meses.</p>
+        <p>Os valores são mensais e <strong>não incluem IVA</strong> à taxa legal em vigor. Podes subir ou descer de plano a qualquer momento e não há fidelização.</p>
       </details>
       <details class="qa">
         <summary>Como começo?</summary>

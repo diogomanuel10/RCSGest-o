@@ -2,7 +2,7 @@
 // por tipo e por equipa, distinguindo eventos passados dos futuros.
 
 import { state, createRow, createRows, updateRow, archiveRow, dbErrorMessage } from '../store.js';
-import { openSquadModal } from './convocatorias.js';
+import { setSelectedEvent } from './presencas.js';
 import { openResultModal } from './resultado.js';
 import { esc, emptyHTML } from '../ui.js';
 import { toastError } from '../toast.js';
@@ -58,7 +58,17 @@ function eventChipStyle(color) {
 }
 // Navega para outra secção reaproveitando o botão da barra lateral.
 function navTo(route) {
-  document.querySelector(`[data-route="${route}"]`)?.click();
+  const btn = document.querySelector(`[data-route="${route}"]`);
+  if (btn) btn.click();
+  else location.hash = `#/${route}`;
+}
+
+// A convocatória deixou de ser um modal do Calendário: é o ecrã das Presenças
+// com o jogo escolhido. Quem vai ao jogo, quem avisou que não pode e quem
+// apareceu ao treino são a mesma pergunta sobre o mesmo evento.
+function openSquad(eventId) {
+  setSelectedEvent(eventId);
+  navTo('presencas');
 }
 
 const filters = { type: '', team: '' };
@@ -130,7 +140,7 @@ export function renderCalendario(container) {
   container.querySelector('#grid-today')?.addEventListener('click', () => { gridMonth = new Date(); renderCalendario(container); });
   container.querySelectorAll('[data-edit]').forEach((b) => b.addEventListener('click', () => openForm(b.dataset.edit)));
   container.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => remove(b.dataset.del)));
-  container.querySelectorAll('[data-squad]').forEach((b) => b.addEventListener('click', () => openSquadModal(b.dataset.squad)));
+  container.querySelectorAll('[data-squad]').forEach((b) => b.addEventListener('click', () => openSquad(b.dataset.squad)));
   container.querySelectorAll('[data-result]').forEach((b) => b.addEventListener('click', () => openResultModal(b.dataset.result)));
   // Resumo pós-jogo: folha imprimível com o que já foi registado. O módulo é
   // carregado só quando alguém pede o resumo (chunk à parte).
@@ -435,7 +445,9 @@ function eventRow(ev, isPast, editable) {
   const color = team ? escalaoColor(team.escalao) : null;
   const accent = color ? ` style="border-left:4px solid ${color};padding-left:0.7rem"` : '';
 
-  const canSquad = canEdit('squads') && ev.type === 'jogo' && ev.team_id;
+  // A convocatória vive agora nas Presenças: sem acesso a essa secção, o botão
+  // levaria a um sítio onde o utilizador não entra.
+  const canSquad = canEdit('squads') && canAccess('presencas') && ev.type === 'jogo' && ev.team_id;
   const squad = state.squads.find((s) => s.event_id === ev.id);
   const nConvocados = squad
     ? state.squadPlayers.filter((sp) => sp.squad_id === squad.id).length
@@ -531,7 +543,7 @@ function openDayModal(dateStr, editable) {
   // fique por cima sem sobreposições.
   overlay.querySelectorAll('[data-edit]').forEach((b) => b.addEventListener('click', () => { close(); openForm(b.dataset.edit); }));
   overlay.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => { close(); remove(b.dataset.del); }));
-  overlay.querySelectorAll('[data-squad]').forEach((b) => b.addEventListener('click', () => { close(); openSquadModal(b.dataset.squad); }));
+  overlay.querySelectorAll('[data-squad]').forEach((b) => b.addEventListener('click', () => { close(); openSquad(b.dataset.squad); }));
   overlay.querySelectorAll('[data-appt]').forEach((b) => b.addEventListener('click', () => { close(); openAthleteProfile(b.dataset.appt, { tab: 'fisioterapia' }); }));
   overlay.querySelectorAll('[data-plan-event]').forEach((b) => b.addEventListener('click', () => {
     const ev = state.events.find((e) => e.id === b.dataset.planEvent);

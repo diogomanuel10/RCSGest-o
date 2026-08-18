@@ -1,11 +1,10 @@
-// Vista: Definições. Época e meta editáveis + backup (exportar/importar).
+// Vista: Definições. Época, meta, identidade do clube, estrutura e limiares.
 
-import { state, saveSettings, snapshot, replaceAllData, dbErrorMessage } from '../store.js';
+import { state, saveSettings, dbErrorMessage } from '../store.js';
 import { esc } from '../ui.js';
 import { isCoordenador } from '../permissions.js';
 import { escaloes, positions, sport } from '../compute.js';
 import { SPORTS, SPORT_POSITIONS } from '../constants.js';
-import { confirmDialog } from '../modal.js';
 import { branding, logoSrc, defaultLogo, parseHex, DEFAULT_BRANDING } from '../branding.js';
 
 // Limite do emblema guardado (data URL na linha de definições). Mantém a linha
@@ -20,7 +19,6 @@ export function renderDefinicoes(container) {
   const coordenador = isCoordenador();
   // "Cópia de segurança" só existe para o coordenador — evita ficar preso nesse
   // separador se o utilizador não lhe tiver acesso.
-  if (activeTab === 'backup' && !coordenador) activeTab = 'identidade';
   const panelClass = (key) =>
     `settings-panel${activeTab === key ? ' settings-panel--active' : ''}`;
   const tabBtn = (key, label) =>
@@ -36,7 +34,6 @@ export function renderDefinicoes(container) {
       <div class="cal-toggle" role="group" aria-label="Separadores das definições">
         ${tabBtn('identidade', 'Identidade')}
         ${tabBtn('estrutura', 'Estrutura')}
-        ${coordenador ? tabBtn('backup', 'Cópia de segurança') : ''}
       </div>
     </header>
 
@@ -358,26 +355,6 @@ export function renderDefinicoes(container) {
     </div>
     </div>
 
-    ${coordenador ? `
-    <div class="${panelClass('backup')}" data-panel="backup">
-    <div class="settings-stack">
-    <section class="card settings-card">
-      <h2 class="section-title settings-card__title">Cópia de segurança</h2>
-      <p class="muted" style="margin-top:0">
-        Exporta todos os dados para um ficheiro <code>.json</code>, ou importa um backup anterior.
-      </p>
-      <div class="row row--wrap" style="gap:0.6rem">
-        <button class="btn btn--ghost" id="export-btn" type="button">Exportar backup</button>
-        <label class="btn btn--ghost" for="import-file" style="cursor:pointer">Importar backup</label>
-        <input type="file" id="import-file" accept="application/json,.json" class="hidden" />
-      </div>
-      <p class="settings-msg hidden" id="backup-msg"></p>
-      <p class="muted settings-warn">
-        ⚠ A importação <strong>substitui</strong> todos os dados atuais pelos do ficheiro.
-      </p>
-    </section>
-    </div>
-    </div>` : ''}
   `;
 
   // --- Separadores ---
@@ -813,52 +790,6 @@ export function renderDefinicoes(container) {
     }
   });
 
-  // --- Exportar --- (a cópia de segurança é exclusiva do coordenador)
-  container.querySelector('#export-btn')?.addEventListener('click', () => {
-    const data = JSON.stringify(snapshot(), null, 2);
-    const blob = new Blob([data], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    const stamp = new Date().toISOString().slice(0, 10);
-    a.href = url;
-    a.download = `rumia-backup-${stamp}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  });
-
-  // --- Importar ---
-  const backupMsg = container.querySelector('#backup-msg');
-  container.querySelector('#import-file')?.addEventListener('change', async (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = ''; // permite reimportar o mesmo ficheiro
-    if (!file) return;
-
-    let backup;
-    try {
-      backup = JSON.parse(await file.text());
-    } catch {
-      showMsg(backupMsg, 'O ficheiro não é um backup válido (JSON ilegível).', 'error');
-      return;
-    }
-    if (!backup || typeof backup !== 'object' || !('sponsors' in backup)) {
-      showMsg(backupMsg, 'O ficheiro não parece ser um backup da Rumia.', 'error');
-      return;
-    }
-
-    const ok = await confirmDialog(
-      'Importar este backup vai SUBSTITUIR todos os dados atuais. Queres continuar?',
-      { confirmLabel: 'Importar', danger: true }
-    );
-    if (!ok) return;
-
-    showMsg(backupMsg, 'A importar…', 'info');
-    try {
-      await replaceAllData(backup);
-      showMsg(backupMsg, 'Backup importado com sucesso.', 'ok');
-    } catch (err) {
-      showMsg(backupMsg, dbErrorMessage(err), 'error');
-    }
-  });
 }
 
 function showMsg(el, text, kind) {
