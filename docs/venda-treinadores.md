@@ -9,21 +9,24 @@ que se ganham os primeiros dez clubes.
 ## 1. O que já podes vender hoje (e o que ainda não)
 
 **Podes vender.** A app está completa e funciona: qualquer pessoa cria conta,
-cria o clube, convida a equipa técnica e tem 7 dias de demonstração. Plantéis,
+cria o clube, convida a equipa técnica e tem 30 dias de demonstração. Plantéis,
 calendário, presenças por QR, quotas, fisioterapia, preparação física — tudo
 lá está.
 
-**Ainda não podes.** Três coisas condicionam a forma de vender:
+**Ainda não podes.** Uma coisa condiciona a forma de vender:
 
 | Limitação | Consequência prática |
 |---|---|
 | Não há pagamento automático | Cobras por transferência/MB Way e ativas o clube à mão em Plataforma → Clubes. Sustentável até ~10 clientes. |
-| A app arranca vazia | Um treinador que entra sozinho vê um ecrã sem nada e fecha. **Não mandes o link sem uma conversa antes.** |
-| O trial é de 7 dias | Uma semana é um microciclo. É pouco para um clube decidir. Estende à mão nos primeiros clientes. |
 
-A leitura disto não é "espera para vender". É: **vende com uma demonstração
-tua, não com um link.** Para os primeiros dez clientes, isso é o correto de
-qualquer maneira — é assim que descobres o que dizer.
+Duas limitações que existiam já não existem: o clube novo **arranca com dados
+de exemplo** (plantel, um mês de treinos com presenças, jogos com resultado e
+quotas — limpa-se num clique nas Definições), e o período de demonstração
+passou de 7 para **30 dias**. Quem clica no link já vê a app a funcionar.
+
+Mesmo assim: **para os primeiros dez clientes, vende com uma demonstração tua,
+não com um link.** Não é uma limitação técnica, é como se descobre o que
+dizer.
 
 ---
 
@@ -94,8 +97,9 @@ software; passa a ser o clube dele.
 dentro? Ficas com um mês para experimentar a sério, e falamos outra vez daqui
 a duas semanas."*
 
-Depois da chamada: entra em Plataforma → Clubes e estende-lhe o trial. Um mês,
-não uma semana.
+O mês já é o período normal de demonstração — não tens de fazer nada a seguir
+à chamada. Se precisares de mais tempo para um clube em particular, estendes
+em Plataforma → Clubes.
 
 ---
 
@@ -142,11 +146,13 @@ opinião acaba a experimentar; quem recebe um anúncio ignora.
 
 ### E. Quando dizem "manda-me o link"
 
-Não mandes só o link. A app abre vazia e perdes a pessoa.
+Podes mandar — a app já abre com um clube de exemplo montado, não com um ecrã
+vazio. Mas ganhas mais se pedires os dez minutos:
 
-> Mando já — mas dá-me 10 minutos primeiro numa chamada, senão entras num ecrã
-> vazio e não vês nada de jeito. Se me mandares o Excel do plantel, deixo-te a
-> conta já com os teus atletas lá dentro.
+> Mando já. Entras e tens lá um clube de exemplo para clicares à vontade —
+> apagas com um botão quando quiseres. Se me deres 10 minutos numa chamada,
+> ainda melhor: mandas-me o Excel do plantel e deixo-te a conta já com os teus
+> atletas lá dentro, em vez dos de mentira.
 
 ### F. Seguimento, 3 dias depois de criar a conta
 
@@ -224,7 +230,8 @@ vista e é ele que te diz o que construir a seguir.
 
 | Quando | O quê | Porquê |
 |---|---|---|
-| Antes do primeiro link em grupo | Dados de exemplo no clube novo | Sem isto, quem entra sozinho vê um ecrã vazio |
-| Antes do primeiro link em grupo | Trial de 30 dias em vez de 7 | Uma semana não chega para um clube decidir |
+| ~~Antes do primeiro link~~ | ~~Dados de exemplo~~ | **Feito** — o clube novo já arranca cheio |
+| ~~Antes do primeiro link~~ | ~~Trial de 30 dias~~ | **Feito** |
 | Ao 5.º cliente pagante | Stripe + faturação | Cobrar à mão deixa de escalar |
 | Quando o 1.º clube pedir | Quotas com MB Way | É o que faz o clube pagar sem hesitar |
+| Antes de escalar | Analytics + link por canal | Sem isto mandas para 5 grupos e não aprendes com nenhum |

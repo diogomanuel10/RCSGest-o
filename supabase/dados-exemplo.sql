@@ -1,0 +1,23 @@
+-- =====================================================================
+-- Rumia — Dados de exemplo (clube de demonstração)
+-- =====================================================================
+-- Corre DEPOIS de schema.sql e multitenant.sql. É seguro re-executar.
+--
+-- Um clube acabado de criar arrancava vazio: quem entra pela primeira vez vê
+-- ecrãs sem um único atleta e não faz ideia do que a app faz. Os dados de
+-- exemplo enchem o clube novo com dois escalões, um plantel, um mês de treinos
+-- já marcados, jogos com resultado e quotas — para o primeiro ecrã mostrar o
+-- produto em vez de pedir trabalho.
+--
+-- Esta coluna guarda os IDS do que foi semeado, para "Limpar dados de exemplo"
+-- apagar exatamente isso e mais nada. A alternativa — uma coluna `is_demo` em
+-- cada tabela — obrigava a tocar em dezenas de tabelas e deixava a marca lá
+-- para sempre; aqui a marca desaparece com a limpeza.
+--
+-- Forma: { "seeded_at": "...", "coaches": [...], "teams": [...],
+--          "players": [...], "events": [...], "sponsors": [...] }
+-- As presenças, quotas, convocatórias e resultados NÃO são registados de
+-- propósito: caem em cascata com o evento ou o atleta a que pertencem.
+-- =====================================================================
+
+alter table settings add column if not exists demo_seed jsonb;

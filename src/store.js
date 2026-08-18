@@ -232,7 +232,7 @@ export function orgAccess() {
 
 // Duração (dias) do período de demonstração de um clube novo. Muda aqui para
 // ajustar quanto tempo um treinador pode experimentar a app.
-export const TRIAL_DAYS = 7;
+export const TRIAL_DAYS = 30;
 
 // Cria um clube novo e torna o utilizador atual coordenador (RPC no Supabase).
 // Arranca em período de demonstração de TRIAL_DAYS dias.
