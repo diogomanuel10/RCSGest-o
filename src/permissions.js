@@ -32,6 +32,7 @@ export const SECTIONS = [
   { key: 'recrutamento', label: 'Recrutamento' },
   { key: 'financeiro',   label: 'Financeiro' },
   { key: 'plano-jogo',  label: 'Plano de Jogo' },
+  { key: 'exercicios',  label: 'Exercícios' },
   { key: 'tatica',      label: 'Decisão Tática' },
 ];
 const SECTION_KEYS = new Set(SECTIONS.map((s) => s.key));
@@ -43,6 +44,7 @@ export const DEFAULT_TRAINER_SECTIONS = [
   'avaliacao',
   'calendario',
   'presencas',
+  'exercicios',
 ];
 
 // Acessos sugeridos por omissão ao definir alguém como fisioterapeuta. O
@@ -103,8 +105,14 @@ const EDIT_ROLES = {
   availability: ['coordenador', 'fisioterapeuta'],
   // Planos de treino e avaliações pós treino: coordenador e treinador.
   training_plans: ['coordenador', 'treinador'],
+  // Biblioteca de exercícios: coordenador e treinador. A biblioteca é do
+  // CLUBE (sem recorte por equipa) — um exercício não pertence a um escalão.
+  exercises: ['coordenador', 'treinador'],
   // Convocatórias: coordenador e treinador (o treinador só nas suas equipas — RLS).
   squads: ['coordenador', 'treinador'],
+  // Resultado do jogo (final + parciais + participação): quem regista é o
+  // treinador, depois do jogo — alinhado com as políticas de `game_results`.
+  game_results: ['coordenador', 'treinador'],
   // Cenários de decisão tática: coordenador e treinador (nas suas equipas — RLS).
   // O atleta responde no portal, não constrói.
   tactical: ['coordenador', 'treinador'],
@@ -135,6 +143,10 @@ export function isLeitura() {
 
 export function isAtleta() {
   return currentRole() === 'atleta';
+}
+
+export function isTreinador() {
+  return currentRole() === 'treinador';
 }
 
 export function isFisio() {

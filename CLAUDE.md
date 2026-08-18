@@ -104,6 +104,7 @@ src/
     quiosque.js         Modo quiosque: câmara à entrada regista presenças por QR
     resultado.js        Registo do resultado de um jogo (parciais + participação)
     tatica.js           Vista Decisão Tática (cenários por posição; atleta responde no portal)
+    exercicios.js       Biblioteca de exercícios do clube (+ escolher da biblioteca)
     treinadores.js      Vista Treinadores
     definicoes.js       Vista Definições (época, meta, escalões, limiares, backup)
     nova-epoca.js       Assistente de viragem de época (só coordenador)
@@ -115,6 +116,7 @@ supabase/portal-atleta.sql     Portal: o atleta lê a sua própria disponibilida
 supabase/comunicacao.sql       Respostas do atleta a eventos + avisos do clube
 supabase/resultados.sql        Resultado dos jogos (final + parciais) e pontos jogados
 supabase/tatica.sql            Decisão Tática: cenários de leitura de jogo + respostas
+supabase/exercicios.sql        Biblioteca de exercícios (tabela + ligação ao plano de treino)
 supabase/painel-avisos.sql     Limiares do clube + avisos escolhidos por utilizador
 supabase/resumo-semanal.sql    Resumo semanal (notificação + push) e limiares de queda
 public/                 Ficheiros estáticos (modelo-atletas-rumia.xlsx)
@@ -479,6 +481,46 @@ separador antes de navegar (usado pelos cartões do Painel).
     fez. Quando há registo de alguém, quem não tem linha é porque não jogou. Os
     pontos de um atleta são ainda limitados ao total do jogo — mais do que isso é
     engano de digitação (validado também no ecrã de registo).
+- **Biblioteca de exercícios** (`supabase/exercicios.sql`, `views/exercicios.js`):
+  o plano de treino escrevia-se de raiz todas as semanas. A biblioteca guarda
+  cada exercício UMA vez e o plano passa a ser uma escolha ("Da biblioteca" no
+  modal do plano; "Guardar" num bloco escrito à mão põe-no lá).
+  - **É do CLUBE, não de cada treinador.** O exercício que o treinador de
+    séniores afinou serve aos juvenis, e um clube que muda de equipa técnica não
+    perde o trabalho de anos. `created_by` diz a quem perguntar; editar é de
+    todos (RLS `ex_write`: coordenador + treinador, sem recorte por equipa —
+    um exercício não pertence a um escalão).
+  - **Copia-se para o plano, não se referencia.** Os campos são copiados para
+    `training_plan_items`; guarda-se `exercise_id` só para saber o que se usa
+    mesmo. Um treino que já aconteceu é um registo histórico: se apontasse para
+    a biblioteca, editar o exercício amanhã reescrevia o que se treinou no mês
+    passado.
+  - **Filtra-se por número de atletas** (`min_players`/`max_players`): a
+    pergunta real não é "que exercícios de receção tenho?", é "quais funcionam
+    com os 9 que apareceram hoje?". Sem mínimo/máximo declarado, serve sempre —
+    não se esconde um exercício por falta de dados. O seletor abre já com o
+    tamanho do plantel preenchido.
+  - O atleta não lê a biblioteca: é material de trabalho do treinador.
+- **Painel do treinador** (`renderTreinadorPainel` em `painel.js`): o painel
+  genérico é o resumo do CLUBE (angariado, quotas, inventário) — para quem
+  treina, isso é informação de outra pessoa. O do treinador responde por ordem
+  a: o que tenho hoje, o que ficou por fechar, o que tenho de preparar. Tudo
+  recortado às suas equipas (`myTeams`/`isMyEvent` em `compute.js`, que também
+  passaram a recortar `attendanceStats`/`attendanceTrend`/`trainingsToMark`).
+  - **As presenças por marcar são o centro do ecrã**, não um cartão no fundo:
+    é a tarefa que se acumula (um treino por marcar vira quinze em três
+    semanas) e a única que, por ficar por fazer, estraga todos os números
+    calculados a seguir — comparência, quedas individuais, "treina muito, joga
+    pouco". Aparecem TODAS (não as primeiras seis), separadas entre hoje e
+    atrasadas, com a idade de cada uma.
+  - **Fechar em lote** (`closeAttendanceSessions` no `store.js`): marcar treino
+    a treino de há um mês não é registo, é ficção — o que se sabe mesmo é quem
+    não tem registo nenhum. Um botão fecha de uma vez as sessões com mais de 7
+    dias, com uma escrita por treino e um só toast.
+  - Mais três blocos que existiam mas estavam a três cliques: treinos dos
+    próximos 7 dias **sem exercícios no plano** (uma linha de plano vazia é um
+    plano por fazer), **jogos por registar** resultado, e quem **não está a
+    100%** (disponibilidade, sem detalhe clínico).
 - **Painel personalizável** (`supabase/painel-avisos.sql`): dois catálogos em
   `painel.js` — `METRIC_CATALOG` (os cartões de números) e `ALERT_CATALOG` (a
   lista "A precisar da tua atenção"). Cada entrada declara quem a **pode** ver

@@ -126,8 +126,12 @@ export function quotasOwed() {
 // Estatística global de presenças nos treinos.
 // "Presente" conta presente + atraso (compareceu). Devolve a taxa (0–100),
 // o total de registos e a contagem por estado. rate é null se não houver dados.
+// A taxa é sempre a das equipas de quem pergunta: para o coordenador é a do
+// clube, para o treinador é a dos seus escalões. Uma média que inclui equipas
+// que ele não treina não lhe diz nada e não é acionável por ele.
 export function attendanceStats() {
-  const all = state.attendances;
+  const mine = myEventIdSet();
+  const all = mine ? state.attendances.filter((a) => mine.has(a.event_id)) : state.attendances;
   const counts = { presente: 0, atraso: 0, justificado: 0, falta: 0 };
   all.forEach((a) => {
     if (counts[a.status] !== undefined) counts[a.status]++;
@@ -176,6 +180,9 @@ export function trainingsToMark(limit = 6) {
 
   const list = state.events.filter((e) => {
     if (e.type !== 'treino') return false;
+    // O treinador só marca presenças nas SUAS equipas (é também o que o RLS
+    // permite): listar-lhe os treinos dos outros escalões só enchia a lista.
+    if (!isMyEvent(e)) return false;
     if (e.date === todayStr) return true; // hoje, sempre
     if (eventDateTime(e) < now && e.team_id) {
       const total = teamSize(e.team_id);
@@ -295,6 +302,90 @@ export function coachTeams(coachId) {
 export function currentCoach() {
   const uid = state.profile?.id;
   return uid ? state.coaches.find((c) => c.user_id === uid) : null;
+}
+
+// Equipas do utilizador atual: todas para quem tem âmbito de clube, só as
+// suas para o treinador. Sem ficha de treinador vinculada devolve todas — é
+// preferível mostrar a mais do que deixar o ecrã vazio a quem acabou de ser
+// convidado e ainda não foi ligado a nenhuma equipa.
+export function myTeams() {
+  if (isClubWide()) return state.teams;
+  const coach = currentCoach();
+  if (!coach) return state.teams;
+  const mine = new Set(coachTeams(coach.id).map((x) => x.team.id));
+  return state.teams.filter((t) => mine.has(t.id));
+}
+
+// Conjunto de ids das equipas do utilizador atual (para filtrar eventos).
+export function myTeamIds() {
+  return new Set(myTeams().map((t) => t.id));
+}
+
+// Ids dos eventos das minhas equipas. Devolve null para quem tem âmbito de
+// clube — nesse caso não há nada a filtrar e evita-se percorrer os eventos.
+function myEventIdSet() {
+  if (isClubWide()) return null;
+  const ids = myTeamIds();
+  return new Set(
+    state.events.filter((e) => !e.team_id || ids.has(e.team_id)).map((e) => e.id)
+  );
+}
+
+// Um evento é das minhas equipas? Um evento SEM equipa (ex.: reunião do clube)
+// conta para toda a gente — esconder-lho era perder informação do clube.
+export function isMyEvent(ev) {
+  if (isClubWide()) return true;
+  if (!ev.team_id) return true;
+  return myTeamIds().has(ev.team_id);
+}
+
+// Treinos JÁ PLANEADOS a menos de `days` dias que ainda não têm plano. O plano
+// escreve-se antes do treino ou não se escreve — depois do treino é relatório,
+// não é plano. Só entram os das minhas equipas.
+export function trainingsWithoutPlan(days = 7) {
+  const now = new Date();
+  const limit = new Date(now.getTime() + days * 24 * 3600 * 1000);
+  const withPlan = new Set(
+    state.trainingPlans
+      // Um plano sem um único bloco é um plano por fazer: a linha existe
+      // porque se abriu o ecrã, não porque o treino esteja preparado.
+      .filter((p) => state.trainingPlanItems.some((i) => i.plan_id === p.id))
+      .map((p) => p.event_id)
+  );
+  return state.events
+    .filter((e) => e.type === 'treino' && isMyEvent(e))
+    .filter((e) => {
+      const dt = eventDateTime(e);
+      return dt >= now && dt <= limit && !withPlan.has(e.id);
+    })
+    .sort((a, b) => eventDateTime(a) - eventDateTime(b));
+}
+
+// Jogos já disputados (das minhas equipas) sem resultado registado. É o
+// treinador que regista o resultado depois do jogo — e é a coisa mais fácil de
+// esquecer entre o autocarro e a segunda-feira.
+export function gamesWithoutResult(limit = 5) {
+  const now = new Date();
+  const done = new Set(state.gameResults.map((r) => r.event_id));
+  return state.events
+    .filter((e) => e.type === 'jogo' && isMyEvent(e) && eventDateTime(e) < now && !done.has(e.id))
+    .sort((a, b) => eventDateTime(b) - eventDateTime(a))
+    .slice(0, limit);
+}
+
+// Atletas das minhas equipas que hoje não estão a 100% (limitados, em
+// recuperação ou indisponíveis). É a pergunta que se faz ao entrar no
+// pavilhão, e estava a três cliques de distância.
+export function myUnavailablePlayers() {
+  const ids = myTeamIds();
+  return state.players
+    .filter((p) => (isClubWide() ? true : ids.has(p.team_id)))
+    .map((p) => ({ player: p, av: playerAvailability(p.id) }))
+    .filter((x) => x.av && x.av.status && x.av.status !== 'apto')
+    .sort((a, b) => {
+      const rank = { indisponivel: 0, recuperacao: 1, limitado: 2 };
+      return (rank[a.av.status] ?? 9) - (rank[b.av.status] ?? 9);
+    });
 }
 
 // Escalões que o utilizador atual orienta (via a sua ficha de treinador).
@@ -486,6 +577,7 @@ export function attendanceTrend(days = 30) {
       state.events
         .filter((e) => {
           if (e.type !== 'treino') return false;
+          if (!isMyEvent(e)) return false;
           const dt = eventDateTime(e);
           return dt >= desde && dt < ate;
         })

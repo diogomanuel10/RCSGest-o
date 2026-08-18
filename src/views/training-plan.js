@@ -17,6 +17,8 @@ import {
 import { esc } from '../ui.js';
 import { openModal, confirmDialog } from '../modal.js';
 import { canEdit } from '../permissions.js';
+import { toastError } from '../toast.js';
+import { openExercisePicker, exercisePayload } from './exercicios.js';
 import { PLAN_CATEGORIES, PLAN_CATEGORY_LABEL, PLAN_CATEGORY_BADGE } from '../constants.js';
 import { eventTimeRange, teamById, teamName } from '../compute.js';
 
@@ -128,9 +130,12 @@ function paintPlanTab(body, eventId) {
     <div style="padding:1rem 1.25rem">
       ${renderTotalizer(items, event)}
       ${renderPlanHeader(plan, canWrite)}
-      ${renderItemList(items, canWrite)}
+      ${renderItemList(items, canWrite, canEdit('exercises'))}
       ${canWrite
-        ? `<button class="btn btn--primary btn--sm" data-add-item type="button">+ Adicionar exercício</button>`
+        ? `<div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+             <button class="btn btn--primary btn--sm" data-add-item type="button">+ Adicionar exercício</button>
+             <button class="btn btn--ghost btn--sm" data-from-library type="button">Da biblioteca</button>
+           </div>`
         : ''}
     </div>
   `;
@@ -171,6 +176,54 @@ function paintPlanTab(body, eventId) {
 
   body.querySelector('[data-add-item]')?.addEventListener('click', () => {
     openItemModal({ body, eventId, plan, items });
+  });
+
+  // Puxar um exercício da biblioteca do clube. Os campos são COPIADOS para o
+  // plano: um treino que já aconteceu é um registo histórico, e se apontasse
+  // para a biblioteca, editar o exercício amanhã reescrevia o que se treinou.
+  body.querySelector('[data-from-library]')?.addEventListener('click', () => {
+    const teamSize = event?.team_id
+      ? state.players.filter((p) => p.team_id === event.team_id).length
+      : 0;
+    openExercisePicker({
+      teamSize,
+      async onPick(ex) {
+        const planRecord = plan || (await upsertTrainingPlan(eventId, {}));
+        await createRow('training_plan_items', 'trainingPlanItems', {
+          plan_id:      planRecord.id,
+          exercise_id:  ex.id,
+          category:     ex.category || 'outro',
+          name:         ex.name,
+          duration_min: ex.duration_min ?? null,
+          organization: ex.organization ?? null,
+          objective:    ex.objective    ?? null,
+          reps:         ex.reps         ?? null,
+          description:  ex.description  ?? null,
+          position:     items.length ? Math.max(...items.map((i) => i.position)) + 1 : 0,
+        });
+        paintPlanTab(body, eventId);
+      },
+    });
+  });
+
+  // Guardar um bloco escrito à mão na biblioteca, para não o reescrever no
+  // mês que vem. Só aparece nos blocos que ainda não vieram de lá.
+  body.querySelectorAll('[data-save-item]').forEach((btn) => {
+    const item = state.trainingPlanItems.find((i) => i.id === btn.dataset.saveItem);
+    if (!item) return;
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      try {
+        const created = await createRow('exercises', 'exercises', exercisePayload(item));
+        // Liga o bloco ao exercício criado — é assim que a biblioteca sabe,
+        // depois, quais são os exercícios que se usam mesmo.
+        await updateRow('training_plan_items', 'trainingPlanItems', item.id, { exercise_id: created.id });
+        paintPlanTab(body, eventId);
+      } catch (err) {
+        btn.disabled = false;
+        toastError(dbErrorMessage(err));
+      }
+    });
   });
 
   body.querySelectorAll('[data-edit-item]').forEach((btn) => {
@@ -257,7 +310,7 @@ function renderPlanHeader(plan, canWrite) {
   `;
 }
 
-function renderItemList(items, canWrite) {
+function renderItemList(items, canWrite, canLibrary = false) {
   if (!items.length) {
     return `<p class="muted" style="margin:0 0 1rem">Sem exercícios no plano.</p>`;
   }
@@ -289,6 +342,10 @@ function renderItemList(items, canWrite) {
             </div>
             ${canWrite ? `
               <div style="display:flex;gap:0.25rem;flex-shrink:0">
+                ${canLibrary && !item.exercise_id
+                  ? `<button class="btn btn--ghost btn--sm" data-save-item="${item.id}" type="button"
+                             title="Guardar na biblioteca de exercícios">Guardar</button>`
+                  : ''}
                 <button class="btn btn--ghost btn--sm" data-edit-item="${item.id}" type="button" aria-label="Editar exercício">✏</button>
                 <button class="btn btn--ghost btn--sm" data-delete-item="${item.id}" type="button" aria-label="Remover exercício">✕</button>
               </div>

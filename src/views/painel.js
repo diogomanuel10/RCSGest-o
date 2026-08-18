@@ -1,7 +1,9 @@
 // Vista: Painel (resumo do clube).
 // Cartões de métricas, barra de progresso da meta e próximos eventos.
 
-import { state, savePainelPrefs, dbErrorMessage } from '../store.js';
+import {
+  state, savePainelPrefs, closeAttendanceSession, closeAttendanceSessions, dbErrorMessage,
+} from '../store.js';
 import { esc, euros } from '../ui.js';
 import {
   totalRaised,
@@ -30,17 +32,25 @@ import {
   clubRecord,
   attendanceTrend,
   sport,
+  myTeams,
+  isMyEvent,
+  trainingsWithoutPlan,
+  gamesWithoutResult,
+  myUnavailablePlayers,
 } from '../compute.js';
 import {
   EVENT_TYPE_LABEL,
   EVENT_TYPE_BADGE,
+  AVAILABILITY_LABEL,
+  AVAILABILITY_BADGE,
   APPOINTMENT_TYPE_LABEL,
   APPOINTMENT_TYPE_BADGE,
   EPISODE_STATUS_LABEL,
   EPISODE_STATUS_BADGE,
 } from '../constants.js';
 import {
-  canEdit, canAccess, isFisio, isPreparador, canManageUsers, canManageSettings,
+  canEdit, canAccess, isFisio, isPreparador, isTreinador,
+  canManageUsers, canManageSettings,
 } from '../permissions.js';
 import { openQuickAttendance } from './presencas.js';
 import { openTrainingPlan } from './training-plan.js';
@@ -48,6 +58,10 @@ import { openEventForm, openRecurrentTrainings } from './calendario.js';
 import { openSponsorForm } from './patrocinios.js';
 import { openFinanceiroTab } from './financeiro.js';
 import { openAthleteProfile } from './athlete-profile.js';
+import { confirmDialog } from '../modal.js';
+import { openSquadModal } from './convocatorias.js';
+import { openResultModal } from './resultado.js';
+import { toastError } from '../toast.js';
 import { openSeasonPlanning } from './planteis.js';
 import { DEFAULT_BRANDING } from '../branding.js';
 
@@ -79,6 +93,9 @@ export function renderPainel(container) {
   // Painéis próprios para fisioterapeuta e preparador físico (resumo da sua área).
   if (isFisio()) return renderFisioPainel(container);
   if (isPreparador()) return renderPreparadorPainel(container);
+  // O treinador tem o seu próprio painel: o dele não é o resumo do clube, é a
+  // lista do que tem de fazer hoje nas suas equipas.
+  if (isTreinador()) return renderTreinadorPainel(container);
 
   const raised = totalRaised();
   const goal = state.settings.goal || 0;
@@ -173,7 +190,7 @@ export function renderPainel(container) {
 
     ${toMark.length ? `<section class="card mark-card">
       <h2 class="section-title upcoming-card__title">Presenças por marcar</h2>
-      <ul class="mark-list">${toMark.map(markRow).join('')}</ul>
+      <ul class="mark-list">${toMark.map((m) => markRow(m)).join('')}</ul>
     </section>` : ''}
 
     ${seeSpon ? `<section class="card goal-card">
@@ -726,8 +743,10 @@ function docAlertItem(row) {
   `;
 }
 
-// Uma linha do atalho "Presenças por marcar".
-function markRow({ event, total, marked, isToday }) {
+// Uma linha do atalho "Presenças por marcar". `canClose` acrescenta o botão
+// que marca falta a quem ficou sem registo (só faz sentido em treinos que já
+// aconteceram) e `showAge` diz há quanto tempo o treino ficou por fechar.
+function markRow({ event, total, marked, isToday }, { canClose = false, showAge = false } = {}) {
   const team = teamById(event.team_id);
   const dt = eventDateTime(event);
   const dateLabel = isToday
@@ -735,10 +754,14 @@ function markRow({ event, total, marked, isToday }) {
     : dt.toLocaleDateString('pt-PT', { weekday: 'short', day: '2-digit', month: 'short' });
   const range = eventTimeRange(event);
   const falta = Math.max(0, total - marked);
-  const sub = total
-    ? (marked === 0 ? `${total} atleta${total === 1 ? '' : 's'} por marcar`
-       : `${falta} de ${total} por marcar`)
-    : 'sem equipa associada';
+  const idade = showAge ? idadeLabel(event) : '';
+  const sub = [
+    idade,
+    total
+      ? (marked === 0 ? `${total} atleta${total === 1 ? '' : 's'} por marcar`
+         : `${falta} de ${total} por marcar`)
+      : 'sem equipa associada',
+  ].filter(Boolean).join(' · ');
 
   return `
     <li class="mark-item">
@@ -750,7 +773,11 @@ function markRow({ event, total, marked, isToday }) {
         <span class="mark-item__title">${esc(team ? teamName(team) : (event.title || 'Treino'))}</span>
         <span class="muted mark-item__sub">${esc(sub)}</span>
       </div>
-      <div style="display:flex;gap:0.4rem;align-items:center;flex-shrink:0">
+      <div style="display:flex;gap:0.4rem;align-items:center;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
+        ${canClose && total
+          ? `<button class="btn btn--ghost btn--sm" data-close-event="${event.id}" type="button"
+                     title="Marcar falta a quem ficou sem registo">Fechar</button>`
+          : ''}
         <button class="btn btn--ghost btn--sm" data-plan-event="${event.id}" type="button">Plano</button>
         <button class="btn btn--accent btn--sm" data-mark-event="${event.id}" type="button"
                 ${total ? '' : 'disabled'}>Marcar</button>
@@ -956,4 +983,375 @@ function gymRow(s) {
       </div>
     </li>
   `;
+}
+
+// =========================================================================
+// Painel do Treinador
+// =========================================================================
+// O painel genérico é o resumo do CLUBE — angariado, quotas, inventário. Para
+// quem treina, isso é informação de outra pessoa. Este painel responde a três
+// perguntas, por esta ordem: o que tenho hoje, o que ficou por fechar, e o que
+// tenho de preparar. Tudo recortado às SUAS equipas.
+//
+// A lista de presenças por marcar é o centro do ecrã e não um cartão no fundo:
+// é a tarefa que se acumula (um treino por marcar vira quinze em três semanas)
+// e a única que, por ficar por fazer, estraga todos os números que a app
+// calcula a seguir — a taxa de comparência, as quedas individuais, o "treina
+// muito, joga pouco".
+
+// Mostrar tudo ou só as primeiras? Uma lista de 30 treinos empurrava o resto
+// do painel para fora do ecrã; escondê-los de vez era fingir que não existem.
+let markExpanded = false;
+const MARK_PREVIEW = 6;
+// Uma sessão "antiga" é o que já não se vai marcar de memória. Uma semana é o
+// ponto em que o treinador deixa de saber quem lá esteve.
+const OLD_SESSION_DAYS = 7;
+
+function renderTreinadorPainel(container) {
+  const teams = myTeams();
+  const teamIds = new Set(teams.map((t) => t.id));
+  const players = state.players.filter((p) => teamIds.has(p.team_id));
+  const today = todayEvents().filter(isMyEvent);
+  const canMark = canEdit('attendances');
+
+  // Todos os treinos por marcar (não só os primeiros 6: o problema é
+  // precisamente serem muitos).
+  const toMark = canMark ? trainingsToMark(500) : [];
+  const atrasados = toMark.filter((m) => !m.isToday);
+  const antigos = atrasados.filter((m) => daysAgo(m.event) >= OLD_SESSION_DAYS);
+
+  const semPlano = trainingsWithoutPlan(7);
+  const semResultado = canEdit('game_results') ? gamesWithoutResult(5) : [];
+  const limitados = myUnavailablePlayers();
+  const att = attendanceStats();
+  const trend = attendanceTrend(30);
+  const upcoming = upcomingEvents(20).filter(isMyEvent).slice(0, 5);
+  const proximoJogo = state.events
+    .filter((e) => e.type === 'jogo' && isMyEvent(e) && eventDateTime(e) >= new Date())
+    .sort((a, b) => eventDateTime(a) - eventDateTime(b))[0] || null;
+
+  const metrics = [
+    canMark && metricCard(
+      ICON_CHECK, 'Por marcar', toMark.length,
+      toMark.length
+        ? (atrasados.length
+            ? `${atrasados.length} de treinos já passados`
+            : 'todos de hoje')
+        : 'presenças em dia',
+      toMark.length ? 'accent' : 'green', 'presencas'),
+    metricCard(ICON_USERS, 'Atletas', players.length,
+      `em ${teams.length} equipa${teams.length === 1 ? '' : 's'}`, 'green', 'planteis'),
+    canAccess('presencas') && metricCard(
+      ICON_CHART, 'Comparência', att.rate == null ? '—' : att.rate + '%',
+      attendanceSub(att, trend), attendanceVariant(trend), 'presencas'),
+    proximoJogo && metricCard(
+      ICON_TROPHY, 'Próximo jogo', diasAte(proximoJogo),
+      [teamName(teamById(proximoJogo.team_id)), proximoJogo.opponent ? 'vs ' + proximoJogo.opponent : '']
+        .filter(Boolean).join(' · ') || 'agendado',
+      'blue', 'calendario'),
+  ].filter(Boolean);
+
+  const actions = buildActions();
+
+  container.innerHTML = `
+    <header class="page-head page-head--hero">
+      <div>
+        <h1 class="section-title">${esc(greeting())}${displayName() ? ', ' + esc(displayName()) : ''}</h1>
+        <p class="muted" style="margin:0;font-size:0.9rem">
+          ${esc(teams.length ? teams.map(teamName).join(' · ') : 'Ainda não estás ligado a nenhuma equipa.')}
+          ${today.length ? ' — ' + esc(todayLine(today).replace(/^Tens /, 'tens ')) : ''}
+        </p>
+      </div>
+      <div class="hero-actions">
+        ${availableAlerts().length || availableMetrics().length
+          ? '<button class="btn btn--ghost btn--sm" id="alert-prefs" type="button">Personalizar</button>'
+          : ''}
+      </div>
+    </header>
+
+    ${metrics.length ? `<section class="cards-grid">${metrics.join('')}</section>` : ''}
+
+    ${today.length ? `<section class="card today-card">
+      <h2 class="section-title upcoming-card__title">Hoje</h2>
+      <ul class="mark-list">${today.map(coachTodayRow).join('')}</ul>
+    </section>` : ''}
+
+    ${toMark.length ? markCard(toMark, atrasados, antigos) : ''}
+
+    ${semPlano.length ? `<section class="card mark-card">
+      <h2 class="section-title upcoming-card__title">Treinos por preparar</h2>
+      <p class="muted" style="margin:0 0 0.5rem;font-size:0.85rem">
+        Próximos 7 dias, ainda sem exercícios no plano.
+      </p>
+      <ul class="mark-list">${semPlano.slice(0, 6).map(planRow).join('')}</ul>
+    </section>` : ''}
+
+    ${semResultado.length ? `<section class="card mark-card">
+      <h2 class="section-title upcoming-card__title">Jogos por registar</h2>
+      <ul class="mark-list">${semResultado.map(resultRow).join('')}</ul>
+    </section>` : ''}
+
+    ${actions.length ? `<section class="card alerts-card">
+      <h2 class="section-title upcoming-card__title">A precisar da tua atenção</h2>
+      <ul class="alerts-list">${actions.map(actionItem).join('')}</ul>
+    </section>` : ''}
+
+    ${limitados.length ? `<section class="card">
+      <h2 class="section-title upcoming-card__title">Não estão a 100%</h2>
+      <ul class="today-list">${limitados.slice(0, 8).map(limitedRow).join('')}</ul>
+    </section>` : ''}
+
+    <section class="card">
+      <h2 class="section-title upcoming-card__title">Próximos eventos</h2>
+      ${upcoming.length ? upcomingList(upcoming)
+        : '<p class="muted" style="margin:0.3rem 0 0">Sem eventos futuros agendados.</p>'}
+    </section>
+  `;
+
+  wireCoachPainel(container, antigos);
+}
+
+// Cartão central: tudo o que está por marcar, separado entre o que é de hoje
+// (ainda fresco) e o que ficou para trás.
+function markCard(toMark, atrasados, antigos) {
+  const hoje = toMark.filter((m) => m.isToday);
+  const visiveis = markExpanded ? atrasados : atrasados.slice(0, MARK_PREVIEW);
+  const escondidos = atrasados.length - visiveis.length;
+
+  return `
+    <section class="card mark-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:0.6rem;flex-wrap:wrap">
+        <h2 class="section-title upcoming-card__title" style="margin:0">
+          Presenças por marcar <span class="muted">(${toMark.length})</span>
+        </h2>
+        ${antigos.length > 1
+          ? `<button class="btn btn--ghost btn--sm" data-close-old type="button"
+                     title="Marca falta a quem ficou sem qualquer registo nesses treinos">
+               Fechar ${antigos.length} sessões antigas
+             </button>`
+          : ''}
+      </div>
+      ${hoje.length ? `
+        <p class="pd-label" style="margin:0.7rem 0 0.2rem">Hoje</p>
+        <ul class="mark-list">${hoje.map((m) => markRow(m)).join('')}</ul>` : ''}
+      ${visiveis.length ? `
+        <p class="pd-label" style="margin:0.7rem 0 0.2rem">Por fechar</p>
+        <ul class="mark-list">${visiveis.map((m) => markRow(m, { canClose: true, showAge: true })).join('')}</ul>` : ''}
+      ${escondidos > 0
+        ? `<button class="btn btn--ghost btn--sm" data-mark-more type="button" style="margin-top:0.6rem">
+             Ver os restantes ${escondidos}
+           </button>`
+        : ''}
+      ${markExpanded && atrasados.length > MARK_PREVIEW
+        ? `<button class="btn btn--ghost btn--sm" data-mark-less type="button" style="margin-top:0.6rem">
+             Mostrar menos
+           </button>`
+        : ''}
+    </section>
+  `;
+}
+
+// Linha de "Hoje": mostra o evento e o que se pode fazer com ele agora.
+function coachTodayRow(ev) {
+  const team = teamById(ev.team_id);
+  const range = eventTimeRange(ev);
+  const isJogo = ev.type === 'jogo';
+  return `
+    <li class="mark-item">
+      <div class="mark-item__when">
+        <span class="mark-item__date mark-item__date--today">${esc(range || 'Hoje')}</span>
+        <span class="muted mark-item__time">${esc(EVENT_TYPE_LABEL[ev.type] || ev.type)}</span>
+      </div>
+      <div class="mark-item__body">
+        <span class="mark-item__title">${esc(team ? teamName(team) : (ev.title || 'Evento'))}</span>
+        <span class="muted mark-item__sub">${esc([
+          ev.opponent ? 'vs ' + ev.opponent : '',
+          ev.location || '',
+        ].filter(Boolean).join(' · ') || '—')}</span>
+      </div>
+      <div style="display:flex;gap:0.4rem;align-items:center;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
+        ${isJogo
+          ? `${canEdit('squads') && ev.team_id ? `<button class="btn btn--ghost btn--sm" data-squad-event="${ev.id}" type="button">Convocatória</button>` : ''}
+             ${canEdit('game_results') ? `<button class="btn btn--accent btn--sm" data-result-event="${ev.id}" type="button">Resultado</button>` : ''}`
+          : `<button class="btn btn--ghost btn--sm" data-plan-event="${ev.id}" type="button">Plano</button>
+             ${canEdit('attendances') ? `<button class="btn btn--accent btn--sm" data-mark-event="${ev.id}" type="button">Marcar</button>` : ''}`}
+      </div>
+    </li>
+  `;
+}
+
+// Linha de "Treinos por preparar".
+function planRow(ev) {
+  const team = teamById(ev.team_id);
+  const dt = eventDateTime(ev);
+  const dateLabel = dt.toLocaleDateString('pt-PT', { weekday: 'short', day: '2-digit', month: 'short' });
+  const range = eventTimeRange(ev);
+  return `
+    <li class="mark-item">
+      <div class="mark-item__when">
+        <span class="mark-item__date">${esc(dateLabel)}</span>
+        ${range ? `<span class="muted mark-item__time">${esc(range)}</span>` : ''}
+      </div>
+      <div class="mark-item__body">
+        <span class="mark-item__title">${esc(team ? teamName(team) : (ev.title || 'Treino'))}</span>
+        <span class="muted mark-item__sub">Sem exercícios no plano</span>
+      </div>
+      <div style="flex-shrink:0">
+        <button class="btn btn--accent btn--sm" data-plan-event="${ev.id}" type="button">Preparar</button>
+      </div>
+    </li>
+  `;
+}
+
+// Linha de "Jogos por registar".
+function resultRow(ev) {
+  const team = teamById(ev.team_id);
+  const dias = daysAgo(ev);
+  return `
+    <li class="mark-item">
+      <div class="mark-item__when">
+        <span class="mark-item__date">${esc(eventDateTime(ev).toLocaleDateString('pt-PT', { day: '2-digit', month: 'short' }))}</span>
+        <span class="muted mark-item__time">há ${dias}d</span>
+      </div>
+      <div class="mark-item__body">
+        <span class="mark-item__title">${esc(team ? teamName(team) : (ev.title || 'Jogo'))}</span>
+        <span class="muted mark-item__sub">${esc(ev.opponent ? 'vs ' + ev.opponent : 'sem adversário registado')}</span>
+      </div>
+      <div style="flex-shrink:0">
+        <button class="btn btn--accent btn--sm" data-result-event="${ev.id}" type="button">Registar</button>
+      </div>
+    </li>
+  `;
+}
+
+// Linha de "Não estão a 100%". Abre a ficha do atleta (separador Geral) — o
+// treinador vê o resumo da disponibilidade e as limitações, nunca o detalhe
+// clínico.
+function limitedRow({ player, av }) {
+  const team = teamById(player.team_id);
+  return `
+    <li class="today-item today-item--link" data-open-athlete="${player.id}" role="button" tabindex="0">
+      <span class="today-item__time">
+        <span class="badge badge--${AVAILABILITY_BADGE[av.status] || 'muted'}">
+          ${esc(AVAILABILITY_LABEL[av.status] || av.status)}
+        </span>
+      </span>
+      <div class="today-item__body">
+        <span class="today-item__title">${esc(player.name)}</span>
+        <span class="muted today-item__meta">${esc([
+          team ? teamName(team) : '',
+          av.limitations || '',
+        ].filter(Boolean).join(' · ') || '—')}</span>
+      </div>
+    </li>
+  `;
+}
+
+function wireCoachPainel(container, antigos) {
+  const repaint = () => renderTreinadorPainel(container);
+
+  container.querySelectorAll('[data-mark-event]').forEach((btn) =>
+    btn.addEventListener('click', () => openQuickAttendance(btn.dataset.markEvent))
+  );
+  container.querySelectorAll('[data-plan-event]').forEach((btn) =>
+    btn.addEventListener('click', () => openTrainingPlan(btn.dataset.planEvent))
+  );
+  container.querySelectorAll('[data-result-event]').forEach((btn) =>
+    btn.addEventListener('click', () => openResultModal(btn.dataset.resultEvent))
+  );
+  container.querySelectorAll('[data-squad-event]').forEach((btn) =>
+    btn.addEventListener('click', () => openSquadModal(btn.dataset.squadEvent))
+  );
+  container.querySelectorAll('[data-nav]').forEach((el) =>
+    el.addEventListener('click', () => {
+      if (el.dataset.plan) openSeasonPlanning();
+      if (el.dataset.finTabOpen) openFinanceiroTab(el.dataset.finTabOpen);
+      navTo(el.dataset.nav);
+    })
+  );
+  container.querySelectorAll('[data-open-athlete]').forEach((el) => {
+    const open = () => openAthleteProfile(el.dataset.openAthlete, { tab: 'geral' });
+    el.addEventListener('click', open);
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
+    });
+  });
+
+  container.querySelector('[data-mark-more]')?.addEventListener('click', () => {
+    markExpanded = true;
+    repaint();
+  });
+  container.querySelector('[data-mark-less]')?.addEventListener('click', () => {
+    markExpanded = false;
+    repaint();
+  });
+
+  container.querySelectorAll('[data-close-event]').forEach((btn) =>
+    btn.addEventListener('click', () => closeOne(btn.dataset.closeEvent))
+  );
+  container.querySelector('[data-close-old]')?.addEventListener('click', () => closeOld(antigos));
+
+  container.querySelector('#alert-prefs')?.addEventListener('click', () =>
+    openAlertPrefs(repaint)
+  );
+}
+
+// Fechar UM treino: quem ficou sem registo leva falta. Sem isto, o ausente
+// fica só "sem registo" — que não conta para a taxa de comparência e faz o
+// número parecer melhor do que é.
+async function closeOne(eventId) {
+  const row = trainingsToMark(500).find((m) => m.event.id === eventId);
+  const falta = row ? Math.max(0, row.total - row.marked) : 0;
+  const ok = await confirmDialog(
+    `Marcar falta a ${falta} atleta${falta === 1 ? '' : 's'} sem registo neste treino? Quem já tem estado não é alterado.`,
+    { confirmLabel: 'Fechar treino' }
+  );
+  if (!ok) return;
+  try {
+    await closeAttendanceSession(eventId);
+  } catch (err) {
+    toastError(dbErrorMessage(err));
+  }
+}
+
+// Fechar TODAS as sessões antigas de uma vez. É a saída para quem tem semanas
+// acumuladas: marcar treino a treino de há um mês não é registo, é ficção — o
+// que se sabe mesmo é quem não tem registo nenhum.
+async function closeOld(antigos) {
+  const ids = antigos.map((m) => m.event.id);
+  const total = antigos.reduce((s, m) => s + Math.max(0, m.total - m.marked), 0);
+  const ok = await confirmDialog(
+    `Fechar ${ids.length} treinos com mais de ${OLD_SESSION_DAYS} dias? Marca falta a ${total} registo${total === 1 ? '' : 's'} em falta; quem já tem estado não é alterado.`,
+    { confirmLabel: 'Fechar sessões' }
+  );
+  if (!ok) return;
+  try {
+    await closeAttendanceSessions(ids);
+  } catch (err) {
+    toastError(dbErrorMessage(err));
+  }
+}
+
+// "ontem" / "há 5 dias" / "há 3 semanas" — a idade do treino por fechar.
+function idadeLabel(ev) {
+  const dias = daysAgo(ev);
+  if (dias <= 0) return '';
+  if (dias === 1) return 'ontem';
+  if (dias < 14) return `há ${dias} dias`;
+  const semanas = Math.floor(dias / 7);
+  return `há ${semanas} semanas`;
+}
+
+// Dias inteiros desde o evento (0 = hoje).
+function daysAgo(ev) {
+  const diff = Date.now() - eventDateTime(ev).getTime();
+  return Math.max(0, Math.floor(diff / 86400000));
+}
+
+// "3 dias" / "amanhã" / "hoje" até um evento futuro.
+function diasAte(ev) {
+  const dias = Math.ceil((eventDateTime(ev).getTime() - Date.now()) / 86400000);
+  if (dias <= 0) return 'hoje';
+  if (dias === 1) return 'amanhã';
+  return `${dias} dias`;
 }
