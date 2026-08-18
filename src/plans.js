@@ -29,23 +29,34 @@ export const PLAN_FEATURE_CATALOG = [
 export const PLAN_FEATURES = PLAN_FEATURE_CATALOG.map((f) => f.key);
 
 // Planos por omissão (recurso e seed inicial da tabela `plans`).
+//
+// São TRÊS de propósito. Havia cinco (Solo, Treinador+, Essencial, Clube,
+// Clube+) e os dois primeiros faziam mais mal do que bem: um plano de entrada
+// muito barato ancora o preço em baixo — quem vê o mais barato primeiro nunca
+// mais aceita o de cima — e "Essencial" vs "Clube" obrigava o clube a decidir,
+// na primeira visita ao site, se ia querer departamento médico. Três níveis
+// (um treinador / um clube / um clube com direção) chegam para descrever quem
+// compra isto. Ver `supabase/plans-consolidacao.sql` para a migração.
 export const DEFAULT_PLANS = [
-  { key: 'solo',           name: 'Solo',       order: 1, desc: 'Um treinador, um escalão.',
-    sections: [], limits: { escaloes: 1, users: 1 } },
-  { key: 'treinador_plus', name: 'Treinador+', order: 2, desc: 'Um treinador com vários escalões e coordenação técnica.',
+  { key: 'treinador',  name: 'Treinador', order: 1, desc: 'Um treinador e os seus escalões: plantéis, calendário, presenças e treino.',
     sections: [], limits: { escaloes: 3, users: 2 } },
-  { key: 'essencial',      name: 'Essencial',  order: 3, desc: 'Gestão do clube com ficha de sócio, material e documentos.',
-    sections: ['quotas', 'equipamentos', 'encomendas', 'documentos'], limits: { escaloes: null, users: 5 } },
-  { key: 'clube',          name: 'Clube',      order: 4, desc: 'Clube completo: médico, preparação física, material e documentos.',
+  { key: 'clube',      name: 'Clube',     order: 2, desc: 'O clube completo: ficha de sócio, material, documentos, fisioterapia e preparação física.',
     sections: ['quotas', 'equipamentos', 'encomendas', 'documentos', 'medico', 'fisica'], limits: { escaloes: null, users: 15 } },
-  { key: 'clube_plus',     name: 'Clube+',     order: 5, desc: 'Tudo, mais visão de direção (financeiro) e análise/IA.',
+  { key: 'clube_plus', name: 'Clube+',    order: 3, desc: 'Tudo, mais visão de direção (financeiro) e análise/IA.',
     sections: ['quotas', 'equipamentos', 'encomendas', 'documentos', 'medico', 'fisica', 'financeiro', 'ia'], limits: { escaloes: null, users: null } },
 ];
 const DEFAULT_BY_KEY = Object.fromEntries(DEFAULT_PLANS.map((p) => [p.key, p]));
 
-// Planos "legados"/especiais → plano real. Os clubes existentes ficaram com
-// plan='pro' e o trial arranca sem plano; ambos = acesso total até definires um.
-const PLAN_ALIASES = { pro: 'clube_plus', trial: 'clube_plus', '': 'clube_plus' };
+// Planos "legados"/especiais → plano real. Duas famílias:
+//   - `pro`/`trial`/vazio: clubes antigos e o período de demonstração, que
+//     arrancam sem plano definido → acesso total (fail-open) até lhe dares um.
+//   - `solo`/`treinador_plus`/`essencial`: os planos de cinco níveis que
+//     deixaram de existir. Mapeiam para cima e nunca para baixo — tirar acesso
+//     a um clube que já o tinha é uma forma de o perder, e são poucos.
+const PLAN_ALIASES = {
+  pro: 'clube_plus', trial: 'clube_plus', '': 'clube_plus',
+  solo: 'treinador', treinador_plus: 'treinador', essencial: 'clube',
+};
 
 // Converte uma linha da tabela `plans` para a forma interna.
 function fromRow(r) {
