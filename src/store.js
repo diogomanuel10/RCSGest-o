@@ -35,6 +35,7 @@ const ENTITY_LABEL = {
   objectives: 'Objetivo',
   documents: 'Documento',
   tactical_scenarios: 'Cenário',
+  exercises: 'Exercício',
 };
 
 // Etiquetas femininas — o particípio concorda em género («Equipa guardada»).
@@ -92,6 +93,7 @@ export const state = {
   tacticalScenarios: [],  // cenários de decisão tática (free ball, 3x3)
   tacticalAnswers: [],    // respostas dos atletas aos cenários
   objectives: [],         // objetivos / KPIs da época (manuais e automáticos)
+  exercises: [],          // biblioteca de exercícios do clube (reutilizáveis)
   profile: null, // perfil do utilizador atual (com o papel/role)
   profiles: [], // todos os perfis (preenchido só se o utilizador for coordenador)
   org: null, // organização (clube) do utilizador atual — multi-tenant
@@ -146,6 +148,7 @@ export function resetState() {
   state.tacticalScenarios = [];
   state.tacticalAnswers = [];
   state.objectives = [];
+  state.exercises = [];
   state.profile = null;
   state.profiles = [];
   state.org = null;
@@ -312,7 +315,7 @@ export async function loadAll() {
          physProfiles, medHistory, physTests, phases, mesocycles, gymSessions, gymExercises, gymAttendance, gameMinutes, availability,
          trainingPlans, trainingPlanItems, trainingEvaluations, trainingPlayerEvals,
          playerDocuments, playerSizes, squads, squadPlayers, financialEntries, gamePlans, objectives,
-         eventResponses, gameResults, gameSets, tacticalScenarios, tacticalAnswers] =
+         eventResponses, gameResults, gameSets, tacticalScenarios, tacticalAnswers, exercises] =
     await Promise.all([
       // Multi-tenant: o RLS limita as definições ao clube do utilizador, por
       // isso não filtramos por id — devolve a (única) linha do clube atual.
@@ -371,6 +374,8 @@ export async function loadAll() {
       // Decisão tática. Tolerante à migração em falta (ver abaixo).
       supabase.from('tactical_scenarios').select('*').order('created_at', { ascending: false }),
       supabase.from('tactical_answers').select('*'),
+      // Biblioteca de exercícios. Tolerante à migração em falta (ver abaixo).
+      supabase.from('exercises').select('*').order('name'),
     ]);
 
   for (const res of [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects, episodes, sessions, appointments,
@@ -427,6 +432,9 @@ export async function loadAll() {
   // vazia, em vez de impedir a app de arrancar.
   state.tacticalScenarios = tacticalScenarios.error ? [] : (tacticalScenarios.data || []);
   state.tacticalAnswers   = tacticalAnswers.error   ? [] : (tacticalAnswers.data   || []);
+  // Sem `exercicios.sql` a biblioteca fica vazia e a secção avisa que falta a
+  // migração, em vez de impedir a app de arrancar.
+  state.exercises         = exercises.error         ? [] : (exercises.data         || []);
 
   // Coerência da cache: com pais arquivados (ex.: uma equipa), os filhos que os
   // referenciam não devem aparecer nos ecrãs ativos.
@@ -915,6 +923,36 @@ export async function closeAttendanceSession(eventId) {
   } else {
     toastOk('Todos os atletas já tinham registo.');
   }
+  return created;
+}
+
+// Fecha VÁRIAS sessões de uma vez (usado no painel do treinador, quando se
+// acumularam treinos antigos por fechar). Vai em lote de propósito: chamar
+// closeAttendanceSession num ciclo dava um toast por treino e uma releitura
+// das presenças por treino, numa operação que é conceptualmente uma só.
+// Devolve o total de faltas criadas.
+export async function closeAttendanceSessions(eventIds) {
+  if (!eventIds.length) return 0;
+  let created = 0;
+  for (const id of eventIds) {
+    const { data, error } = await supabase.rpc('close_attendance_session', { p_event_id: id });
+    if (error) throw error;
+    created += Number(data) || 0;
+  }
+  const { data: rows, error: readErr } = await supabase
+    .from('attendances')
+    .select('*')
+    .in('event_id', eventIds);
+  if (readErr) throw readErr;
+  const touched = new Set(eventIds);
+  state.attendances = state.attendances.filter((a) => !touched.has(a.event_id));
+  state.attendances.push(...(rows || []));
+  toastOk(
+    created
+      ? `${eventIds.length} ${eventIds.length === 1 ? 'sessão fechada' : 'sessões fechadas'} — ${created} falta${created === 1 ? '' : 's'} registada${created === 1 ? '' : 's'}.`
+      : 'Todos os atletas já tinham registo.'
+  );
+  notify();
   return created;
 }
 

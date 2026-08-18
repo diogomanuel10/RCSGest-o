@@ -54,7 +54,8 @@ As permissões são impostas pela base de dados (RLS), não só pela interface.
    `trainer-notifications.sql`, `convite-atleta.sql` (convites ligados à
    ficha do atleta), `portal-atleta.sql`, `comunicacao.sql` (respostas do
    atleta + avisos do clube), `resultados.sql` (resultados de jogo),
-   `tatica.sql` (Decisão Tática: cenários de leitura de jogo + respostas) e
+   `tatica.sql` (Decisão Tática: cenários de leitura de jogo + respostas),
+   `exercicios.sql` (biblioteca de exercícios do clube) e
    `painel-avisos.sql` (limiares do clube + avisos por utilizador). Todos
    são seguros de re-executar.
 4. Em **Authentication → Sign In / Providers**, garante que

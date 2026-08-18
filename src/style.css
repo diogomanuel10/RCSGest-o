@@ -6212,3 +6212,74 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
    o painel para fora do ecrã em desktop. */
 .tb-court-wrap { display: flex; justify-content: center; }
 .tb-court { max-height: 74vh; }
+
+/* =========================================================================
+   Biblioteca de exercícios
+   ========================================================================= */
+.ex-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0 0 1rem;
+}
+.ex-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.ex-chip:hover { border-color: var(--navy-300); background: var(--surface); }
+.ex-chip--active {
+  background: var(--navy-100);
+  border-color: var(--navy-300);
+  font-weight: 600;
+}
+.ex-chip__n { color: var(--text-muted); font-size: 0.76rem; }
+.ex-chip--active .ex-chip__n { color: inherit; }
+
+.ex-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.7rem; }
+.ex-card { padding: 0.85rem 1rem; }
+.ex-card__head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.ex-card__name { flex: 1; min-width: 12rem; font-family: var(--font-title); }
+.ex-card__used { font-size: 0.78rem; white-space: nowrap; }
+.ex-card__actions { margin-left: auto; }
+.ex-card__obj { margin: 0.45rem 0 0; font-size: 0.9rem; }
+.ex-card__meta { margin: 0.2rem 0 0; font-size: 0.83rem; }
+.ex-card__desc {
+  margin: 0.45rem 0 0;
+  font-size: 0.88rem;
+  white-space: pre-wrap;
+  color: var(--text-muted);
+}
+
+/* Escolher da biblioteca, dentro do plano de treino */
+.ex-pick { list-style: none; padding: 0; margin: 0; }
+.ex-pick__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.6rem 0.4rem;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: none;
+  font: inherit;
+  color: var(--text);
+  cursor: pointer;
+}
+.ex-pick__item:hover { background: var(--surface-2); }
+.ex-pick__body { flex: 1; min-width: 0; }
+.ex-pick__meta { display: block; font-size: 0.8rem; margin-top: 0.1rem; }
