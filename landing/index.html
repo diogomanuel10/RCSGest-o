@@ -506,6 +506,8 @@
   .final h2 { font-size: clamp(2rem, 4vw, 3rem); font-weight: 700; color: #fff; margin-bottom: 1rem; }
   .final p { color: #bcd0e6; font-size: 1.15rem; max-width: 46ch; margin: 0 auto 2rem; }
   .final__actions { display: flex; gap: 0.9rem; justify-content: center; flex-wrap: wrap; }
+  .final__contacts { color: #94aecb; font-size: 0.95rem; margin: 1.4rem 0 0; }
+  .final__contacts a { color: #fff; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 
   /* --- Rodapé --- */
   footer.site {
@@ -592,7 +594,7 @@
         {
           "@type": "Question",
           "name": "Como começo?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Fala connosco e tratamos do arranque contigo: criamos o clube, importamos os atletas que já tens em Excel e configuramos os acessos da equipa técnica. O clube arranca em período de demonstração." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Crias a conta e o clube em dois minutos, sem cartão. O clube arranca com 30 dias de demonstração e com um plantel de exemplo — treinos com presenças, jogos com resultado e quotas — para veres tudo a funcionar antes de meteres os teus dados (limpas com um botão). Se quiseres, falamos por WhatsApp e importamos contigo os atletas que já tens em Excel." }
         }
       ]
     }
@@ -601,6 +603,25 @@
 </script>
 </head>
 <body>
+<!--
+  ┌──────────────────────────────────────────────────────────────────┐
+  │  CONTACTOS E LIGAÇÕES — trocar antes de publicar                 │
+  │                                                                  │
+  │  Procura e substitui estes dois marcadores em TODO o ficheiro:   │
+  │                                                                  │
+  │   APP_URL_AQUI    → onde a aplicação está publicada              │
+  │                     (ex.: https://app.rumia.pt)                  │
+  │   WHATSAPP_AQUI   → o teu número em formato internacional, sem   │
+  │                     espaços nem "+" (ex.: 351912345678)          │
+  │                                                                  │
+  │  E o email duospike410@gmail.com por um do teu domínio: quem te  │
+  │  vai confiar dados clínicos de menores repara nisso.             │
+  │                                                                  │
+  │  Porquê WhatsApp e não só email: um link mailto: não faz NADA no │
+  │  browser interno do WhatsApp nem em Android sem app de mail —    │
+  │  e é aí que os treinadores abrem o teu link.                     │
+  └──────────────────────────────────────────────────────────────────┘
+-->
 
 <!-- Emblema reutilizável (símbolo SVG) -->
 <!-- ================= NAV ================= -->
@@ -618,7 +639,7 @@
       <a href="#faq">FAQ</a>
     </nav>
     <div class="nav__cta">
-      <a class="btn btn--primary" href="#contacto">Falar connosco</a>
+      <a class="btn btn--primary" href="APP_URL_AQUI">Experimentar grátis</a>
       <button class="nav__toggle" type="button" aria-controls="nav-links" aria-expanded="false" aria-label="Abrir menu">
         <svg class="ic-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="3" y1="7" x2="21" y2="7"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="17" x2="21" y2="17"/></svg>
         <svg class="ic-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/></svg>
@@ -637,10 +658,10 @@
       <h1>Todo o teu clube numa <span class="accent">só plataforma</span>.</h1>
       <p class="lead">Plantéis, calendário, presenças, departamento médico, preparação física, finanças e patrocínios — reunidos, com cada pessoa a ver só o que precisa.</p>
       <div class="hero__actions">
-        <a class="btn btn--primary" href="#precos">Ver planos</a>
-        <a class="btn btn--on-navy" href="#contacto">Falar connosco</a>
+        <a class="btn btn--primary" href="APP_URL_AQUI">Experimentar grátis</a>
+        <a class="btn btn--on-navy" href="#precos">Ver planos</a>
       </div>
-      <p class="hero__note">Sem instalações. Funciona no telemóvel, tablet e computador.</p>
+      <p class="hero__note">30 dias grátis, sem cartão. O clube arranca com um plantel de exemplo para clicares à vontade.</p>
     </div>
 
     <div class="window reveal" aria-hidden="true">
@@ -950,7 +971,7 @@
           <li><span class="tick">✓</span> Treino, plano de jogo, avaliação e estatísticas</li>
           <li><span class="tick">✓</span> Até 3 escalões · 2 utilizadores</li>
         </ul>
-        <a class="btn btn--ghost" href="#contacto">Falar connosco</a>
+        <a class="btn btn--ghost" href="APP_URL_AQUI">Experimentar grátis</a>
       </div>
 
       <div class="plan plan--featured reveal">
@@ -967,7 +988,7 @@
           <li><span class="tick">✓</span> Fisioterapia e preparação física</li>
           <li><span class="tick">✓</span> Até 15 utilizadores</li>
         </ul>
-        <a class="btn btn--primary" href="#contacto">Escolher Clube</a>
+        <a class="btn btn--primary" href="APP_URL_AQUI">Experimentar grátis</a>
       </div>
 
       <div class="plan reveal">
@@ -1030,7 +1051,7 @@
       </details>
       <details class="qa">
         <summary>Como começo?</summary>
-        <p>Fala connosco e tratamos do arranque contigo: criamos o clube, importamos os atletas que já tens em Excel e configuramos os acessos da equipa técnica. O clube arranca em período de demonstração, para experimentares com os teus dados antes de decidir.</p>
+        <p>Crias a conta e o clube em dois minutos, sem cartão. O clube arranca com <strong>30 dias de demonstração</strong> e com um plantel de exemplo — treinos com presenças, jogos com resultado e quotas — para veres tudo a funcionar antes de meteres os teus dados (limpas com um botão nas Definições). Se quiseres, <a href="#contacto" style="color:var(--navy-500);font-weight:600">falamos por WhatsApp</a> e importamos contigo os atletas que já tens em Excel.</p>
       </details>
     </div>
   </div>
@@ -1040,14 +1061,19 @@
 <section class="final" id="contacto">
   <div class="wrap">
     <h2>Pronto para simplificar a gestão do teu clube?</h2>
-    <p>Fala connosco e ajudamos a colocar o teu clube a funcionar, com os teus dados.</p>
+    <p>Cria o clube em dois minutos, ou fala connosco e ajudamos a colocá-lo a funcionar com os teus dados.</p>
     <div class="final__actions">
-      <!-- Substitui pelo teu email/formulário de contacto real. O corpo já leva
-           as perguntas cuja resposta precisas para preparar o arranque. -->
-      <a class="btn btn--primary" href="mailto:duospike410@gmail.com?subject=Quero%20conhecer%20a%20Rumia&amp;body=Ol%C3%A1%2C%0A%0AClube%3A%20%0AModalidade%3A%20%0ANº%20de%20escal%C3%B5es%3A%20%0ANº%20de%20atletas%3A%20%0A%0AGostava%20de%20saber%20mais%20sobre%20a%20Rumia.%0A">Falar connosco</a>
-      <a class="btn btn--on-navy" href="#precos">Ver planos</a>
+      <a class="btn btn--primary" href="APP_URL_AQUI">Criar o meu clube</a>
+      <!-- WhatsApp e não mailto: é onde os treinadores estão, e um mailto não
+           abre nada no browser interno do WhatsApp nem em Android sem app de
+           mail. O texto já vai escrito para não haver "e agora o que digo?". -->
+      <a class="btn btn--on-navy" target="_blank" rel="noopener"
+         href="https://wa.me/WHATSAPP_AQUI?text=Ol%C3%A1%2C%20vi%20a%20Rumia%20e%20queria%20saber%20mais.%20Sou%20treinador%2Fa%20no%20clube%3A%20">Falar por WhatsApp</a>
     </div>
-    <p style="color:#94aecb;font-size:0.9rem;margin:1.6rem 0 0">Respondemos em 24 horas úteis. Ajudamos na importação dos atletas que já tens em Excel.</p>
+    <p class="final__contacts">
+      Ou por email: <a href="mailto:duospike410@gmail.com">duospike410@gmail.com</a>
+    </p>
+    <p style="color:#94aecb;font-size:0.9rem;margin:1.2rem 0 0">Respondemos em 24 horas úteis. Ajudamos na importação dos atletas que já tens em Excel.</p>
   </div>
 </section>
 
@@ -1065,7 +1091,8 @@
         <a href="#faq">FAQ</a>
         <a href="privacidade.html">Privacidade</a>
         <a href="termos.html">Termos</a>
-        <a href="mailto:duospike410@gmail.com">Contacto</a>
+        <a href="https://wa.me/WHATSAPP_AQUI" target="_blank" rel="noopener">WhatsApp</a>
+        <a href="mailto:duospike410@gmail.com">Email</a>
       </nav>
     </div>
     <div class="footer__legal">
