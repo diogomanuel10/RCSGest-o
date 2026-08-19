@@ -247,20 +247,6 @@ export async function createClub(name, sport = 'voleibol', trialDays = TRIAL_DAY
   return data;
 }
 
-// Cria um clube PARA outra pessoa (admin da plataforma). A conta tem de já
-// existir — criar contas exige a chave de serviço, que nunca anda no browser.
-// Ver `supabase/acesso-fechado.sql`.
-export async function adminCreateClub({ email, name, sport, trialDays = TRIAL_DAYS }) {
-  const { data, error } = await supabase.rpc('admin_create_club', {
-    p_email: email,
-    p_name: name,
-    p_sport: sport || 'voleibol',
-    p_trial_days: trialDays,
-  });
-  if (error) throw error;
-  return data;
-}
-
 // Aceita um convite por token, ligando a conta ao clube (RPC no Supabase).
 export async function redeemInvitation(token) {
   const { data, error } = await supabase.rpc('redeem_invitation', { p_token: token });

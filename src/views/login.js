@@ -6,15 +6,6 @@ import { esc } from '../ui.js';
 import { logoSrc, branding } from '../branding.js';
 
 export function renderLogin(root, onSuccess) {
-  // O registo é só para quem foi CONVIDADO. Não há inscrição aberta: os clubes
-  // entram por nós (ver `supabase/acesso-fechado.sql`), e mostrar um "Criar
-  // conta" a toda a gente era prometer uma porta que o servidor recusa. Quem
-  // chega por `?invite=` (treinador, atleta, fisio de um clube que já existe)
-  // continua a precisar de criar a sua conta — e para esse o separador aparece.
-  const invited = (() => {
-    try { return Boolean(localStorage.getItem('rcs.invite')); } catch { return false; }
-  })();
-
   let mode = 'login'; // 'login' | 'register' | 'reset'
   root.removeAttribute('aria-busy');
 
@@ -32,7 +23,7 @@ export function renderLogin(root, onSuccess) {
           <h1 class="section-title login__title">${esc(b.app_name)}</h1>
           <p class="muted login__subtitle">${esc(b.motto)}</p>
 
-          ${isReset || !invited ? '' : `
+          ${isReset ? '' : `
           <div class="login__tabs" role="tablist">
             <button type="button" class="login__tab ${isLogin ? 'login__tab--active' : ''}"
                     data-mode="login" role="tab" aria-selected="${isLogin}">Entrar</button>
@@ -75,12 +66,6 @@ export function renderLogin(root, onSuccess) {
           <button type="button" class="btn btn--ghost btn--sm login__link" data-mode="${isReset ? 'login' : 'reset'}">
             ${isReset ? 'Voltar a iniciar sessão' : 'Esqueci-me da palavra-passe'}
           </button>
-
-          ${isReset || invited ? '' : `
-          <p class="muted login__hint-inline" style="text-align:center;margin-top:0.9rem">
-            Ainda não tens acesso? Os clubes entram por convite — fala com quem
-            te apresentou a ${esc(b.app_name)}.
-          </p>`}
         </form>
       </main>
     `;

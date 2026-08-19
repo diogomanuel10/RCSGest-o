@@ -10,7 +10,6 @@ import { state, subscribe, loadAll, loadProfile, orgAccess, redeemInvitation } f
 import { loadingHTML, errorHTML, esc } from '../ui.js';
 import { renderOfflineCard, clearOfflineCard } from '../offline-card.js';
 import { renderOnboarding } from './onboarding.js';
-import { renderSemClube } from './sem-clube.js';
 import { renderSubscriptionBlocked } from './subscription-blocked.js';
 import { canManageSettings, canManageUsers, canRestore, canAccess, ROLE_LABEL } from '../permissions.js';
 import { teamName } from '../compute.js';
@@ -150,14 +149,7 @@ export async function renderAppShell(root, session) {
     const access = orgAccess();
     if (!access.ok) {
       if (access.reason === 'pending') {
-        // Sem clube: só o admin da plataforma cria clubes (é ele que dá entrada
-        // a cada um). Para todos os outros o onboarding seria um formulário que
-        // o servidor recusa ao submeter — mostra-se antes o que se passa.
-        if (state.isPlatformAdmin) {
-          renderOnboarding(root, () => renderAppShell(root, session));
-        } else {
-          renderSemClube(root);
-        }
+        renderOnboarding(root, () => renderAppShell(root, session));
       } else {
         renderSubscriptionBlocked(root, access.reason);
       }

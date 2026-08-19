@@ -18,20 +18,6 @@ lá está.
 | Limitação | Consequência prática |
 |---|---|
 | Não há pagamento automático | Cobras por transferência/MB Way e ativas o clube à mão em Plataforma → Clubes. Sustentável até ~10 clientes. |
-| Não há inscrição aberta (de propósito) | O acesso é dado por ti, clube a clube. Dois passos por cliente — ver abaixo. |
-
-### Dar acesso a um clube novo (2 minutos)
-
-1. **Supabase → Authentication → Add user**: email do treinador, palavra-passe
-   temporária, com *auto confirm* ligado.
-2. **Rumia → Plataforma → Novo clube**: esse email, o nome do clube e a
-   modalidade. A conta fica coordenadora, com 30 dias de demonstração.
-3. Mandas o acesso na conversa. Sugere-lhe mudar a palavra-passe (usa o
-   "Esqueci-me da palavra-passe" no login).
-
-O clube arranca vazio neste caminho — mas o Painel abre com "Primeiros passos"
-e um botão para criar dados de exemplo. Vale a pena entrares tu uma vez e
-deixares-lhe o clube já montado antes de mandares o acesso.
 
 Duas limitações que existiam já não existem: o clube novo **arranca com dados
 de exemplo** (plantel, um mês de treinos com presenças, jogos com resultado e
