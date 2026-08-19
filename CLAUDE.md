@@ -83,6 +83,7 @@ src/
   modal.js              Modal de formulário reutilizável + diálogo de confirmação
   style.css             Design system completo (tokens + componentes)
   players-xlsx.js       Importar atletas de .xlsx + gerar modelo (SheetJS lazy)
+  demo-data.js          Clube de exemplo: semear e limpar (marca em settings.demo_seed)
   qrcode.js             Cartões QR: gerar, ler pela câmara, traduzir (libs lazy)
   players-qr.js         Folha de cartões QR imprimíveis (A4, tamanho cartão)
   offline-card.js       Cartão QR guardado no dispositivo (ecrã de recurso sem rede)
@@ -127,6 +128,7 @@ supabase/tatica.sql            Decisão Tática: cenários de leitura de jogo + 
 supabase/exercicios.sql        Biblioteca de exercícios (tabela + ligação ao plano de treino)
 supabase/painel-avisos.sql     Limiares do clube + avisos escolhidos por utilizador
 supabase/resumo-semanal.sql    Resumo semanal (notificação + push) e limiares de queda
+supabase/dados-exemplo.sql     Marca do clube de exemplo (settings.demo_seed)
 public/                 Ficheiros estáticos (modelo-atletas-rumia.xlsx)
 ```
 
@@ -639,6 +641,29 @@ separador antes de navegar (usado pelos cartões do Painel).
   pendente **não gera notificação**: um resumo que chega sempre a dizer "está
   tudo bem" deixa de ser lido, e quando houver mesmo alguma coisa passa
   despercebido. Corre com chave de serviço, por isso filtra `org_id` à mão.
+- **Dados de exemplo** (`demo-data.js`, `supabase/dados-exemplo.sql`): um clube
+  novo arrancava vazio, e quem entra pela primeira vez — muitas vezes um
+  treinador que clicou num link — fechava a app sem perceber o que ela faz. O
+  onboarding oferece (ligado por omissão) semear dois escalões, os plantéis, um
+  mês de treinos, jogos e quotas.
+  - **Os dados são de mentira mas COERENTES**: os treinos têm presenças, os
+    jogos têm parciais e participação, as quotas têm quem pagou e quem não
+    pagou. É a coerência que faz o Painel calcular comparência, quedas
+    individuais e "treina muito, joga pouco" — e são esses números, não as
+    listas, que mostram o que a app vale. Pela mesma razão, três atletas
+    deixam de aparecer na última quinzena: um clube de exemplo onde corre tudo
+    bem não tem nada para assinalar.
+  - **A marca do que foi semeado vive em `settings.demo_seed`** (os ids), e não
+    numa coluna `is_demo` em cada tabela: assim limpar apaga exatamente aquilo
+    e a marca desaparece com a limpeza, em vez de ficar em dezenas de tabelas
+    para sempre. Presenças, quotas, convocatórias e resultados não são
+    registados — caem em cascata com o evento ou o atleta.
+  - **Escreve direto no Supabase**, não por `createRow`/`createRows`: são
+    dezenas de inserções numa operação que é conceptualmente uma só (mesma
+    razão do `applySeasonRollover`). E se falhar no onboarding, o clube já
+    existe e o utilizador entra na mesma — vazio é mau, preso é pior.
+  - Limpar é do coordenador, nas Definições → Estrutura.
+
 - **Avaliação de plantel**: `players.review_status` ∈ `pendente|mantem|sai`
   (omissão `pendente`). A vista `avaliacao.js` deixa o coordenador/treinador
   decidir, por equipa, quem fica na próxima época, com contadores. Não apaga

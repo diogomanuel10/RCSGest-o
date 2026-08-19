@@ -254,7 +254,7 @@ $$;
 -- onboarding de quem se regista sem convite. Arranca em período de demonstração.
 create or replace function public.create_club(
   p_name text,
-  p_trial_days int default 7,
+  p_trial_days int default 30,
   p_sport text default 'voleibol'
 )
 returns uuid

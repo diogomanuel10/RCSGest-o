@@ -345,6 +345,13 @@ function stepsCard(steps) {
           </li>
         `).join('')}
       </ul>
+      ${!state.teams.length && canManageSettings() ? `
+        <p class="muted steps-card__caption" style="margin:1rem 0 0.6rem">
+          Preferes ver a app a funcionar antes de escrever seja o que for?
+        </p>
+        <button class="btn btn--ghost btn--sm" type="button" data-nav="definicoes">
+          Criar dados de exemplo
+        </button>` : ''}
     </section>
   `;
 }

@@ -61,13 +61,19 @@ python3 -m http.server 8080 --directory landing
    ecrã, e cada página abre com um aviso visível. Preenche-os, confirma a lista
    de subcontratantes que usas mesmo e submete a revisão de quem de direito.
    Publicar isto por preencher é pior do que não ter página nenhuma.
-3. **Contacto / CTA** — os botões apontam para `mailto:duospike410@gmail.com`.
-   Um endereço no teu domínio vale mais aqui do que um Gmail: quem te vai
-   confiar dados clínicos de menores repara nisso.
-4. **Preços** — os valores (`9€` a `79€`) são **exemplos**; os nomes, módulos e
-   limites dos planos batem com os da app (ver `supabase/plans.sql`). Ao mudar um
-   preço, muda-o também no bloco JSON-LD do `<head>` — os dados estruturados que
-   não correspondem ao que está na página são motivo de penalização.
+3. **Contacto / CTA** — não há nenhum, e é de propósito. A página não tem
+   formulário, nem email, nem WhatsApp, nem "falar connosco": serve para
+   explicar o produto a quem já está a falar contigo, e o link para a app vai
+   na conversa. Sem formulário não há nada para manter nem para responder.
+
+   A **única** exceção é a política de privacidade, que tem de identificar o
+   responsável pelo tratamento e dar-lhe um contacto — é exigência do RGPD
+   (art. 13.º), não marketing. Vive lá dentro e não sai para a página.
+4. **Preços** — três planos (19 € / 49 € / 79 €), com os nomes, módulos e
+   limites iguais aos da app (ver `supabase/plans.sql` e `src/plans.js`). Ao
+   mudar um preço, muda-o também no bloco JSON-LD do `<head>` — os dados
+   estruturados que não correspondem ao que está na página são motivo de
+   penalização.
 5. **Textos** — hero, funcionalidades e FAQ estão prontos, mas afina o tom à
    vontade. Ao editar o FAQ, atualiza o `FAQPage` do JSON-LD.
 6. Não há dados falsos de clientes nem números inventados de "clubes a usar" —

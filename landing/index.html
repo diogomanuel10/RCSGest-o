@@ -20,11 +20,10 @@
   │     "canonical">, no og:url e nas imagens de partilha. Um canonical       │
   │     errado diz ao Google que a página verdadeira é outra — pior do que    │
   │     não ter nenhum.                                                       │
-  │  2. duospike410@gmail.com  → o email de contacto. Um endereço no teu      │
-  │     domínio (ex.: geral@rumia.pt) vale mais aqui do que um Gmail: quem    │
-  │     te vai confiar dados clínicos de menores repara nisso.                │
-  │  3. privacidade.html / termos.html → rever com quem de direito e          │
-  │     preencher a identificação do responsável pelo tratamento.             │
+  │  2. privacidade.html / termos.html → rever com quem de direito e          │
+  │     preencher a identificação e o contacto do responsável pelo            │
+  │     tratamento. Esse contacto é exigido por lei e vive só lá dentro:      │
+  │     esta página não tem (nem deve ter) forma de te contactar.             │
   └──────────────────────────────────────────────────────────────────────────┘
 -->
 <link rel="canonical" href="https://www.rumia.pt/" />
@@ -318,7 +317,7 @@
   section { padding: 5.5rem 0; }
   /* Compensa a barra fixa (68px) quando se salta por âncora, para o título não
      ficar escondido por baixo dela. */
-  #funcionalidades, #papeis, #por-dentro, #como-funciona, #precos, #faq, #contacto, #topo { scroll-margin-top: 84px; }
+  #funcionalidades, #papeis, #por-dentro, #como-funciona, #precos, #faq, #acesso, #topo { scroll-margin-top: 84px; }
   .section-head { max-width: 640px; margin: 0 auto 3rem; text-align: center; }
   .section-head h2 { font-size: clamp(2rem, 3.6vw, 2.8rem); font-weight: 700; margin: 0.8rem 0 0.8rem; letter-spacing: -0.01em; }
   .section-head p { color: var(--muted); font-size: 1.1rem; margin: 0; }
@@ -506,6 +505,8 @@
   .final h2 { font-size: clamp(2rem, 4vw, 3rem); font-weight: 700; color: #fff; margin-bottom: 1rem; }
   .final p { color: #bcd0e6; font-size: 1.15rem; max-width: 46ch; margin: 0 auto 2rem; }
   .final__actions { display: flex; gap: 0.9rem; justify-content: center; flex-wrap: wrap; }
+  .final__contacts { color: #94aecb; font-size: 0.95rem; margin: 1.4rem 0 0; }
+  .final__contacts a { color: #fff; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 
   /* --- Rodapé --- */
   footer.site {
@@ -546,9 +547,9 @@
       "inLanguage": "pt-PT",
       "description": "Plataforma de gestão desportiva para clubes: plantéis, calendário, presenças por QR, departamento médico, preparação física, quotas, finanças e patrocínios.",
       "offers": [
-        { "@type": "Offer", "name": "Treinador", "priceCurrency": "EUR", "availability": "https://schema.org/InStock" },
-        { "@type": "Offer", "name": "Clube", "priceCurrency": "EUR", "availability": "https://schema.org/InStock" },
-        { "@type": "Offer", "name": "Clube+", "priceCurrency": "EUR", "availability": "https://schema.org/InStock" }
+        { "@type": "Offer", "name": "Treinador", "price": "19", "priceCurrency": "EUR" },
+        { "@type": "Offer", "name": "Clube", "price": "49", "priceCurrency": "EUR" },
+        { "@type": "Offer", "name": "Clube+", "price": "79", "priceCurrency": "EUR" }
       ]
     },
     {
@@ -587,12 +588,12 @@
         {
           "@type": "Question",
           "name": "Os preços incluem IVA? Posso mudar de plano?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Os valores são mensais e não incluem IVA à taxa legal em vigor. Podes subir ou descer de plano a qualquer momento e não há fidelização." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Os valores são mensais e não incluem IVA à taxa legal em vigor. Podes subir ou descer de plano a qualquer momento, não há fidelização, e o pagamento anual dá dois meses." }
         },
         {
           "@type": "Question",
           "name": "Como começo?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Fala connosco e tratamos do arranque contigo: criamos o clube, importamos os atletas que já tens em Excel e configuramos os acessos da equipa técnica. O clube arranca em período de demonstração." }
+          "acceptedAnswer": { "@type": "Answer", "text": "O acesso é dado clube a clube, por convite direto — não há registo aberto. Quando o teu clube entra, o clube arranca com 30 dias de demonstração e um plantel de exemplo para veres tudo a funcionar antes de meteres os teus dados. Ajudamos a importar os atletas que já tens em Excel." }
         }
       ]
     }
@@ -601,6 +602,20 @@
 </script>
 </head>
 <body>
+<!--
+  ┌──────────────────────────────────────────────────────────────────┐
+  │  ESTA PÁGINA NÃO TEM REGISTO NEM FORMULÁRIO — de propósito.      │
+  │                                                                  │
+  │  O acesso à Rumia é dado à mão, clube a clube, na conversa que   │
+  │  já existe (WhatsApp, telefone, pessoalmente). A página serve    │
+  │  para explicar o produto a quem já está a falar contigo, não     │
+  │  para captar desconhecidos: por isso não há "criar conta", não   │
+  │  há "falar connosco" e não há formulário nenhum para manter.     │
+  │                                                                  │
+  │  Se um dia abrires o registo, o sítio de o pôr é o hero e a      │
+  │  secção final — e aí a app tem de deixar de ser por convite.     │
+  └──────────────────────────────────────────────────────────────────┘
+-->
 
 <!-- Emblema reutilizável (símbolo SVG) -->
 <!-- ================= NAV ================= -->
@@ -618,7 +633,6 @@
       <a href="#faq">FAQ</a>
     </nav>
     <div class="nav__cta">
-      <a class="btn btn--primary" href="#contacto">Falar connosco</a>
       <button class="nav__toggle" type="button" aria-controls="nav-links" aria-expanded="false" aria-label="Abrir menu">
         <svg class="ic-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="3" y1="7" x2="21" y2="7"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="17" x2="21" y2="17"/></svg>
         <svg class="ic-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/></svg>
@@ -637,8 +651,8 @@
       <h1>Todo o teu clube numa <span class="accent">só plataforma</span>.</h1>
       <p class="lead">Plantéis, calendário, presenças, departamento médico, preparação física, finanças e patrocínios — reunidos, com cada pessoa a ver só o que precisa.</p>
       <div class="hero__actions">
-        <a class="btn btn--primary" href="#precos">Ver planos</a>
-        <a class="btn btn--on-navy" href="#contacto">Falar connosco</a>
+        <a class="btn btn--primary" href="#por-dentro">Ver por dentro</a>
+        <a class="btn btn--on-navy" href="#precos">Ver planos</a>
       </div>
       <p class="hero__note">Sem instalações. Funciona no telemóvel, tablet e computador.</p>
     </div>
@@ -921,9 +935,9 @@
 <!-- ================= PREÇOS ================= -->
 <!--
   ┌──────────────────────────────────────────────────────────────────┐
-  │  PREÇOS POR DEFINIR. Cada plano mostra "—" onde vai o montante.  │
-  │  Procura por PRECO-POR-DEFINIR e substitui os três blocos:       │
-  │  o valor mensal (.plan__price) e a linha anual (.plan__year).    │
+  │  Preços: 19 / 49 / 79 € por mês, ou dez meses no pagamento       │
+  │  anual. Para os mudar, procura por PRECO e ajusta os três        │
+  │  blocos: o valor mensal (.plan__price) e a linha anual.          │
   │                                                                  │
   │  Os NOMES, MÓDULOS e LIMITES batem com os da app (Treinador ·    │
   │  Clube · Clube+ — ver supabase/plans.sql e src/plans.js). Se     │
@@ -941,25 +955,24 @@
       <div class="plan reveal">
         <div class="plan__name">Treinador</div>
         <p class="plan__desc">Um treinador e os seus escalões.</p>
-        <!-- PRECO-POR-DEFINIR -->
-        <div class="plan__price">—<span class="per"> /mês</span></div>
-        <p class="plan__year">sob consulta</p>
+        <!-- PRECO -->
+        <div class="plan__price">19€<span class="per"> /mês</span></div>
+        <p class="plan__year">ou 190€/ano — dois meses grátis</p>
         <ul class="plan__list">
           <li><span class="tick">✓</span> Plantéis e fichas de atleta</li>
           <li><span class="tick">✓</span> Calendário, presenças por QR e convocatórias</li>
           <li><span class="tick">✓</span> Treino, plano de jogo, avaliação e estatísticas</li>
           <li><span class="tick">✓</span> Até 3 escalões · 2 utilizadores</li>
         </ul>
-        <a class="btn btn--ghost" href="#contacto">Falar connosco</a>
       </div>
 
       <div class="plan plan--featured reveal">
         <span class="plan__badge">Mais popular</span>
         <div class="plan__name">Clube</div>
         <p class="plan__desc">O clube completo, com equipa técnica e médica.</p>
-        <!-- PRECO-POR-DEFINIR -->
-        <div class="plan__price">—<span class="per"> /mês</span></div>
-        <p class="plan__year">sob consulta</p>
+        <!-- PRECO -->
+        <div class="plan__price">49€<span class="per"> /mês</span></div>
+        <p class="plan__year">ou 490€/ano — dois meses grátis</p>
         <ul class="plan__list">
           <li><span class="tick">✓</span> Tudo do Treinador, sem limite de escalões</li>
           <li><span class="tick">✓</span> Quotas (ficha de sócio), equipamentos e encomendas</li>
@@ -967,27 +980,25 @@
           <li><span class="tick">✓</span> Fisioterapia e preparação física</li>
           <li><span class="tick">✓</span> Até 15 utilizadores</li>
         </ul>
-        <a class="btn btn--primary" href="#contacto">Escolher Clube</a>
       </div>
 
       <div class="plan reveal">
         <div class="plan__name">Clube+</div>
         <p class="plan__desc">Tudo, com visão de direção e análise avançada.</p>
-        <!-- PRECO-POR-DEFINIR -->
-        <div class="plan__price">—<span class="per"> /mês</span></div>
-        <p class="plan__year">sob consulta</p>
+        <!-- PRECO -->
+        <div class="plan__price">79€<span class="per"> /mês</span></div>
+        <p class="plan__year">ou 790€/ano — dois meses grátis</p>
         <ul class="plan__list">
           <li><span class="tick">✓</span> Tudo do Clube</li>
           <li><span class="tick">✓</span> Financeiro (visão de direção)</li>
           <li><span class="tick">✓</span> Análise / IA avançada</li>
           <li><span class="tick">✓</span> Utilizadores ilimitados</li>
         </ul>
-        <a class="btn btn--ghost" href="#contacto">Falar connosco</a>
       </div>
     </div>
     <p class="pricing__note">
       Valores por clube, sem IVA à taxa legal em vigor. Muda ou cancela quando quiseres.<br />
-      Precisas de algo à medida (federação, vários clubes)? <a href="#contacto" style="color:var(--navy-500);font-weight:600">Fala connosco</a>.
+      Precisas de algo à medida (federação, vários clubes)? É conversa para termos.
     </p>
   </div>
 </section>
@@ -1026,28 +1037,22 @@
       </details>
       <details class="qa">
         <summary>Os preços incluem IVA? Posso mudar de plano?</summary>
-        <p>Os valores são mensais e <strong>não incluem IVA</strong> à taxa legal em vigor. Podes subir ou descer de plano a qualquer momento e não há fidelização.</p>
+        <p>Os valores são mensais e <strong>não incluem IVA</strong> à taxa legal em vigor. Podes subir ou descer de plano a qualquer momento, não há fidelização, e o pagamento anual dá dois meses.</p>
       </details>
       <details class="qa">
         <summary>Como começo?</summary>
-        <p>Fala connosco e tratamos do arranque contigo: criamos o clube, importamos os atletas que já tens em Excel e configuramos os acessos da equipa técnica. O clube arranca em período de demonstração, para experimentares com os teus dados antes de decidir.</p>
+        <p>O acesso é dado clube a clube, por convite direto — não há registo aberto. Quando o teu clube entra, recebes o acesso e o clube arranca com <strong>30 dias de demonstração</strong> e um plantel de exemplo (treinos com presenças, jogos com resultado e quotas) para veres tudo a funcionar antes de meteres os teus dados; limpa-se com um botão nas Definições. Ajudamos a importar os atletas que já tens em Excel.</p>
       </details>
     </div>
   </div>
 </section>
 
 <!-- ================= CTA FINAL ================= -->
-<section class="final" id="contacto">
+<section class="final" id="acesso">
   <div class="wrap">
-    <h2>Pronto para simplificar a gestão do teu clube?</h2>
-    <p>Fala connosco e ajudamos a colocar o teu clube a funcionar, com os teus dados.</p>
-    <div class="final__actions">
-      <!-- Substitui pelo teu email/formulário de contacto real. O corpo já leva
-           as perguntas cuja resposta precisas para preparar o arranque. -->
-      <a class="btn btn--primary" href="mailto:duospike410@gmail.com?subject=Quero%20conhecer%20a%20Rumia&amp;body=Ol%C3%A1%2C%0A%0AClube%3A%20%0AModalidade%3A%20%0ANº%20de%20escal%C3%B5es%3A%20%0ANº%20de%20atletas%3A%20%0A%0AGostava%20de%20saber%20mais%20sobre%20a%20Rumia.%0A">Falar connosco</a>
-      <a class="btn btn--on-navy" href="#precos">Ver planos</a>
-    </div>
-    <p style="color:#94aecb;font-size:0.9rem;margin:1.6rem 0 0">Respondemos em 24 horas úteis. Ajudamos na importação dos atletas que já tens em Excel.</p>
+    <h2>O acesso é dado clube a clube.</h2>
+    <p>A Rumia está a arrancar com um grupo restrito de clubes, para acompanhar cada arranque de perto. Não há registo aberto: o acesso é entregue diretamente, e com ele vem a ajuda a importar os atletas que já tens em Excel.</p>
+    <p style="color:#94aecb;font-size:0.95rem;margin:1.6rem 0 0">Se estás a ler isto, é porque já estamos a falar. Responde na conversa onde recebeste esta página.</p>
   </div>
 </section>
 
@@ -1065,7 +1070,7 @@
         <a href="#faq">FAQ</a>
         <a href="privacidade.html">Privacidade</a>
         <a href="termos.html">Termos</a>
-        <a href="mailto:duospike410@gmail.com">Contacto</a>
+        <a href="#acesso">Acesso</a>
       </nav>
     </div>
     <div class="footer__legal">

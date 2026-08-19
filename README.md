@@ -57,7 +57,8 @@ As permissões são impostas pela base de dados (RLS), não só pela interface.
    atleta + avisos do clube), `resultados.sql` (resultados de jogo),
    `tatica.sql` (Decisão Tática: cenários de leitura de jogo + respostas),
    `exercicios.sql` (biblioteca de exercícios do clube) e
-   `painel-avisos.sql` (limiares do clube + avisos por utilizador). Todos
+   `painel-avisos.sql` (limiares do clube + avisos por utilizador) e
+   `dados-exemplo.sql` (clube de demonstração para quem se regista). Todos
    são seguros de re-executar.
 4. Em **Authentication → Sign In / Providers**, garante que
    **"Allow new users to sign up"** está **ativo** — a app permite criar conta

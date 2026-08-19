@@ -5,6 +5,7 @@
 // ecrã — o convite é resgatado automaticamente no arranque (ver app-shell).
 
 import { createClub, dbErrorMessage, TRIAL_DAYS } from '../store.js';
+import { seedDemoData } from '../demo-data.js';
 import { signOut } from '../auth.js';
 import { esc } from '../ui.js';
 import { logoSrc, branding } from '../branding.js';
@@ -40,6 +41,21 @@ export function renderOnboarding(root, onDone) {
           </p>
         </div>
 
+        <div class="field">
+          <label class="check" for="club-demo" style="display:flex;gap:0.5rem;align-items:flex-start;cursor:pointer">
+            <input type="checkbox" id="club-demo" name="club-demo" checked
+                   style="margin-top:0.2rem" />
+            <span>
+              Começar com dados de exemplo
+              <span class="field__hint muted" style="display:block;font-size:0.82rem">
+                Um plantel, um mês de treinos com presenças e jogos com resultado,
+                para veres a app a funcionar antes de meteres os teus dados.
+                Limpas tudo num clique nas Definições.
+              </span>
+            </span>
+          </label>
+        </div>
+
         <p class="login__error hidden" id="onboarding-error" role="alert"></p>
 
         <button type="submit" class="btn btn--primary login__submit" id="onboarding-submit">
@@ -71,6 +87,17 @@ export function renderOnboarding(root, onDone) {
     submitBtn.textContent = 'A criar…';
     try {
       await createClub(name, sport);
+      // Os dados de exemplo são um extra: se falharem (por exemplo, porque a
+      // migração `dados-exemplo.sql` ainda não correu), o clube já existe e o
+      // utilizador entra na mesma — vazio é mau, mas ficar preso é pior.
+      if (form['club-demo']?.checked) {
+        submitBtn.textContent = 'A preparar o clube…';
+        try {
+          await seedDemoData();
+        } catch (seedErr) {
+          console.warn('Dados de exemplo não criados:', seedErr);
+        }
+      }
       onDone?.();
     } catch (error) {
       errorEl.textContent = dbErrorMessage(error);

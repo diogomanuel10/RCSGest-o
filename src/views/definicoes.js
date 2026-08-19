@@ -2,7 +2,10 @@
 
 import { state, saveSettings, dbErrorMessage } from '../store.js';
 import { esc } from '../ui.js';
+import { toastOk } from '../toast.js';
+import { confirmDialog } from '../modal.js';
 import { isCoordenador } from '../permissions.js';
+import { hasDemoData, seedDemoData, clearDemoData } from '../demo-data.js';
 import { escaloes, positions, sport } from '../compute.js';
 import { SPORTS, SPORT_POSITIONS } from '../constants.js';
 import { branding, logoSrc, defaultLogo, parseHex, DEFAULT_BRANDING } from '../branding.js';
@@ -17,6 +20,10 @@ let activeTab = 'identidade';
 export function renderDefinicoes(container) {
   const b = branding();
   const coordenador = isCoordenador();
+  // Os dados de exemplo só existem depois de `supabase/dados-exemplo.sql` correr
+  // (é ele que traz a coluna) — sem migração, o cartão não aparece.
+  const demoReady = 'demo_seed' in (state.settings || {});
+  const demoOn = demoReady && hasDemoData();
   // "Cópia de segurança" só existe para o coordenador — evita ficar preso nesse
   // separador se o utilizador não lhe tiver acesso.
   const panelClass = (key) =>
@@ -118,6 +125,34 @@ export function renderDefinicoes(container) {
       </p>
       <div class="row" style="justify-content:flex-end">
         <button class="btn btn--primary" id="open-rollover" type="button">Abrir assistente</button>
+      </div>
+    </section>
+    ` : ''}
+
+    ${coordenador && demoReady ? `
+    <section class="card settings-card">
+      <h2 class="section-title settings-card__title">Dados de exemplo</h2>
+      <p class="muted" style="margin-top:0">
+        ${demoOn
+          ? `Este clube tem dados de demonstração: dois escalões, os plantéis,
+             um mês de treinos com presenças, jogos com resultado, quotas e
+             patrocínios. Servem para veres a app a funcionar antes de
+             introduzires os teus. Limpa-os quando começares a sério.`
+          : `Enche o clube com um plantel, um mês de treinos já marcados, jogos
+             com resultado e quotas, para veres o que a app faz sem teres de
+             escrever nada. Podes limpar tudo a seguir.`}
+      </p>
+      ${demoOn ? `
+      <p class="muted settings-warn">
+        ⚠ Limpar apaga as equipas de exemplo e <strong>tudo o que estiver
+        dentro delas</strong> — inclusive atletas teus que tenhas acrescentado a
+        essas equipas. As tuas próprias equipas não são tocadas.
+      </p>` : ''}
+      <p class="settings-msg hidden" id="demo-msg"></p>
+      <div class="row" style="justify-content:flex-end">
+        ${demoOn
+          ? '<button class="btn btn--ghost" id="demo-clear" type="button">Limpar dados de exemplo</button>'
+          : '<button class="btn btn--ghost" id="demo-seed" type="button">Criar dados de exemplo</button>'}
       </div>
     </section>
     ` : ''}
@@ -456,6 +491,41 @@ export function renderDefinicoes(container) {
 
   // --- Virar a época (assistente) ---
   // Carregado a pedido: é uma operação anual e não tem de pesar no arranque.
+  // --- Dados de exemplo ---
+  const demoMsg = container.querySelector('#demo-msg');
+  container.querySelector('#demo-seed')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    btn.textContent = 'A criar…';
+    showMsg(demoMsg, 'A criar o clube de exemplo…', 'info');
+    try {
+      await seedDemoData();
+      toastOk('Dados de exemplo criados.');
+    } catch (err) {
+      showMsg(demoMsg, dbErrorMessage(err), 'error');
+      btn.disabled = false;
+      btn.textContent = 'Criar dados de exemplo';
+    }
+  });
+  container.querySelector('#demo-clear')?.addEventListener('click', async (e) => {
+    const ok = await confirmDialog(
+      'Apagar as equipas de exemplo e tudo o que está dentro delas (atletas, treinos, presenças, quotas)? As tuas próprias equipas não são tocadas.',
+      { confirmLabel: 'Limpar', danger: true }
+    );
+    if (!ok) return;
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    btn.textContent = 'A limpar…';
+    try {
+      await clearDemoData();
+      toastOk('Dados de exemplo removidos.');
+    } catch (err) {
+      showMsg(demoMsg, dbErrorMessage(err), 'error');
+      btn.disabled = false;
+      btn.textContent = 'Limpar dados de exemplo';
+    }
+  });
+
   container.querySelector('#open-rollover')?.addEventListener('click', async () => {
     const { openSeasonRollover } = await import('./nova-epoca.js');
     openSeasonRollover();
