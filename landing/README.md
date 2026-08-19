@@ -69,7 +69,7 @@ python3 -m http.server 8080 --directory landing
    A **única** exceção é a política de privacidade, que tem de identificar o
    responsável pelo tratamento e dar-lhe um contacto — é exigência do RGPD
    (art. 13.º), não marketing. Vive lá dentro e não sai para a página.
-4. **Preços** — três planos (19 € / 49 € / 79 €), com os nomes, módulos e
+4. **Preços** — três planos (9 € / 29 € / 49 €), com os nomes, módulos e
    limites iguais aos da app (ver `supabase/plans.sql` e `src/plans.js`). Ao
    mudar um preço, muda-o também no bloco JSON-LD do `<head>` — os dados
    estruturados que não correspondem ao que está na página são motivo de

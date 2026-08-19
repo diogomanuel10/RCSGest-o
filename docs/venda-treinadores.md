@@ -49,12 +49,18 @@ próprio se torne o teu melhor cliente ou o teu primeiro embaixador.
 
 | Plano | Preço | Para quem |
 |---|---|---|
-| Treinador | 19 €/mês (190 €/ano) | Um treinador, até 3 escalões, 2 utilizadores |
-| Clube | 49 €/mês (490 €/ano) | Clube completo com fisioterapia e prep. física |
-| Clube+ | 79 €/mês (790 €/ano) | Com financeiro e visão de direção |
+| Treinador | 9 €/mês (90 €/ano) | Um treinador, até 3 escalões, 2 utilizadores |
+| Clube | 29 €/mês (290 €/ano) | Clube completo com fisioterapia e prep. física |
+| Clube+ | 49 €/mês (490 €/ano) | Com financeiro e visão de direção |
+
+Os valores estão abaixo do que a app dá de propósito: as Quotas controlam
+quem pagou e quem deve, mas **não emitem recibos** — o clube continua a
+precisar do seu software de faturação certificado (ATCUD, séries comunicadas
+à AT). Está a pagar duas coisas, e o preço conta com isso. Diz-lhe tu antes
+que ele pergunte: a objeção que tu levantas primeiro deixa de ser objeção.
 
 **Oferta de fundador — primeiros 10 clubes:** metade do preço, **para sempre**
-(Treinador 9,50 €, Clube 24,50 €, Clube+ 39,50 €), em troca de três coisas
+(Treinador 4,50 €, Clube 14,50 €, Clube+ 24,50 €), em troca de três coisas
 concretas:
 
 - usarem mesmo, com dados reais, durante uma época;
@@ -139,8 +145,8 @@ opinião acaba a experimentar; quem recebe um anúncio ignora.
 
 ### D. Quando perguntam o preço no grupo
 
-> Para um treinador com os seus escalões são 19 €/mês; para o clube todo, com
-> departamento médico e preparação física, 49 €. Aos primeiros dez clubes fica
+> Para um treinador com os seus escalões são 9 €/mês; para o clube todo, com
+> departamento médico e preparação física, 29 €. Aos primeiros dez clubes fica
 > metade disso, para sempre, em troca de me irem dizendo o que está mal.
 > Manda-me PV que mostro primeiro e decides depois.
 
@@ -171,7 +177,7 @@ vazio. Mas ganhas mais se pedires os dez minutos:
 > diz quem está a começar a faltar antes de ele desistir.
 
 **"É caro."**
-> São 19 € por mês. Compara com as horas que passas a fazer contas de
+> São 9 € por mês. Compara com as horas que passas a fazer contas de
 > presenças e a perguntar no WhatsApp quem vem ao sábado. E se ao fim de um
 > mês não estiveres a usar, não faz sentido pagares — dizes-me e acabou.
 
@@ -188,6 +194,12 @@ vazio. Mas ganhas mais se pedires os dez minutos:
 > Ficam do clube, como deve ser. Mas a biblioteca de exercícios que construíste
 > também fica — e é por isso que ela é do clube e não tua: o trabalho de anos
 > não se perde quando muda a equipa técnica.
+
+**"Isto emite os recibos das quotas?"**
+> Não, e o preço já conta com isso. A Rumia diz-te quem pagou, quem deve e há
+> quanto tempo, e avisa-te dos atrasados — os recibos continuam a sair do teu
+> software de faturação, com ATCUD e as séries comunicadas à AT. Não estás a
+> pagar uma coisa que já pagas noutro lado.
 
 **"Quem decide isso é a direção."**
 > Claro. Experimenta tu primeiro com a tua equipa, sem custo nenhum. Se ao fim

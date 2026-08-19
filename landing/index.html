@@ -547,9 +547,9 @@
       "inLanguage": "pt-PT",
       "description": "Plataforma de gestão desportiva para clubes: plantéis, calendário, presenças por QR, departamento médico, preparação física, quotas, finanças e patrocínios.",
       "offers": [
-        { "@type": "Offer", "name": "Treinador", "price": "19", "priceCurrency": "EUR" },
-        { "@type": "Offer", "name": "Clube", "price": "49", "priceCurrency": "EUR" },
-        { "@type": "Offer", "name": "Clube+", "price": "79", "priceCurrency": "EUR" }
+        { "@type": "Offer", "name": "Treinador", "price": "9", "priceCurrency": "EUR" },
+        { "@type": "Offer", "name": "Clube", "price": "29", "priceCurrency": "EUR" },
+        { "@type": "Offer", "name": "Clube+", "price": "49", "priceCurrency": "EUR" }
       ]
     },
     {
@@ -587,13 +587,18 @@
         },
         {
           "@type": "Question",
+          "name": "A Rumia emite recibos das quotas? Substitui a minha faturação?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Não. A Rumia controla as quotas — quanto, de quem, pago ou em dívida, com avisos de quem está atrasado — mas não emite documentos fiscais. Os recibos continuam a sair do software de faturação certificado do clube, com ATCUD e séries comunicadas à Autoridade Tributária. Os preços já contam com isso." }
+        },
+        {
+          "@type": "Question",
           "name": "Os preços incluem IVA? Posso mudar de plano?",
           "acceptedAnswer": { "@type": "Answer", "text": "Os valores são mensais e não incluem IVA à taxa legal em vigor. Podes subir ou descer de plano a qualquer momento, não há fidelização, e o pagamento anual dá dois meses." }
         },
         {
           "@type": "Question",
           "name": "Como começo?",
-          "acceptedAnswer": { "@type": "Answer", "text": "O acesso é dado clube a clube, por convite direto — não há registo aberto. Quando o teu clube entra, o clube arranca com 30 dias de demonstração e um plantel de exemplo para veres tudo a funcionar antes de meteres os teus dados. Ajudamos a importar os atletas que já tens em Excel." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Crias a conta e o clube em dois minutos, sem cartão. O clube arranca com 30 dias de demonstração e um plantel de exemplo para veres tudo a funcionar antes de meteres os teus dados. Ajudamos a importar os atletas que já tens em Excel." }
         }
       ]
     }
@@ -757,7 +762,7 @@
       <div class="feature reveal">
         <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
         <h3>Financeiro & quotas</h3>
-        <p>Receitas e despesas, quotas mensais por atleta e uma visão clara das contas do clube.</p>
+        <p>Receitas e despesas, quotas mensais por atleta e uma visão clara das contas do clube — quem pagou, quem deve e desde quando. É o controlo das quotas, não a emissão de recibos: esses continuam a sair do teu software de faturação certificado.</p>
       </div>
       <div class="feature reveal">
         <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>
@@ -935,7 +940,7 @@
 <!-- ================= PREÇOS ================= -->
 <!--
   ┌──────────────────────────────────────────────────────────────────┐
-  │  Preços: 19 / 49 / 79 € por mês, ou dez meses no pagamento       │
+  │  Preços: 9 / 29 / 49 € por mês, ou dez meses no pagamento        │
   │  anual. Para os mudar, procura por PRECO e ajusta os três        │
   │  blocos: o valor mensal (.plan__price) e a linha anual.          │
   │                                                                  │
@@ -956,8 +961,8 @@
         <div class="plan__name">Treinador</div>
         <p class="plan__desc">Um treinador e os seus escalões.</p>
         <!-- PRECO -->
-        <div class="plan__price">19€<span class="per"> /mês</span></div>
-        <p class="plan__year">ou 190€/ano — dois meses grátis</p>
+        <div class="plan__price">9€<span class="per"> /mês</span></div>
+        <p class="plan__year">ou 90€/ano — dois meses grátis</p>
         <ul class="plan__list">
           <li><span class="tick">✓</span> Plantéis e fichas de atleta</li>
           <li><span class="tick">✓</span> Calendário, presenças por QR e convocatórias</li>
@@ -971,8 +976,8 @@
         <div class="plan__name">Clube</div>
         <p class="plan__desc">O clube completo, com equipa técnica e médica.</p>
         <!-- PRECO -->
-        <div class="plan__price">49€<span class="per"> /mês</span></div>
-        <p class="plan__year">ou 490€/ano — dois meses grátis</p>
+        <div class="plan__price">29€<span class="per"> /mês</span></div>
+        <p class="plan__year">ou 290€/ano — dois meses grátis</p>
         <ul class="plan__list">
           <li><span class="tick">✓</span> Tudo do Treinador, sem limite de escalões</li>
           <li><span class="tick">✓</span> Quotas (ficha de sócio), equipamentos e encomendas</li>
@@ -986,8 +991,8 @@
         <div class="plan__name">Clube+</div>
         <p class="plan__desc">Tudo, com visão de direção e análise avançada.</p>
         <!-- PRECO -->
-        <div class="plan__price">79€<span class="per"> /mês</span></div>
-        <p class="plan__year">ou 790€/ano — dois meses grátis</p>
+        <div class="plan__price">49€<span class="per"> /mês</span></div>
+        <p class="plan__year">ou 490€/ano — dois meses grátis</p>
         <ul class="plan__list">
           <li><span class="tick">✓</span> Tudo do Clube</li>
           <li><span class="tick">✓</span> Financeiro (visão de direção)</li>
@@ -1036,12 +1041,16 @@
         <p>Os dados do departamento médico só são acessíveis ao coordenador e ao fisioterapeuta — uma regra imposta na base de dados, não apenas escondida no ecrã. Nem o treinador da equipa vê o processo clínico: vê apenas se o atleta está apto, limitado ou em recuperação, que é o que precisa para treinar. Para dados de atletas menores, o clube é o responsável pelo tratamento e deve recolher o consentimento do encarregado de educação; ver a <a href="privacidade.html" style="color:var(--navy-500);font-weight:600">política de privacidade</a>.</p>
       </details>
       <details class="qa">
+        <summary>A Rumia emite recibos das quotas? Substitui a minha faturação?</summary>
+        <p><strong>Não, e é bom que saibas isso antes de decidir.</strong> A Rumia controla as quotas — quanto, de quem, pago ou em dívida, desde quando, com os avisos de quem está atrasado. O que <em>não</em> faz é emitir documentos fiscais: os recibos das quotas continuam a sair do software de faturação certificado do clube, com ATCUD e séries comunicadas à Autoridade Tributária. Os preços acima já contam com isso — não estás a pagar uma coisa que ainda vais ter de pagar noutro lado.</p>
+      </details>
+      <details class="qa">
         <summary>Os preços incluem IVA? Posso mudar de plano?</summary>
         <p>Os valores são mensais e <strong>não incluem IVA</strong> à taxa legal em vigor. Podes subir ou descer de plano a qualquer momento, não há fidelização, e o pagamento anual dá dois meses.</p>
       </details>
       <details class="qa">
         <summary>Como começo?</summary>
-        <p>O acesso é dado clube a clube, por convite direto — não há registo aberto. Quando o teu clube entra, recebes o acesso e o clube arranca com <strong>30 dias de demonstração</strong> e um plantel de exemplo (treinos com presenças, jogos com resultado e quotas) para veres tudo a funcionar antes de meteres os teus dados; limpa-se com um botão nas Definições. Ajudamos a importar os atletas que já tens em Excel.</p>
+        <p>Crias a conta e o clube em dois minutos, sem cartão. O clube arranca com <strong>30 dias de demonstração</strong> e um plantel de exemplo — treinos com presenças, jogos com resultado e quotas — para veres tudo a funcionar antes de meteres os teus dados; limpa-se com um botão nas Definições. Ajudamos a importar os atletas que já tens em Excel.</p>
       </details>
     </div>
   </div>
