@@ -1,13 +1,17 @@
 // Vista: Admin da plataforma (o vendedor). Só visível a quem é platform_admin.
 //
 // Duas áreas:
-//   1. Clubes — subscrições de todos os clubes: estado, plano, trial, contagens.
+//   1. Clubes — subscrições de todos os clubes: estado, plano, trial, contagens,
+//      e a criação de um clube novo para um treinador (o acesso é fechado: não
+//      há registo aberto, é aqui que se dá entrada a alguém).
 //   2. Planos — editor dos planos (módulos incluídos e limites), guardados na BD.
 // Usa os RPCs admin_list_orgs / admin_set_org_status e a tabela `plans`.
 
-import { state, adminListOrgs, adminSetOrgStatus, savePlan, dbErrorMessage } from '../store.js';
+import { state, adminListOrgs, adminSetOrgStatus, adminCreateClub, savePlan, dbErrorMessage, TRIAL_DAYS } from '../store.js';
 import { esc, emptyHTML, loadingHTML, errorHTML } from '../ui.js';
 import { allPlans, planLabel, normalizePlan, PLAN_FEATURE_CATALOG } from '../plans.js';
+import { SPORTS, DEFAULT_SPORT } from '../constants.js';
+import { toastOk } from '../toast.js';
 
 const ORG_STATUSES = [
   { key: 'trial',     label: 'Demonstração', badge: 'info' },
@@ -38,6 +42,35 @@ export function renderAdmin(container) {
   container.innerHTML = `
     <header class="page-head"><h1 class="section-title">Plataforma</h1></header>
     <section class="card">
+      <h2 class="section-title" style="margin-top:0">Novo clube</h2>
+      <p class="muted" style="margin-top:0">
+        Não há registo aberto: os clubes entram por aqui. <strong>Primeiro</strong>
+        cria a conta em Supabase → Authentication → Add user (email + palavra-passe
+        temporária, com <em>auto confirm</em> ligado). <strong>Depois</strong>
+        escreve aqui esse email e o nome do clube — a conta fica coordenadora de um
+        clube novo, com ${TRIAL_DAYS} dias de demonstração.
+      </p>
+      <form class="row row--wrap" id="new-club" style="gap:0.6rem;align-items:flex-end">
+        <div class="field" style="flex:1;min-width:220px;margin:0">
+          <label for="nc-email">Email do coordenador</label>
+          <input type="email" id="nc-email" required placeholder="treinador@clube.pt" />
+        </div>
+        <div class="field" style="flex:1;min-width:200px;margin:0">
+          <label for="nc-name">Nome do clube</label>
+          <input type="text" id="nc-name" required placeholder="CD Senhora da Hora" />
+        </div>
+        <div class="field" style="min-width:150px;margin:0">
+          <label for="nc-sport">Modalidade</label>
+          <select id="nc-sport">
+            ${SPORTS.map((sp) => `<option value="${esc(sp.key)}" ${sp.key === DEFAULT_SPORT ? 'selected' : ''}>${esc(sp.label)}</option>`).join('')}
+          </select>
+        </div>
+        <button class="btn btn--primary" type="submit" id="nc-submit">Criar clube</button>
+      </form>
+      <p class="settings-msg hidden" id="nc-msg"></p>
+    </section>
+
+    <section class="card">
       <h2 class="section-title" style="margin-top:0">Clubes</h2>
       <div id="admin-body">${loadingHTML('A carregar clubes…')}</div>
     </section>
@@ -53,7 +86,37 @@ export function renderAdmin(container) {
   `;
 
   wirePlansEditor(container);
+  wireNewClub(container);
   loadClubs(container.querySelector('#admin-body'));
+}
+
+// ---------------------------------------------------------------------
+// Novo clube (o acesso é dado à mão — ver supabase/acesso-fechado.sql)
+// ---------------------------------------------------------------------
+function wireNewClub(container) {
+  const form = container.querySelector('#new-club');
+  const msg = container.querySelector('#nc-msg');
+  const btn = container.querySelector('#nc-submit');
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    msg.className = 'settings-msg hidden';
+    btn.disabled = true;
+    btn.textContent = 'A criar…';
+    try {
+      const email = container.querySelector('#nc-email').value.trim();
+      const name = container.querySelector('#nc-name').value.trim();
+      await adminCreateClub({ email, name, sport: container.querySelector('#nc-sport').value });
+      form.reset();
+      toastOk(`Clube "${name}" criado. Já podes mandar o acesso.`);
+      loadClubs(container.querySelector('#admin-body'));
+    } catch (err) {
+      msg.textContent = dbErrorMessage(err);
+      msg.className = 'settings-msg settings-msg--error';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Criar clube';
+    }
+  });
 }
 
 // ---------------------------------------------------------------------

@@ -17,9 +17,22 @@ o modelo **partilhado por papel**: os utilizadores desse clube veem/editam
 conforme o `role` + RLS. Ver `supabase/multitenant.sql` (corre DEPOIS de
 `schema.sql` e `notifications.sql`).
 
-- **Onboarding**: quem se regista sem convite fica "pendente" (perfil com
-  `org_id` nulo) e cria o seu clube em `onboarding.js` (RPC `create_club`,
-  arranca em período de demonstração/trial).
+- **Acesso fechado** (`supabase/acesso-fechado.sql`): **não há inscrição
+  aberta**. `create_club` recusa quem não for admin da plataforma; os clubes
+  entram um a um pela RPC `admin_create_club(email, nome, modalidade)`, em
+  Plataforma → Novo clube. A conta tem de já existir (criada em Supabase →
+  Authentication → Add user): criar utilizadores exige a chave de serviço, que
+  nunca pode andar no browser. Quem tem conta sem clube vê `sem-clube.js` e não
+  o onboarding — um formulário que o servidor recusa ao submeter é uma porta
+  pintada na parede. Pela mesma razão o ecrã de login só mostra "Criar conta" a
+  quem chega com `?invite=`.
+  - **Os convites continuam abertos**: um treinador/atleta/fisio convidado para
+    um clube que JÁ existe regista-se sozinho — é o clube que decide quem entra
+    nele. O que fecha é só a criação de clubes novos. Por isso o interruptor
+    "Allow new users to sign up" do Supabase fica LIGADO: desligá-lo travava
+    também os convidados.
+- **Onboarding**: `onboarding.js` (RPC `create_club`) só é alcançável pelo admin
+  da plataforma, para o seu próprio clube.
 - **Convites**: o coordenador gera um link `?invite=<token>` (RPC
   `create_invitation`); o convidado regista-se e o token é resgatado no arranque
   (RPC `redeem_invitation`, ver `app-shell.js`), ligando a conta ao clube.
