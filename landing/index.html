@@ -317,7 +317,7 @@
   section { padding: 5.5rem 0; }
   /* Compensa a barra fixa (68px) quando se salta por âncora, para o título não
      ficar escondido por baixo dela. */
-  #funcionalidades, #papeis, #por-dentro, #como-funciona, #precos, #faq, #acesso, #topo { scroll-margin-top: 84px; }
+  #funcionalidades, #papeis, #por-dentro, #como-funciona, #faq, #acesso, #topo { scroll-margin-top: 84px; }
   .section-head { max-width: 640px; margin: 0 auto 3rem; text-align: center; }
   .section-head h2 { font-size: clamp(2rem, 3.6vw, 2.8rem); font-weight: 700; margin: 0.8rem 0 0.8rem; letter-spacing: -0.01em; }
   .section-head p { color: var(--muted); font-size: 1.1rem; margin: 0; }
@@ -431,43 +431,6 @@
   }
   .shot figcaption { margin-top: 0.85rem; color: var(--muted); font-size: 0.95rem; text-align: center; }
   .shot figcaption strong { color: var(--ink); font-weight: 600; }
-
-  /* --- Preços --- */
-  .pricing { background: var(--paper); }
-  .plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; align-items: stretch; max-width: 1000px; margin: 0 auto; }
-  @media (max-width: 640px) { .plans { grid-template-columns: 1fr; max-width: 400px; } }
-  .plan {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 1.9rem 1.4rem;
-    display: flex;
-    flex-direction: column;
-  }
-  .plan--featured {
-    border: 2px solid var(--navy);
-    box-shadow: var(--shadow-lg);
-    position: relative;
-  }
-  .plan__badge {
-    position: absolute; top: -13px; left: 50%; transform: translateX(-50%);
-    background: var(--yellow); color: #10233b;
-    font-family: var(--font-display); font-weight: 700; font-size: 0.78rem;
-    text-transform: uppercase; letter-spacing: 0.08em;
-    padding: 0.3rem 0.9rem; border-radius: 999px;
-  }
-  .plan__name { font-family: var(--font-display); font-weight: 700; font-size: 1.35rem; }
-  .plan__desc { color: var(--muted); font-size: 0.88rem; min-height: 3.6em; margin: 0.3rem 0 1rem; }
-  .plan__price { font-family: var(--font-display); font-weight: 700; font-size: 2.4rem; line-height: 1; color: var(--ink); }
-  .plan__price .per { font-size: 1rem; font-weight: 500; color: var(--muted); font-family: var(--font-body); }
-  .plan__year { font-size: 0.82rem; color: var(--muted); margin: 0.45rem 0 0; }
-  .plan__list { list-style: none; padding: 0; margin: 1.4rem 0 1.8rem; display: flex; flex-direction: column; gap: 0.65rem; font-size: 0.9rem; }
-  .plan > .btn { margin-top: auto; }
-  .plan__list li { display: flex; gap: 0.55rem; align-items: flex-start; }
-  .plan__list .tick { color: var(--navy); font-weight: 700; flex: 0 0 auto; }
-  @media (prefers-color-scheme: dark) { .plan__list .tick { color: var(--yellow); } }
-  .plan .btn { width: 100%; justify-content: center; margin-top: auto; }
-  .pricing__note { text-align: center; color: var(--muted); font-size: 0.9rem; margin-top: 1.6rem; }
 
   /* --- FAQ --- */
   .faq { max-width: 780px; margin: 0 auto; display: flex; flex-direction: column; gap: 0.8rem; }
@@ -587,11 +550,6 @@
         },
         {
           "@type": "Question",
-          "name": "Os preços incluem IVA? Posso mudar de plano?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Os valores são mensais e não incluem IVA à taxa legal em vigor. Podes subir ou descer de plano a qualquer momento, não há fidelização, e o pagamento anual dá dois meses." }
-        },
-        {
-          "@type": "Question",
           "name": "Como começo?",
           "acceptedAnswer": { "@type": "Answer", "text": "O acesso é dado clube a clube, por convite direto — não há registo aberto. Quando o teu clube entra, o clube arranca com 30 dias de demonstração e um plantel de exemplo para veres tudo a funcionar antes de meteres os teus dados. Ajudamos a importar os atletas que já tens em Excel." }
         }
@@ -629,7 +587,6 @@
       <a href="#funcionalidades">Funcionalidades</a>
       <a href="#por-dentro">Por dentro</a>
       <a href="#como-funciona">Como funciona</a>
-      <a href="#precos">Preços</a>
       <a href="#faq">FAQ</a>
     </nav>
     <div class="nav__cta">
@@ -652,7 +609,7 @@
       <p class="lead">Plantéis, calendário, presenças, departamento médico, preparação física, finanças e patrocínios — reunidos, com cada pessoa a ver só o que precisa.</p>
       <div class="hero__actions">
         <a class="btn btn--primary" href="#por-dentro">Ver por dentro</a>
-        <a class="btn btn--on-navy" href="#precos">Ver planos</a>
+        <a class="btn btn--on-navy" href="#acesso">Pedir acesso</a>
       </div>
       <p class="hero__note">Sem instalações. Funciona no telemóvel, tablet e computador.</p>
     </div>
@@ -932,77 +889,6 @@
   </div>
 </section>
 
-<!-- ================= PREÇOS ================= -->
-<!--
-  ┌──────────────────────────────────────────────────────────────────┐
-  │  Preços: 19 / 49 / 79 € por mês, ou dez meses no pagamento       │
-  │  anual. Para os mudar, procura por PRECO e ajusta os três        │
-  │  blocos: o valor mensal (.plan__price) e a linha anual.          │
-  │                                                                  │
-  │  Os NOMES, MÓDULOS e LIMITES batem com os da app (Treinador ·    │
-  │  Clube · Clube+ — ver supabase/plans.sql e src/plans.js). Se     │
-  │  mudares um plano no editor da Plataforma, atualiza aqui também. │
-  └──────────────────────────────────────────────────────────────────┘
--->
-<section class="pricing" id="precos">
-  <div class="wrap">
-    <div class="section-head reveal">
-      <span class="eyebrow">Preços simples</span>
-      <h2>Três planos, sem letras pequenas</h2>
-      <p>Sem fidelização, com período de demonstração para experimentares com os teus dados. Do treinador com os seus escalões ao clube completo — sobe de plano quando cresceres.</p>
-    </div>
-    <div class="plans">
-      <div class="plan reveal">
-        <div class="plan__name">Treinador</div>
-        <p class="plan__desc">Um treinador e os seus escalões.</p>
-        <!-- PRECO -->
-        <div class="plan__price">19€<span class="per"> /mês</span></div>
-        <p class="plan__year">ou 190€/ano — dois meses grátis</p>
-        <ul class="plan__list">
-          <li><span class="tick">✓</span> Plantéis e fichas de atleta</li>
-          <li><span class="tick">✓</span> Calendário, presenças por QR e convocatórias</li>
-          <li><span class="tick">✓</span> Treino, plano de jogo, avaliação e estatísticas</li>
-          <li><span class="tick">✓</span> Até 3 escalões · 2 utilizadores</li>
-        </ul>
-      </div>
-
-      <div class="plan plan--featured reveal">
-        <span class="plan__badge">Mais popular</span>
-        <div class="plan__name">Clube</div>
-        <p class="plan__desc">O clube completo, com equipa técnica e médica.</p>
-        <!-- PRECO -->
-        <div class="plan__price">49€<span class="per"> /mês</span></div>
-        <p class="plan__year">ou 490€/ano — dois meses grátis</p>
-        <ul class="plan__list">
-          <li><span class="tick">✓</span> Tudo do Treinador, sem limite de escalões</li>
-          <li><span class="tick">✓</span> Quotas (ficha de sócio), equipamentos e encomendas</li>
-          <li><span class="tick">✓</span> Documentos (RGPD)</li>
-          <li><span class="tick">✓</span> Fisioterapia e preparação física</li>
-          <li><span class="tick">✓</span> Até 15 utilizadores</li>
-        </ul>
-      </div>
-
-      <div class="plan reveal">
-        <div class="plan__name">Clube+</div>
-        <p class="plan__desc">Tudo, com visão de direção e análise avançada.</p>
-        <!-- PRECO -->
-        <div class="plan__price">79€<span class="per"> /mês</span></div>
-        <p class="plan__year">ou 790€/ano — dois meses grátis</p>
-        <ul class="plan__list">
-          <li><span class="tick">✓</span> Tudo do Clube</li>
-          <li><span class="tick">✓</span> Financeiro (visão de direção)</li>
-          <li><span class="tick">✓</span> Análise / IA avançada</li>
-          <li><span class="tick">✓</span> Utilizadores ilimitados</li>
-        </ul>
-      </div>
-    </div>
-    <p class="pricing__note">
-      Valores por clube, sem IVA à taxa legal em vigor. Muda ou cancela quando quiseres.<br />
-      Precisas de algo à medida (federação, vários clubes)? É conversa para termos.
-    </p>
-  </div>
-</section>
-
 <!-- ================= FAQ ================= -->
 <section id="faq">
   <div class="wrap">
@@ -1036,10 +922,6 @@
         <p>Os dados do departamento médico só são acessíveis ao coordenador e ao fisioterapeuta — uma regra imposta na base de dados, não apenas escondida no ecrã. Nem o treinador da equipa vê o processo clínico: vê apenas se o atleta está apto, limitado ou em recuperação, que é o que precisa para treinar. Para dados de atletas menores, o clube é o responsável pelo tratamento e deve recolher o consentimento do encarregado de educação; ver a <a href="privacidade.html" style="color:var(--navy-500);font-weight:600">política de privacidade</a>.</p>
       </details>
       <details class="qa">
-        <summary>Os preços incluem IVA? Posso mudar de plano?</summary>
-        <p>Os valores são mensais e <strong>não incluem IVA</strong> à taxa legal em vigor. Podes subir ou descer de plano a qualquer momento, não há fidelização, e o pagamento anual dá dois meses.</p>
-      </details>
-      <details class="qa">
         <summary>Como começo?</summary>
         <p>O acesso é dado clube a clube, por convite direto — não há registo aberto. Quando o teu clube entra, recebes o acesso e o clube arranca com <strong>30 dias de demonstração</strong> e um plantel de exemplo (treinos com presenças, jogos com resultado e quotas) para veres tudo a funcionar antes de meteres os teus dados; limpa-se com um botão nas Definições. Ajudamos a importar os atletas que já tens em Excel.</p>
       </details>
@@ -1066,8 +948,7 @@
       </div>
       <nav class="footer__links" aria-label="Rodapé">
         <a href="#funcionalidades">Funcionalidades</a>
-        <a href="#precos">Preços</a>
-        <a href="#faq">FAQ</a>
+          <a href="#faq">FAQ</a>
         <a href="privacidade.html">Privacidade</a>
         <a href="termos.html">Termos</a>
         <a href="#acesso">Acesso</a>
