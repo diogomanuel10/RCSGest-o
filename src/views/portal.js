@@ -17,7 +17,7 @@ import {
   playerAttendanceStats,
   playerQuotas,
   nextPlayerSquadEvent,
-  playerEventResponse,
+  playerEventResponse, eventResponseWindow,
   playerRecentTrainings,
   playerRecentForm,
   playerUpcomingSquads,
@@ -382,6 +382,15 @@ function eventRow(ev, playerId) {
   ].filter(Boolean).join(' · ');
 
   const resp = playerEventResponse(playerId, ev.id);
+  // A janela de resposta: o treino fecha 6 h antes de começar. Fechada, os
+  // botões ficam desativados com o motivo à vista — um botão que existe e dá
+  // erro ao ser carregado é pior do que um botão que explica porque não dá.
+  const win = eventResponseWindow(ev);
+  const closedNote = win.open
+    ? ''
+    : win.started
+      ? 'Já começou.'
+      : `Respostas fechadas desde ${esc(deadlineText(win.deadline))} (até 6 h antes).`;
 
   return `
     <li class="portal-event">
@@ -401,13 +410,24 @@ function eventRow(ev, playerId) {
             <button type="button"
               class="portal-resp__btn portal-resp__btn--${r.key}${resp?.response === r.key ? ' is-active' : ''}"
               data-response="${r.key}" data-event="${esc(ev.id)}"
+              ${win.open ? '' : 'disabled'}
               aria-pressed="${resp?.response === r.key}">
               ${esc(r.label)}
             </button>`).join('')}
         </div>
+        ${closedNote ? `<span class="muted portal-event__meta">${closedNote}</span>` : ''}
       </div>
     </li>
   `;
+}
+
+// "hoje às 13:00" / "18/03 às 13:00" — o instante em que a janela de resposta
+// fechou, para o atleta perceber que prazo é que falhou.
+function deadlineText(dt) {
+  const hora = dt.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
+  const hoje = new Date().toDateString() === dt.toDateString();
+  const dia = hoje ? 'hoje' : dt.toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit' });
+  return `${dia} às ${hora}`;
 }
 
 // "há 2 dias" / "ontem" — para os avisos, onde a data exata interessa menos

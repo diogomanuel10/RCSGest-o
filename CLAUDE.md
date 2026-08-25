@@ -591,22 +591,44 @@ separador antes de navegar (usado pelos cartões do Painel).
 
 - **Comunicação clube ↔ atleta** (`supabase/comunicacao.sql`): o portal deixa
   de ser só de leitura.
-  - **Atleta → clube**: `event_responses` (`vou`|`nao_vou`|`duvida` + motivo)
-    serve tanto para confirmar uma convocatória como para avisar que falta a um
+  - **Atleta → clube**: `event_responses` (`vou`|`nao_vou` + motivo) serve
+    tanto para confirmar uma convocatória como para avisar que falta a um
     treino — para quem treina o problema é o mesmo: saber com quem conta. Só se
     escreve pela RPC `respond_to_event` (`security definer`), que valida que é o
-    próprio, que o evento é da sua equipa e que ainda não passou; a tabela não
-    tem política de escrita.
+    próprio, que o evento é da sua equipa e que está dentro do prazo; a tabela
+    não tem política de escrita.
+  - **São duas respostas, não três.** Havia um "ainda não sei", e ele
+    respondia-se exatamente como o silêncio: o treinador continuava sem saber
+    com quem contava, mas via a linha como respondida e deixava de insistir.
+    Ficar por responder já diz o mesmo, e diz a verdade.
+  - **O treino fecha às respostas 6 horas antes de começar**
+    (`RESPONSE_LEAD_HOURS` em `constants.js`, validado no servidor). Uma falta
+    avisada à hora do treino não é um aviso — quem treina já saiu de casa com o
+    plano feito e já não chama ninguém. O **jogo** aceita até começar: uma
+    convocatória confirma-se até ao último momento e aí saber tarde é melhor do
+    que não saber. `eventResponseWindow()` espelha o prazo no portal, para não
+    haver um botão que existe só para dar erro.
   - **Uma resposta NÃO é uma presença.** Quem regista o que aconteceu continua a
     ser o treinador ou o cartão QR. Se um "não vou" marcasse falta justificada
     sozinho, o atleta justificava-se a si próprio — e isso é decisão de quem
     treina. A vista Presenças mostra os avisos por cima da lista, para o
     treinador decidir.
-  - **Notifica só o que interessa**: a equipa técnica é avisada quando alguém
-    passa a "não vou" (e não a cada "vou", que seria ruído).
+  - **Quem é avisado**: o treinador da equipa **e o coordenador do clube**
+    (`event_response_audience`). Só os treinadores não chegava —
+    `team_trainer_user_ids` sai de `team_coaches` → `coaches.user_id`, por isso
+    num clube onde ninguém ligou a ficha de treinador a uma conta (ou onde quem
+    trata do plantel é o próprio coordenador) a resposta do atleta acontecia em
+    silêncio. Avisa-se cada resposta NOVA ou mudada, "vou" incluído: notificar
+    só as faltas deixava quem está do outro lado sem forma de distinguir "ainda
+    ninguém respondeu" de "não está a chegar nada". Repetir a mesma resposta não
+    notifica.
   - **Clube → atleta**: RPC `send_team_announcement` cria uma notificação por
-    atleta COM CONTA (reaproveita `notifications` + Web Push). Devolve quantos
-    foram avisados — o número mostra ao treinador quantos ainda não têm conta.
+    atleta COM CONTA (reaproveita `notifications`). O **inbox é de toda a
+    gente**: `setupNotifications` no `app-shell` estava reservado ao
+    coordenador e ao treinador, e por isso o aviso chegava à base de dados mas
+    nunca à secção "Avisos do clube" do portal. Quem vê o quê é decidido pelo
+    RLS (cada um lê o que lhe é dirigido), não pelo papel de quem carrega a
+    lista. Devolve quantos foram avisados — o número mostra ao treinador quantos ainda não têm conta.
     Enviado dos Plantéis ("Enviar aviso"); o treinador só avisa as suas equipas.
 - **Queda individual de comparência** (`attendanceDrops`): a taxa do clube é uma
   média, e uma média esconde precisamente o caso que interessa — o atleta que

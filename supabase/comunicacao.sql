@@ -9,10 +9,21 @@
 -- Este guião abre os dois sentidos:
 --
 --   1. ATLETA -> CLUBE  (`event_responses`)
---      O atleta responde a um evento: "vou", "não vou" ou "ainda não sei",
---      com um motivo opcional. Serve para CONFIRMAR uma convocatória e para
---      AVISAR que falta a um treino — o mesmo mecanismo, porque para o
---      treinador o problema é o mesmo: saber com quem conta.
+--      O atleta responde a um evento: "vou" ou "não vou", com um motivo
+--      opcional. Serve para CONFIRMAR uma convocatória e para AVISAR que
+--      falta a um treino — o mesmo mecanismo, porque para o treinador o
+--      problema é o mesmo: saber com quem conta.
+--
+--      São só duas respostas. Havia um "ainda não sei", e um "ainda não sei"
+--      responde-se exatamente como o silêncio: o treinador continua sem saber
+--      com quem conta, mas passa a ver a linha como respondida e deixa de
+--      insistir. Ficar por responder já diz o mesmo, e diz a verdade.
+--
+--      Um treino fecha às respostas 6 HORAS antes de começar
+--      (`RESPONSE_LEAD_HOURS`). Um aviso à hora do treino não é um aviso: já
+--      não dá para chamar ninguém nem refazer o que estava planeado. O jogo
+--      aceita até começar — uma convocatória confirma-se até ao último
+--      momento, e o treinador prefere saber tarde a não saber.
 --
 --   2. CLUBE -> ATLETA  (`send_team_announcement`)
 --      O treinador manda um aviso à equipa, que chega como notificação (a
@@ -41,7 +52,7 @@ create table if not exists event_responses (
   event_id     uuid not null references events(id)  on delete cascade,
   player_id    uuid not null references players(id) on delete cascade,
   response     text not null
-               check (response in ('vou','nao_vou','duvida')),
+               check (response in ('vou','nao_vou')),
   note         text,
   responded_at timestamptz not null default now(),
   created_at   timestamptz not null default now(),
@@ -49,6 +60,17 @@ create table if not exists event_responses (
 );
 create index if not exists idx_event_responses_event  on event_responses (event_id);
 create index if not exists idx_event_responses_player on event_responses (player_id);
+
+-- O "ainda não sei" foi retirado. As linhas antigas são APAGADAS e não
+-- convertidas: quem respondeu "não sei" não disse que vai nem que não vai —
+-- convertê-lo para qualquer um dos dois seria inventar uma resposta que o
+-- atleta não deu. Sem linha, volta a aparecer como "sem resposta", que é
+-- exatamente o que ele disse.
+delete from event_responses where response = 'duvida';
+
+alter table event_responses drop constraint if exists event_responses_response_check;
+alter table event_responses add constraint event_responses_response_check
+  check (response in ('vou','nao_vou'));
 
 -- Isolamento por clube: mesmo padrão das restantes tabelas (ver multitenant.sql).
 alter table event_responses
@@ -94,6 +116,37 @@ as $$
 $$;
 
 -- ---------------------------------------------------------------------
+-- 2b. Quem é avisado quando um atleta responde
+-- ---------------------------------------------------------------------
+-- O treinador da equipa E o coordenador do clube.
+--
+-- Só o treinador não chegava: `team_trainer_user_ids` sai de `team_coaches`
+-- -> `coaches.user_id`, por isso um clube onde ninguém ligou a ficha de
+-- treinador a uma conta (ou onde quem trata do plantel é o próprio
+-- coordenador, que não tem ficha de treinador) não recebia nada — a resposta
+-- do atleta ficava a acontecer em silêncio, e ninguém percebia porquê.
+create or replace function public.event_response_audience(
+  p_team_id uuid,
+  p_org_id  uuid
+)
+returns setof uuid
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select distinct uid from (
+    select team_trainer_user_ids(p_team_id) as uid
+    union
+    select pr.id
+    from   profiles pr
+    where  pr.role = 'coordenador'
+    and    (p_org_id is null or pr.org_id = p_org_id)
+  ) t
+  where uid is not null;
+$$;
+
+-- ---------------------------------------------------------------------
 -- 3. O atleta responde a um evento
 -- ---------------------------------------------------------------------
 -- Devolve a linha gravada em JSON. Lança erro em PT quando não pode responder.
@@ -113,9 +166,13 @@ declare
   v_event  events%rowtype;
   v_row    event_responses%rowtype;
   v_before text;
+  v_start  timestamp;
+  v_limit  timestamp;
+  v_label  text;
+  v_title  text;
   uid      uuid;
 begin
-  if p_response not in ('vou','nao_vou','duvida') then
+  if p_response not in ('vou','nao_vou') then
     raise exception 'Resposta inválida.';
   end if;
 
@@ -141,10 +198,25 @@ begin
     raise exception 'Este evento não é da tua equipa.';
   end if;
 
-  -- Só se responde ao que ainda não aconteceu. Responder a um treino de
-  -- ontem não avisa ninguém — só reescrevia a história depois do facto.
-  if (v_event.date + coalesce(nullif(v_event.time,''), '23:59')::time) < club_now() then
+  -- O PRAZO. Um treino fecha 6 horas antes de começar: uma falta avisada à
+  -- hora do treino não é um aviso — o treinador já saiu de casa com o plano
+  -- feito e já não chama ninguém. Fechar cedo obriga a decidir a tempo, que é
+  -- a única coisa que torna a resposta útil a quem treina.
+  --
+  -- O jogo aceita até começar: uma convocatória confirma-se até ao último
+  -- momento e, aí, saber tarde é sempre melhor do que não saber.
+  v_start := v_event.date + coalesce(nullif(v_event.time,''), '23:59')::time;
+  v_limit := case when v_event.type = 'treino'
+                  then v_start - interval '6 hours'
+                  else v_start
+             end;
+
+  if v_start < club_now() then
     raise exception 'Este evento já passou.';
+  end if;
+  if v_limit < club_now() then
+    raise exception 'As respostas a este treino fecharam às % (6 horas antes). Avisa o teu treinador diretamente.',
+      to_char(v_limit, 'HH24:MI" de "DD/MM');
   end if;
 
   select response into v_before from event_responses
@@ -158,16 +230,29 @@ begin
         responded_at = excluded.responded_at
   returning * into v_row;
 
-  -- Avisar a equipa técnica quando alguém deixa de contar — e só então: uma
-  -- notificação por cada "vou" seria ruído que se aprende a ignorar.
-  if p_response = 'nao_vou' and coalesce(v_before,'') <> 'nao_vou' then
-    for uid in select team_trainer_user_ids(v_event.team_id) loop
+  -- Avisar a equipa técnica e o coordenador. Notifica-se cada resposta NOVA
+  -- (ou mudada) e nunca a repetição da mesma: quem carrega duas vezes em "Vou"
+  -- não aconteceu nada de novo.
+  --
+  -- O "vou" também avisa. A regra antiga era só notificar o "não vou" para
+  -- poupar ruído, mas isso deixava quem está do outro lado sem forma de
+  -- distinguir "ainda ninguém respondeu" de "não está a chegar nada" — e foi
+  -- exatamente esse o sintoma. Quem quiser só as faltas tem o painel do
+  -- evento (Presenças), que já mostra o quadro completo.
+  if coalesce(v_before,'') is distinct from p_response then
+    v_label := case when v_event.type = 'jogo' then 'jogo' else 'treino' end;
+    v_title := case when p_response = 'nao_vou'
+                    then 'Falta avisada'
+                    else 'Presença confirmada' end;
+
+    for uid in select event_response_audience(v_event.team_id, v_event.org_id) loop
       insert into notifications (type, title, body, data, target_user_id, org_id)
       values (
         'event_response',
-        'Falta avisada',
-        v_player.name || ' não vai a ' ||
-          case when v_event.type = 'jogo' then 'jogo' else 'treino' end ||
+        v_title,
+        v_player.name ||
+          case when p_response = 'nao_vou' then ' não vai ao ' else ' vai ao ' end ||
+          v_label ||
           ' de ' || to_char(v_event.date, 'DD/MM') ||
           coalesce(' às ' || v_event.time, '') ||
           coalesce(' — ' || v_row.note, '') || '.',
@@ -189,6 +274,7 @@ $$;
 revoke all on function public.respond_to_event(uuid, text, text) from public, anon;
 grant execute on function public.respond_to_event(uuid, text, text) to authenticated;
 grant execute on function public.team_athlete_user_ids(uuid) to authenticated;
+grant execute on function public.event_response_audience(uuid, uuid) to authenticated;
 
 -- ---------------------------------------------------------------------
 -- 4. O clube avisa a equipa

@@ -5815,10 +5815,9 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 }
 .portal-resp__btn:hover:not(:disabled) { border-color: var(--navy-300); color: var(--text); }
 .portal-resp__btn:disabled { opacity: 0.55; cursor: default; }
-/* A resposta escolhida ganha a cor do seu significado — verde/âmbar/vermelho
-   é mais rápido de ler do que um contorno mais escuro. */
+/* A resposta escolhida ganha a cor do seu significado — verde/vermelho é mais
+   rápido de ler do que um contorno mais escuro. */
 .portal-resp__btn--vou.is-active     { background: var(--ok-bg);     border-color: var(--ok);     color: var(--ok); }
-.portal-resp__btn--duvida.is-active  { background: var(--warn-bg);   border-color: var(--warn);   color: var(--warn); }
 .portal-resp__btn--nao_vou.is-active { background: var(--danger-bg); border-color: var(--danger); color: var(--danger); }
 
 /* --- Avisos do clube no portal --- */

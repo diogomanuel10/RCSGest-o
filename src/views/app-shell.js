@@ -791,8 +791,12 @@ export async function renderAppShell(root, session) {
   }
 
   async function setupNotifications() {
-    const role = state.profile?.role;
-    if (role !== 'coordenador' && role !== 'treinador') return;
+    // O inbox é de TODA a gente. Estava reservado ao coordenador e ao
+    // treinador, e por isso o atleta nunca via os avisos do clube que lhe eram
+    // enviados (`send_team_announcement` criava a notificação, o portal tinha
+    // a secção "Avisos do clube" — só que ninguém carregava a lista do lado
+    // dele). Quem vê o quê continua a ser decidido pelo RLS: cada utilizador
+    // só lê as notificações dirigidas a si.
 
     const wrap      = root.querySelector('#notif-wrap');
     const btn       = root.querySelector('#notif-btn');

@@ -400,13 +400,25 @@ export const SQUAD_STATUSES = [
 // --- Respostas do atleta a um evento ---
 // O mesmo conjunto serve para confirmar uma convocatória e para avisar que
 // falta a um treino: do lado de quem treina o problema é o mesmo — saber com
-// quem conta. "Ainda não sei" existe porque a alternativa é o silêncio, que
-// não distingue quem não viu de quem não pode decidir.
+// quem conta.
+//
+// São só duas. Havia um "Ainda não sei", e ele respondia-se exatamente como o
+// silêncio — o treinador continuava sem saber com quem contava, mas via a
+// linha como respondida e deixava de insistir. Ficar por responder já diz o
+// mesmo, e diz a verdade.
 export const EVENT_RESPONSES = [
-  { key: 'vou',     label: 'Vou',           badge: 'ok' },
-  { key: 'duvida',  label: 'Ainda não sei', badge: 'warn' },
-  { key: 'nao_vou', label: 'Não vou',       badge: 'danger' },
+  { key: 'vou',     label: 'Vou',     badge: 'ok' },
+  { key: 'nao_vou', label: 'Não vou', badge: 'danger' },
 ];
+
+// Antecedência mínima para responder, em horas, por tipo de evento.
+// O TREINO fecha 6 horas antes: uma falta avisada à hora do treino não é um
+// aviso — o treinador já saiu de casa com o plano feito e já não chama
+// ninguém. O JOGO aceita até começar: uma convocatória confirma-se até ao
+// último momento e, aí, saber tarde é melhor do que não saber.
+// Espelha o prazo validado no servidor (`respond_to_event`, comunicacao.sql).
+export const RESPONSE_LEAD_HOURS = { treino: 6, jogo: 0 };
+export const DEFAULT_RESPONSE_LEAD_HOURS = 0;
 export const EVENT_RESPONSE_LABEL = Object.fromEntries(EVENT_RESPONSES.map((r) => [r.key, r.label]));
 export const EVENT_RESPONSE_BADGE = Object.fromEntries(EVENT_RESPONSES.map((r) => [r.key, r.badge]));
 
