@@ -165,7 +165,10 @@ async function _showOsNotification(notif) {
       icon:     '/logo-192.png',
       badge:    '/logo-192.png',
       data:     notif.data,
-      tag:      `${notif.type}_${notif.id}`,
+      // A MESMA etiqueta que o service worker usa para o push (ver sw.js):
+      // com a app aberta a notificação pode chegar pelos dois caminhos, e a
+      // etiqueta comum faz o sistema mostrar UMA, não duas.
+      tag:      `rumia-${notif.id}`,
       renotify: false,
     };
     if ('serviceWorker' in navigator) {

@@ -9,6 +9,11 @@ import { signOut } from '../auth.js';
 import { state, subscribe, loadAll, loadProfile, orgAccess, redeemInvitation } from '../store.js';
 import { loadingHTML, errorHTML, esc } from '../ui.js';
 import { renderOfflineCard, clearOfflineCard } from '../offline-card.js';
+import {
+  enablePush, clearPushOnLogout, isPushEnabled, iosNeedsInstall,
+  pushConfigured, pushSupported,
+} from '../push.js';
+import { toastOk, toastError } from '../toast.js';
 import { renderOnboarding } from './onboarding.js';
 import { renderSubscriptionBlocked } from './subscription-blocked.js';
 import { canManageSettings, canManageUsers, canRestore, canAccess, ROLE_LABEL } from '../permissions.js';
@@ -252,7 +257,7 @@ export async function renderAppShell(root, session) {
             </div>
             <div class="notif-list" id="notif-list" aria-live="polite"></div>
             <div class="notif-permission" id="notif-permission" hidden>
-              <p>Ativa para receberes alertas mesmo com a app fechada.</p>
+              <p id="notif-perm-text">Ativa para receberes alertas no telemóvel, mesmo com a app fechada.</p>
               <button class="btn btn--primary btn--sm" id="notif-enable-btn" type="button">
                 Ativar notificações
               </button>
@@ -390,7 +395,10 @@ export async function renderAppShell(root, session) {
     // conta sair (um tablet partilhado passaria o cartão ao utilizador
     // seguinte).
     clearOfflineCard();
-    signOut();
+    // Antes de sair: largar o push deste dispositivo. Senão o próximo aviso
+    // do clube aparecia no ecrã de quem já não tem sessão aberta — e num
+    // tablet partilhado seria um aviso dirigido a outra pessoa.
+    clearPushOnLogout().finally(() => signOut());
   });
 
   const onResize = () => {
@@ -805,6 +813,7 @@ export async function renderAppShell(root, session) {
     const list      = root.querySelector('#notif-list');
     const readAllBtn= root.querySelector('#notif-read-all');
     const permDiv   = root.querySelector('#notif-permission');
+    const permText  = root.querySelector('#notif-perm-text');
     const enableBtn = root.querySelector('#notif-enable-btn');
 
     wrap.hidden = false;
@@ -839,16 +848,44 @@ export async function renderAppShell(root, session) {
         : 'Notificações');
     }
 
-    function updatePermUI() {
+    // O convite a ligar as notificações aparece enquanto ELAS NÃO ESTIVEREM
+    // MESMO A FUNCIONAR neste dispositivo — e não só enquanto a permissão
+    // estiver por dar. Dar a permissão e não ficar subscrito é o caso mais
+    // traiçoeiro: o utilizador jura que ativou e nunca lhe chega nada.
+    async function updatePermUI() {
       if (!('Notification' in window)) { permDiv.hidden = true; return; }
-      permDiv.hidden = Notification.permission !== 'default';
+
+      // iOS: a Apple só entrega push a uma app instalada no ecrã principal.
+      // Sem isto o botão pedia uma permissão que o Safari nem mostra.
+      if (iosNeedsInstall()) {
+        permDiv.hidden = false;
+        permText.textContent = 'Para receberes notificações no iPhone, abre o '
+          + 'menu Partilhar e escolhe “Adicionar ao ecrã principal”. Depois abre '
+          + 'a Rumia por esse ícone e ativa aqui.';
+        enableBtn.hidden = true;
+        return;
+      }
+
+      enableBtn.hidden = false;
+      if (Notification.permission === 'denied') {
+        permDiv.hidden = false;
+        permText.textContent = 'As notificações estão bloqueadas nas definições '
+          + 'do browser para este site. Tens de as reativar aí.';
+        enableBtn.hidden = true;
+        return;
+      }
+
+      // Sem push (chave por configurar, ou browser sem PushManager) o que há
+      // para ativar é só a permissão do sistema: dada essa, o convite sai.
+      permDiv.hidden = await isPushEnabled()
+        || ((!pushConfigured || !pushSupported()) && Notification.permission !== 'default');
     }
 
     function openPanel() {
       panel.classList.add('notif-panel--open');
       btn.setAttribute('aria-expanded', 'true');
       renderList();
-      updatePermUI();
+      updatePermUI();  // assíncrono de propósito: o painel abre já
     }
 
     function closePanel() {
@@ -874,8 +911,24 @@ export async function renderAppShell(root, session) {
     });
 
     enableBtn.addEventListener('click', async () => {
-      const result = await requestPermission();
-      if (result === 'granted' || result === 'denied') permDiv.hidden = true;
+      enableBtn.disabled = true;
+      // Sem chave VAPID configurada não há push nenhum, mas a permissão do
+      // browser continua a valer para os avisos com a app aberta.
+      const result = pushConfigured ? await enablePush() : await requestPermission();
+      enableBtn.disabled = false;
+
+      if (result === 'ok')            toastOk('Notificações ativadas neste dispositivo.');
+      else if (result === 'granted')  toastOk('Notificações ativadas.');
+      else if (result === 'recusado' || result === 'denied')
+        toastError('Notificações recusadas. Podes ativá-las nas definições do browser.');
+      else if (result === 'instalar-ios')
+        toastError('No iPhone, adiciona a Rumia ao ecrã principal primeiro.');
+      else if (result === 'sem-suporte')
+        toastError('Este dispositivo não suporta notificações.');
+      else if (result === 'erro')
+        toastError('Não foi possível ativar as notificações. Tenta outra vez.');
+
+      await updatePermUI();
     });
 
     // Reagir a mudanças no inbox (Realtime + operações locais).
@@ -900,7 +953,16 @@ export async function renderAppShell(root, session) {
     }
 
     updateBadge();
-    updatePermUI();
+    await updatePermUI();
+
+    // Quem já deu a permissão neste dispositivo volta a ser subscrito em
+    // silêncio: o endereço de push muda sozinho (o browser renova-o, o
+    // utilizador reinstala a app) e, quando muda, as notificações deixam de
+    // chegar sem ninguém dar por isso.
+    if (pushConfigured && pushSupported() && !iosNeedsInstall()
+        && Notification.permission === 'granted') {
+      enablePush().then(() => updatePermUI()).catch(() => {});
+    }
   }
 
   // -----------------------------------------------------------------------

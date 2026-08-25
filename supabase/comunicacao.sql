@@ -118,16 +118,25 @@ $$;
 -- ---------------------------------------------------------------------
 -- 2b. Quem é avisado quando um atleta responde
 -- ---------------------------------------------------------------------
--- O treinador da equipa E o coordenador do clube.
+-- O TREINO é do treinador. Quem vai ao treino de sexta é trabalho de quem o
+-- dá; o coordenador de um clube com dez escalões receberia centenas de
+-- respostas por semana sobre treinos a que não vai, e um sino que toca sempre
+-- deixa de ser lido — inclusive quando traz o que importa.
 --
--- Só o treinador não chegava: `team_trainer_user_ids` sai de `team_coaches`
--- -> `coaches.user_id`, por isso um clube onde ninguém ligou a ficha de
--- treinador a uma conta (ou onde quem trata do plantel é o próprio
--- coordenador, que não tem ficha de treinador) não recebia nada — a resposta
--- do atleta ficava a acontecer em silêncio, e ninguém percebia porquê.
+-- O JOGO é outra conversa: a convocatória é do clube, e aí o coordenador
+-- entra.
+--
+-- A exceção é o clube onde NENHUM treinador daquela equipa tem conta ligada
+-- (`team_trainer_user_ids` sai de `team_coaches` -> `coaches.user_id`, e é
+-- muitas vezes o próprio coordenador quem trata do plantel). Sem essa
+-- salvaguarda a resposta do atleta não chegava a ninguém — que foi
+-- exatamente o sintoma de que isto nasceu.
+drop function if exists public.event_response_audience(uuid, uuid);
+
 create or replace function public.event_response_audience(
-  p_team_id uuid,
-  p_org_id  uuid
+  p_team_id    uuid,
+  p_org_id     uuid,
+  p_event_type text
 )
 returns setof uuid
 language sql
@@ -135,13 +144,21 @@ security definer
 stable
 set search_path = public
 as $$
-  select distinct uid from (
+  with trainers as (
     select team_trainer_user_ids(p_team_id) as uid
-    union
-    select pr.id
+  ),
+  coords as (
+    select pr.id as uid
     from   profiles pr
     where  pr.role = 'coordenador'
     and    (p_org_id is null or pr.org_id = p_org_id)
+  )
+  select distinct uid from (
+    select uid from trainers
+    union
+    select uid from coords
+     where p_event_type = 'jogo'
+        or not exists (select 1 from trainers where uid is not null)
   ) t
   where uid is not null;
 $$;
@@ -245,7 +262,7 @@ begin
                     then 'Falta avisada'
                     else 'Presença confirmada' end;
 
-    for uid in select event_response_audience(v_event.team_id, v_event.org_id) loop
+    for uid in select event_response_audience(v_event.team_id, v_event.org_id, v_event.type) loop
       insert into notifications (type, title, body, data, target_user_id, org_id)
       values (
         'event_response',
@@ -274,7 +291,7 @@ $$;
 revoke all on function public.respond_to_event(uuid, text, text) from public, anon;
 grant execute on function public.respond_to_event(uuid, text, text) to authenticated;
 grant execute on function public.team_athlete_user_ids(uuid) to authenticated;
-grant execute on function public.event_response_audience(uuid, uuid) to authenticated;
+grant execute on function public.event_response_audience(uuid, uuid, text) to authenticated;
 
 -- ---------------------------------------------------------------------
 -- 4. O clube avisa a equipa
