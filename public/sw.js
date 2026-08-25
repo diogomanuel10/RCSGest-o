@@ -68,8 +68,13 @@ self.addEventListener('activate', (e) => {
   );
 });
 
-// Recebe uma notificação push vinda do servidor (Edge Function futura).
-// O payload deve ser JSON com: { title, body, data?, tag? }
+// Recebe uma notificação push vinda do servidor (Edge Function `send-push`,
+// chamada pelo trigger de `notifications` — ver supabase/web-push.sql).
+// O payload é JSON com: { title, body, data?, tag? }
+//
+// É este handler que faz a Rumia notificar como uma app normal: corre com a
+// app fechada, no Android e no iOS (aí só depois de instalada no ecrã
+// principal — é a Apple que o exige).
 self.addEventListener('push', (e) => {
   if (!e.data) return;
   let payload;

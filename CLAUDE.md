@@ -84,6 +84,7 @@ src/
   style.css             Design system completo (tokens + componentes)
   players-xlsx.js       Importar atletas de .xlsx + gerar modelo (SheetJS lazy)
   demo-data.js          Clube de exemplo: semear e limpar (marca em settings.demo_seed)
+  push.js               Web Push: subscrever o dispositivo, iOS/instalação, logout
   qrcode.js             Cartões QR: gerar, ler pela câmara, traduzir (libs lazy)
   players-qr.js         Folha de cartões QR imprimíveis (A4, tamanho cartão)
   offline-card.js       Cartão QR guardado no dispositivo (ecrã de recurso sem rede)
@@ -128,6 +129,7 @@ supabase/tatica.sql            Decisão Tática: cenários de leitura de jogo + 
 supabase/exercicios.sql        Biblioteca de exercícios (tabela + ligação ao plano de treino)
 supabase/painel-avisos.sql     Limiares do clube + avisos escolhidos por utilizador
 supabase/resumo-semanal.sql    Resumo semanal (notificação + push) e limiares de queda
+supabase/web-push.sql          Web Push: trigger em notifications -> Edge Function send-push
 supabase/dados-exemplo.sql     Marca do clube de exemplo (settings.demo_seed)
 public/                 Ficheiros estáticos (modelo-atletas-rumia.xlsx)
 ```
@@ -591,23 +593,79 @@ separador antes de navegar (usado pelos cartões do Painel).
 
 - **Comunicação clube ↔ atleta** (`supabase/comunicacao.sql`): o portal deixa
   de ser só de leitura.
-  - **Atleta → clube**: `event_responses` (`vou`|`nao_vou`|`duvida` + motivo)
-    serve tanto para confirmar uma convocatória como para avisar que falta a um
+  - **Atleta → clube**: `event_responses` (`vou`|`nao_vou` + motivo) serve
+    tanto para confirmar uma convocatória como para avisar que falta a um
     treino — para quem treina o problema é o mesmo: saber com quem conta. Só se
     escreve pela RPC `respond_to_event` (`security definer`), que valida que é o
-    próprio, que o evento é da sua equipa e que ainda não passou; a tabela não
-    tem política de escrita.
+    próprio, que o evento é da sua equipa e que está dentro do prazo; a tabela
+    não tem política de escrita.
+  - **São duas respostas, não três.** Havia um "ainda não sei", e ele
+    respondia-se exatamente como o silêncio: o treinador continuava sem saber
+    com quem contava, mas via a linha como respondida e deixava de insistir.
+    Ficar por responder já diz o mesmo, e diz a verdade.
+  - **O treino fecha às respostas 6 horas antes de começar**
+    (`RESPONSE_LEAD_HOURS` em `constants.js`, validado no servidor). Uma falta
+    avisada à hora do treino não é um aviso — quem treina já saiu de casa com o
+    plano feito e já não chama ninguém. O **jogo** aceita até começar: uma
+    convocatória confirma-se até ao último momento e aí saber tarde é melhor do
+    que não saber. `eventResponseWindow()` espelha o prazo no portal, para não
+    haver um botão que existe só para dar erro.
   - **Uma resposta NÃO é uma presença.** Quem regista o que aconteceu continua a
     ser o treinador ou o cartão QR. Se um "não vou" marcasse falta justificada
     sozinho, o atleta justificava-se a si próprio — e isso é decisão de quem
     treina. A vista Presenças mostra os avisos por cima da lista, para o
     treinador decidir.
-  - **Notifica só o que interessa**: a equipa técnica é avisada quando alguém
-    passa a "não vou" (e não a cada "vou", que seria ruído).
+  - **Quem é avisado** (`event_response_audience`): o **treino é do
+    treinador** — quem vai ao treino de sexta é trabalho de quem o dá, e um
+    coordenador com dez escalões receberia centenas de respostas por semana
+    sobre treinos a que não vai. O **jogo** é do clube: aí entra também o
+    coordenador. A exceção é a equipa sem NENHUM treinador com conta ligada
+    (`team_trainer_user_ids` sai de `team_coaches` → `coaches.user_id`, e é
+    muitas vezes o próprio coordenador quem trata do plantel): sem essa
+    salvaguarda a resposta não chegava a ninguém, que foi o sintoma original.
+    Avisa-se cada resposta NOVA ou mudada, "vou" incluído: notificar só as
+    faltas deixava quem está do outro lado sem forma de distinguir "ainda
+    ninguém respondeu" de "não está a chegar nada". Repetir a mesma resposta não
+    notifica.
   - **Clube → atleta**: RPC `send_team_announcement` cria uma notificação por
-    atleta COM CONTA (reaproveita `notifications` + Web Push). Devolve quantos
-    foram avisados — o número mostra ao treinador quantos ainda não têm conta.
+    atleta COM CONTA (reaproveita `notifications`). O **inbox é de toda a
+    gente**: `setupNotifications` no `app-shell` estava reservado ao
+    coordenador e ao treinador, e por isso o aviso chegava à base de dados mas
+    nunca à secção "Avisos do clube" do portal. Quem vê o quê é decidido pelo
+    RLS (cada um lê o que lhe é dirigido), não pelo papel de quem carrega a
+    lista. Devolve quantos foram avisados — o número mostra ao treinador quantos ainda não têm conta.
     Enviado dos Plantéis ("Enviar aviso"); o treinador só avisa as suas equipas.
+- **Notificações no telemóvel** (`supabase/web-push.sql`, `src/push.js`,
+  `supabase/functions/send-push`): o sino só toca a quem tem a app ABERTA — um
+  treino cancelado às 8h da manhã só era visto por quem calhasse de abrir a
+  Rumia nesse dia. O Web Push entrega a notificação com a app fechada, no
+  Android e no iOS.
+  - **Nada muda no resto do código**: quem quer avisar alguém continua a
+    inserir uma linha em `notifications`. Um trigger (`push_on_notification`)
+    chama a Edge Function `send-push` por `pg_net`, que assina com VAPID e
+    entrega. Há um sítio só a decidir o que é uma notificação; o push é a
+    última perna do caminho, não um segundo sistema a manter em sincronia.
+  - **O push é um extra e falha em silêncio**: a chamada vai dentro de um
+    bloco de exceção e o `pg_net` é assíncrono. Uma função em baixo não pode
+    atrasar — muito menos anular — o INSERT que a originou; a notificação fica
+    na tabela e aparece no sino como sempre.
+  - **A chave privada VAPID nunca sai do servidor** (segredo da Edge
+    Function). A pública vai no `VITE_VAPID_PUBLIC_KEY` de propósito: só
+    identifica o remetente. O URL e a `service_role` key do trigger vivem em
+    `private.push_config`, num schema com RLS e **sem políticas**.
+  - **Subscrições mortas apagam-se** (404/410 do servidor de push): quem
+    desinstalou a app deixa de contar, senão cada envio arrastava para sempre
+    endereços que já não existem.
+  - **iOS só entrega push a uma PWA instalada** no ecrã principal (16.4+). Não
+    é contornável — por isso `iosNeedsInstall()` troca o botão "Ativar" pelas
+    instruções de instalação, em vez de pedir uma permissão que o Safari nem
+    mostra.
+  - **Re-subscrever é automático**: quem já deu permissão volta a ser inscrito
+    em silêncio a cada arranque. O endereço de push muda sozinho (o browser
+    renova-o, a app é reinstalada) e, quando muda, as notificações deixavam de
+    chegar sem ninguém dar por isso.
+  - **Sair da conta larga o push** deste dispositivo: num tablet partilhado, o
+    aviso seguinte seria dirigido a outra pessoa.
 - **Queda individual de comparência** (`attendanceDrops`): a taxa do clube é uma
   média, e uma média esconde precisamente o caso que interessa — o atleta que
   vinha a tudo e deixou de vir. Enquanto o resto do plantel compensa, o número

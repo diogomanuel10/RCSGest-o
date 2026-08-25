@@ -804,9 +804,10 @@ async function reloadGameData(eventId) {
 
 // --- Comunicação clube <-> atleta ---------------------------------------
 
-// O atleta responde a um evento: 'vou' | 'nao_vou' | 'duvida'.
+// O atleta responde a um evento: 'vou' | 'nao_vou'.
 // Toda a validação é do servidor (RPC `respond_to_event`): que só responde
-// pelo próprio, só a eventos da sua equipa e só ao que ainda não aconteceu.
+// pelo próprio, só a eventos da sua equipa e só dentro do prazo (o treino
+// fecha 6 h antes de começar; o jogo, ao começar).
 // Uma resposta NÃO é uma presença — é intenção; quem regista o que aconteceu
 // continua a ser o treinador ou o cartão QR.
 export async function respondToEvent(eventId, response, note = null) {

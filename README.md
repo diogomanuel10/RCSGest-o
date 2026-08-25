@@ -57,8 +57,9 @@ As permissões são impostas pela base de dados (RLS), não só pela interface.
    atleta + avisos do clube), `resultados.sql` (resultados de jogo),
    `tatica.sql` (Decisão Tática: cenários de leitura de jogo + respostas),
    `exercicios.sql` (biblioteca de exercícios do clube) e
-   `painel-avisos.sql` (limiares do clube + avisos por utilizador) e
-   `dados-exemplo.sql` (clube de demonstração para quem se regista). Todos
+   `painel-avisos.sql` (limiares do clube + avisos por utilizador),
+   `dados-exemplo.sql` (clube de demonstração para quem se regista) e
+   `web-push.sql` (notificações no telemóvel — ver secção 5). Todos
    são seguros de re-executar.
 4. Em **Authentication → Sign In / Providers**, garante que
    **"Allow new users to sign up"** está **ativo** — a app permite criar conta
@@ -104,7 +105,47 @@ npm run build      # gera a pasta dist/
 npm run preview    # pré-visualiza a build
 ```
 
-## 4. Publicar no Vercel
+## 4. Notificações no telemóvel (Android e iOS)
+
+Sem isto a app funciona na mesma: as notificações aparecem no sino, dentro da
+app. Com isto chegam ao telemóvel **com a app fechada**, como as de qualquer
+outra aplicação.
+
+1. **Gera as chaves VAPID** (uma vez, na tua máquina):
+
+   ```bash
+   npx web-push generate-vapid-keys
+   ```
+
+2. **Chave pública → site.** No `.env` (e nas variáveis do Vercel):
+
+   ```
+   VITE_VAPID_PUBLIC_KEY=a-chave-publica
+   ```
+
+3. **Chave privada → servidor.** Publica a Edge Function e dá-lhe os segredos:
+
+   ```bash
+   supabase functions deploy send-push
+   supabase secrets set VAPID_PUBLIC_KEY=...  VAPID_PRIVATE_KEY=... \
+                        VAPID_SUBJECT=mailto:o-teu@email
+   ```
+
+   A chave privada **nunca** vai para o `.env` nem para o browser.
+
+4. **Liga o gatilho.** Corre `supabase/web-push.sql` no SQL Editor e preenche
+   o `update` que está no fim do ficheiro (URL da função + `service_role` key).
+   A partir daí, cada notificação criada na app sai para os dispositivos.
+
+5. **No telemóvel**, cada pessoa ativa uma vez: sino → **Ativar notificações**.
+
+> **iPhone/iPad:** a Apple só entrega notificações a uma app **instalada no
+> ecrã principal**. No Safari, Partilhar → *Adicionar ao ecrã principal*, e
+> abrir a Rumia por esse ícone (iOS 16.4 ou mais recente). A app avisa disto
+> sozinha a quem esteja nessa situação. No Android funciona no browser e
+> instalada.
+
+## 5. Publicar no Vercel
 
 A app é um site estático (Vite), por isso assenta bem no Vercel.
 

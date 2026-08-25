@@ -6,6 +6,7 @@ import {
   TIER_VALUE, IN_PROGRESS_STATUSES, DEFAULT_ESCALOES,
   DEFAULT_SPORT, SPORT_POSITIONS, DEFAULT_POSITIONS, DOC_TYPE_LABEL, DOCUMENT_TYPES,
   PHYSICAL_TEST_LABEL, PHYSICAL_TEST_UNIT, PHYSICAL_TEST_BETTER,
+  RESPONSE_LEAD_HOURS, DEFAULT_RESPONSE_LEAD_HOURS,
 } from './constants.js';
 
 // Tipos de documento que deviam ter data de validade (exame médico, seguro…).
@@ -859,6 +860,24 @@ export function trainingVsPlayingGaps(limit = 5) {
 
 // --- Respostas do atleta a eventos --------------------------------------
 
+// Até quando é que o atleta ainda pode responder a este evento, e se a janela
+// já fechou. O treino fecha 6 horas antes de começar (ver RESPONSE_LEAD_HOURS);
+// o jogo aceita até ao apito.
+//
+// O servidor valida o mesmo prazo (`respond_to_event`): isto aqui é só para o
+// portal não oferecer um botão que vai levar com um erro.
+export function eventResponseWindow(ev) {
+  const start = eventDateTime(ev);
+  const lead = RESPONSE_LEAD_HOURS[ev.type] ?? DEFAULT_RESPONSE_LEAD_HOURS;
+  const deadline = new Date(start.getTime() - lead * 3600000);
+  return {
+    deadline,
+    lead,
+    open: deadline > new Date(),
+    started: start <= new Date(),
+  };
+}
+
 // O que um atleta respondeu a um evento (ou null se ainda não respondeu).
 export function playerEventResponse(playerId, eventId) {
   return state.eventResponses.find(
@@ -871,7 +890,7 @@ export function playerEventResponse(playerId, eventId) {
 // nem responderam. `semResposta` conta sobre o plantel da equipa do evento.
 export function eventResponseSummary(eventId) {
   const ev = state.events.find((e) => e.id === eventId);
-  const counts = { vou: 0, duvida: 0, nao_vou: 0 };
+  const counts = { vou: 0, nao_vou: 0 };
   if (!ev) return { counts, ausentes: [], semResposta: 0 };
 
   const squad = state.players.filter((p) => p.team_id === ev.team_id);
