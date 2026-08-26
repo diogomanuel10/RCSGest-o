@@ -438,7 +438,30 @@ export async function renderAppShell(root, session) {
     return allRoutes().filter(routeAllowed)[0]?.key || null;
   }
 
+  // Há mais do que um sítio para onde ir? Um atleta tem UMA secção permitida
+  // (o portal) e mais nada — nem sequer entradas de rodapé. Ver `soloChrome`.
+  let soloRoute = false;
+
+  // Moldura para quem só tem uma secção.
+  //
+  // O atleta ficava com hambúrguer, barra lateral e uma barra de pesquisa a
+  // dizer "Pesquisar atletas, equipas, secções…" para chegar ao único sítio
+  // onde já estava — e a pesquisa, que filtra tudo por `canAccess`, só lhe
+  // podia devolver a página onde ele estava. Era o elemento mais proeminente
+  // do ecrã no telemóvel e não fazia nada. Sem sítios para onde ir, não há
+  // navegação a mostrar.
+  function soloChrome(solo) {
+    appRoot.classList.toggle('app--solo', solo);
+    if (solo) {
+      appRoot.classList.remove('app--drawer');
+      closeMobileSearch();
+    }
+  }
+
   function refreshChrome() {
+    soloRoute = allRoutes().filter(routeAllowed).length <= 1;
+    soloChrome(soloRoute);
+
     root.querySelectorAll('[data-route]').forEach((btn) => {
       const item = allRoutes().find((r) => r.key === btn.dataset.route);
       btn.classList.toggle('hidden', !(item && routeAllowed(item)));
@@ -736,6 +759,7 @@ export async function renderAppShell(root, session) {
 
   // Ctrl/⌘+K e "/" saltam para a pesquisa de qualquer ponto da aplicação.
   const onGlobalKey = (e) => {
+    if (soloRoute) return;   // sem pesquisa no ecrã, sem atalho para ela
     const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName || '')
       || e.target?.isContentEditable;
     const shortcut = (e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey);
@@ -939,6 +963,10 @@ export async function renderAppShell(root, session) {
       void btn.offsetWidth; // força reflow para reiniciar a animação
       btn.classList.add('notif-bell--pulse');
       if (panel.classList.contains('notif-panel--open')) renderList();
+      // O portal do atleta mostra os avisos do clube no CORPO da página — é
+      // onde ele vive, não no sino. Sem isto, um aviso que chegasse em tempo
+      // real acendia o sino e deixava a lista da página com o estado antigo.
+      if (current === 'portal' && !detail) paint();
     });
 
     await loadNotifications();
