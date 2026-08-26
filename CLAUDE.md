@@ -110,6 +110,7 @@ src/
     physical-file.js    Área de Prep. física do perfil (dados físicos, avaliações, controlo)
     calendario.js       Vista Calendário
     presencas.js        Quem vem a um evento: presenças (treino) ou convocatória (jogo)
+    portal.js           Portal do atleta (a sua página pessoal, mobile-first)
     quiosque.js         Modo quiosque: câmara à entrada regista presenças por QR
     resultado.js        Registo do resultado de um jogo (parciais + participação)
     treino.js           Secção Treino (separadores Exercícios + Decisão Tática)
@@ -590,6 +591,43 @@ separador antes de navegar (usado pelos cartões do Painel).
   mede-se em pontos, no registo do resultado. O Calendário e o Painel deixam de
   abrir um modal: escolhem o evento (`setSelectedEvent`) e navegam para cá, e o
   botão só aparece a quem tem acesso à secção.
+
+- **Portal do atleta** (`portal.js`): é o único ecrã da Rumia cujo utilizador
+  não é do clube a trabalhar — é uma atleta, no telemóvel, trinta segundos.
+  Estava desenhado como uma página de gestão: nove secções empilhadas, todas
+  com o mesmo peso, cinco ou seis ecrãs de scroll. A estrutura responde agora
+  às três perguntas por que alguém abre isto, por ordem:
+  - **O que tenho a seguir** — um cabeçalho de ação com o próximo compromisso
+    (dia relativo: "Hoje", "Amanhã"), hora, sítio e os botões de resposta já à
+    mão. Vive ACIMA dos separadores, porque é a razão da visita e não uma das
+    áreas; a pergunta mais frequente do portal não pode estar a meio de um
+    scroll. Só o cartão QR e a disponibilidade lhe disputavam o topo — e a
+    disponibilidade só aparece quando NÃO está tudo bem: dizer "Apto" a quem
+    está apto é gastar o cimo do ecrã com uma não-notícia.
+  - **Como vai a época** e **onde está o cartão** — separadores (`Hoje` ·
+    `A época` · `Cartão`), no mesmo padrão do `saude.js`/`treino.js`. O cartão
+    é guardado no dispositivo em TODAS as visitas, mesmo com o separador
+    fechado: é à porta do pavilhão, sem rede, que ele faz falta, e aí já não
+    há como o ir buscar.
+  - **Não se desenham botões que só servem para dar erro** (`canRespondToEvent`
+    em `compute.js`): um evento do clube (`team_id` nulo) é visível a toda a
+    gente — o RLS de `events` deixa-o passar — mas o `respond_to_event`
+    recusa-o. Onde havia "Vou"/"Não vou" a devolver *"Este evento não é da tua
+    equipa"*, diz-se agora o que aquilo é. É a mesma regra da janela de
+    resposta.
+  - **O atleta é encontrado pelo `user_id` e por mais nada.** O recurso a
+    `state.players[0]` que aqui esteve mostrava as presenças, as quotas e o
+    **cartão QR** de outra pessoa a quem tivesse a conta ainda por ligar. Um
+    portal vazio é mau; o portal de outra atleta é grave.
+  - O motivo de um "não vou" pede-se no `openModal` e não no `prompt()` do
+    browser — e a gravação corre DENTRO do `onSubmit`, para o erro aparecer no
+    formulário e para cancelar não deixar os botões presos à espera.
+  - **Moldura de quem só tem uma secção** (`.app--solo` no `app-shell`): sem
+    sítios para onde ir não há navegação a mostrar. O atleta tem UMA rota
+    permitida e ficava com barra lateral, hambúrguer e uma pesquisa que —
+    filtrada por `canAccess` — só lhe podia devolver a página onde já estava,
+    ocupando o elemento mais proeminente do telemóvel. Caem os três (e o
+    atalho Ctrl+K com eles).
 
 - **Comunicação clube ↔ atleta** (`supabase/comunicacao.sql`): o portal deixa
   de ser só de leitura.

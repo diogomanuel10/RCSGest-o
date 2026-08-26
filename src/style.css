@@ -3611,91 +3611,6 @@ button.metric--nav:focus-visible {
   }
 }
 
-/* =====================================================================
-   Portal do atleta
-   ===================================================================== */
-.portal-events,
-.portal-quota-list {
-  list-style: none;
-  margin: 0.5rem 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-.portal-event {
-  display: flex;
-  align-items: center;
-  gap: 0.8rem;
-  padding: 0.55rem 0.7rem;
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-}
-.portal-event__when {
-  flex: none;
-  width: 96px;
-  display: flex;
-  flex-direction: column;
-  line-height: 1.25;
-}
-.portal-event__date {
-  font-weight: 700;
-  font-size: 0.86rem;
-  text-transform: capitalize;
-}
-.portal-event__time {
-  font-size: 0.78rem;
-}
-.portal-event__body {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  line-height: 1.3;
-}
-.portal-event__title {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-weight: 600;
-  font-size: 0.92rem;
-}
-.portal-event__meta {
-  font-size: 0.8rem;
-}
-.portal-att__pct {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  margin: 0.3rem 0 0.6rem;
-}
-.portal-att__pct strong {
-  font-size: 1.6rem;
-}
-.portal-att__chips,
-.portal-quotas-head {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-}
-.portal-quotas-head {
-  margin-bottom: 0.6rem;
-}
-.portal-quota-row {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  font-size: 0.9rem;
-}
-.portal-quota-row__when {
-  flex: 1;
-  font-weight: 600;
-}
-.portal-quota-row__valor {
-  color: var(--text-muted);
-}
-
 /* Configuração de acessos (modal de Utilizadores) */
 .acc-actions {
   display: flex;
@@ -4259,36 +4174,6 @@ button.metric--nav:focus-visible {
 .squad-row__status { flex: none; }
 .squad-remove { opacity: 0.6; }
 .squad-remove:hover { opacity: 1; color: var(--danger); }
-
-/* =====================================================================
-   Portal do atleta — destaques (disponibilidade + convocatória)
-   ===================================================================== */
-.portal-highlights {
-  display: flex;
-  gap: 0.9rem;
-  margin-bottom: 0.2rem;
-  flex-wrap: wrap;
-}
-.portal-highlight {
-  flex: 1 1 200px;
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  padding: 0.8rem 1rem;
-}
-.portal-highlight__label {
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
-  font-weight: 600;
-}
-.portal-highlight__badge { align-self: flex-start; }
-.portal-highlight__note {
-  margin: 0;
-  font-size: 0.83rem;
-  color: var(--text-muted);
-}
 
 /* =====================================================================
    Documentos do Atleta
@@ -5679,18 +5564,6 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 .pd-qr__code svg { width: 100%; height: 100%; display: block; }
 .pd-qr__side { flex: 1 1 14rem; min-width: 0; }
 
-/* --- Cartão QR no portal do atleta ---
-   Aqui o código é o protagonista: é o que se mostra à câmara à entrada. */
-.portal-qr__code {
-  width: min(260px, 70vw);
-  margin: 0 auto;
-  padding: 12px;
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-}
-.portal-qr__code svg { width: 100%; height: auto; display: block; }
-
 /* Link de convite mostrado na ficha do atleta: tem de poder ser lido e
    selecionado à mão quando a cópia automática falha (browser sem permissão
    de clipboard). */
@@ -5708,61 +5581,10 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 }
 
 /* =====================================================================
-   Portal do atleta: histórico de treinos, convocatórias e cartão offline
+   Cartão sem ligação — o ecrã de recurso do portal quando os dados não
+   carregam. É o que o atleta tem à frente à porta do pavilhão, por isso o
+   código ocupa o centro e o resto é discreto.
    ===================================================================== */
-
-/* Forma recente ao lado da média da época: "3 de 5" diz mais a um atleta em
-   novembro do que uma percentagem acumulada desde setembro. */
-.portal-att__form {
-  display: inline-block;
-  margin-top: 0.3rem;
-  padding: 0.15rem 0.6rem;
-  border-radius: 999px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  font-size: 0.84rem;
-  color: var(--text-muted);
-}
-.portal-att__form strong { color: var(--text); }
-
-.portal-att-list,
-.portal-squads {
-  list-style: none;
-  margin: 0.9rem 0 0;
-  padding: 0.6rem 0 0;
-  border-top: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-}
-.portal-att-row {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.4rem 0;
-  font-size: 0.88rem;
-  border-bottom: 1px solid var(--surface-2);
-}
-.portal-att-row:last-child { border-bottom: 0; }
-.portal-att-row__day {
-  flex: none;
-  width: 4.6rem;
-  white-space: nowrap;
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-}
-.portal-att-row__title {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.portal-att-row .badge { flex: none; }
-
-/* --- Cartão sem ligação ---
-   Ecrã de recurso quando os dados não carregam. É o que o atleta tem à frente
-   à porta do pavilhão, por isso o código ocupa o centro e o resto é discreto. */
 .offline-card {
   max-width: 420px;
   margin: 2rem auto;
@@ -5794,45 +5616,6 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 /* =====================================================================
    Comunicação clube <-> atleta
    ===================================================================== */
-
-/* --- Respostas do atleta no portal --- */
-.portal-resp {
-  display: flex;
-  gap: 0.35rem;
-  flex-wrap: wrap;
-  margin-top: 0.5rem;
-}
-.portal-resp__btn {
-  font: inherit;
-  font-size: 0.8rem;
-  font-weight: 600;
-  padding: 0.3rem 0.7rem;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text-muted);
-  cursor: pointer;
-}
-.portal-resp__btn:hover:not(:disabled) { border-color: var(--navy-300); color: var(--text); }
-.portal-resp__btn:disabled { opacity: 0.55; cursor: default; }
-/* A resposta escolhida ganha a cor do seu significado — verde/vermelho é mais
-   rápido de ler do que um contorno mais escuro. */
-.portal-resp__btn--vou.is-active     { background: var(--ok-bg);     border-color: var(--ok);     color: var(--ok); }
-.portal-resp__btn--nao_vou.is-active { background: var(--danger-bg); border-color: var(--danger); color: var(--danger); }
-
-/* --- Avisos do clube no portal --- */
-.portal-avisos { list-style: none; margin: 0.4rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
-.portal-aviso {
-  padding: 0.6rem 0.8rem;
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--border);
-}
-.portal-aviso--novo { border-left-color: var(--yellow); background: var(--surface); }
-.portal-aviso__title { display: block; font-size: 0.95rem; }
-.portal-aviso__body { margin: 0.2rem 0 0.3rem; font-size: 0.88rem; white-space: pre-wrap; }
-.portal-aviso__when { font-size: 0.78rem; }
 
 /* --- Avisos de falta na vista Presenças --- */
 .pres-avisos {
@@ -6135,21 +5918,6 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 .tb-layout--compact .tb-court-wrap { border: 0; box-shadow: none; padding: 0; background: transparent; }
 .tb-layout--compact .tb-panel { border: 0; box-shadow: none; padding: 0.5rem 0 0; }
 
-.portal-drills { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
-.portal-drill {
-  display: flex;
-  gap: 0.75rem;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.6rem 0.7rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-}
-.portal-drill__text { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
-.portal-drill__text strong { font-size: 0.92rem; }
-.portal-drill__text .badge { align-self: flex-start; }
-
 /* Decisão Tática — posições, zonas e alvos */
 .tb-our-dot  { fill: var(--navy-500); stroke: var(--surface); }
 /* As opções que são SÍTIOS (zonas, posições) desenham-se como alvos e não
@@ -6282,3 +6050,390 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 .ex-pick__item:hover { background: var(--surface-2); }
 .ex-pick__body { flex: 1; min-width: 0; }
 .ex-pick__meta { display: block; font-size: 0.8rem; margin-top: 0.1rem; }
+
+/* =========================================================================
+   Portal do atleta
+   -------------------------------------------------------------------------
+   Estava espalhado por cinco blocos ao longo da folha, todos com o mesmo
+   título, e com os tamanhos de letra escritos à mão no HTML da vista (0.86,
+   0.88 e 0.9rem para a mesma coisa). Vive tudo aqui, com uma escala só.
+
+   É o único ecrã da Rumia cujo utilizador não é do clube a trabalhar: é uma
+   atleta, no telemóvel, a olhar trinta segundos para isto. Daí a letra maior
+   e os alvos de toque generosos — em vez da densidade da área de gestão.
+   ========================================================================= */
+.portal { max-width: 880px; }
+.portal-hero,
+.portal-next,
+#portal-body {
+  --portal-note: 0.9rem;    /* texto de apoio de uma secção */
+  --portal-meta: 0.84rem;   /* metadados de uma linha (data, local, hora) */
+}
+
+/* --- Cabeçalho: quem sou eu, e estou inteira? --- */
+.portal-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.6rem 1rem;
+  margin-bottom: 1rem;
+}
+.portal-hero__id { min-width: 0; }
+.portal-hero__greet {
+  font-family: var(--font-title);
+  font-size: 1.7rem;
+  line-height: 1.1;
+  margin: 0;
+}
+.portal-hero__meta {
+  margin: 0.15rem 0 0;
+  font-size: var(--portal-note);
+  color: var(--text-muted);
+}
+/* A disponibilidade só aparece quando NÃO está tudo bem (ver portal.js) — por
+   isso pode dar-se ao luxo de ser visível: quando está lá, é para ser lida. */
+.portal-hero__avail {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.2rem;
+  text-align: right;
+}
+.portal-hero__avail-note {
+  font-size: var(--portal-meta);
+  color: var(--text-muted);
+}
+
+/* --- O bloco de ação: o próximo compromisso ---
+   É a razão pela qual a maior parte das pessoas abre o portal, por isso está
+   acima dos separadores e é o elemento com mais peso do ecrã. A barra de cor
+   à esquerda diz o tipo sem gastar uma linha de texto a dizê-lo. */
+.portal-next {
+  border-left: 5px solid var(--border);
+  margin-bottom: 1.1rem;
+}
+.portal-next--treino { border-left-color: var(--info); }
+.portal-next--jogo   { border-left-color: var(--danger); }
+.portal-next--evento { border-left-color: var(--warn); }
+.portal-next--vazio  { border-left-color: var(--border); }
+.portal-next__label {
+  display: block;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.portal-next__title {
+  font-family: var(--font-title);
+  font-size: 1.45rem;
+  line-height: 1.15;
+  margin: 0.2rem 0 0.35rem;
+}
+.portal-next__when {
+  margin: 0;
+  font-size: 1.05rem;
+}
+.portal-next__when strong { font-weight: 700; }
+.portal-next__meta {
+  margin: 0.15rem 0 0;
+  font-size: var(--portal-note);
+  color: var(--text-muted);
+}
+.portal-next--vazio .portal-next__title { color: var(--text-muted); }
+
+.portal-tabs { margin-bottom: 1rem; }
+
+/* --- Secções dentro de um separador --- */
+.portal-section + .portal-section { margin-top: 1rem; }
+.portal-section__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.portal-section__title {
+  font-size: 1.05rem;
+  margin: 0;
+}
+.portal-section__note {
+  margin: 0.25rem 0 0.7rem;
+  font-size: var(--portal-note);
+  color: var(--text-muted);
+}
+.portal-section__more { margin-top: 0.6rem; }
+
+/* --- Próximos treinos e jogos --- */
+.portal-events,
+.portal-quota-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.portal-event {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
+  padding: 0.6rem 0.7rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.portal-event__when {
+  flex: none;
+  width: 92px;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+.portal-event__date {
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.portal-event__time { font-size: var(--portal-meta); }
+.portal-event__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.35;
+}
+.portal-event__title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+.portal-event__meta {
+  font-size: var(--portal-meta);
+}
+
+/* --- Respostas a um evento --- */
+.portal-resp {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-top: 0.55rem;
+}
+.portal-resp__btn {
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  min-height: 40px;
+  padding: 0.35rem 1rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+/* No cabeçalho de ação os botões são maiores: é o toque que a app mais espera
+   receber, e ali não compete com mais nada pelo espaço. */
+.portal-resp--lg { margin-top: 0.9rem; }
+.portal-resp--lg .portal-resp__btn {
+  font-size: 0.95rem;
+  min-height: 46px;
+  padding: 0.45rem 1.6rem;
+}
+.portal-resp__btn:hover:not(:disabled) { border-color: var(--navy-300); color: var(--text); }
+.portal-resp__btn:disabled { opacity: 0.55; cursor: default; }
+/* A resposta escolhida ganha a cor do seu significado — verde/vermelho é mais
+   rápido de ler do que um contorno mais escuro. */
+.portal-resp__btn--vou.is-active     { background: var(--ok-bg);     border-color: var(--ok);     color: var(--ok); }
+.portal-resp__btn--nao_vou.is-active { background: var(--danger-bg); border-color: var(--danger); color: var(--danger); }
+.portal-resp-note {
+  margin: 0.4rem 0 0;
+  font-size: var(--portal-meta);
+  color: var(--text-muted);
+}
+
+/* --- Avisos do clube --- */
+.portal-avisos {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.portal-aviso {
+  padding: 0.65rem 0.85rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+}
+.portal-aviso--novo { border-left-color: var(--yellow); background: var(--surface); }
+.portal-aviso__title { display: block; font-size: 0.98rem; }
+.portal-aviso__body {
+  margin: 0.25rem 0 0.35rem;
+  font-size: var(--portal-note);
+  white-space: pre-wrap;
+}
+.portal-aviso__when { font-size: var(--portal-meta); }
+
+/* --- Decisão tática (a entrada; o exercício vive no modal) --- */
+.portal-drills {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.portal-drill {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.portal-drill__text { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
+.portal-drill__text strong { font-size: 0.95rem; }
+.portal-drill__text .badge { align-self: flex-start; }
+
+/* --- Presenças --- */
+.portal-att__pct {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0.3rem 0 0.6rem;
+}
+.portal-att__pct strong { font-size: 1.9rem; }
+/* Forma recente ao lado da média da época: "3 de 5" diz mais a um atleta em
+   novembro do que uma percentagem acumulada desde setembro. */
+.portal-att__form {
+  display: inline-block;
+  margin-top: 0.3rem;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: var(--portal-note);
+  color: var(--text-muted);
+}
+.portal-att__form strong { color: var(--text); }
+.portal-att__chips,
+.portal-quotas-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.portal-quotas-head { margin-bottom: 0.6rem; }
+
+.portal-att-list,
+.portal-squads {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+/* A risca separa os números da época da lista treino a treino. Nas
+   convocatórias a lista é a primeira coisa do cartão e não separa nada — ali
+   ficava só um traço solto por baixo do título. */
+.portal-att-list {
+  margin-top: 0.9rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--border);
+}
+.portal-att-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0;
+  font-size: 0.92rem;
+  border-bottom: 1px solid var(--surface-2);
+}
+.portal-att-row:last-child { border-bottom: 0; }
+.portal-att-row__day {
+  flex: none;
+  width: 4.6rem;
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.portal-att-row__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.portal-att-row .badge { flex: none; }
+
+/* --- Quotas --- */
+.portal-quota-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.92rem;
+}
+.portal-quota-row__when { flex: 1; font-weight: 600; }
+.portal-quota-row__valor { color: var(--text-muted); }
+
+/* --- Cartão QR ---
+   Aqui o código é o protagonista: é o que se mostra à câmara à entrada. */
+.portal-qr { text-align: center; }
+.portal-qr__code {
+  width: min(280px, 74vw);
+  margin: 0 auto;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.portal-qr__code svg { width: 100%; height: auto; display: block; }
+.portal-qr__note { margin: 0.9rem 0 0; }
+
+/* --- Telemóvel ---
+   A coluna da data passa para cima da linha: com 92px fixos à esquerda, o
+   título e os botões de resposta ficavam espremidos em ecrãs estreitos. */
+@media (max-width: 560px) {
+  .portal-hero__greet { font-size: 1.45rem; }
+  .portal-hero__avail { align-items: flex-start; text-align: left; }
+  .portal-event {
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+  .portal-event__when {
+    width: auto;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 0.5rem;
+  }
+  .portal-resp__btn { flex: 1 1 auto; }
+  .portal-tabs { display: flex; width: 100%; }
+  .portal-tabs .cal-toggle__btn { flex: 1; }
+}
+
+/* =========================================================================
+   Moldura de quem só tem uma secção (na prática, o atleta)
+   -------------------------------------------------------------------------
+   Sem sítios para onde ir não há navegação a mostrar: cai a barra lateral, o
+   hambúrguer que a abria e a pesquisa — que, filtrada por `canAccess`, só
+   podia devolver a página onde o utilizador já estava.
+   ========================================================================= */
+.app--solo .sidebar,
+.app--solo .scrim,
+.app--solo .topbar__toggle,
+.app--solo .topbar__search,
+.app--solo .topbar__search-toggle {
+  display: none;
+}
+/* A marca fica com o espaço que a pesquisa deixou, e a conta encosta à
+   direita como em qualquer outro papel. */
+.app--solo .topbar__brand { flex: 1; min-width: 0; }
+.app--solo .topbar { padding-left: 1.2rem; }

@@ -878,6 +878,19 @@ export function eventResponseWindow(ev) {
   };
 }
 
+// Um atleta só responde aos eventos da SUA equipa. O `respond_to_event`
+// recusa os outros ("Este evento não é da tua equipa") e um evento de clube
+// (`team_id` nulo) é visível a toda a gente precisamente por não ser de
+// ninguém — o RLS de `events` deixa-o passar a todos. Sem esta verificação o
+// portal desenhava botões cuja única função era dar erro ao serem carregados,
+// que é o oposto do que a janela de resposta faz questão de evitar.
+// A comparação é a mesma do servidor (`is distinct from`): sem equipa de um
+// lado e sem equipa do outro continua a ser a mesma coisa.
+export function canRespondToEvent(player, ev) {
+  if (!player || !ev) return false;
+  return (ev.team_id ?? null) === (player.team_id ?? null);
+}
+
 // O que um atleta respondeu a um evento (ou null se ainda não respondeu).
 export function playerEventResponse(playerId, eventId) {
   return state.eventResponses.find(
