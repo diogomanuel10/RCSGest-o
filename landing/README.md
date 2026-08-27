@@ -69,11 +69,27 @@ python3 -m http.server 8080 --directory landing
    A **única** exceção é a política de privacidade, que tem de identificar o
    responsável pelo tratamento e dar-lhe um contacto — é exigência do RGPD
    (art. 13.º), não marketing. Vive lá dentro e não sai para a página.
-4. **Preços** — três planos (19 € / 49 € / 79 €), com os nomes, módulos e
-   limites iguais aos da app (ver `supabase/plans.sql` e `src/plans.js`). Ao
-   mudar um preço, muda-o também no bloco JSON-LD do `<head>` — os dados
-   estruturados que não correspondem ao que está na página são motivo de
-   penalização.
+4. **Preços** — secção `#precos`: três planos (150 € / 290 € / 490 € por
+   época), com os nomes, módulos e limites iguais aos da app (ver
+   `supabase/plans.sql` e `src/plans.js`). Ao mudar um preço, muda-o também no
+   bloco JSON-LD do `<head>` — os dados estruturados que não correspondem ao
+   que está na página são motivo de penalização.
+
+   O número em destaque é o **anual** e o mensal vai a seguir, em pequeno: um
+   clube orçamenta por época e não por mês, e é assim que o resto do mercado
+   apresenta. Os valores são **sem IVA**, pela mesma razão — publicá-los com
+   IVA fazia a Rumia parecer 23% mais cara numa comparação lado a lado com
+   quem os publica sem.
+
+   A tabela de funcionalidades não é uma lista de sim/não: o acompanhamento
+   médico e físico aparece como `Base` no plano Clube e completo no Clube+.
+   Obrigar um clube a decidir, na primeira visita, se "vai querer departamento
+   médico" é a mesma escolha impossível que levou a app a passar de cinco
+   planos para três.
+
+   **Não há tetos de atletas, equipas ou utilizadores** nos planos de clube, e
+   isso é deliberado: quem compara duas páginas lado a lado lê um limite como
+   uma desvantagem, mesmo quando nunca lhe chegaria perto.
 5. **Textos** — hero, funcionalidades e FAQ estão prontos, mas afina o tom à
    vontade. Ao editar o FAQ, atualiza o `FAQPage` do JSON-LD.
 6. Não há dados falsos de clientes nem números inventados de "clubes a usar" —
