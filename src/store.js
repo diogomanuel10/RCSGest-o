@@ -279,6 +279,31 @@ export async function createInvitation(role, permissions, email, playerId = null
   return data;
 }
 
+// Cria convites de portal para vários atletas de uma vez (RPC em lote).
+// Dar acesso a um escalão inteiro era abrir vinte fichas e copiar vinte links,
+// um a um, com o clipboard a ser reescrito a cada clique — na prática ninguém
+// o fazia. Uma chamada, uma lista de links.
+// O servidor ignora quem já tem conta ou não é deste clube, por isso o número
+// devolvido pode ser menor do que o pedido.
+export async function createInvitationsBulk(playerIds) {
+  const ids = [...new Set((playerIds || []).filter(Boolean))];
+  if (!ids.length) return [];
+  const { data, error } = await supabase.rpc('create_invitations_bulk', {
+    p_player_ids: ids,
+  });
+  if (error) throw error;
+  const rows = data || [];
+  // O servidor substituiu os convites pendentes destes atletas; a cache local
+  // também os tem de largar, senão a ficha continuava a mostrar o link antigo.
+  const invited = new Set(rows.map((r) => r.player_id));
+  state.invitations = state.invitations.filter(
+    (i) => !(invited.has(i.player_id) && !i.used_at)
+  );
+  state.invitations.unshift(...rows);
+  notify();
+  return rows;
+}
+
 // Revoga (apaga) um convite pendente.
 export async function revokeInvitation(id) {
   const { error } = await supabase.from('org_invitations').delete().eq('id', id);

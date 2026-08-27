@@ -6437,3 +6437,63 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
    direita como em qualquer outro papel. */
 .app--solo .topbar__brand { flex: 1; min-width: 0; }
 .app--solo .topbar { padding-left: 1.2rem; }
+
+/* =========================================================================
+   Convites ao portal em lote (Plantéis → Convidar para o portal)
+   -------------------------------------------------------------------------
+   Cada linha é um atleta com o SEU link. O endereço aparece por inteiro (e não
+   escondido atrás de um botão de copiar) porque é ele que o coordenador cola
+   no WhatsApp do grupo errado se se enganar — vê-lo é parte da verificação.
+   ========================================================================= */
+.inv-block { margin-bottom: 1.1rem; }
+.inv-block__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.inv-block__title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.inv-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-height: 46vh;
+  overflow-y: auto;
+}
+.inv-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.inv-row__main { min-width: 0; flex: 1; }
+.inv-row__name { display: block; font-size: 0.92rem; }
+.inv-row__meta { display: block; font-size: 0.76rem; }
+.inv-row__link {
+  display: block;
+  margin-top: 0.15rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.inv-row__actions {
+  display: flex;
+  flex: none;
+  gap: 0.35rem;
+}
+@media (max-width: 560px) {
+  .inv-row { flex-wrap: wrap; }
+  .inv-row__actions { width: 100%; justify-content: flex-end; }
+}

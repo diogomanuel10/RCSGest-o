@@ -66,9 +66,10 @@ export function renderUtilizadores(container) {
         Define o papel de cada pessoa. Quem se regista começa em <strong>Leitura</strong>
         sem acesso a nada — escolhe os acessos para ele poder ver as secções.
         Treinadores devem ser vinculados ao respetivo registo. Para os
-        <strong>atletas</strong>, convida-os a partir da ficha deles (Plantéis →
-        atleta → Acesso ao portal): o link já vai ligado à ficha certa e não há
-        contas trocadas.
+        <strong>atletas</strong>, convida-os a partir dos Plantéis: um a um na
+        ficha (atleta → Acesso ao portal) ou o plantel inteiro de uma vez
+        (equipa → <strong>Convidar para o portal</strong>). Em qualquer dos
+        casos o link vai ligado à ficha certa e não há contas trocadas.
       </p>
       <div class="roles-legend">
         ${ROLES.map(
