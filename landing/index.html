@@ -317,7 +317,7 @@
   section { padding: 5.5rem 0; }
   /* Compensa a barra fixa (68px) quando se salta por âncora, para o título não
      ficar escondido por baixo dela. */
-  #funcionalidades, #papeis, #por-dentro, #como-funciona, #faq, #acesso, #topo { scroll-margin-top: 84px; }
+  #funcionalidades, #papeis, #por-dentro, #como-funciona, #precos, #faq, #acesso, #topo { scroll-margin-top: 84px; }
   .section-head { max-width: 640px; margin: 0 auto 3rem; text-align: center; }
   .section-head h2 { font-size: clamp(2rem, 3.6vw, 2.8rem); font-weight: 700; margin: 0.8rem 0 0.8rem; letter-spacing: -0.01em; }
   .section-head p { color: var(--muted); font-size: 1.1rem; margin: 0; }
@@ -484,6 +484,106 @@
   .footer__links a:hover { color: #fff; }
   .footer__legal { width: 100%; border-top: 1px solid rgba(255,255,255,0.1); margin-top: 2rem; padding-top: 1.5rem; font-size: 0.85rem; color: #7f9bba; }
 
+  /* --- Preços ---
+     O número grande é o ANUAL e o mensal vai a seguir, em pequeno: um clube
+     orçamenta por época, não por mês, e é assim que o resto do mercado
+     apresenta. Os planos, módulos e limites têm de bater certo com
+     `src/plans.js` e com o bloco JSON-LD do <head>. */
+  .plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.1rem; align-items: stretch; }
+  @media (max-width: 900px) { .plans { grid-template-columns: 1fr; max-width: 460px; margin: 0 auto; } }
+  .plan {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.8rem 1.6rem;
+    display: flex; flex-direction: column; gap: 0.9rem;
+    position: relative;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  }
+  .plan:hover { transform: translateY(-4px); box-shadow: var(--shadow); border-color: var(--navy-500); }
+  .plan--pick { border-color: var(--navy-500); box-shadow: var(--shadow); }
+  .plan--pick::before {
+    content: ""; position: absolute; inset: -1px -1px auto -1px; height: 4px;
+    background: var(--yellow); border-radius: var(--radius) var(--radius) 0 0;
+  }
+  .plan__head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+  .plan__name { font-family: var(--font-display); font-weight: 700; font-size: 1.45rem; }
+  .plan__flag {
+    font-family: var(--font-display); font-weight: 700; font-size: 0.72rem;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    background: var(--yellow); color: #10233b;
+    padding: 0.2rem 0.55rem; border-radius: 6px; white-space: nowrap;
+  }
+  .price { display: flex; flex-direction: column; gap: 0.15rem; }
+  .price__main {
+    font-family: var(--font-display); font-weight: 700; font-size: 3rem; line-height: 1;
+    font-variant-numeric: tabular-nums; display: flex; align-items: baseline; gap: 0.3rem;
+  }
+  .price__unit { font-size: 1rem; font-weight: 600; color: var(--muted); }
+  .price__alt { font-size: 0.9rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .price__vat { font-size: 0.78rem; color: var(--muted); opacity: 0.8; }
+  .plan__for { color: var(--muted); font-size: 0.95rem; margin: 0; }
+  .plan__limits {
+    display: flex; flex-wrap: wrap; gap: 0.4rem;
+    padding-top: 0.9rem; border-top: 1px solid var(--border); margin-top: auto;
+  }
+  .chip {
+    font-size: 0.78rem; background: var(--surface-2); border: 1px solid var(--border);
+    color: var(--muted); padding: 0.2rem 0.6rem; border-radius: 100px;
+  }
+
+  /* Tabela de funcionalidades por plano */
+  .ptable-wrap {
+    margin-top: 2.6rem; overflow-x: auto;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  }
+  .ptable { border-collapse: collapse; width: 100%; min-width: 640px; }
+  .ptable th, .ptable td { text-align: left; padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); }
+  .ptable tbody tr:last-child th, .ptable tbody tr:last-child td { border-bottom: none; }
+  .ptable thead th {
+    font-family: var(--font-display); font-weight: 700; font-size: 0.85rem;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--muted); background: var(--surface-2); white-space: nowrap;
+  }
+  .ptable thead th:first-child { width: 46%; }
+  .ptable tbody th { font-weight: 400; color: var(--ink); font-size: 0.95rem; }
+  .ptable td { text-align: center; width: 18%; }
+  .ptable .yes { color: #16a34a; font-weight: 700; font-size: 1.05rem; }
+  .ptable .no { color: var(--muted); opacity: 0.55; }
+  .ptable .part {
+    font-family: var(--font-display); font-size: 0.72rem; font-weight: 700;
+    letter-spacing: 0.06em; text-transform: uppercase; color: var(--navy);
+    background: var(--surface-2); border: 1px solid var(--border);
+    padding: 0.15rem 0.5rem; border-radius: 6px; white-space: nowrap;
+  }
+  .ptable .grp th {
+    font-family: var(--font-display); font-weight: 700; font-size: 0.78rem;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--yellow-600); background: var(--surface-2);
+  }
+  @media (prefers-color-scheme: dark) {
+    .ptable .yes { color: #3fc06b; }
+    .ptable .part { color: var(--yellow); }
+  }
+  /* No telemóvel a tabela não cabe e rola dentro do próprio bloco — sem este
+     aviso, corta em silêncio e as colunas de fora não são descobertas. */
+  .ptable-hint { display: none; }
+  @media (max-width: 720px) {
+    .ptable-hint {
+      display: block; margin: 1.6rem 0 -1.4rem; text-align: center;
+      color: var(--muted); font-size: 0.85rem;
+    }
+  }
+  .pnotes { margin: 1.8rem auto 0; max-width: 760px; text-align: center; color: var(--muted); font-size: 0.92rem; }
+  .pnotes strong { color: var(--ink); font-weight: 600; }
+
+  /* Só para leitores de ecrã: a legenda da tabela dá-lhe um nome sem a repetir
+     no ecrã, onde o título da secção já o diz. */
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+
   /* --- Revelação ao rolar ---
      Conteúdo visível por omissão; o estado "escondido" só é aplicado quando o
      JS ativa a animação (classe reveal-on no <html>). Assim, sem JS ou com
@@ -510,9 +610,9 @@
       "inLanguage": "pt-PT",
       "description": "Plataforma de gestão desportiva para clubes: plantéis, calendário, presenças por QR, departamento médico, preparação física, quotas, finanças e patrocínios.",
       "offers": [
-        { "@type": "Offer", "name": "Treinador", "price": "19", "priceCurrency": "EUR" },
-        { "@type": "Offer", "name": "Clube", "price": "49", "priceCurrency": "EUR" },
-        { "@type": "Offer", "name": "Clube+", "price": "79", "priceCurrency": "EUR" }
+        { "@type": "Offer", "name": "Treinador", "price": "150", "priceCurrency": "EUR", "description": "Por época (ano), sem IVA. Ou 15 EUR/mes." },
+        { "@type": "Offer", "name": "Clube", "price": "290", "priceCurrency": "EUR", "description": "Por época (ano), sem IVA. Ou 29 EUR/mes." },
+        { "@type": "Offer", "name": "Clube+", "price": "490", "priceCurrency": "EUR", "description": "Por época (ano), sem IVA. Ou 49 EUR/mes." }
       ]
     },
     {
@@ -587,6 +687,7 @@
       <a href="#funcionalidades">Funcionalidades</a>
       <a href="#por-dentro">Por dentro</a>
       <a href="#como-funciona">Como funciona</a>
+      <a href="#precos">Preços</a>
       <a href="#faq">FAQ</a>
     </nav>
     <div class="nav__cta">
@@ -889,6 +990,115 @@
   </div>
 </section>
 
+<!-- ================= PREÇOS ================= -->
+<section id="precos">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <span class="eyebrow">Preços</span>
+      <h2>Preço por época, sem limite de atletas</h2>
+      <p>Três planos, sem taxa de instalação obrigatória e sem tetos de atletas, equipas ou utilizadores. Trinta dias a sério antes de pagar cêntimo nenhum.</p>
+    </div>
+
+    <div class="plans reveal">
+      <article class="plan">
+        <div class="plan__head"><span class="plan__name">Treinador</span></div>
+        <div class="price">
+          <span class="price__main">150 €<span class="price__unit">/ano</span></span>
+          <span class="price__alt">ou 15 €/mês</span>
+          <span class="price__vat">Acresce IVA</span>
+        </div>
+        <p class="plan__for">Um treinador e os seus escalões. Plantéis, calendário, presenças e treino — o trabalho de campo, sem a parte administrativa do clube.</p>
+        <div class="plan__limits">
+          <span class="chip">Até 3 escalões</span>
+          <span class="chip">2 utilizadores</span>
+        </div>
+      </article>
+
+      <article class="plan plan--pick">
+        <div class="plan__head">
+          <span class="plan__name">Clube</span>
+          <span class="plan__flag">Mais escolhido</span>
+        </div>
+        <div class="price">
+          <span class="price__main">290 €<span class="price__unit">/ano</span></span>
+          <span class="price__alt">ou 29 €/mês</span>
+          <span class="price__vat">Acresce IVA</span>
+        </div>
+        <p class="plan__for">O clube inteiro no mesmo sítio: quotas, material, documentos e o acompanhamento médico e físico do dia a dia.</p>
+        <div class="plan__limits">
+          <span class="chip">Escalões ilimitados</span>
+          <span class="chip">Utilizadores ilimitados</span>
+          <span class="chip">Atletas ilimitados</span>
+        </div>
+      </article>
+
+      <article class="plan">
+        <div class="plan__head"><span class="plan__name">Clube+</span></div>
+        <div class="price">
+          <span class="price__main">490 €<span class="price__unit">/ano</span></span>
+          <span class="price__alt">ou 49 €/mês</span>
+          <span class="price__vat">Acresce IVA</span>
+        </div>
+        <p class="plan__for">Tudo, com o processo clínico completo, a periodização do preparador físico e a visão financeira que a direção precisa para decidir.</p>
+        <div class="plan__limits">
+          <span class="chip">Escalões ilimitados</span>
+          <span class="chip">Utilizadores ilimitados</span>
+          <span class="chip">Atletas ilimitados</span>
+        </div>
+      </article>
+    </div>
+
+    <p class="ptable-hint reveal">Desliza a tabela para o lado para veres os três planos.</p>
+    <div class="ptable-wrap reveal">
+      <table class="ptable">
+        <caption class="sr-only">Funcionalidades incluídas em cada plano</caption>
+        <thead>
+          <tr>
+            <th scope="col">Módulo</th>
+            <th scope="col" style="text-align:center">Treinador</th>
+            <th scope="col" style="text-align:center">Clube</th>
+            <th scope="col" style="text-align:center">Clube+</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="grp"><th scope="colgroup" colspan="4">Trabalho de campo</th></tr>
+          <tr><th scope="row">Plantéis, atletas e escalões</th><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td></tr>
+          <tr><th scope="row">Calendário de treinos e jogos</th><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td></tr>
+          <tr><th scope="row">Presenças por cartão QR (modo quiosque)</th><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td></tr>
+          <tr><th scope="row">Convocatórias e respostas dos atletas</th><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td></tr>
+          <tr><th scope="row">Portal do atleta e avisos no telemóvel</th><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td></tr>
+          <tr><th scope="row">Biblioteca de exercícios e plano de treino</th><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td></tr>
+          <tr><th scope="row">Decisão tática (cenários no portal)</th><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td></tr>
+          <tr><th scope="row">Resultados, parciais e participação em jogo</th><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td></tr>
+          <tr><th scope="row">Quedas de comparência e &laquo;treina muito, joga pouco&raquo;</th><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td></tr>
+
+          <tr class="grp"><th scope="colgroup" colspan="4">Gestão do clube</th></tr>
+          <tr><th scope="row">Quotas e ficha de sócio</th><td><span class="no">&mdash;</span></td><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td></tr>
+          <tr><th scope="row">Equipamentos e encomendas</th><td><span class="no">&mdash;</span></td><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td></tr>
+          <tr><th scope="row">Documentos e validades (RGPD, exames médicos)</th><td><span class="no">&mdash;</span></td><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td></tr>
+          <tr><th scope="row">Recrutamento e avaliação de plantel</th><td><span class="no">&mdash;</span></td><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td></tr>
+          <tr><th scope="row">Viragem de época e arquivo</th><td><span class="no">&mdash;</span></td><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td></tr>
+          <tr><th scope="row">Resumo semanal por notificação</th><td><span class="no">&mdash;</span></td><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td></tr>
+
+          <tr class="grp"><th scope="colgroup" colspan="4">Departamento médico e físico</th></tr>
+          <tr><th scope="row">Disponibilidade e limitações ao treino</th><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td></tr>
+          <tr><th scope="row">Dados antropométricos e avaliações físicas</th><td><span class="no">&mdash;</span></td><td><span class="part">Base</span></td><td><span class="yes">&#10003;</span></td></tr>
+          <tr><th scope="row">Registo de lesões e histórico por zona do corpo</th><td><span class="no">&mdash;</span></td><td><span class="part">Base</span></td><td><span class="yes">&#10003;</span></td></tr>
+          <tr><th scope="row">Processo clínico: episódios, sessões, agenda de tratamentos</th><td><span class="no">&mdash;</span></td><td><span class="no">&mdash;</span></td><td><span class="yes">&#10003;</span></td></tr>
+          <tr><th scope="row">Periodização: macrociclos, mesociclos, treino de ginásio</th><td><span class="no">&mdash;</span></td><td><span class="no">&mdash;</span></td><td><span class="yes">&#10003;</span></td></tr>
+
+          <tr class="grp"><th scope="colgroup" colspan="4">Direção</th></tr>
+          <tr><th scope="row">Patrocínios e objetivos da época</th><td><span class="no">&mdash;</span></td><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td></tr>
+          <tr><th scope="row">Financeiro: livro-razão e visão de direção</th><td><span class="no">&mdash;</span></td><td><span class="no">&mdash;</span></td><td><span class="yes">&#10003;</span></td></tr>
+          <tr><th scope="row">Análise avançada e IA</th><td><span class="no">&mdash;</span></td><td><span class="no">&mdash;</span></td><td><span class="yes">&#10003;</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="pnotes reveal">Valores <strong>sem IVA</strong>, à taxa em vigor. Muda-se de plano a qualquer momento, com acerto proporcional — e nunca se perde acesso a um módulo que o clube já estava a usar. A importação dos plantéis a partir do Excel e a formação da equipa técnica podem ser feitas por nós, uma única vez, por <strong>150 € a 250 €</strong>.</p>
+  </div>
+</section>
+
 <!-- ================= FAQ ================= -->
 <section id="faq">
   <div class="wrap">
@@ -948,7 +1158,8 @@
       </div>
       <nav class="footer__links" aria-label="Rodapé">
         <a href="#funcionalidades">Funcionalidades</a>
-          <a href="#faq">FAQ</a>
+        <a href="#precos">Preços</a>
+        <a href="#faq">FAQ</a>
         <a href="privacidade.html">Privacidade</a>
         <a href="termos.html">Termos</a>
         <a href="#acesso">Acesso</a>
