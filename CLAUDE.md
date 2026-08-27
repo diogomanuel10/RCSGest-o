@@ -57,6 +57,38 @@ conforme o `role` + RLS. Ver `supabase/multitenant.sql` (corre DEPOIS de
   coordenador. A vista `admin.js` (entrada "Plataforma" no rodapé, só para
   `is_platform_admin()`) lista os clubes e gere planos/estados por billing
   manual (RPCs `admin_list_orgs`, `admin_set_org_status`).
+- **Eliminar clubes e contas** (`supabase/eliminar-clubes.sql`): quem
+  experimentou a demonstração e não ficou ficava para sempre na lista, a contar
+  como cliente. Suspender esconde o problema; eliminar é decisão comercial
+  normal e tem de existir na app — se só existir no SQL Editor, ou não se faz,
+  ou faz-se à mão, que é onde se apaga o clube errado.
+  - **Não é o arquivar (`archived_at`) das entidades do clube**: isto é
+    irreversível. `admin_delete_org` apaga a linha de `organizations` e o
+    `ON DELETE CASCADE` do `org_id` leva atrás TODOS os dados desse clube. Por
+    isso o ficheiro começa por **acrescentar a FK em cascata** a qualquer tabela
+    com `org_id` que ainda não a tenha: um `org_id` sem cascata deixava linhas
+    órfãs de um cliente já apagado.
+  - **As contas dos membros são uma decisão à parte** (`p_delete_users`): um
+    clube de demonstração que nunca arrancou não deixa contas úteis; um clube
+    que fechou mas cujo coordenador vai abrir outro deve manter a conta —
+    `profiles.org_id` é `on delete set null`, por isso a pessoa volta ao
+    onboarding em vez de ficar sem nada.
+  - **Nunca apaga quem está a apagar**: a função recusa o clube do próprio admin
+    e, ao limpar as contas, salta a sua e as dos outros `platform_admins`.
+    Eliminar um clube não pode ser a forma de perder o acesso ao painel.
+  - `admin_delete_user` trata das contas soltas (registou-se, espreitou e nunca
+    voltou — perfil sem clube). Se for a dona de um clube, o clube fica sem dono
+    (`owner_id` é `set null`) mas **não** é eliminado por arrasto.
+  - **Fica registo** (`platform_deletions`, leitura só para admin, sem política
+    de escrita): apagar sem deixar rasto é a única forma de nunca se saber o que
+    aconteceu a um cliente. Guarda nome, contagens e quem apagou.
+  - **Confirma-se escrevendo o nome do clube**, não com um `confirmDialog`: a
+    lista tem os clubes todos lado a lado e um clique não distingue nomes
+    parecidos. `admin_list_orgs` passou a devolver `last_activity` (último
+    início de sessão dos membros) e há uma secção **Contas** com filtros "sem
+    clube" e "sem entrar há 30+ dias" — sem isso o painel não distingue o clube
+    que trabalha todos os dias do que entrou uma vez em março, e é essa
+    diferença que decide o que se elimina.
 - **Convites (UI)**: em `utilizadores.js` o coordenador cria convites (papel +
   acessos), copia o link `?invite=<token>` e revoga-os. A lista vem de
   `state.invitations`.

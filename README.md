@@ -58,9 +58,10 @@ As permissões são impostas pela base de dados (RLS), não só pela interface.
    `tatica.sql` (Decisão Tática: cenários de leitura de jogo + respostas),
    `exercicios.sql` (biblioteca de exercícios do clube) e
    `painel-avisos.sql` (limiares do clube + avisos por utilizador),
-   `dados-exemplo.sql` (clube de demonstração para quem se regista) e
-   `web-push.sql` (notificações no telemóvel — ver secção 5). Todos
-   são seguros de re-executar.
+   `dados-exemplo.sql` (clube de demonstração para quem se regista),
+   `web-push.sql` (notificações no telemóvel — ver secção 5) e
+   `eliminar-clubes.sql` (eliminar clubes e contas no painel da plataforma).
+   Todos são seguros de re-executar.
 4. Em **Authentication → Sign In / Providers**, garante que
    **"Allow new users to sign up"** está **ativo** — a app permite criar conta
    por email e password no separador "Criar conta".

@@ -308,6 +308,33 @@ export async function adminSetOrgStatus(orgId, { status, plan, trialEndsAt } = {
   return data;
 }
 
+// Elimina um clube e tudo o que é dele (irreversível — ver
+// supabase/eliminar-clubes.sql). `deleteUsers` decide se as contas dos membros
+// vão atrás ou se ficam livres para criar/entrar noutro clube.
+export async function adminDeleteOrg(orgId, { deleteUsers = true } = {}) {
+  const { data, error } = await supabase.rpc('admin_delete_org', {
+    p_org: orgId,
+    p_delete_users: deleteUsers,
+  });
+  if (error) throw error;
+  return data;
+}
+
+// Lista todas as contas da plataforma (email, clube, último acesso).
+export async function adminListAccounts() {
+  const { data, error } = await supabase.rpc('admin_list_accounts');
+  if (error) throw error;
+  return data || [];
+}
+
+// Elimina uma conta de utilizador (irreversível). O servidor recusa a própria
+// conta e as de outros admins da plataforma.
+export async function adminDeleteUser(userId) {
+  const { data, error } = await supabase.rpc('admin_delete_user', { p_user: userId });
+  if (error) throw error;
+  return data;
+}
+
 // --- Carregamento inicial -------------------------------------------------
 // Vai buscar todas as tabelas em paralelo. Lança erro se alguma falhar.
 export async function loadAll() {
