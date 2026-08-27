@@ -32,6 +32,25 @@ conforme o `role` + RLS. Ver `supabase/multitenant.sql` (corre DEPOIS de
   vínculo errado dá ao atleta as presenças, quotas e o **cartão QR** de outro.
   O servidor força `role='atleta'`, valida que a ficha é do clube e substitui
   qualquer convite pendente do mesmo atleta.
+- **Convites de atleta em lote** (`supabase/convites-massa.sql`,
+  `views/convites-portal.js`): ficha a ficha resolve um caso isolado e falha na
+  escala real — dar acesso a um escalão eram vinte fichas abertas, vinte
+  cliques e vinte links copiados um a um, com o clipboard a ser reescrito a
+  cada clique. Nos Plantéis, cada equipa tem "Convidar para o portal" (com o
+  número de atletas ainda sem conta): escolhem-se os atletas, `create_invitations_bulk`
+  devolve um convite POR ATLETA numa só chamada, e cada linha traz o link
+  pronto a enviar por email ou WhatsApp (o canal sai do `guardian_contact`, que
+  é texto livre), a copiar, a exportar em `.csv` ou a imprimir em talões com QR
+  (`invite-slips.js`).
+  - **Continua a ser um link por ficha.** Um link "da equipa" que várias
+    pessoas abrissem ligava contas ao atleta errado — que é exatamente o que o
+    convite ligado à ficha existe para evitar. O lote só poupa cliques.
+  - **Quem já tem conta ou não é do clube é ignorado em silêncio**, não faz
+    falhar o lote: num grupo de vinte, rebentar tudo porque um atleta já
+    entrava na app obrigava o coordenador a descobrir qual e a repetir a
+    seleção. O número devolvido diz quantos convites saíram mesmo.
+  - **Nada é enviado pelas costas de ninguém**: os botões abrem o email/WhatsApp
+    com o texto escrito, e quem carrega vê a mensagem antes de a mandar.
 - **Subscrições**: `organizations.status` (`trial`/`ativa`/`suspensa`/
   `cancelada`) + `trial_ends_at`. O *gate* em `app-shell.js` (`orgAccess()`)
   bloqueia clubes inativos (`subscription-blocked.js`).
@@ -119,6 +138,7 @@ src/
   push.js               Web Push: subscrever o dispositivo, iOS/instalação, logout
   qrcode.js             Cartões QR: gerar, ler pela câmara, traduzir (libs lazy)
   players-qr.js         Folha de cartões QR imprimíveis (A4, tamanho cartão)
+  invite-slips.js       Talões de convite ao portal imprimíveis (A4, QR do link)
   offline-card.js       Cartão QR guardado no dispositivo (ecrã de recurso sem rede)
   tactical-court.js     Campo em SVG + exercício de decisão (todas as posições)
   report-sheet.js       Folha A4 imprimível: janela, estilos e blocos comuns
@@ -133,6 +153,7 @@ src/
     painel.js           Vista Painel (o resumo, diferente por papel)
     patrocinios.js      Separador Patrocínios (dentro do Financeiro)
     planteis.js         Vista Plantéis (CRUD + importar atletas via .xlsx)
+    convites-portal.js  Convites ao portal de um plantel inteiro (links + envio)
     athlete-profile.js  Perfil do Atleta (modal unificado com separadores)
     avaliacao.js        Vista Avaliação de plantel (Mantém/Sai/Pendente)
     saude.js            Vista Saúde & Física (orquestra Médico + Prep. Física)
@@ -155,6 +176,7 @@ src/
     arquivados.js       Vista Arquivados (registos inativos + repor — só coordenador)
 supabase/schema.sql     Tabelas, índices, RLS e dados iniciais (correr no Supabase)
 supabase/qrcode-presencas.sql  Presenças por QR: token do atleta + RPCs de check-in
+supabase/convites-massa.sql    Convites de atleta em lote (RPC create_invitations_bulk)
 supabase/portal-atleta.sql     Portal: o atleta lê a sua própria disponibilidade
 supabase/comunicacao.sql       Respostas do atleta a eventos + avisos do clube
 supabase/resultados.sql        Resultado dos jogos (final + parciais) e pontos jogados

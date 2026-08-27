@@ -11,11 +11,12 @@ import {
 import { openModal, confirmDialog } from '../modal.js';
 import { toastError, toastOk } from '../toast.js';
 import { COACH_ROLE_LABEL, AVAILABILITY_LABEL } from '../constants.js';
-import { canEdit, canDelete, canAccess, isCoordenador } from '../permissions.js';
+import { canEdit, canDelete, canAccess, isCoordenador, canManageUsers } from '../permissions.js';
 import { planLimit, currentPlan } from '../plans.js';
 import { parsePlayersFile, downloadPlayersTemplate } from '../players-xlsx.js';
 import { openAthleteProfile } from './athlete-profile.js';
 import { evaluationHTML, wireEvaluation } from './avaliacao.js';
+import { openPortalInvites } from './convites-portal.js';
 
 // Equipa selecionada (mostra o seu plantel). Mantida entre re-desenhos.
 let selectedTeamId = null;
@@ -184,6 +185,9 @@ export function renderPlanteis(container) {
   container.querySelectorAll('[data-qr-cards]').forEach((b) =>
     b.addEventListener('click', () => printQrCards(b.dataset.qrCards, b))
   );
+  container.querySelectorAll('[data-invite-team]').forEach((b) =>
+    b.addEventListener('click', () => openPortalInvites(b.dataset.inviteTeam))
+  );
   container.querySelectorAll('[data-announce]').forEach((b) =>
     b.addEventListener('click', () => openAnnounceForm(b.dataset.announce))
   );
@@ -263,6 +267,9 @@ function rosterHTML(team, canTeams, canPlayers, canRemovePlayers, filtering) {
   const players = filteredPlayers(team.id);
   const totalInTeam = state.players.filter((p) => p.team_id === team.id).length;
   const coaches = teamCoaches(team.id);
+  // Quantos atletas ainda não entram na app — o número no botão diz de
+  // imediato se há trabalho a fazer, sem abrir o painel de convites.
+  const semConta = state.players.filter((p) => p.team_id === team.id && !p.user_id).length;
   const pg = paginate(players, teamPage.get(team.id) || 1, PAGE_SIZE);
   const countLabel = filtering
     ? `${players.length} de ${totalInTeam} atleta${totalInTeam === 1 ? '' : 's'}`
@@ -316,6 +323,7 @@ function rosterHTML(team, canTeams, canPlayers, canRemovePlayers, filtering) {
                <button class="btn btn--accent btn--sm" data-add-player="${team.id}" type="button">+ Atleta</button>
                <button class="btn btn--ghost btn--sm" data-import-player="${team.id}" type="button">Importar (xlsx)</button>
                <button class="btn btn--ghost btn--sm" data-qr-cards="${team.id}" type="button">Cartões QR</button>
+               ${canManageUsers() ? `<button class="btn btn--ghost btn--sm" data-invite-team="${team.id}" type="button">Convidar para o portal${semConta ? ` (${semConta})` : ''}</button>` : ''}
                <button class="btn btn--ghost btn--sm" data-announce="${team.id}" type="button">Enviar aviso</button>
                <button class="btn btn--link btn--sm" data-template type="button">Descarregar modelo</button>
              </div>`
