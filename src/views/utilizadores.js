@@ -14,6 +14,7 @@ import {
   dbErrorMessage,
 } from '../store.js';
 import { esc, emptyHTML } from '../ui.js';
+import { wireDialog } from '../modal.js';
 import { ROLES, ROLE_LABEL, SECTIONS, DEFAULT_TRAINER_SECTIONS, DEFAULT_FISIO_SECTIONS, DEFAULT_PREP_SECTIONS, DEFAULT_SECCIONISTA_SECTIONS, isCoordenador } from '../permissions.js';
 import { planLimit, planLimitReached, currentPlan } from '../plans.js';
 
@@ -353,19 +354,8 @@ function openAccessModal(profile, onSaved) {
       </div>
     </div>
   `;
-  document.body.appendChild(overlay);
-  document.body.classList.add('no-scroll');
-
-  const close = () => {
-    overlay.remove();
-    document.body.classList.remove('no-scroll');
-    document.removeEventListener('keydown', onKey);
-  };
-  const onKey = (e) => { if (e.key === 'Escape') close(); };
-  document.addEventListener('keydown', onKey);
-  overlay.querySelector('.modal__close').addEventListener('click', close);
+  const close = wireDialog(overlay);
   overlay.querySelector('#acc-cancel').addEventListener('click', close);
-  overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
 
   const boxes = () => [...overlay.querySelectorAll('#acc-list input')];
   overlay.querySelector('#acc-all').addEventListener('click', () => boxes().forEach((b) => (b.checked = true)));
@@ -473,19 +463,8 @@ function openInviteModal(onCreated) {
       </div>
     </div>
   `;
-  document.body.appendChild(overlay);
-  document.body.classList.add('no-scroll');
-
-  const close = () => {
-    overlay.remove();
-    document.body.classList.remove('no-scroll');
-    document.removeEventListener('keydown', onKey);
-  };
-  const onKey = (e) => { if (e.key === 'Escape') close(); };
-  document.addEventListener('keydown', onKey);
-  overlay.querySelector('.modal__close').addEventListener('click', close);
+  const close = wireDialog(overlay);
   overlay.querySelector('#inv-cancel').addEventListener('click', close);
-  overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
 
   const roleSel = overlay.querySelector('#inv-role');
   const sectionsWrap = overlay.querySelector('#inv-sections-wrap');
@@ -553,16 +532,8 @@ function showInviteLinkModal(inv) {
       </div>
     </div>
   `;
-  document.body.appendChild(overlay);
-  document.body.classList.add('no-scroll');
-
-  const close = () => {
-    overlay.remove();
-    document.body.classList.remove('no-scroll');
-  };
-  overlay.querySelector('.modal__close').addEventListener('click', close);
+  const close = wireDialog(overlay, { initialFocus: '#invl-link' });
   overlay.querySelector('#invl-close').addEventListener('click', close);
-  overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
   overlay.querySelector('#invl-copy').addEventListener('click', (e) => copyToClipboard(link, e.currentTarget));
   overlay.querySelector('#invl-link').select?.();
 }

@@ -30,7 +30,7 @@ import {
   gamesInMonth,
   eventTimeRange,
 } from '../compute.js';
-import { openModal, confirmDialog } from '../modal.js';
+import { openModal, confirmDialog, wireDialog } from '../modal.js';
 import {
   TRAINING_OBJECTIVES,
   TRAINING_OBJECTIVE_LABEL,
@@ -593,19 +593,8 @@ function openAttendanceModal(sessionId) {
       </div>
     </div>
   `;
-  document.body.appendChild(overlay);
-  document.body.classList.add('no-scroll');
-
-  const close = () => {
-    overlay.remove();
-    if (!document.querySelector('.modal-overlay')) document.body.classList.remove('no-scroll');
-    document.removeEventListener('keydown', onKey);
-  };
-  const onKey = (e) => { if (e.key === 'Escape') close(); };
-  document.addEventListener('keydown', onKey);
-  overlay.querySelector('.modal__close').addEventListener('click', close);
+  const close = wireDialog(overlay);
   overlay.querySelector('#att-cancel').addEventListener('click', close);
-  overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
 
   overlay.querySelector('#att-save')?.addEventListener('click', async () => {
     const rows = [...overlay.querySelectorAll('[data-att-player]')].map((li) => ({

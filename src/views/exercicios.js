@@ -12,7 +12,7 @@
 
 import { state, createRow, updateRow, deleteRow, dbErrorMessage } from '../store.js';
 import { esc, emptyHTML, paginate, paginationHTML, wirePagination, wireEmptyAction, safeUrl, linkHost, PAGE_SIZE } from '../ui.js';
-import { openModal, confirmDialog } from '../modal.js';
+import { openModal, confirmDialog, wireDialog } from '../modal.js';
 import { canEdit } from '../permissions.js';
 import { toastError } from '../toast.js';
 import { PLAN_CATEGORIES, PLAN_CATEGORY_LABEL, PLAN_CATEGORY_BADGE } from '../constants.js';
@@ -394,19 +394,8 @@ export function openExercisePicker({ onPick, teamSize = 0 } = {}) {
       </div>
     </div>
   `;
-  document.body.appendChild(overlay);
-  document.body.classList.add('no-scroll');
-
-  const close = () => {
-    overlay.remove();
-    if (!document.querySelector('.modal-overlay')) document.body.classList.remove('no-scroll');
-    document.removeEventListener('keydown', onKey);
-  };
-  const onKey = (e) => { if (e.key === 'Escape') close(); };
-  document.addEventListener('keydown', onKey);
-  overlay.querySelector('.modal__close').addEventListener('click', close);
+  const close = wireDialog(overlay);
   overlay.querySelector('[data-xp-cancel]').addEventListener('click', close);
-  overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
 
   const listEl  = overlay.querySelector('[data-xp-list]');
   const chipsEl = overlay.querySelector('[data-xp-chips]');

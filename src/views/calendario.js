@@ -7,7 +7,7 @@ import { openResultModal } from './resultado.js';
 import { esc, emptyHTML, wireEmptyAction } from '../ui.js';
 import { toastError } from '../toast.js';
 import { eventDateTime, eventTimeRange, teamById, teamName, escalaoColor, gameResult, gameSetsOf } from '../compute.js';
-import { openModal, confirmDialog } from '../modal.js';
+import { openModal, confirmDialog, wireDialog } from '../modal.js';
 import { openAthleteProfile } from './athlete-profile.js';
 import { findPlanForEvent, openGamePlanForEvent } from './plano-jogo.js';
 import { openTrainingPlan } from './training-plan.js';
@@ -538,15 +538,7 @@ function openDayModal(dateStr, editable) {
       </div>
     </div>
   `;
-  document.body.appendChild(overlay);
-  document.body.classList.add('no-scroll');
-
-  const close = () => {
-    overlay.remove();
-    document.body.classList.remove('no-scroll');
-  };
-  overlay.querySelector('.modal__close').addEventListener('click', close);
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  const close = wireDialog(overlay);
 
   // As ações fecham o detalhe primeiro para que o modal/diálogo seguinte
   // fique por cima sem sobreposições.
@@ -720,16 +712,8 @@ function openRecurrentModal() {
       </div>
     </div>
   `;
-  document.body.appendChild(overlay);
-  document.body.classList.add('no-scroll');
-
-  const close = () => {
-    overlay.remove();
-    document.body.classList.remove('no-scroll');
-  };
-  overlay.querySelector('.modal__close').addEventListener('click', close);
+  const close = wireDialog(overlay);
   overlay.querySelector('#rec-cancel').addEventListener('click', close);
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
 
   const selectedDays = new Set();
   const confirmBtn = overlay.querySelector('#rec-confirm');

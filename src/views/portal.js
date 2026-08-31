@@ -13,7 +13,7 @@
 import { state, respondToEvent, saveTacticalAnswer, dbErrorMessage } from '../store.js';
 import { toastOk, toastError } from '../toast.js';
 import { getNotifications, markRead } from '../notifications.js';
-import { openModal } from '../modal.js';
+import { openModal, wireDialog } from '../modal.js';
 import { saveOfflineCard } from '../offline-card.js';
 import { renderDrill } from '../tactical-court.js';
 import { esc, euros, emptyHTML } from '../ui.js';
@@ -686,20 +686,8 @@ function openDrillModal(scenario, me) {
       <button type="button" class="modal__close" aria-label="Fechar">&times;</button>
       <div data-drill-host></div>
     </div>`;
-  document.body.appendChild(overlay);
-  document.body.classList.add('no-scroll');
-
   let stop = null;
-  const close = () => {
-    stop?.();
-    overlay.remove();
-    if (!document.querySelector('.modal-overlay')) document.body.classList.remove('no-scroll');
-    document.removeEventListener('keydown', onKey);
-  };
-  const onKey = (e) => { if (e.key === 'Escape') close(); };
-  document.addEventListener('keydown', onKey);
-  overlay.querySelector('.modal__close').addEventListener('click', close);
-  overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
+  const close = wireDialog(overlay, { onClose: () => stop?.() });
   overlay.querySelector('.modal__close').focus();
 
   stop = renderDrill(overlay.querySelector('[data-drill-host]'), scenario, {

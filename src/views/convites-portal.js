@@ -16,6 +16,7 @@
 
 import { state, createInvitationsBulk, dbErrorMessage } from '../store.js';
 import { esc } from '../ui.js';
+import { wireDialog } from '../modal.js';
 import { toastOk, toastError } from '../toast.js';
 import { teamName } from '../compute.js';
 import { branding } from '../branding.js';
@@ -83,19 +84,8 @@ export function openPortalInvites(teamId) {
       </div>
     </div>
   `;
-  document.body.appendChild(overlay);
-  document.body.classList.add('no-scroll');
-
-  const close = () => {
-    overlay.remove();
-    document.body.classList.remove('no-scroll');
-    document.removeEventListener('keydown', onKey);
-  };
-  const onKey = (e) => { if (e.key === 'Escape') close(); };
-  document.addEventListener('keydown', onKey);
-  overlay.querySelector('.modal__close').addEventListener('click', close);
+  const close = wireDialog(overlay);
   overlay.querySelector('#inv-close').addEventListener('click', close);
-  overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
 
   const body = overlay.querySelector('#inv-body');
   render();

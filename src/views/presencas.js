@@ -26,7 +26,7 @@ import { ATTENDANCE_STATUSES, ATTENDANCE_LABEL, ATTENDANCE_BADGE,
          SQUAD_STATUSES, SQUAD_STATUS_LABEL, SQUAD_STATUS_BADGE,
          EVENT_RESPONSE_LABEL, EVENT_RESPONSE_BADGE } from '../constants.js';
 import { canEdit } from '../permissions.js';
-import { confirmDialog } from '../modal.js';
+import { confirmDialog, wireDialog } from '../modal.js';
 import { toastError } from '../toast.js';
 
 let selectedEventId = null;
@@ -575,19 +575,8 @@ export function openQuickAttendance(eventId) {
       </div>
     </div>
   `;
-  document.body.appendChild(overlay);
-  document.body.classList.add('no-scroll');
-
-  const close = () => {
-    overlay.remove();
-    if (!document.querySelector('.modal-overlay')) document.body.classList.remove('no-scroll');
-    document.removeEventListener('keydown', onKey);
-  };
-  const onKey = (e) => { if (e.key === 'Escape') close(); };
-  document.addEventListener('keydown', onKey);
-  overlay.querySelector('.modal__close').addEventListener('click', close);
+  const close = wireDialog(overlay);
   overlay.querySelector('#qa-cancel').addEventListener('click', close);
-  overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
 
   overlay.querySelectorAll('[data-qa-status]').forEach((btn) => {
     btn.addEventListener('click', async () => {

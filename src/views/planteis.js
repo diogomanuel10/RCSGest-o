@@ -8,7 +8,7 @@ import {
   playerAttendanceStats, playerAvailability, playerQuotas,
   escalaoColor, positionColor,
 } from '../compute.js';
-import { openModal, confirmDialog } from '../modal.js';
+import { openModal, confirmDialog, wireDialog } from '../modal.js';
 import { toastError, toastOk } from '../toast.js';
 import { COACH_ROLE_LABEL, AVAILABILITY_LABEL } from '../constants.js';
 import { canEdit, canDelete, canAccess, isCoordenador, canManageUsers } from '../permissions.js';
@@ -479,20 +479,8 @@ function openTeamForm(id) {
       </div>
     </div>
   `;
-  document.body.appendChild(overlay);
-  document.body.classList.add('no-scroll');
-  overlay.querySelector('#team-escalao').focus();
-
-  const close = () => {
-    overlay.remove();
-    document.body.classList.remove('no-scroll');
-    document.removeEventListener('keydown', onKey);
-  };
-  const onKey = (e) => { if (e.key === 'Escape') close(); };
-  document.addEventListener('keydown', onKey);
-  overlay.querySelector('.modal__close').addEventListener('click', close);
+  const close = wireDialog(overlay, { initialFocus: '#team-escalao' });
   overlay.querySelector('#team-cancel').addEventListener('click', close);
-  overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
 
   const principalSel = overlay.querySelector('#team-principal');
   const errEl = overlay.querySelector('#team-err');

@@ -16,7 +16,7 @@
 import { state, applySeasonRollover, dbErrorMessage } from '../store.js';
 import { esc } from '../ui.js';
 import { escaloes, teamName } from '../compute.js';
-import { confirmDialog } from '../modal.js';
+import { confirmDialog, wireDialog } from '../modal.js';
 import { toastError } from '../toast.js';
 
 // Destino escolhido por equipa (team_id de origem -> team_id de destino, ou
@@ -59,17 +59,7 @@ export function openSeasonRollover() {
     </div>
   `;
 
-  document.body.appendChild(overlay);
-  document.body.classList.add('no-scroll');
-
-  const close = () => {
-    overlay.remove();
-    if (!document.querySelector('.modal-overlay')) document.body.classList.remove('no-scroll');
-    document.removeEventListener('keydown', onKey);
-  };
-  const onKey = (e) => { if (e.key === 'Escape') close(); };
-  document.addEventListener('keydown', onKey);
-  overlay.querySelector('.modal__close').addEventListener('click', close);
+  const close = wireDialog(overlay);
   overlay.querySelector('[data-ne-cancel]').addEventListener('click', close);
 
   const body = overlay.querySelector('[data-ne-body]');
