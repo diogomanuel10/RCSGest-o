@@ -1,7 +1,7 @@
 // Vista: Treinadores. Fichas com dados de contacto e as equipas que orientam.
 
 import { state, createRow, updateRow, archiveRow, dbErrorMessage } from '../store.js';
-import { esc, emptyHTML, paginate, paginationHTML, wirePagination, PAGE_SIZE } from '../ui.js';
+import { esc, emptyHTML, paginate, paginationHTML, wirePagination, wireEmptyAction, PAGE_SIZE } from '../ui.js';
 import { teamName, coachTeams, escalaoColor } from '../compute.js';
 import { openModal, confirmDialog } from '../modal.js';
 import { canEdit } from '../permissions.js';
@@ -36,7 +36,10 @@ export function renderTreinadores(container) {
     }
     ${
       !all.length
-        ? emptyHTML('Ainda não há treinadores.')
+        ? emptyHTML('Ainda não há treinadores.', {
+            icone: '📋',
+            action: editable ? { key: 'add-coach', label: '+ Adicionar treinador' } : null,
+          })
         : coaches.length
           ? `<div class="coach-grid">${pg.items.map((c) => coachCard(c, editable)).join('')}</div>
              ${paginationHTML({ ...pg, id: 'coach' })}`
@@ -54,6 +57,7 @@ export function renderTreinadores(container) {
   });
 
   container.querySelector('#add-coach')?.addEventListener('click', () => openForm());
+  wireEmptyAction(container, 'add-coach', () => openForm());
   container.querySelectorAll('[data-edit]').forEach((b) =>
     b.addEventListener('click', () => openForm(b.dataset.edit))
   );

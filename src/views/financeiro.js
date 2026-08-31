@@ -62,22 +62,22 @@ function renderLedgerBody(container) {
     <section class="tier-cards">
       <div class="card tier-card" style="--tier-accent:var(--ok)">
         <span class="tier-card__name">Receitas</span>
-        <strong class="tier-card__value" style="color:var(--ok)">${euros(summary.income)}</strong>
+        <strong class="tier-card__value" style="color:var(--ok-ink)">${euros(summary.income)}</strong>
         <span class="tier-card__count">${state.financialEntries.filter((e) => e.type === 'receita').length} registo${state.financialEntries.filter((e) => e.type === 'receita').length !== 1 ? 's' : ''}</span>
       </div>
       <div class="card tier-card" style="--tier-accent:var(--info)">
         <span class="tier-card__name">Quotas recebidas</span>
-        <strong class="tier-card__value" style="color:var(--info)">${euros(summary.quotas)}</strong>
+        <strong class="tier-card__value" style="color:var(--info-ink)">${euros(summary.quotas)}</strong>
         <span class="tier-card__count">mensalidades (geridas em Quotas)</span>
       </div>
       <div class="card tier-card" style="--tier-accent:var(--danger)">
         <span class="tier-card__name">Despesas</span>
-        <strong class="tier-card__value" style="color:var(--danger)">${euros(summary.expenses)}</strong>
+        <strong class="tier-card__value" style="color:var(--danger-ink)">${euros(summary.expenses)}</strong>
         <span class="tier-card__count">${state.financialEntries.filter((e) => e.type === 'despesa').length} registo${state.financialEntries.filter((e) => e.type === 'despesa').length !== 1 ? 's' : ''}</span>
       </div>
       <div class="card tier-card" style="--tier-accent:var(--navy)">
         <span class="tier-card__name">Saldo</span>
-        <strong class="tier-card__value" style="color:${summary.totalBalance >= 0 ? 'var(--ok)' : 'var(--danger)'}">
+        <strong class="tier-card__value" style="color:${summary.totalBalance >= 0 ? 'var(--ok-ink)' : 'var(--danger-ink)'}">
           ${euros(summary.totalBalance)}
         </strong>
         <span class="tier-card__count">receitas + quotas − despesas</span>
@@ -170,7 +170,7 @@ function entryRow(e, editable) {
       <td><span class="badge badge--${FINANCIAL_TYPE_BADGE[e.type] || 'muted'}">${esc(FINANCIAL_TYPE_LABEL[e.type] || e.type)}</span></td>
       <td>${esc(e.category || '—')}</td>
       <td>${esc(e.description || '—')}${e.notes ? `<br><span class="muted" style="font-size:0.8rem">${esc(e.notes)}</span>` : ''}</td>
-      <td style="text-align:right;font-weight:600;color:${e.type === 'receita' ? 'var(--ok)' : 'var(--danger)'}">
+      <td style="text-align:right;font-weight:600;color:${e.type === 'receita' ? 'var(--ok-ink)' : 'var(--danger-ink)'}">
         ${e.type === 'despesa' ? '−' : '+'}${euros(Number(e.amount) || 0)}
       </td>
       ${editable ? `

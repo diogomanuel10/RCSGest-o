@@ -4,10 +4,10 @@
 import { state, createRow, createRows, updateRow, archiveRow, dbErrorMessage } from '../store.js';
 import { setSelectedEvent } from './presencas.js';
 import { openResultModal } from './resultado.js';
-import { esc, emptyHTML } from '../ui.js';
+import { esc, emptyHTML, wireEmptyAction } from '../ui.js';
 import { toastError } from '../toast.js';
 import { eventDateTime, eventTimeRange, teamById, teamName, escalaoColor, gameResult, gameSetsOf } from '../compute.js';
-import { openModal, confirmDialog } from '../modal.js';
+import { openModal, confirmDialog, wireDialog } from '../modal.js';
 import { openAthleteProfile } from './athlete-profile.js';
 import { findPlanForEvent, openGamePlanForEvent } from './plano-jogo.js';
 import { openTrainingPlan } from './training-plan.js';
@@ -125,6 +125,7 @@ export function renderCalendario(container) {
   `;
 
   container.querySelector('#add-event')?.addEventListener('click', () => openForm());
+  wireEmptyAction(container, 'add-event', () => openForm());
   container.querySelector('#add-recurrent')?.addEventListener('click', () => openRecurrentModal());
   container.querySelector('#export-ics')?.addEventListener('click', () => exportICS(events));
   container.querySelector('#view-lista').addEventListener('click', () => { calView = 'lista'; renderCalendario(container); });
@@ -194,7 +195,15 @@ function renderLista(events, future, past, editable, showAppts) {
       ${events.length
         ? `${future.length ? `<h3 class="cal-group">Próximos</h3>${future.map((e) => eventRow(e, false, editable)).join('')}` : ''}
            ${past.length ? `<h3 class="cal-group cal-group--past">Passados</h3>${past.map((e) => eventRow(e, true, editable)).join('')}` : ''}`
-        : emptyHTML('Sem eventos para os filtros escolhidos.')}
+        : state.events.length
+          // Sem eventos NENHUNS é um clube a começar; sem eventos NESTE filtro
+          // é um filtro apertado. A mesma frase para os dois casos mandava
+          // criar um evento a quem já tem trinta.
+          ? emptyHTML('Sem eventos para os filtros escolhidos.', { icone: '🔍' })
+          : emptyHTML('O calendário está vazio. Marca os treinos e os jogos aqui — é daqui que saem as presenças e as convocatórias.', {
+              icone: '📅',
+              action: editable ? { key: 'add-event', label: '+ Marcar o primeiro evento' } : null,
+            })}
     </section>
   `;
 }
@@ -529,15 +538,7 @@ function openDayModal(dateStr, editable) {
       </div>
     </div>
   `;
-  document.body.appendChild(overlay);
-  document.body.classList.add('no-scroll');
-
-  const close = () => {
-    overlay.remove();
-    document.body.classList.remove('no-scroll');
-  };
-  overlay.querySelector('.modal__close').addEventListener('click', close);
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  const close = wireDialog(overlay);
 
   // As ações fecham o detalhe primeiro para que o modal/diálogo seguinte
   // fique por cima sem sobreposições.
@@ -711,16 +712,8 @@ function openRecurrentModal() {
       </div>
     </div>
   `;
-  document.body.appendChild(overlay);
-  document.body.classList.add('no-scroll');
-
-  const close = () => {
-    overlay.remove();
-    document.body.classList.remove('no-scroll');
-  };
-  overlay.querySelector('.modal__close').addEventListener('click', close);
+  const close = wireDialog(overlay);
   overlay.querySelector('#rec-cancel').addEventListener('click', close);
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
 
   const selectedDays = new Set();
   const confirmBtn = overlay.querySelector('#rec-confirm');

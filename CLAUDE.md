@@ -257,6 +257,24 @@ Escape), prendem o foco (Tab não sai do modal) e devolvem-no ao elemento de
 origem. No `confirmDialog` o foco começa no **Cancelar**, para o Enter reflexo
 nunca confirmar uma ação destrutiva.
 
+- **Um diálogo de corpo livre usa `wireDialog(overlay, { initialFocus,
+  onClose })`**, não a sua própria moldura. O `openModal` é orientado a campos
+  e não serve para um corpo em HTML arbitrário (o detalhe do dia no
+  Calendário, o plano de treino, os convites) — mas a moldura é a mesma:
+  entra na pilha, Escape só no do topo, Tab preso, foco devolvido, fecha no X
+  e no clique fora. Vinte diálogos reimplementavam cada um a parte de que se
+  lembraram: dois sem Escape, nove sem devolver o foco, nenhum a prender o
+  Tab — e para quem navega por teclado a app tinha duas personalidades
+  conforme o ecrã. **A exceção é o quiosque**, que desenha os seus diálogos
+  dentro do próprio elemento em ecrã inteiro (ver mais abaixo).
+- **O estado vazio leva a ação que o resolve**: `emptyHTML(mensagem, { icone,
+  action })` + `wireEmptyAction(container, chave, fn)`. Sem isso, o ecrã que
+  um clube novo vê mais vezes na primeira sessão dizia "ainda não há equipas"
+  e mandava procurar o botão noutro canto. A ação viaja como
+  `data-empty-action` porque as vistas escrevem HTML e só depois ligam os
+  eventos — uma função passada ali não sobreviveria ao `innerHTML`. Só se
+  mostra a quem tem a permissão de criar.
+
 Filtros e estados locais de UI (ex.: equipas expandidas) vivem em variáveis no
 topo do módulo da vista.
 
@@ -911,6 +929,18 @@ separador antes de navegar (usado pelos cartões do Painel).
 ## Convenções
 
 - Interface 100% em **português europeu**, com acentos.
+- **Cada estado tem duas cores.** O tom cheio (`--ok`, `--warn`, `--danger`,
+  `--info`, `--gold`, `--silver`, `--bronze`) é o **sinal**: pontos, barras,
+  bordas e fundos, formas grandes onde 3:1 de contraste chega. O par `-ink`
+  (`--ok-ink`, `--warn-ink`…) é a **tinta**: o texto, que a norma exige a
+  4.5:1 no tamanho dos crachás. Medido sobre a respetiva tinta clara, o tom
+  cheio ficava entre 2.5:1 e 4.2:1 — e um crachá é o estado da quota ou o tipo
+  de evento no calendário, ou seja, o dado e não a decoração. Texto usa
+  sempre `-ink`; bordas e fundos usam o tom cheio.
+- **Alvos de toque**: o bloco `@media (hover: none)` no `style.css` leva a
+  44px o que se usa com o dedo (marcar presenças, editar/arquivar num cartão,
+  as estrelas da avaliação). No ecrã com rato os mesmos botões ficam
+  compactos.
 - As **chaves** guardadas na BD estão em `constants.js`; as **etiquetas**
   visíveis também. Manter alinhadas com `supabase/schema.sql`.
 - Texto de utilizador é sempre passado por `esc()` antes de ir para HTML.

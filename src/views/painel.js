@@ -58,7 +58,7 @@ import { openEventForm, openRecurrentTrainings } from './calendario.js';
 import { openSponsorForm } from './patrocinios.js';
 import { openFinanceiroTab } from './financeiro.js';
 import { openAthleteProfile } from './athlete-profile.js';
-import { confirmDialog } from '../modal.js';
+import { confirmDialog, wireDialog } from '../modal.js';
 import { setSelectedEvent } from './presencas.js';
 import { openResultModal } from './resultado.js';
 import { toastError } from '../toast.js';
@@ -448,19 +448,8 @@ function openAlertPrefs(onSaved) {
       </div>
     </div>
   `;
-  document.body.appendChild(overlay);
-  document.body.classList.add('no-scroll');
-
-  const close = () => {
-    overlay.remove();
-    if (!document.querySelector('.modal-overlay')) document.body.classList.remove('no-scroll');
-    document.removeEventListener('keydown', onKey);
-  };
-  const onKey = (e) => { if (e.key === 'Escape') close(); };
-  document.addEventListener('keydown', onKey);
-  overlay.querySelector('.modal__close').addEventListener('click', close);
+  const close = wireDialog(overlay);
   overlay.querySelector('#ap-cancel').addEventListener('click', close);
-  overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
 
   overlay.querySelector('#ap-save').addEventListener('click', async () => {
     const btn = overlay.querySelector('#ap-save');

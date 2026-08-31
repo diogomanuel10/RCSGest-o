@@ -17,7 +17,7 @@
 
 import { state, createRow, deleteRow, saveScenario, dbErrorMessage } from '../store.js';
 import { esc, emptyHTML } from '../ui.js';
-import { confirmDialog } from '../modal.js';
+import { confirmDialog, wireDialog } from '../modal.js';
 import { toastOk, toastError } from '../toast.js';
 import { canEdit, isClubWide } from '../permissions.js';
 import { TACTICAL_ROLES, TACTICAL_ROLE_LABEL } from '../constants.js';
@@ -274,19 +274,8 @@ function newScenario(container) {
         <button type="button" class="btn btn--ghost" data-cancel>Cancelar</button>
       </div>
     </div>`;
-  document.body.appendChild(overlay);
-  document.body.classList.add('no-scroll');
-
-  const close = () => {
-    overlay.remove();
-    if (!document.querySelector('.modal-overlay')) document.body.classList.remove('no-scroll');
-    document.removeEventListener('keydown', onKey);
-  };
-  const onKey = (e) => { if (e.key === 'Escape') close(); };
-  document.addEventListener('keydown', onKey);
+  const close = wireDialog(overlay, { initialFocus: '[data-cancel]' });
   overlay.querySelector('[data-cancel]').addEventListener('click', close);
-  overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
-  overlay.querySelector('[data-cancel]').focus();
 
   overlay.querySelectorAll('[data-role]').forEach((btn) =>
     btn.addEventListener('click', async () => {

@@ -502,6 +502,26 @@ export async function renderAppShell(root, session) {
     `;
   }
 
+  // Mudar de secção troca o conteúdo do <main> e mais nada: para quem usa
+  // leitor de ecrã, ou navega por teclado, o foco ficava no botão da barra
+  // lateral e nada anunciava que a página tinha mudado. Depois de desenhar,
+  // o foco passa para o título da secção nova — o que anuncia o título e põe
+  // o Tab a continuar de lá.
+  //
+  // Só quando a ROTA muda, nunca num re-desenho: o `paint()` volta a correr a
+  // cada alteração no store, e roubar o foco a meio de quem está a escrever
+  // num filtro seria pior do que o problema que isto resolve.
+  let focusedRoute = null;
+  function focusSectionHeading(key) {
+    if (focusedRoute === key) return;
+    const first = focusedRoute === null;
+    focusedRoute = key;
+    if (first) return; // a primeira pintura não rouba o foco a ninguém
+    const heading = content.querySelector('h1') || content;
+    heading.setAttribute('tabindex', '-1');
+    heading.focus({ preventScroll: false });
+  }
+
   function paint() {
     refreshChrome();
 
@@ -518,6 +538,7 @@ export async function renderAppShell(root, session) {
             // de voltar do browser/telemóvel em vez de o contrariar.
             onBack: goBack,
           });
+          focusSectionHeading(`atleta:${detail.playerId}`);
         } catch (err) {
           content.innerHTML = errorHTML('Não foi possível mostrar o atleta.');
           console.error(err);
@@ -544,6 +565,7 @@ export async function renderAppShell(root, session) {
     content.classList.toggle('content__inner--wide', !!view.wide);
     try {
       view.render(content);
+      focusSectionHeading(view.key);
     } catch (err) {
       content.innerHTML = errorHTML('Não foi possível mostrar esta secção.');
       console.error(err);

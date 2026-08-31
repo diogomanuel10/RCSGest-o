@@ -5,7 +5,7 @@
 import { state, createRow, updateRow, archiveRow, convertProspect, dbErrorMessage } from '../store.js';
 import { esc, emptyHTML } from '../ui.js';
 import { teamName, teamById, currentCoachEscaloes, escaloes as getEscaloes, positions, escalaoColor } from '../compute.js';
-import { openModal, confirmDialog } from '../modal.js';
+import { openModal, confirmDialog, wireDialog } from '../modal.js';
 import { canEdit, canDelete, isCoordenador, isClubWide } from '../permissions.js';
 import { PROSPECT_STATUSES, PROSPECT_REJECTED, PROSPECT_LABEL, PROSPECT_BADGE } from '../constants.js';
 
@@ -411,20 +411,8 @@ function openConvertModal(prospectId) {
       </div>
     </div>
   `;
-  document.body.appendChild(overlay);
-  document.body.classList.add('no-scroll');
-  overlay.querySelector('#conv-team').focus();
-
-  const close = () => {
-    overlay.remove();
-    document.body.classList.remove('no-scroll');
-    document.removeEventListener('keydown', onKey);
-  };
-  const onKey = (e) => { if (e.key === 'Escape') close(); };
-  document.addEventListener('keydown', onKey);
-  overlay.querySelector('.modal__close').addEventListener('click', close);
+  const close = wireDialog(overlay, { initialFocus: '#conv-team' });
   overlay.querySelector('#conv-cancel').addEventListener('click', close);
-  overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
 
   overlay.querySelector('#conv-confirm').addEventListener('click', async () => {
     const teamId = overlay.querySelector('#conv-team').value;

@@ -108,6 +108,58 @@ function trapFocus(overlay) {
   };
 }
 
+// Dá a um diálogo construído à mão a mesma moldura do `openModal`: entra na
+// pilha partilhada (só o do topo reage ao Escape), prende o Tab lá dentro,
+// devolve o foco ao elemento de origem e fecha no X, no Escape e no clique
+// fora.
+//
+// Existe porque dezoito diálogos espalhados pelas vistas reimplementavam cada
+// um a parte de que se lembraram: uns sem Escape, outros sem devolver o foco,
+// nenhum a prender o Tab. Para quem navega por teclado, a app tinha duas
+// personalidades conforme o ecrã em que estava. O `openModal` não servia
+// aqui — é orientado a campos de formulário, e estes têm corpo livre.
+//
+// O `overlay` chega já montado em memória (com o seu HTML) e é esta função
+// que o insere no documento. Devolve o `close()`.
+export function wireDialog(overlay, { onClose, initialFocus } = {}) {
+  document.body.appendChild(overlay);
+  pushOverlay(overlay);
+  const releaseFocus = trapFocus(overlay);
+
+  const first =
+    (typeof initialFocus === 'string' ? overlay.querySelector(initialFocus) : initialFocus) ||
+    overlay.querySelector('.modal__close') ||
+    focusables(overlay)[0];
+  first?.focus();
+
+  let closed = false;
+  function close() {
+    if (closed) return;
+    closed = true;
+    document.removeEventListener('keydown', onKey);
+    overlay.remove();
+    // Pela pilha, e não com um `classList.remove('no-scroll')` direto: fechar
+    // um diálogo aberto por cima de outro devolvia o scroll à página com o de
+    // baixo ainda aberto.
+    popOverlay(overlay);
+    releaseFocus();
+    onClose?.();
+  }
+  function onKey(e) {
+    if (e.key === 'Escape' && isTop(overlay)) close();
+  }
+  document.addEventListener('keydown', onKey);
+
+  overlay.querySelector('.modal__close')?.addEventListener('click', close);
+  // `mousedown` e não `click`: com `click`, um arrasto que comece dentro do
+  // diálogo e acabe fora fechava-o a meio de uma seleção de texto.
+  overlay.addEventListener('mousedown', (e) => {
+    if (e.target === overlay) close();
+  });
+
+  return close;
+}
+
 // Abre um modal com um formulário. `onSubmit(values)` pode lançar erro
 // (mostrado no topo do formulário) ou devolver para fechar.
 export function openModal({

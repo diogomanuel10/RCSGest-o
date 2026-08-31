@@ -15,7 +15,7 @@ import {
   playerMedicalHistory,
   playerAvailability,
 } from '../compute.js';
-import { openModal, confirmDialog } from '../modal.js';
+import { openModal, confirmDialog, wireDialog } from '../modal.js';
 import {
   EPISODE_STATUSES,
   EPISODE_STATUS_LABEL,
@@ -419,20 +419,8 @@ export function openAppointmentForm({ playerId, episodeId, appointment, onSaved 
       </div>
     </div>
   `;
-  document.body.appendChild(overlay);
-  document.body.classList.add('no-scroll');
-  overlay.querySelector('#ap-type').focus();
-
-  const close = () => {
-    overlay.remove();
-    if (!document.querySelector('.modal-overlay')) document.body.classList.remove('no-scroll');
-    document.removeEventListener('keydown', onKey);
-  };
-  const onKey = (e) => { if (e.key === 'Escape') close(); };
-  document.addEventListener('keydown', onKey);
-  overlay.querySelector('.modal__close').addEventListener('click', close);
+  const close = wireDialog(overlay, { initialFocus: '#ap-type' });
   overlay.querySelector('#ap-cancel').addEventListener('click', close);
-  overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
 
   const conflictEl = overlay.querySelector('#ap-conflict');
   const errEl = overlay.querySelector('#ap-err');

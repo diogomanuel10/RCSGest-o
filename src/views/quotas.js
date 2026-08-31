@@ -4,6 +4,7 @@
 
 import { state, generateQuotas, toggleQuota, dbErrorMessage } from '../store.js';
 import { esc, emptyHTML, euros, paginate, paginationHTML, wirePagination, PAGE_SIZE } from '../ui.js';
+import { wireDialog } from '../modal.js';
 import { teamName } from '../compute.js';
 import { canEdit } from '../permissions.js';
 import { MONTHS } from '../constants.js';
@@ -227,17 +228,8 @@ function openGenerateModal(teamId, mes, ano, container) {
       </div>
     </div>
   `;
-  document.body.appendChild(overlay);
-  document.body.classList.add('no-scroll');
-  overlay.querySelector('#gen-valor').focus();
-
-  const close = () => {
-    overlay.remove();
-    document.body.classList.remove('no-scroll');
-  };
-  overlay.querySelector('.modal__close').addEventListener('click', close);
+  const close = wireDialog(overlay, { initialFocus: '#gen-valor' });
   overlay.querySelector('#gen-cancel').addEventListener('click', close);
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
 
   overlay.querySelector('#gen-confirm').addEventListener('click', async () => {
     const valor = parseFloat(overlay.querySelector('#gen-valor').value) || 0;

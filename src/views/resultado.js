@@ -10,6 +10,7 @@
 
 import { state, saveGameResult, saveGameParticipation, dbErrorMessage } from '../store.js';
 import { esc } from '../ui.js';
+import { wireDialog } from '../modal.js';
 import {
   teamById, teamName, eventDateTime, gameResult, gameSetsOf, sport,
 } from '../compute.js';
@@ -125,19 +126,8 @@ export function openResultModal(eventId) {
     </div>
   `;
 
-  document.body.appendChild(overlay);
-  document.body.classList.add('no-scroll');
-
-  const close = () => {
-    overlay.remove();
-    if (!document.querySelector('.modal-overlay')) document.body.classList.remove('no-scroll');
-    document.removeEventListener('keydown', onKey);
-  };
-  const onKey = (e) => { if (e.key === 'Escape') close(); };
-  document.addEventListener('keydown', onKey);
-  overlay.querySelector('.modal__close').addEventListener('click', close);
+  const close = wireDialog(overlay);
   overlay.querySelector('#res-cancel').addEventListener('click', close);
-  overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
 
   // Lê os parciais escritos e conta os sets ganhos.
   function readSets() {

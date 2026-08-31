@@ -11,8 +11,8 @@
 // perde o trabalho de anos.
 
 import { state, createRow, updateRow, deleteRow, dbErrorMessage } from '../store.js';
-import { esc, emptyHTML, paginate, paginationHTML, wirePagination, safeUrl, linkHost, PAGE_SIZE } from '../ui.js';
-import { openModal, confirmDialog } from '../modal.js';
+import { esc, emptyHTML, paginate, paginationHTML, wirePagination, wireEmptyAction, safeUrl, linkHost, PAGE_SIZE } from '../ui.js';
+import { openModal, confirmDialog, wireDialog } from '../modal.js';
 import { canEdit } from '../permissions.js';
 import { toastError } from '../toast.js';
 import { PLAN_CATEGORIES, PLAN_CATEGORY_LABEL, PLAN_CATEGORY_BADGE } from '../constants.js';
@@ -76,13 +76,20 @@ export function renderExercicios(container) {
           ? `<ul class="ex-list">${pg.items.map((e) => exerciseCard(e, canWrite)).join('')}</ul>
              ${paginationHTML({ ...pg, id: 'ex' })}`
           : emptyHTML('Nenhum exercício corresponde ao filtro.'))
-      : emptyHTML(canWrite
-          ? 'A biblioteca está vazia. Guarda aqui os exercícios que repetes — depois puxa-os para o plano de treino num clique.'
-          : 'A biblioteca ainda não tem exercícios.')
+      : emptyHTML(
+          canWrite
+            ? 'A biblioteca está vazia. Guarda aqui os exercícios que repetes — depois puxa-os para o plano de treino num clique.'
+            : 'A biblioteca ainda não tem exercícios.',
+          {
+            icone: '🗂️',
+            action: canWrite ? { key: 'add-ex', label: '+ Primeiro exercício' } : null,
+          }
+        )
     }
   `;
 
   container.querySelector('#add-ex')?.addEventListener('click', () => openExerciseForm());
+  wireEmptyAction(container, 'add-ex', () => openExerciseForm());
   container.querySelectorAll('[data-edit-ex]').forEach((b) =>
     b.addEventListener('click', () => openExerciseForm(b.dataset.editEx))
   );
@@ -387,19 +394,8 @@ export function openExercisePicker({ onPick, teamSize = 0 } = {}) {
       </div>
     </div>
   `;
-  document.body.appendChild(overlay);
-  document.body.classList.add('no-scroll');
-
-  const close = () => {
-    overlay.remove();
-    if (!document.querySelector('.modal-overlay')) document.body.classList.remove('no-scroll');
-    document.removeEventListener('keydown', onKey);
-  };
-  const onKey = (e) => { if (e.key === 'Escape') close(); };
-  document.addEventListener('keydown', onKey);
-  overlay.querySelector('.modal__close').addEventListener('click', close);
+  const close = wireDialog(overlay);
   overlay.querySelector('[data-xp-cancel]').addEventListener('click', close);
-  overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
 
   const listEl  = overlay.querySelector('[data-xp-list]');
   const chipsEl = overlay.querySelector('[data-xp-chips]');
