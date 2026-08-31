@@ -3,7 +3,7 @@
 // condição (bom/razoável/mau) e notas.
 
 import { state, createRow, updateRow, deleteRow, dbErrorMessage } from '../store.js';
-import { esc, emptyHTML, paginate, paginationHTML, wirePagination, PAGE_SIZE } from '../ui.js';
+import { esc, emptyHTML, paginate, paginationHTML, wirePagination, wireEmptyAction, PAGE_SIZE } from '../ui.js';
 import { openModal, confirmDialog } from '../modal.js';
 import { canEdit, canAccess } from '../permissions.js';
 import { renderEncomendasBody } from './encomendas.js';
@@ -86,11 +86,15 @@ function renderInventarioBody(container) {
           ${pg.items.map((e) => equipCard(e, canWrite)).join('')}
          </div>
          ${paginationHTML({ ...pg, id: 'equip' })}`
-      : emptyHTML('Ainda não há equipamentos no inventário.')
+      : emptyHTML('Ainda não há equipamentos no inventário.', {
+          icone: '👕',
+          action: canWrite ? { key: 'add-equip', label: '+ Registar equipamento' } : null,
+        })
     }
   `;
 
   container.querySelector('#add-equip')?.addEventListener('click', () => openForm());
+  wireEmptyAction(container, 'add-equip', () => openForm());
   container.querySelectorAll('[data-edit-equip]').forEach((b) =>
     b.addEventListener('click', () => openForm(b.dataset.editEquip))
   );

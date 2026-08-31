@@ -2,7 +2,7 @@
 // expansível e operações de adicionar/editar/remover equipas e atletas.
 
 import { state, createRow, createRows, updateRow, archiveRow, saveTeamCoaches, sendTeamAnnouncement, dbErrorMessage } from '../store.js';
-import { esc, emptyHTML, paginate, paginationHTML, wirePagination, PAGE_SIZE } from '../ui.js';
+import { esc, emptyHTML, paginate, paginationHTML, wirePagination, wireEmptyAction, PAGE_SIZE } from '../ui.js';
 import {
   teamName, teamCoaches, escaloes, currentCoach, coachTeams, positions,
   playerAttendanceStats, playerAvailability, playerQuotas,
@@ -142,7 +142,15 @@ export function renderPlanteis(container) {
     ${myTeams.length && !evaluating ? filterBarHTML() : ''}
     ${
       !myTeams.length
-        ? emptyHTML(evaluating ? 'Ainda não há equipas para avaliar.' : 'Ainda não há equipas.')
+        ? emptyHTML(
+            evaluating
+              ? 'Ainda não há equipas para avaliar.'
+              : 'Ainda não há equipas. Uma equipa é um escalão — é por aí que se começa.',
+            {
+              icone: '🏐',
+              action: canTeams && !evaluating ? { key: 'add-team', label: '+ Criar a primeira equipa' } : null,
+            }
+          )
         : !teams.length
           ? emptyHTML('Nenhum atleta corresponde ao filtro.')
           : `${teamPillsHTML(teams, filtering)}
@@ -205,8 +213,10 @@ export function renderPlanteis(container) {
     })
   );
 
-  // + Equipa está no cabeçalho nos dois modos.
+  // + Equipa está no cabeçalho nos dois modos, e também no estado vazio —
+  // sem equipas, o cabeçalho é o único sítio onde está e não é onde se olha.
   container.querySelector('#add-team')?.addEventListener('click', () => openTeamForm());
+  wireEmptyAction(container, 'add-team', () => openTeamForm());
 
   // Modo avaliação: liga os seus próprios eventos (filtros, decisões, aplicar).
   if (evaluating && team) {

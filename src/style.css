@@ -488,8 +488,25 @@ tbody tr:hover {
   opacity: 0.4;
   line-height: 1;
 }
+/* O estado vazio pode trazer o botão que o resolve (ver `emptyHTML` em
+   ui.js). A frase fica com largura de leitura para o botão não nascer
+   colado a uma linha de texto que atravessa o ecrã todo. */
+.state p {
+  max-width: 42ch;
+  margin: 0;
+}
+.state [data-empty-action] {
+  margin-top: 0.35rem;
+}
 .state--error {
   color: var(--danger-ink);
+}
+
+/* O foco vai para o título ao mudar de secção (ver `focusSectionHeading` no
+   app-shell): quem navega por teclado precisa do contorno, quem clicou com o
+   rato não — e um contorno permanente à volta do título parecia um erro. */
+[tabindex="-1"]:focus:not(:focus-visible) {
+  outline: none;
 }
 
 /* =========================================================================
@@ -4496,7 +4513,9 @@ button.metric--nav:focus-visible {
   position: absolute;
   top: calc(100% + 10px);
   right: 0;
-  width: 340px;
+  /* Ancorado ao sino, à direita: uma largura fixa de 340px encostava às
+     margens num telemóvel de 320px. */
+  width: min(340px, calc(100vw - 1.5rem));
   max-height: 480px;
   background: var(--surface);
   border: 1px solid var(--border);

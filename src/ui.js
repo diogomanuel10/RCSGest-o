@@ -47,13 +47,33 @@ export function errorHTML(message) {
 }
 
 // Estado vazio (sem dados ainda).
-export function emptyHTML(message) {
+//
+// `action` desenha o botão que RESOLVE o vazio, ali mesmo. Sem ele, o ecrã
+// que um clube novo vê mais vezes na primeira sessão é um beco: diz "ainda
+// não há equipas" e obriga a procurar, noutro canto do ecrã, o botão que as
+// cria. `icone` troca o 📂 genérico — uma agenda vazia e um inventário vazio
+// não são o mesmo problema.
+//
+// A ação vai como `data-empty-action="<chave>"` e não como `onClick`: as
+// vistas escrevem HTML em `innerHTML` e ligam os eventos depois (o padrão de
+// `views/*.js`), por isso uma função passada aqui não teria como sobreviver
+// à serialização.
+export function emptyHTML(message, { icone = '📂', action = null } = {}) {
   return `
     <div class="state">
-      <span class="state__icon" aria-hidden="true">📂</span>
+      <span class="state__icon" aria-hidden="true">${esc(icone)}</span>
       <p>${esc(message)}</p>
+      ${action
+        ? `<button class="btn btn--accent btn--sm" type="button"
+                   data-empty-action="${esc(action.key)}">${esc(action.label)}</button>`
+        : ''}
     </div>
   `;
+}
+
+// Liga o botão de um estado vazio criado com `action`.
+export function wireEmptyAction(container, key, onClick) {
+  container.querySelector(`[data-empty-action="${key}"]`)?.addEventListener('click', onClick);
 }
 
 // --- Ligações escritas por utilizadores ----------------------------------
