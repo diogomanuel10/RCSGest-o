@@ -22,20 +22,33 @@
   /* --- Níveis de patrocínio --- */
   --gold: #c19a2b;
   --gold-light: #fef9ee;
+  --gold-ink: #81671d;
   --silver: #8b97a3;
   --silver-light: #f3f5f7;
+  --silver-ink: #4f5d69;
   --bronze: #b06a3b;
   --bronze-light: #fdf4ee;
+  --bronze-ink: #975b33;
 
-  /* --- Estados (feedback) --- */
+  /* --- Estados (feedback) ---
+     Cada estado tem DUAS cores e não uma. O tom cheio (--ok, --warn…) é o
+     SINAL: pontos, barras, bordas, fundos — formas grandes, onde 3:1 chega.
+     O tom `-ink` é a TINTA: o texto do crachá, escrito a 0.73rem e a negrito,
+     que a norma exige a 4.5:1. Medido sobre a respetiva tinta clara, o tom
+     cheio ficava entre 2.5:1 e 4.2:1 — e um crachá é o estado da quota ou o
+     tipo de evento no calendário, ou seja, o dado e não a decoração. */
   --ok: #16a34a;
   --ok-bg: #dcfce7;
+  --ok-ink: #107937;
   --warn: #d97706;
   --warn-bg: #fef3c7;
+  --warn-ink: #9c5604;
   --danger: #dc2626;
   --danger-bg: #fee2e2;
+  --danger-ink: #bd2121;
   --info: #2563eb;
   --info-bg: #dbeafe;
+  --info-ink: #2158d1;
 
   /* --- Sistema de elevação --- */
   --shadow-xs: 0 1px 2px rgba(20, 59, 97, 0.06);
@@ -77,6 +90,15 @@
     --warn-bg: rgba(217, 119, 6, 0.20);
     --danger-bg: rgba(220, 38, 38, 0.24);
     --info-bg: rgba(37, 99, 235, 0.24);
+    /* No escuro a tinta legível é mais CLARA do que o tom cheio: o fundo
+       translúcido do crachá assenta sobre --surface, não sobre branco. */
+    --ok-ink: #49b772;
+    --warn-ink: #e08f33;
+    --danger-ink: #ea7b7b;
+    --info-ink: #769df2;
+    --gold-ink: #c29b2d;
+    --silver-ink: #b3bdc8;
+    --bronze-ink: #c5916e;
     --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
     --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.4);
     --shadow: 0 4px 8px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
@@ -100,6 +122,13 @@
   --warn-bg: rgba(217, 119, 6, 0.20);
   --danger-bg: rgba(220, 38, 38, 0.24);
   --info-bg: rgba(37, 99, 235, 0.24);
+  --ok-ink: #49b772;
+  --warn-ink: #e08f33;
+  --danger-ink: #ea7b7b;
+  --info-ink: #769df2;
+  --gold-ink: #c29b2d;
+  --silver-ink: #b3bdc8;
+  --bronze-ink: #c5916e;
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow: 0 4px 8px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
@@ -227,7 +256,7 @@ a {
 .btn--danger {
   background: transparent;
   border-color: var(--danger);
-  color: var(--danger);
+  color: var(--danger-ink);
 }
 .btn--danger:hover {
   background: var(--danger-bg);
@@ -350,34 +379,34 @@ textarea {
 }
 .badge--gold {
   background: var(--gold-light);
-  color: var(--gold);
+  color: var(--gold-ink);
   border: 1px solid rgba(193, 154, 43, 0.2);
 }
 .badge--silver {
   background: var(--silver-light);
-  color: #4f5d69;
+  color: var(--silver-ink);
   border: 1px solid rgba(139, 151, 163, 0.2);
 }
 .badge--bronze {
   background: var(--bronze-light);
-  color: var(--bronze);
+  color: var(--bronze-ink);
   border: 1px solid rgba(176, 106, 59, 0.2);
 }
 .badge--ok {
   background: var(--ok-bg);
-  color: var(--ok);
+  color: var(--ok-ink);
 }
 .badge--warn {
   background: var(--warn-bg);
-  color: var(--warn);
+  color: var(--warn-ink);
 }
 .badge--danger {
   background: var(--danger-bg);
-  color: var(--danger);
+  color: var(--danger-ink);
 }
 .badge--info {
   background: var(--info-bg);
-  color: var(--info);
+  color: var(--info-ink);
 }
 .badge--muted {
   background: var(--surface-2);
@@ -460,7 +489,7 @@ tbody tr:hover {
   line-height: 1;
 }
 .state--error {
-  color: var(--danger);
+  color: var(--danger-ink);
 }
 
 /* =========================================================================
@@ -880,11 +909,11 @@ tbody tr:hover {
 }
 .metric--blue .metric__icon-wrap {
   background: rgba(37, 99, 235, 0.1);
-  color: var(--info);
+  color: var(--info-ink);
 }
 .metric--green .metric__icon-wrap {
   background: rgba(22, 163, 74, 0.1);
-  color: var(--ok);
+  color: var(--ok-ink);
 }
 .metric--purple .metric__icon-wrap {
   background: rgba(124, 58, 237, 0.1);
@@ -1483,7 +1512,7 @@ button.metric--nav:focus-visible {
   font-variant-numeric: tabular-nums;
 }
 .pstat b.pstat--warn {
-  color: var(--danger);
+  color: var(--danger-ink);
 }
 .pstat small {
   font-size: 0.66rem;
@@ -1537,8 +1566,47 @@ button.metric--nav:focus-visible {
   background: #fee2e2;
   color: #dc2626;
 }
+/* --- Toque -------------------------------------------------------------
+   Onde não há rato, o dedo é o cursor. As ações mais repetidas da app —
+   marcar vinte presenças à entrada do pavilhão, corrigir a ficha de um
+   atleta — viviam em alvos de 30 a 36px, e a diferença entre 36 e 44 é a
+   diferença entre marcar o atleta certo e marcar o de baixo. No portátil
+   nada disto se aplica: os mesmos botões ficam compactos. */
 @media (hover: none) {
   .player-card__actions { opacity: 1; }
+
+  .icon-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+  }
+  /* No rato, as ações aparecem sobre o canto do cartão só ao passar por cima.
+     Ao toque estão sempre visíveis — e a 44px tapavam o nome do atleta, que é
+     a única coisa pela qual se procura um cartão. Descem para o fim do
+     cartão, em fluxo normal, onde não tapam nada. */
+  .player-card {
+    display: flex;
+    flex-direction: column;
+  }
+  .player-card__actions {
+    position: static;
+    justify-content: flex-end;
+    gap: 0.15rem;
+    padding: 0.15rem 0.35rem 0.25rem;
+    border-radius: 0;
+    box-shadow: none;
+    background: none;
+    border-top: 1px dashed var(--border);
+    margin-top: -0.35rem;
+  }
+  .pres-btn {
+    min-height: 44px;
+    padding-inline: 0.85rem;
+  }
+  .tp-star {
+    min-width: 44px;
+    min-height: 44px;
+  }
 }
 /* --- Separadores das equipas (escolha de equipa) --- */
 .team-pills {
@@ -2317,15 +2385,15 @@ button.metric--nav:focus-visible {
 }
 .settings-msg--ok {
   background: var(--ok-bg);
-  color: var(--ok);
+  color: var(--ok-ink);
 }
 .settings-msg--error {
   background: var(--danger-bg);
-  color: var(--danger);
+  color: var(--danger-ink);
 }
 .settings-msg--info {
   background: var(--info-bg);
-  color: var(--info);
+  color: var(--info-ink);
 }
 
 /* Chips (escalões configuráveis) */
@@ -2383,7 +2451,7 @@ button.metric--nav:focus-visible {
   cursor: not-allowed;
 }
 .chip__remove {
-  color: var(--danger) !important;
+  color: var(--danger-ink) !important;
   font-size: 1.1rem !important;
 }
 .chip__remove:hover:not([disabled]) {
@@ -2464,7 +2532,7 @@ button.metric--nav:focus-visible {
 }
 .modal__close:hover {
   background: var(--danger-bg);
-  color: var(--danger);
+  color: var(--danger-ink);
 }
 .field-grid {
   display: grid;
@@ -2487,7 +2555,7 @@ button.metric--nav:focus-visible {
 }
 .modal__error {
   background: var(--danger-bg);
-  color: var(--danger);
+  color: var(--danger-ink);
   font-size: 0.84rem;
   padding: 0.6rem 0.75rem;
   border-radius: var(--radius-sm);
@@ -2644,7 +2712,7 @@ button.metric--nav:focus-visible {
 }
 .login__ok {
   background: var(--ok-bg);
-  color: var(--ok);
+  color: var(--ok-ink);
   font-size: 0.85rem;
   padding: 0.6rem 0.8rem;
   border-radius: var(--radius-sm);
@@ -2661,7 +2729,7 @@ button.metric--nav:focus-visible {
 }
 .login__error {
   background: var(--danger-bg);
-  color: var(--danger);
+  color: var(--danger-ink);
   font-size: 0.85rem;
   padding: 0.6rem 0.8rem;
   border-radius: var(--radius-sm);
@@ -2969,9 +3037,9 @@ button.metric--nav:focus-visible {
   font-weight: 700;
   font-size: 0.95rem;
 }
-.stat-pct--ok     { color: var(--ok); }
-.stat-pct--warn   { color: var(--warn); }
-.stat-pct--danger { color: var(--danger); }
+.stat-pct--ok     { color: var(--ok-ink); }
+.stat-pct--warn   { color: var(--warn-ink); }
+.stat-pct--danger { color: var(--danger-ink); }
 
 .stat-table-wrap {
   overflow-x: auto;
@@ -3183,9 +3251,9 @@ button.metric--nav:focus-visible {
   text-overflow: ellipsis;
   cursor: default;
 }
-.cal-grid__ev.badge--info   { background: var(--info-bg);   color: var(--info); }
-.cal-grid__ev.badge--danger { background: var(--danger-bg); color: var(--danger); }
-.cal-grid__ev.badge--warn   { background: var(--warn-bg);   color: var(--warn); }
+.cal-grid__ev.badge--info   { background: var(--info-bg);   color: var(--info-ink); }
+.cal-grid__ev.badge--danger { background: var(--danger-bg); color: var(--danger-ink); }
+.cal-grid__ev.badge--warn   { background: var(--warn-bg);   color: var(--warn-ink); }
 .cal-grid__ev.badge--muted  { background: var(--surface-2); color: var(--text-muted); border: 1px solid var(--border); }
 
 /* Célula clicável (abre o detalhe do dia). */
@@ -3542,7 +3610,7 @@ button.metric--nav:focus-visible {
 }
 .rec-chip b { color: var(--text); font-weight: 700; }
 .rec-chip--ok { border-color: var(--ok); }
-.rec-chip--ok b { color: var(--ok); }
+.rec-chip--ok b { color: var(--ok-ink); }
 .rec-chip--warn { border-color: var(--yellow); }
 .rec-chip--warn b { color: var(--yellow-600); }
 .kanban-card__head {
@@ -3735,7 +3803,7 @@ button.metric--nav:focus-visible {
   border-radius: 8px;
   border-left: 4px solid var(--warn);
   background: var(--warn-bg);
-  color: var(--warn);
+  color: var(--warn-ink);
   font-size: 0.85rem;
 }
 
@@ -4105,9 +4173,9 @@ button.metric--nav:focus-visible {
   font-weight: 700;
   font-size: 0.85rem;
 }
-.pres-pct--ok  { color: var(--ok); }
+.pres-pct--ok  { color: var(--ok-ink); }
 .pres-pct--warn { color: var(--warn, #e08e00); }
-.pres-pct--bad { color: var(--danger); }
+.pres-pct--bad { color: var(--danger-ink); }
 
 /* Linha do painel clicável (abre o perfil do atleta) */
 .today-item--link { cursor: pointer; transition: background 0.12s ease; }
@@ -4173,7 +4241,7 @@ button.metric--nav:focus-visible {
 }
 .squad-row__status { flex: none; }
 .squad-remove { opacity: 0.6; }
-.squad-remove:hover { opacity: 1; color: var(--danger); }
+.squad-remove:hover { opacity: 1; color: var(--danger-ink); }
 
 /* =====================================================================
    Documentos do Atleta
@@ -4352,7 +4420,7 @@ button.metric--nav:focus-visible {
 /* Alerta genérico */
 .alert--warn {
   background: var(--warn-bg);
-  color: var(--warn);
+  color: var(--warn-ink);
   border: 1px solid #fde68a;
   border-radius: var(--radius-sm);
   padding: 0.6rem 0.9rem;
@@ -4808,9 +4876,9 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
   border-radius: 50%;
 }
 .toast__icon svg { width: 13px; height: 13px; }
-.toast--ok    .toast__icon { background: var(--ok-bg);     color: var(--ok); }
-.toast--error .toast__icon { background: var(--danger-bg); color: var(--danger); }
-.toast--info  .toast__icon { background: var(--info-bg);   color: var(--info); }
+.toast--ok    .toast__icon { background: var(--ok-bg);     color: var(--ok-ink); }
+.toast--error .toast__icon { background: var(--danger-bg); color: var(--danger-ink); }
+.toast--info  .toast__icon { background: var(--info-bg);   color: var(--info-ink); }
 .toast--ok    { border-left: 3px solid var(--ok); }
 .toast--error { border-left: 3px solid var(--danger); }
 .toast--info  { border-left: 3px solid var(--info); }
@@ -4995,7 +5063,7 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
   font-size: 0.79rem;
   line-height: 1.35;
 }
-.field__req { color: var(--danger); }
+.field__req { color: var(--danger-ink); }
 
 /* =========================================================================
    Pesquisa no telemóvel — atrás de um botão, abre por cima da topbar
@@ -5265,7 +5333,7 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
   padding: 0.6rem 0.8rem;
   border-radius: var(--radius-sm);
   background: var(--warn-bg);
-  color: var(--warn);
+  color: var(--warn-ink);
   font-size: 0.86rem;
   font-weight: 600;
 }
@@ -5392,7 +5460,7 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
   padding: 0.2rem 0.6rem;
   border-radius: 999px;
   background: var(--warn-bg);
-  color: var(--warn);
+  color: var(--warn-ink);
   font-size: 0.78rem;
   font-weight: 700;
 }
@@ -5461,11 +5529,11 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 .kiosk__result-meta { color: var(--text-muted); font-size: 0.95rem; }
 .kiosk__result-detail { font-size: 1.15rem; font-weight: 600; }
 
-.kiosk__feedback--ok       { border-color: var(--ok);     background: var(--ok-bg);     color: var(--ok); }
-.kiosk__feedback--atraso   { border-color: var(--warn);   background: var(--warn-bg);   color: var(--warn); }
-.kiosk__feedback--repetido { border-color: var(--info);   background: var(--info-bg);   color: var(--info); }
-.kiosk__feedback--pendente { border-color: var(--warn);   background: var(--warn-bg);   color: var(--warn); }
-.kiosk__feedback--erro     { border-color: var(--danger); background: var(--danger-bg); color: var(--danger); }
+.kiosk__feedback--ok       { border-color: var(--ok);     background: var(--ok-bg);     color: var(--ok-ink); }
+.kiosk__feedback--atraso   { border-color: var(--warn);   background: var(--warn-bg);   color: var(--warn-ink); }
+.kiosk__feedback--repetido { border-color: var(--info);   background: var(--info-bg);   color: var(--info-ink); }
+.kiosk__feedback--pendente { border-color: var(--warn);   background: var(--warn-bg);   color: var(--warn-ink); }
+.kiosk__feedback--erro     { border-color: var(--danger); background: var(--danger-bg); color: var(--danger-ink); }
 .kiosk__feedback--ok .kiosk__result-meta,
 .kiosk__feedback--atraso .kiosk__result-meta,
 .kiosk__feedback--repetido .kiosk__result-meta,
@@ -5687,8 +5755,8 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 }
 .res-final__label { font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
 .res-final__score { font-family: var(--font-title); font-size: 1.6rem; line-height: 1; }
-.res-final__score--win  { color: var(--ok); }
-.res-final__score--loss { color: var(--danger); }
+.res-final__score--win  { color: var(--ok-ink); }
+.res-final__score--loss { color: var(--danger-ink); }
 .res-final__score--draw { color: var(--text-muted); }
 .res-final__points { font-size: 0.8rem; }
 
@@ -6247,8 +6315,8 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 .portal-resp__btn:disabled { opacity: 0.55; cursor: default; }
 /* A resposta escolhida ganha a cor do seu significado — verde/vermelho é mais
    rápido de ler do que um contorno mais escuro. */
-.portal-resp__btn--vou.is-active     { background: var(--ok-bg);     border-color: var(--ok);     color: var(--ok); }
-.portal-resp__btn--nao_vou.is-active { background: var(--danger-bg); border-color: var(--danger); color: var(--danger); }
+.portal-resp__btn--vou.is-active     { background: var(--ok-bg);     border-color: var(--ok);     color: var(--ok-ink); }
+.portal-resp__btn--nao_vou.is-active { background: var(--danger-bg); border-color: var(--danger); color: var(--danger-ink); }
 .portal-resp-note {
   margin: 0.4rem 0 0;
   font-size: var(--portal-meta);
@@ -6887,7 +6955,7 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 /* O aviso da coluna é o mesmo do cartão (.pstat b.pstat--warn), que está
    ligado à estrutura do cartão e não serve numa célula de tabela. */
 .player-list__warn {
-  color: var(--danger);
+  color: var(--danger-ink);
   font-weight: 600;
 }
 .player-list .avail-dot {

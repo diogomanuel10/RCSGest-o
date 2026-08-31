@@ -46,9 +46,9 @@ const BALL_LIFT = 0.95;    // a bola desenha-se um pouco à frente de quem a tem
 export const ANIM_MS = 1500;
 
 export const VERDICTS = {
-  otima:     { label: 'Ótima',     color: 'var(--ok)',     bg: 'var(--ok-bg)' },
-  aceitavel: { label: 'Aceitável', color: 'var(--warn)',   bg: 'var(--warn-bg)' },
-  ma:        { label: 'Má',        color: 'var(--danger)', bg: 'var(--danger-bg)' },
+  otima:     { label: 'Ótima',     color: 'var(--ok-ink)',     bg: 'var(--ok-bg)' },
+  aceitavel: { label: 'Aceitável', color: 'var(--warn-ink)',   bg: 'var(--warn-bg)' },
+  ma:        { label: 'Má',        color: 'var(--danger-ink)', bg: 'var(--danger-bg)' },
 };
 export const VERDICT_KEYS = Object.keys(VERDICTS);
 

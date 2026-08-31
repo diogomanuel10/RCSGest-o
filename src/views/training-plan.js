@@ -279,8 +279,11 @@ function renderTotalizer(items, event) {
     const pct   = Math.min(100, Math.round((planned / treino) * 100));
     const over  = planned > treino;
     const near  = pct >= 85;
-    const color = over ? 'var(--danger,#ef4444)' : near ? 'var(--gold,#f59e0b)' : 'var(--accent,#3b82f6)';
-    pctLabel = `<span class="tp-total__pct" style="color:${color}">${pct}%${over ? ' — acima do tempo' : ''}</span>`;
+    // A barra é forma e leva o tom cheio; a percentagem é texto pequeno e
+    // leva a tinta (ver os tokens `-ink` em style.css).
+    const color = over ? 'var(--danger)' : near ? 'var(--gold)' : 'var(--info)';
+    const ink   = over ? 'var(--danger-ink)' : near ? 'var(--gold-ink)' : 'var(--info-ink)';
+    pctLabel = `<span class="tp-total__pct" style="color:${ink}">${pct}%${over ? ' — acima do tempo' : ''}</span>`;
     barHtml  = `
       <div class="tp-total__track">
         <div class="tp-total__fill" style="width:${pct}%;background:${color}"></div>

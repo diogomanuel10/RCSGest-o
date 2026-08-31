@@ -215,7 +215,7 @@ function bodyHTML(teams) {
         <li><strong>${plano.resets.length}</strong> avaliações repostas a "Pendente"</li>
       </ul>
       ${pendentes
-        ? `<p class="res-block__hint" style="color:var(--warn)">
+        ? `<p class="res-block__hint" style="color:var(--warn-ink)">
              ${pendentes} atleta(s) ainda por decidir ficam exatamente onde estão.
              Decide-os na Avaliação de plantel antes de virar a época, se quiseres que subam.
            </p>`
