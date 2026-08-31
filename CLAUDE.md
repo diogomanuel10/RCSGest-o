@@ -182,6 +182,7 @@ supabase/comunicacao.sql       Respostas do atleta a eventos + avisos do clube
 supabase/resultados.sql        Resultado dos jogos (final + parciais) e pontos jogados
 supabase/tatica.sql            Decisão Tática: cenários de leitura de jogo + respostas
 supabase/exercicios.sql        Biblioteca de exercícios (tabela + ligação ao plano de treino)
+supabase/plano-links.sql       Ligações (URL) no plano de treino, nos blocos e na biblioteca
 supabase/painel-avisos.sql     Limiares do clube + avisos escolhidos por utilizador
 supabase/resumo-semanal.sql    Resumo semanal (notificação + push) e limiares de queda
 supabase/web-push.sql          Web Push: trigger em notifications -> Edge Function send-push
@@ -421,6 +422,22 @@ separador antes de navegar (usado pelos cartões do Painel).
   Definições; usada nos Plantéis, Recrutamento e Avaliação.
 - **Credenciação do treinador**: `coaches.license_number` (Nº da Licença) e
   `coaches.tptd` são texto livre, opcionais; mostrados na ficha do treinador.
+- **Como se vê o plantel é escolha de quem olha** (`planteis.js`): a barra de
+  filtros tem **Vista** (cartões ou lista), **Colunas** (quantos cartões por
+  linha) e **Por página** (12/24/48/todos). Os cartões servem para reconhecer
+  um atleta; a lista serve para percorrer vinte de uma vez ou comparar
+  comparência — e nenhuma das duas é a certa para toda a gente.
+  - **A preferência vive no dispositivo** (`localStorage`, chave
+    `rumia.planteis.view`) e não na base de dados: é estado de UI (a regra do
+    `store.js`) e depende do ecrã, não do clube. O portátil do treinador leva
+    quatro colunas; o telemóvel do adjunto, na mesma conta, não leva nenhuma.
+    Ler/escrever vai dentro de `try/catch` — em janela privada o
+    `localStorage` rebenta, e uma preferência de vista não pode impedir os
+    Plantéis de abrir.
+  - **Abaixo dos 700px o número de colunas é ignorado** e o seletor
+    desaparece: três colunas num telemóvel não são três colunas, são três
+    cartões ilegíveis — e um controlo que não faz nada é pior do que controlo
+    nenhum.
 - **Importar atletas (.xlsx)**: nos Plantéis, cada equipa tem "Importar (xlsx)".
   `players-xlsx.js` lê o ficheiro com SheetJS (carregado dinamicamente) e mapeia
   as colunas por cabeçalho (Nome, Número, Ano de nascimento, Posição; aceita
@@ -578,6 +595,25 @@ separador antes de navegar (usado pelos cartões do Painel).
     não se esconde um exercício por falta de dados. O seletor abre já com o
     tamanho do plantel preenchido.
   - O atleta não lê a biblioteca: é material de trabalho do treinador.
+- **Ligações no plano de treino** (`supabase/plano-links.sql`): nem todo o
+  trabalho do treinador nasce aqui. O plano é muitas vezes montado noutra app
+  (um quadro tático, uma folha partilhada) e o exercício tem um vídeo. Sem
+  sítio para o endereço, ou se copiava tudo à mão para dentro da Rumia, ou o
+  plano ficava vazio e o treino real vivia noutro lado — que é a forma mais
+  rápida de a app deixar de dizer a verdade sobre o que se treinou.
+  - **São duas ligações e não uma**: `training_plans.link_url` é a SESSÃO
+    inteira feita noutra app; `training_plan_items.link_url` é o vídeo de UM
+    exercício. Uma só obrigava a escolher entre as duas, e são coisas
+    diferentes. `exercises.link_url` acompanha, pela mesma razão dos restantes
+    campos da biblioteca: puxar da biblioteca é uma cópia direta, e sem a
+    coluna o vídeo perdia-se a cada cópia.
+  - **O href só se constrói se o endereço for mesmo http(s)** (`safeUrl` em
+    `ui.js`, que também assume `https://` a quem escreve só o domínio): um
+    `javascript:` colado num campo de texto corria no primeiro clique de quem
+    abrisse o plano. A validação é na app e não num CHECK na base de dados —
+    o CHECK recusava a gravação inteira em vez de simplesmente não desenhar o
+    link, e o treinador ficava sem perceber porquê.
+
 - **Painel do treinador** (`renderTreinadorPainel` em `painel.js`): o painel
   genérico é o resumo do CLUBE (angariado, quotas, inventário) — para quem
   treina, isso é informação de outra pessoa. O do treinador responde por ordem

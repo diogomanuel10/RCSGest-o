@@ -14,7 +14,7 @@ import {
   upsertPlayerEval,
   dbErrorMessage,
 } from '../store.js';
-import { esc } from '../ui.js';
+import { esc, safeUrl, linkHost } from '../ui.js';
 import { openModal, confirmDialog } from '../modal.js';
 import { canEdit } from '../permissions.js';
 import { toastError } from '../toast.js';
@@ -24,6 +24,19 @@ import { eventTimeRange, teamById, teamName } from '../compute.js';
 
 const STAR_ON  = '#f59e0b';
 const STAR_OFF = 'var(--muted,#9ca3af)';
+
+// Ligação escrita pelo treinador (plano feito noutra app, vídeo do exercício).
+// Só se desenha quando o endereço é mesmo http(s) — ver `safeUrl` em ui.js.
+function linkChipHTML(value, label = 'Abrir') {
+  const url = safeUrl(value);
+  if (!url) return '';
+  const host = linkHost(url);
+  return `
+    <a class="tp-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer">
+      <span class="tp-link__icon" aria-hidden="true">↗</span>
+      <span class="tp-link__text">${esc(label)}${host ? ` · ${esc(host)}` : ''}</span>
+    </a>`;
+}
 
 // Devolve a duração do evento em minutos, ou null se não tiver hora de início/fim.
 function eventDurationMin(event) {
@@ -157,16 +170,29 @@ function paintPlanTab(body, eventId) {
           name: 'notes', label: 'Notas gerais', type: 'textarea', full: true,
           placeholder: 'Informações adicionais para os atletas…',
         },
+        {
+          name: 'link_url', label: 'Ligação do plano', type: 'text', full: true,
+          placeholder: 'https://…',
+          hint: 'Para o treino montado noutra app (quadro tático, folha partilhada, vídeo).',
+        },
       ],
       values: plan
-        ? { material: plan.material || '', objective: plan.objective || '', notes: plan.notes || '' }
+        ? {
+            material: plan.material || '', objective: plan.objective || '',
+            notes: plan.notes || '', link_url: plan.link_url || '',
+          }
         : {},
       submitLabel: 'Guardar',
       async onSubmit(vals) {
+        const link = vals.link_url?.trim() || '';
+        if (link && !safeUrl(link)) {
+          throw new Error('A ligação tem de ser um endereço http:// ou https://.');
+        }
         await upsertTrainingPlan(eventId, {
           material:  vals.material.trim()  || null,
           objective: vals.objective.trim() || null,
           notes:     vals.notes.trim()     || null,
+          link_url:  safeUrl(link),
         });
         paintPlanTab(body, eventId);
       },
@@ -198,6 +224,7 @@ function paintPlanTab(body, eventId) {
           objective:    ex.objective    ?? null,
           reps:         ex.reps         ?? null,
           description:  ex.description  ?? null,
+          link_url:     ex.link_url     ?? null,
           position:     items.length ? Math.max(...items.map((i) => i.position)) + 1 : 0,
         });
         paintPlanTab(body, eventId);
@@ -283,7 +310,7 @@ function renderPlanHeader(plan, canWrite) {
          </div>`
       : `<p class="muted" style="margin:0 0 1rem">Ainda sem plano para este treino.</p>`;
   }
-  const hasContent = plan.material || plan.objective || plan.notes;
+  const hasContent = plan.material || plan.objective || plan.notes || safeUrl(plan.link_url);
   return `
     <div class="card tp-planhead">
       ${plan.material
@@ -299,6 +326,7 @@ function renderPlanHeader(plan, canWrite) {
       ${plan.notes
         ? `<p class="muted" style="margin:0;font-size:0.9rem;white-space:pre-wrap">${esc(plan.notes)}</p>`
         : ''}
+      ${linkChipHTML(plan.link_url, 'Abrir o plano')}
       ${!hasContent ? '<p class="muted" style="margin:0">Sem objetivo definido.</p>' : ''}
       ${canWrite
         ? `<button class="btn btn--ghost btn--sm" data-edit-header type="button" style="margin-top:0.6rem">Editar</button>`
@@ -334,6 +362,7 @@ function renderItemList(items, canWrite, canLibrary = false) {
               ${item.description
                 ? `<p class="muted tp-item__desc">${esc(item.description)}</p>`
                 : ''}
+              ${linkChipHTML(item.link_url, 'Abrir')}
             </div>
             ${canWrite ? `
               <div class="tp-item__actions">
@@ -385,6 +414,11 @@ function openItemModal({ body, eventId, plan, items, item = null }) {
         name: 'description', label: 'Descrição / notas', type: 'textarea', full: true,
         placeholder: 'Variantes, progressões, pontos de atenção…',
       },
+      {
+        name: 'link_url', label: 'Ligação', type: 'text', full: true,
+        placeholder: 'https://…',
+        hint: 'Vídeo do exercício ou ficha noutra app.',
+      },
     ],
     values: item
       ? {
@@ -395,11 +429,16 @@ function openItemModal({ body, eventId, plan, items, item = null }) {
           objective:    item.objective    ?? '',
           reps:         item.reps         ?? '',
           description:  item.description  ?? '',
+          link_url:     item.link_url     ?? '',
         }
       : {},
     submitLabel: item ? 'Guardar' : 'Adicionar',
     async onSubmit(vals) {
       if (!vals.name.trim()) throw new Error('O nome do exercício é obrigatório.');
+      const link = vals.link_url?.trim() || '';
+      if (link && !safeUrl(link)) {
+        throw new Error('A ligação tem de ser um endereço http:// ou https://.');
+      }
       const planRecord = plan || (await upsertTrainingPlan(eventId, {}));
       const data = {
         plan_id:      planRecord.id,
@@ -410,6 +449,7 @@ function openItemModal({ body, eventId, plan, items, item = null }) {
         objective:    vals.objective?.trim()    || null,
         reps:         vals.reps?.trim()         || null,
         description:  vals.description?.trim()  || null,
+        link_url:     safeUrl(link),
         position:     nextPos,
       };
       if (item) {

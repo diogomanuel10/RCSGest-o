@@ -57,7 +57,8 @@ As permissões são impostas pela base de dados (RLS), não só pela interface.
    vez), `portal-atleta.sql`, `comunicacao.sql` (respostas do
    atleta + avisos do clube), `resultados.sql` (resultados de jogo),
    `tatica.sql` (Decisão Tática: cenários de leitura de jogo + respostas),
-   `exercicios.sql` (biblioteca de exercícios do clube) e
+   `exercicios.sql` (biblioteca de exercícios do clube),
+   `plano-links.sql` (ligações no plano de treino e na biblioteca) e
    `painel-avisos.sql` (limiares do clube + avisos por utilizador),
    `dados-exemplo.sql` (clube de demonstração para quem se regista),
    `web-push.sql` (notificações no telemóvel — ver secção 5) e

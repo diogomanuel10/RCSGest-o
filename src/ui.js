@@ -56,6 +56,37 @@ export function emptyHTML(message) {
   `;
 }
 
+// --- Ligações escritas por utilizadores ----------------------------------
+// Um endereço escrito num campo de texto só chega a um href se for mesmo
+// http(s): sem esta guarda, um `javascript:` colado no plano de treino
+// corria no primeiro clique de quem o abrisse. Devolve o URL normalizado
+// (sem esquema assume-se https://) ou null se não servir.
+export function safeUrl(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return null;
+  const candidate = /^[a-z][a-z0-9+.-]*:/i.test(raw) ? raw : `https://${raw}`;
+  let url;
+  try {
+    url = new URL(candidate);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+  return url.hostname ? url.href : null;
+}
+
+// Nome curto de uma ligação para mostrar ao lado do ícone (ex.: "youtube.com").
+// O URL inteiro num cartão de exercício ocupa três linhas e não diz mais.
+export function linkHost(value) {
+  const url = safeUrl(value);
+  if (!url) return '';
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return url;
+  }
+}
+
 // Matiz (HSL hue 0–359) estável derivada de um id — para dar a cada equipa
 // uma cor consistente (ex.: nos eventos do calendário).
 export function teamHue(id) {
