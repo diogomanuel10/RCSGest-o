@@ -27,6 +27,43 @@ let search = '';
 let positionFilter = '';
 const teamPage = new Map(); // team_id -> página atual dos atletas
 
+// --- Preferências de visualização do plantel ------------------------------
+// Como se vê o plantel (cartões ou lista), quantas colunas e quantos atletas
+// por página. Vive no DISPOSITIVO (localStorage) e não na base de dados: é
+// estado de UI — a regra do store.js — e a escolha certa depende do ecrã em
+// que se está, não do clube. O portátil do treinador leva quatro colunas; o
+// telemóvel do adjunto, na mesma conta, não leva nenhuma.
+const VIEW_PREFS_KEY = 'rumia.planteis.view';
+const PAGE_SIZE_OPTIONS = [12, 24, 48, 0]; // 0 = todos
+let viewMode = 'cartoes';   // 'cartoes' | 'lista'
+let cardCols = 'auto';      // 'auto' | '2' | '3' | '4'
+let pageSize = PAGE_SIZE;
+
+// O localStorage rebenta em janelas privadas e com cookies bloqueados; uma
+// preferência de vista nunca pode impedir os Plantéis de abrir.
+function loadViewPrefs() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(VIEW_PREFS_KEY) || '{}');
+    if (saved.viewMode === 'lista' || saved.viewMode === 'cartoes') viewMode = saved.viewMode;
+    if (['auto', '2', '3', '4'].includes(String(saved.cardCols))) cardCols = String(saved.cardCols);
+    if (PAGE_SIZE_OPTIONS.includes(Number(saved.pageSize))) pageSize = Number(saved.pageSize);
+  } catch { /* preferências por omissão */ }
+}
+function saveViewPrefs() {
+  try {
+    localStorage.setItem(VIEW_PREFS_KEY, JSON.stringify({ viewMode, cardCols, pageSize }));
+  } catch { /* sem persistência, a escolha vale para esta sessão */ }
+}
+loadViewPrefs();
+
+// `pageSize` 0 significa "todos": a paginação continua a existir (uma página
+// só), em vez de haver dois caminhos diferentes para desenhar a mesma lista.
+function pagedPlayers(teamId) {
+  const list = filteredPlayers(teamId);
+  const size = pageSize || Math.max(list.length, 1);
+  return paginate(list, teamPage.get(teamId) || 1, size);
+}
+
 // Abre os Plantéis diretamente no modo "Planear época" (usado pelo Painel).
 export function openSeasonPlanning() {
   mode = 'avaliacao';
@@ -132,6 +169,25 @@ export function renderPlanteis(container) {
     renderPlanteis(container);
   });
 
+  // Vista, colunas e atletas por página. Mudar qualquer um volta à 1.ª página:
+  // manter a página 3 depois de passar para "Todos" deixava o ecrã vazio.
+  container.querySelector('#pl-view')?.addEventListener('change', (e) => {
+    viewMode = e.target.value === 'lista' ? 'lista' : 'cartoes';
+    saveViewPrefs();
+    renderPlanteis(container);
+  });
+  container.querySelector('#pl-cols')?.addEventListener('change', (e) => {
+    cardCols = e.target.value;
+    saveViewPrefs();
+    renderPlanteis(container);
+  });
+  container.querySelector('#pl-size')?.addEventListener('change', (e) => {
+    pageSize = Number(e.target.value) || 0;
+    teamPage.clear();
+    saveViewPrefs();
+    renderPlanteis(container);
+  });
+
   // Alternar modo (Plantel / Planear época).
   container.querySelectorAll('[data-mode]').forEach((b) =>
     b.addEventListener('click', () => {
@@ -160,7 +216,7 @@ export function renderPlanteis(container) {
 
   // Paginação dos atletas da equipa selecionada (modo plantel).
   if (team) {
-    const pg = paginate(filteredPlayers(team.id), teamPage.get(team.id) || 1, PAGE_SIZE);
+    const pg = pagedPlayers(team.id);
     wirePagination(container, `pl-${team.id}`, pg.page, pg.totalPages, (np) => {
       teamPage.set(team.id, np);
       renderPlanteis(container);
@@ -231,6 +287,28 @@ function filterBarHTML() {
           ${positions().map((p) => `<option value="${esc(p)}" ${positionFilter === p ? 'selected' : ''}>${esc(p)}</option>`).join('')}
         </select>
       </div>
+      <div class="field">
+        <label for="pl-view">Vista</label>
+        <select id="pl-view">
+          <option value="cartoes" ${viewMode === 'cartoes' ? 'selected' : ''}>Cartões</option>
+          <option value="lista" ${viewMode === 'lista' ? 'selected' : ''}>Lista</option>
+        </select>
+      </div>
+      ${viewMode === 'cartoes'
+        ? `<div class="field field--cols">
+             <label for="pl-cols">Colunas</label>
+             <select id="pl-cols" title="Quantos cartões por linha no ecrã grande">
+               <option value="auto" ${cardCols === 'auto' ? 'selected' : ''}>Automático</option>
+               ${['2', '3', '4'].map((n) => `<option value="${n}" ${cardCols === n ? 'selected' : ''}>${n}</option>`).join('')}
+             </select>
+           </div>`
+        : ''}
+      <div class="field">
+        <label for="pl-size">Por página</label>
+        <select id="pl-size">
+          ${PAGE_SIZE_OPTIONS.map((n) => `<option value="${n}" ${pageSize === n ? 'selected' : ''}>${n || 'Todos'}</option>`).join('')}
+        </select>
+      </div>
     </div>
   `;
 }
@@ -270,7 +348,7 @@ function rosterHTML(team, canTeams, canPlayers, canRemovePlayers, filtering) {
   // Quantos atletas ainda não entram na app — o número no botão diz de
   // imediato se há trabalho a fazer, sem abrir o painel de convites.
   const semConta = state.players.filter((p) => p.team_id === team.id && !p.user_id).length;
-  const pg = paginate(players, teamPage.get(team.id) || 1, PAGE_SIZE);
+  const pg = pagedPlayers(team.id);
   const countLabel = filtering
     ? `${players.length} de ${totalInTeam} atleta${totalInTeam === 1 ? '' : 's'}`
     : `${totalInTeam} atleta${totalInTeam === 1 ? '' : 's'}`;
@@ -312,7 +390,9 @@ function rosterHTML(team, canTeams, canPlayers, canRemovePlayers, filtering) {
 
       ${
         players.length
-          ? `<div class="player-cards">${pg.items.map((p) => playerCardHTML(p, team.id, canPlayers, canRemovePlayers)).join('')}</div>
+          ? `${viewMode === 'lista'
+                ? playerListHTML(pg.items, team.id, canPlayers, canRemovePlayers)
+                : `<div class="player-cards"${cardCols === 'auto' ? '' : ` data-cols style="--pc-cols:${esc(cardCols)}"`}>${pg.items.map((p) => playerCardHTML(p, team.id, canPlayers, canRemovePlayers)).join('')}</div>`}
              ${paginationHTML({ ...pg, id: `pl-${team.id}` })}`
           : `<p class="muted" style="margin:0.6rem 0">${filtering ? 'Nenhum atleta corresponde ao filtro.' : 'Sem atletas nesta equipa.'}</p>`
       }
@@ -515,6 +595,70 @@ function playerStatsHTML(p) {
 
 // Cartão de um atleta: clicável (abre o Perfil do Atleta). Nº e posição na cor
 // da posição, avatar de iniciais, e uma linha de indicadores. Ações discretas.
+// Plantel em lista: a mesma informação dos cartões, uma linha por atleta.
+// Vinte atletas em cartões são dois ecrãs de scroll; em lista cabem de uma
+// vez, e é assim que se procura um nome ou se compara comparência.
+function playerListHTML(players, teamId, canPlayers, canRemovePlayers) {
+  const showAttendance = canAccess('presencas');
+  const showQuotas = canAccess('quotas');
+  const actions = canPlayers || canRemovePlayers;
+
+  return `
+    <div class="table-wrap scroll-x player-list">
+      <table>
+        <thead>
+          <tr>
+            <th class="player-list__num">Nº</th>
+            <th>Atleta</th>
+            <th>Posição</th>
+            <th>Idade</th>
+            ${showAttendance ? '<th>Presenças</th>' : ''}
+            ${showQuotas ? '<th>Quotas</th>' : ''}
+            <th>Estado</th>
+            ${actions ? '<th></th>' : ''}
+          </tr>
+        </thead>
+        <tbody>
+          ${players.map((p) => {
+            const age = ageFrom(p.birth_year);
+            const rate = showAttendance ? playerAttendanceStats(p.id).rate : null;
+            const q = showQuotas ? playerQuotas(p.id) : null;
+            const st = playerAvailability(p.id)?.status || 'apto';
+            return `
+              <tr style="--pc:${positionColor(p.position)}">
+                <td class="player-list__num">${p.number ? esc(p.number) : '—'}</td>
+                <td>
+                  <button class="player-list__name" data-player-view="${p.id}" data-team="${teamId}" type="button">
+                    ${esc(p.name)}
+                  </button>
+                </td>
+                <td><span class="pos-tag">${esc(p.position || 'Sem posição')}</span></td>
+                <td>${age != null ? `${age} anos` : '—'}</td>
+                ${showAttendance
+                  ? `<td class="${rate != null && rate < 75 ? 'player-list__warn' : ''}">${rate == null ? '—' : rate + '%'}</td>`
+                  : ''}
+                ${showQuotas
+                  ? `<td class="${q.owedCount ? 'player-list__warn' : ''}">${q.owedCount ? `${q.owedCount} em dívida` : 'Em dia'}</td>`
+                  : ''}
+                <td>
+                  <span class="avail-dot avail-dot--${st}"></span>
+                  ${esc(AVAILABILITY_LABEL[st] || st)}
+                </td>
+                ${actions ? `
+                  <td>
+                    <div class="cell-actions">
+                      ${canPlayers ? `<button class="btn btn--ghost btn--sm" data-team="${teamId}" data-player-edit="${p.id}" type="button">Editar</button>` : ''}
+                      ${canRemovePlayers ? `<button class="btn btn--danger btn--sm" data-player-del="${p.id}" type="button">Arquivar</button>` : ''}
+                    </div>
+                  </td>` : ''}
+              </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
 function playerCardHTML(p, teamId, canPlayers, canRemovePlayers) {
   const initials = (p.name || '?')
     .split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('');

@@ -6712,6 +6712,38 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
   flex-wrap: wrap;
 }
 
+/* Ligação escrita pelo treinador (plano montado noutra app, vídeo do
+   exercício). Chip discreto: o plano é para ler, não para ser uma lista de
+   endereços. */
+.tp-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.4rem;
+  max-width: 100%;
+  padding: 0.2rem 0.55rem 0.2rem 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--accent, #2563eb);
+  text-decoration: none;
+  background: var(--surface, #fff);
+}
+.tp-link:hover {
+  border-color: var(--accent, #2563eb);
+  text-decoration: underline;
+}
+.tp-link__icon {
+  font-size: 0.85rem;
+  line-height: 1;
+}
+.tp-link__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @media (max-width: 640px) {
   .tp-overlay {
     padding: 0;
@@ -6797,4 +6829,67 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
   .tp-modal .modal__actions {
     padding-bottom: max(1rem, env(safe-area-inset-bottom));
   }
+}
+
+/* =========================================================================
+   Plantéis — vista em lista e nº de colunas dos cartões
+   -------------------------------------------------------------------------
+   Os cartões são bons para reconhecer um atleta; a lista é melhor para
+   percorrer vinte de uma vez ou comparar comparência. A escolha é de quem
+   está a olhar (e do tamanho do ecrã), por isso é uma preferência e não uma
+   decisão nossa.
+   ========================================================================= */
+.player-cards[data-cols] {
+  grid-template-columns: repeat(var(--pc-cols, 3), minmax(0, 1fr));
+}
+/* Abaixo dos 700px o número escolhido é ignorado: três colunas num telemóvel
+   não são três colunas, são três cartões ilegíveis. */
+@media (max-width: 700px) {
+  .player-cards[data-cols] {
+    grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
+  }
+  /* Onde o número de colunas é ignorado, o seletor também desaparece: um
+     controlo que não faz nada é pior do que controlo nenhum. */
+  .filter-bar .field--cols {
+    display: none;
+  }
+}
+
+.player-list {
+  margin: 0.6rem 0;
+}
+.player-list table {
+  min-width: 640px;
+}
+.player-list__num {
+  width: 3rem;
+  font-family: var(--font-title);
+  font-weight: 700;
+  color: var(--pc, var(--navy));
+  font-variant-numeric: tabular-nums;
+}
+.player-list__name {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 650;
+  color: var(--navy, #1e3a5f);
+  cursor: pointer;
+  text-align: left;
+}
+.player-list__name:hover {
+  text-decoration: underline;
+}
+.player-list .pos-tag {
+  white-space: nowrap;
+}
+/* O aviso da coluna é o mesmo do cartão (.pstat b.pstat--warn), que está
+   ligado à estrutura do cartão e não serve numa célula de tabela. */
+.player-list__warn {
+  color: var(--danger);
+  font-weight: 600;
+}
+.player-list .avail-dot {
+  margin-right: 0.35rem;
 }

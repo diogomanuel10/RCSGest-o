@@ -11,7 +11,7 @@
 // perde o trabalho de anos.
 
 import { state, createRow, updateRow, deleteRow, dbErrorMessage } from '../store.js';
-import { esc, emptyHTML, paginate, paginationHTML, wirePagination, PAGE_SIZE } from '../ui.js';
+import { esc, emptyHTML, paginate, paginationHTML, wirePagination, safeUrl, linkHost, PAGE_SIZE } from '../ui.js';
 import { openModal, confirmDialog } from '../modal.js';
 import { canEdit } from '../permissions.js';
 import { toastError } from '../toast.js';
@@ -186,6 +186,12 @@ function exerciseCard(ex, canWrite) {
       ${ex.description
         ? `<p class="ex-card__desc">${esc(ex.description)}</p>`
         : ''}
+      ${safeUrl(ex.link_url)
+        ? `<a class="tp-link" href="${esc(safeUrl(ex.link_url))}" target="_blank" rel="noopener noreferrer">
+             <span class="tp-link__icon" aria-hidden="true">↗</span>
+             <span class="tp-link__text">Abrir · ${esc(linkHost(ex.link_url))}</span>
+           </a>`
+        : ''}
     </li>
   `;
 }
@@ -233,6 +239,11 @@ export function exerciseFields() {
       name: 'description', label: 'Descrição / variantes', type: 'textarea', full: true,
       placeholder: 'Desenvolvimento, progressões, simplificações, pontos de atenção…',
     },
+    {
+      name: 'link_url', label: 'Ligação', type: 'text', full: true,
+      placeholder: 'https://…',
+      hint: 'Vídeo ou ficha do exercício noutra app. Vai com ele para o plano de treino.',
+    },
   ];
 }
 
@@ -254,6 +265,7 @@ export function exercisePayload(vals) {
     max_players:  num(vals.max_players),
     material:     vals.material?.trim()     || null,
     description:  vals.description?.trim()  || null,
+    link_url:     safeUrl(vals.link_url),
   };
 }
 
@@ -280,6 +292,9 @@ function openExerciseForm(id) {
     async onSubmit(vals) {
       const payload = exercisePayload(vals);
       if (!payload.name) throw new Error('O nome do exercício é obrigatório.');
+      if (vals.link_url?.trim() && !payload.link_url) {
+        throw new Error('A ligação tem de ser um endereço http:// ou https://.');
+      }
       if (payload.min_players && payload.max_players && payload.min_players > payload.max_players) {
         throw new Error('O mínimo de atletas não pode ser maior do que o máximo.');
       }
