@@ -6497,3 +6497,304 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
   .inv-row { flex-wrap: wrap; }
   .inv-row__actions { width: 100%; justify-content: flex-end; }
 }
+
+/* =========================================================================
+   Plano de treino (modal) — no telemóvel é uma folha de ecrã inteiro
+   -------------------------------------------------------------------------
+   O modal genérico rola por inteiro: num ecrã pequeno o cabeçalho, os
+   separadores e o botão de fechar saíam do ecrã ao primeiro scroll, e a
+   dupla margem (a do .card + a do corpo) deixava o conteúdo com metade da
+   largura. Aqui o cartão é uma coluna: só o corpo rola, e o resto fica.
+   ========================================================================= */
+.tp-modal {
+  width: min(720px, 96vw);
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: 0;
+}
+.tp-modal .modal__head {
+  flex-shrink: 0;
+  margin-bottom: 0.85rem;
+  gap: 0.75rem;
+}
+.tp-head__text {
+  min-width: 0;
+}
+.tp-title {
+  margin: 0;
+  font-size: 1.15rem;
+  overflow-wrap: anywhere;
+}
+.tp-subtitle {
+  margin: 0;
+  font-size: 0.85rem;
+}
+.tp-tabs {
+  flex-shrink: 0;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  margin-bottom: 0;
+  scrollbar-width: none;
+}
+.tp-tabs::-webkit-scrollbar {
+  display: none;
+}
+.tp-tabs .ap-tab {
+  white-space: nowrap;
+}
+.tp-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+.tp-pane {
+  padding: 1rem 0 0.25rem;
+}
+.tp-modal .modal__actions {
+  flex-shrink: 0;
+  margin-top: 0;
+  padding-bottom: 1rem;
+}
+
+/* Totalizador de duração */
+.tp-total {
+  margin-bottom: 1rem;
+  padding: 0.65rem 0.9rem;
+  background: var(--surface-2, var(--surface));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 0.5rem);
+}
+.tp-total__line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+}
+.tp-total__pct {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.tp-total__track {
+  margin-top: 0.45rem;
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.tp-total__fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+/* Cabeçalho do plano (material / objetivo / notas) */
+.tp-planhead {
+  margin-bottom: 1rem;
+  padding: 0.85rem 1rem;
+  background: var(--surface-2, var(--surface));
+}
+.tp-planhead--empty {
+  padding: 0;
+  background: none;
+}
+.tp-planhead p {
+  overflow-wrap: anywhere;
+}
+
+/* Blocos de trabalho */
+.tp-items {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem;
+}
+.tp-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: start;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.tp-item__cat {
+  margin-top: 0.15rem;
+}
+.tp-item__main {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.tp-item__meta {
+  margin: 0.15rem 0 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+.tp-item__desc {
+  margin: 0.15rem 0 0;
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+}
+.tp-item__actions {
+  display: flex;
+  gap: 0.25rem;
+}
+.tp-add {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* Avaliação pós treino */
+.tp-field {
+  margin-bottom: 1.35rem;
+}
+.tp-label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+}
+.tp-stars {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+.tp-stars__label {
+  font-size: 0.9rem;
+  margin-left: 0.35rem;
+}
+.tp-star {
+  background: none;
+  border: none;
+  font-size: 1.4rem;
+  line-height: 1;
+  padding: 0 0.1rem;
+  cursor: pointer;
+}
+.tp-star[disabled] {
+  cursor: default;
+}
+.tp-eval-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0 0 0.75rem;
+}
+.tp-eval-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1.5rem;
+}
+.tp-eval-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.tp-eval-row__name {
+  width: 130px;
+  flex-shrink: 0;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+.tp-eval-row__notes {
+  flex: 1;
+  min-width: 120px;
+}
+.tp-save {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+  .tp-overlay {
+    padding: 0;
+    place-items: stretch;
+  }
+  .tp-modal {
+    width: 100%;
+    max-width: none;
+    height: 100vh;
+    height: 100dvh;
+    max-height: none;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 0.9rem 0.95rem 0;
+  }
+  .tp-modal .modal__head {
+    margin-bottom: 0.65rem;
+    padding-bottom: 0.65rem;
+  }
+  .tp-title {
+    font-size: 1.02rem;
+  }
+  .tp-pane {
+    padding: 0.85rem 0 0.25rem;
+  }
+  .tp-planhead {
+    padding: 0.75rem 0.85rem;
+  }
+  /* Categoria e ações na 1.ª linha; o texto do exercício ocupa a largura toda
+     — a três colunas, o nome ficava num canal de meia dúzia de caracteres. */
+  .tp-item {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.45rem 0.6rem;
+  }
+  .tp-item__cat {
+    grid-column: 1;
+    grid-row: 1;
+    justify-self: start;
+    margin-top: 0;
+  }
+  .tp-item__actions {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .tp-item__main {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .tp-add {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .tp-add .btn {
+    width: 100%;
+  }
+  .tp-star {
+    font-size: 1.6rem;
+    padding: 0.15rem 0.25rem;
+  }
+  /* Nome + estrelas numa linha, a nota por baixo a toda a largura. */
+  .tp-eval-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.35rem 0.5rem;
+  }
+  .tp-eval-row__name {
+    width: auto;
+    font-weight: 600;
+  }
+  .tp-eval-row__stars {
+    justify-self: end;
+  }
+  .tp-eval-row__notes {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-width: 0;
+  }
+  .tp-save .btn {
+    width: 100%;
+  }
+  .tp-modal .modal__actions {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+}
