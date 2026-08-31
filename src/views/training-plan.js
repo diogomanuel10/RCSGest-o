@@ -42,7 +42,7 @@ export function openTrainingPlan(eventId) {
   let activeTab = 'plan';
 
   const overlay = document.createElement('div');
-  overlay.className = 'modal-overlay';
+  overlay.className = 'modal-overlay tp-overlay';
   overlay.innerHTML = buildShell(event);
   document.body.appendChild(overlay);
   document.body.classList.add('no-scroll');
@@ -87,24 +87,23 @@ function buildShell(event) {
     weekday: 'long', day: '2-digit', month: 'long',
   });
   return `
-    <div class="modal card" role="dialog" aria-modal="true" aria-label="Plano de treino"
-         style="width:min(720px,96vw)">
+    <div class="modal card tp-modal" role="dialog" aria-modal="true" aria-label="Plano de treino">
       <div class="modal__head">
-        <div>
-          <h2 class="section-title" style="margin:0">
+        <div class="tp-head__text">
+          <h2 class="section-title tp-title">
             ${esc(team ? teamName(team) : (event.title || 'Treino'))}
           </h2>
-          <p class="muted" style="margin:0;font-size:0.85rem">
+          <p class="muted tp-subtitle">
             ${esc(date)}${range ? ' · ' + esc(range) : ''}
           </p>
         </div>
         <button class="modal__close" type="button" aria-label="Fechar">&times;</button>
       </div>
-      <div class="ap-tabs" role="tablist">
-        <button class="ap-tab ap-tab--active" data-tab="plan" type="button" role="tab">Plano de treino</button>
-        <button class="ap-tab" data-tab="eval" type="button" role="tab">Avaliação pós treino</button>
+      <div class="ap-tabs tp-tabs" role="tablist">
+        <button class="ap-tab ap-tab--active" data-tab="plan" type="button" role="tab">Plano</button>
+        <button class="ap-tab" data-tab="eval" type="button" role="tab">Avaliação</button>
       </div>
-      <div class="ap-body" data-tp-body></div>
+      <div class="tp-body" data-tp-body></div>
       <div class="modal__actions">
         <button class="btn btn--ghost" data-tp-close type="button">Fechar</button>
       </div>
@@ -127,12 +126,12 @@ function paintPlanTab(body, eventId) {
   const canWrite = canEdit('training_plans');
 
   body.innerHTML = `
-    <div style="padding:1rem 1.25rem">
+    <div class="tp-pane">
       ${renderTotalizer(items, event)}
       ${renderPlanHeader(plan, canWrite)}
       ${renderItemList(items, canWrite, canEdit('exercises'))}
       ${canWrite
-        ? `<div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+        ? `<div class="tp-add">
              <button class="btn btn--primary btn--sm" data-add-item type="button">+ Adicionar exercício</button>
              <button class="btn btn--ghost btn--sm" data-from-library type="button">Da biblioteca</button>
            </div>`
@@ -254,19 +253,17 @@ function renderTotalizer(items, event) {
     const over  = planned > treino;
     const near  = pct >= 85;
     const color = over ? 'var(--danger,#ef4444)' : near ? 'var(--gold,#f59e0b)' : 'var(--accent,#3b82f6)';
-    pctLabel = `<span style="font-size:0.8rem;font-weight:600;color:${color}">${pct}%${over ? ' — acima do tempo' : ''}</span>`;
+    pctLabel = `<span class="tp-total__pct" style="color:${color}">${pct}%${over ? ' — acima do tempo' : ''}</span>`;
     barHtml  = `
-      <div style="margin-top:0.45rem;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
-        <div style="height:100%;width:${pct}%;background:${color};border-radius:3px;transition:width .3s"></div>
+      <div class="tp-total__track">
+        <div class="tp-total__fill" style="width:${pct}%;background:${color}"></div>
       </div>`;
   }
 
   return `
-    <div style="margin-bottom:1rem;padding:0.65rem 0.9rem;
-                background:var(--surface-2,var(--surface));border-radius:0.5rem;
-                border:1px solid var(--border)">
-      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.25rem">
-        <span style="font-size:0.85rem">
+    <div class="tp-total">
+      <div class="tp-total__line">
+        <span>
           Total previsto: <strong>${planned} min</strong>
           ${treino ? `<span class="muted"> | Treino: ${treino} min</span>` : ''}
         </span>
@@ -280,7 +277,7 @@ function renderTotalizer(items, event) {
 function renderPlanHeader(plan, canWrite) {
   if (!plan) {
     return canWrite
-      ? `<div style="margin-bottom:1rem">
+      ? `<div class="tp-planhead tp-planhead--empty">
            <p class="muted" style="margin:0 0 0.5rem">Ainda sem plano para este treino.</p>
            <button class="btn btn--ghost btn--sm" data-edit-header type="button">Definir objetivo / notas</button>
          </div>`
@@ -288,7 +285,7 @@ function renderPlanHeader(plan, canWrite) {
   }
   const hasContent = plan.material || plan.objective || plan.notes;
   return `
-    <div class="card" style="padding:0.85rem 1rem;margin-bottom:1rem;background:var(--surface-2,var(--surface))">
+    <div class="card tp-planhead">
       ${plan.material
         ? `<p style="margin:0${(plan.objective || plan.notes) ? ' 0 0.25rem' : ''}">
              <strong>Material:</strong> ${esc(plan.material)}
@@ -315,7 +312,7 @@ function renderItemList(items, canWrite, canLibrary = false) {
     return `<p class="muted" style="margin:0 0 1rem">Sem exercícios no plano.</p>`;
   }
   return `
-    <ul style="list-style:none;padding:0;margin:0 0 1rem">
+    <ul class="tp-items">
       ${items.map((item) => {
         const meta = [
           item.organization ? `Organização: ${esc(item.organization)}` : '',
@@ -323,25 +320,23 @@ function renderItemList(items, canWrite, canLibrary = false) {
           item.reps         ? `Reps: ${esc(item.reps)}`             : '',
         ].filter(Boolean).join(' · ');
         return `
-          <li style="display:flex;align-items:flex-start;gap:0.75rem;padding:0.65rem 0;
-                     border-bottom:1px solid var(--border)">
-            <span class="badge badge--${PLAN_CATEGORY_BADGE[item.category] || 'muted'}"
-                  style="white-space:nowrap;flex-shrink:0;margin-top:0.15rem">
+          <li class="tp-item">
+            <span class="badge badge--${PLAN_CATEGORY_BADGE[item.category] || 'muted'} tp-item__cat">
               ${esc(PLAN_CATEGORY_LABEL[item.category] || item.category)}
             </span>
-            <div style="flex:1;min-width:0">
+            <div class="tp-item__main">
               <strong>${esc(item.name)}</strong>${item.duration_min
                 ? ` <span class="muted">(${item.duration_min} min)</span>`
                 : ''}
               ${meta
-                ? `<p style="margin:0.15rem 0 0;font-size:0.82rem;color:var(--muted-fg,var(--muted))">${meta}</p>`
+                ? `<p class="tp-item__meta">${meta}</p>`
                 : ''}
               ${item.description
-                ? `<p class="muted" style="margin:0.15rem 0 0;font-size:0.85rem;white-space:pre-wrap">${esc(item.description)}</p>`
+                ? `<p class="muted tp-item__desc">${esc(item.description)}</p>`
                 : ''}
             </div>
             ${canWrite ? `
-              <div style="display:flex;gap:0.25rem;flex-shrink:0">
+              <div class="tp-item__actions">
                 ${canLibrary && !item.exercise_id
                   ? `<button class="btn btn--ghost btn--sm" data-save-item="${item.id}" type="button"
                              title="Guardar na biblioteca de exercícios">Guardar</button>`
@@ -460,20 +455,20 @@ function paintEvalTab(body, eventId) {
   });
 
   body.innerHTML = `
-    <div style="padding:1rem 1.25rem">
-      <div style="margin-bottom:1.25rem">
-        <label style="display:block;font-weight:600;margin-bottom:0.4rem">
+    <div class="tp-pane">
+      <div class="tp-field">
+        <label class="tp-label">
           Avaliação geral do treino
         </label>
-        <div style="display:flex;align-items:center;gap:0.35rem" data-overall-stars>
+        <div class="tp-stars" data-overall-stars>
           ${starsHTML(overallRating, canWrite)}
-          <span class="muted" style="font-size:0.9rem;margin-left:0.25rem" data-overall-label>
+          <span class="muted tp-stars__label" data-overall-label>
             ${overallRating ? overallRating + '/5' : 'Não avaliado'}
           </span>
         </div>
       </div>
 
-      <div class="field" style="margin-bottom:1.5rem">
+      <div class="field tp-field">
         <label for="eval-notes">Notas gerais</label>
         <textarea id="eval-notes" rows="3"
                   placeholder="Observações sobre o treino…"
@@ -481,25 +476,24 @@ function paintEvalTab(body, eventId) {
       </div>
 
       ${players.length ? `
-        <h3 style="font-size:0.95rem;margin:0 0 0.75rem;font-weight:600">
+        <h3 class="tp-eval-title">
           Avaliação por atleta
           <span class="muted" style="font-weight:normal;font-size:0.85rem">(opcional)</span>
         </h3>
-        <ul style="list-style:none;padding:0;margin:0 0 1.5rem">
+        <ul class="tp-eval-list">
           ${players.map((p) => {
             const pr = playerRatings[p.id] || 0;
             const pe = existingPE.find((e) => e.player_id === p.id);
             return `
-              <li style="display:flex;align-items:center;gap:0.6rem;padding:0.5rem 0;
-                         border-bottom:1px solid var(--border);flex-wrap:wrap">
-                <span style="width:130px;font-size:0.9rem;flex-shrink:0">${esc(p.name)}</span>
-                <div style="display:flex;gap:0.15rem" data-player-stars="${p.id}">
+              <li class="tp-eval-row">
+                <span class="tp-eval-row__name">${esc(p.name)}</span>
+                <div class="tp-stars tp-eval-row__stars" data-player-stars="${p.id}">
                   ${starsHTML(pr, canWrite)}
                 </div>
                 <input type="text" placeholder="Nota opcional…"
                        value="${esc(pe?.notes || '')}"
                        data-player-notes="${p.id}"
-                       style="flex:1;min-width:120px"
+                       class="tp-eval-row__notes"
                        ${!canWrite ? 'disabled' : ''}>
               </li>
             `;
@@ -508,7 +502,7 @@ function paintEvalTab(body, eventId) {
       ` : '<p class="muted" style="margin:0 0 1.5rem">Nenhum atleta associado a esta equipa.</p>'}
 
       ${canWrite ? `
-        <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+        <div class="tp-save">
           <button class="btn btn--primary" data-save-eval type="button">Guardar avaliação</button>
           <p class="modal__error hidden" role="alert" data-eval-error style="margin:0;flex:1"></p>
         </div>
@@ -588,10 +582,8 @@ function starsHTML(current, canWrite) {
   return [1, 2, 3, 4, 5]
     .map(
       (n) => `
-        <button type="button" data-star="${n}"
-                style="font-size:1.4rem;background:none;border:none;padding:0 0.05rem;
-                       cursor:${canWrite ? 'pointer' : 'default'};
-                       color:${n <= current ? STAR_ON : STAR_OFF}"
+        <button type="button" data-star="${n}" class="tp-star"
+                style="color:${n <= current ? STAR_ON : STAR_OFF}"
                 ${!canWrite ? 'disabled' : ''}
                 aria-label="${n} estrela${n === 1 ? '' : 's'}">★</button>`
     )
