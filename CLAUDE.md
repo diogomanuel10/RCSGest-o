@@ -937,10 +937,28 @@ separador antes de navegar (usado pelos cartões do Painel).
   cheio ficava entre 2.5:1 e 4.2:1 — e um crachá é o estado da quota ou o tipo
   de evento no calendário, ou seja, o dado e não a decoração. Texto usa
   sempre `-ink`; bordas e fundos usam o tom cheio.
-- **Alvos de toque**: o bloco `@media (hover: none)` no `style.css` leva a
-  44px o que se usa com o dedo (marcar presenças, editar/arquivar num cartão,
-  as estrelas da avaliação). No ecrã com rato os mesmos botões ficam
-  compactos.
+- **Alvos de toque**: o bloco `@media (hover: none)` leva a 44px o que se usa
+  com o dedo (marcar presenças, `.btn--sm` de editar/arquivar, separadores,
+  campos de formulário, as estrelas da avaliação). No ecrã com rato os mesmos
+  botões ficam compactos.
+  - **Vive no FIM do `style.css`**, na secção «Responsivo». Esteve a meio do
+    ficheiro e por isso metade dele não fazia nada: uma regra escrita mais
+    abaixo com a mesma especificidade (`.pres-btn`, `.tp-star`) ganhava-lhe, e
+    os alvos ficavam nos 36px de origem. Uma correção que não se aplica é pior
+    do que nenhuma — fica no código a dizer que o problema está resolvido.
+  - **Duas exceções deliberadas**: o `+` da célula do mês fica em 32px (a
+    célula tem 60px de altura e um alvo de 44 tapava-a por inteiro), e a caixa
+    de seleção fica em 22px porque o alvo é a etiqueta à volta, essa sim com
+    44px.
+- **Larguras: `minmax(0, …)` e não `1fr`.** Uma pista `1fr` nunca encolhe
+  abaixo do conteúdo, por isso uma grelha com texto largo lá dentro (a agenda
+  do Dept. Médico, a vista de mês do Calendário) empurrava a página inteira
+  para o lado no telemóvel em vez de apertar a coluna. Pela mesma razão, uma
+  coluna de flex que tenha de encolher precisa de `min-width: 0` nos filhos.
+- **A `.cell-actions` é de tabelas.** Traz `white-space: nowrap`, que numa
+  tabela está certo (a tabela desliza na horizontal) e num cartão ou numa
+  ficha faz a página deslizar. Abaixo dos 820px, uma `.cell-actions` que não
+  seja célula de tabela passa a flex com quebra de linha.
 - As **chaves** guardadas na BD estão em `constants.js`; as **etiquetas**
   visíveis também. Manter alinhadas com `supabase/schema.sql`.
 - Texto de utilizador é sempre passado por `esc()` antes de ir para HTML.
