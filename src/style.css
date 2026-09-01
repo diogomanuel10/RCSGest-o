@@ -1589,42 +1589,9 @@ button.metric--nav:focus-visible {
    atleta — viviam em alvos de 30 a 36px, e a diferença entre 36 e 44 é a
    diferença entre marcar o atleta certo e marcar o de baixo. No portátil
    nada disto se aplica: os mesmos botões ficam compactos. */
-@media (hover: none) {
-  .player-card__actions { opacity: 1; }
-
-  .icon-btn {
-    width: 44px;
-    height: 44px;
-    border-radius: 10px;
-  }
-  /* No rato, as ações aparecem sobre o canto do cartão só ao passar por cima.
-     Ao toque estão sempre visíveis — e a 44px tapavam o nome do atleta, que é
-     a única coisa pela qual se procura um cartão. Descem para o fim do
-     cartão, em fluxo normal, onde não tapam nada. */
-  .player-card {
-    display: flex;
-    flex-direction: column;
-  }
-  .player-card__actions {
-    position: static;
-    justify-content: flex-end;
-    gap: 0.15rem;
-    padding: 0.15rem 0.35rem 0.25rem;
-    border-radius: 0;
-    box-shadow: none;
-    background: none;
-    border-top: 1px dashed var(--border);
-    margin-top: -0.35rem;
-  }
-  .pres-btn {
-    min-height: 44px;
-    padding-inline: 0.85rem;
-  }
-  .tp-star {
-    min-width: 44px;
-    min-height: 44px;
-  }
-}
+/* O bloco vive no FIM do ficheiro (secção «Toque»): aqui, a meio, qualquer
+   regra escrita mais abaixo com a mesma especificidade ganhava-lhe — foi o
+   que aconteceu ao .pres-btn e à .tp-star, que ficavam nos 36px de origem. */
 /* --- Separadores das equipas (escolha de equipa) --- */
 .team-pills {
   display: flex;
@@ -3164,7 +3131,7 @@ button.metric--nav:focus-visible {
 }
 .cal-grid__head {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   background: var(--surface-2);
   border-bottom: 1px solid var(--border);
 }
@@ -3183,7 +3150,7 @@ button.metric--nav:focus-visible {
 }
 .cal-grid__row {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   border-bottom: 1px solid var(--border);
 }
 .cal-grid__row:last-child {
@@ -3718,12 +3685,15 @@ button.metric--nav:focus-visible {
 }
 .med-agenda {
   display: grid;
-  grid-template-columns: 1.4fr 1fr;
+  /* `minmax(0, …)`: com `1fr` puro a pista nunca encolhe abaixo do conteúdo,
+     e a agenda (que tem linhas de evento largas) esticava a coluna para lá do
+     ecrã em vez de a apertar. */
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
   gap: 1rem;
   align-items: start;
 }
 @media (max-width: 820px) {
-  .med-agenda { grid-template-columns: 1fr; }
+  .med-agenda { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* Cabeçalho de secção com ação à direita (ficha clínica e agenda) */
@@ -6979,4 +6949,373 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 }
 .player-list .avail-dot {
   margin-right: 0.35rem;
+}
+
+/* =========================================================================
+   Responsivo — telemóvel e tablet
+   =========================================================================
+   Esta secção vem no FIM do ficheiro de propósito. As regras de baixo são,
+   quase todas, correções de uma regra escrita acima com a mesma
+   especificidade: escritas a meio do ficheiro, perdiam para o que viesse
+   depois — e uma correção que não se aplica é pior do que nenhuma, porque
+   fica no código a dizer que o problema está resolvido.
+   ========================================================================= */
+
+/* --- Calendário: a linha de ações não pode ficar numa linha só ---------- */
+/* Um jogo chega a ter seis botões (plano, convocar, resultado, resumo,
+   editar, arquivar). Com `white-space: nowrap` herdado da .cell-actions das
+   tabelas, essa fila empurrava a página inteira 400px para o lado no
+   telemóvel — a app abria já deslizada e o conteúdo não cabia no ecrã. */
+@media (max-width: 820px) {
+  .event-row .cell-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    white-space: normal;
+    padding-left: 0;
+  }
+  .event-row .cell-actions .btn + .btn {
+    margin-left: 0;
+  }
+}
+
+/* --- Funil de recrutamento: cinco fases não cabem lado a lado ----------- */
+/* O `min-width: 260px` não chegava: cinco segmentos com etiqueta ("Observado",
+   "Negociação") pedem bem mais do que isso e o resumo saía do ecrã. Abaixo
+   dos 700px o funil passa a grelha e as setas desaparecem — a ordem lê-se na
+   mesma, e uma seta a apontar para a linha de baixo não quer dizer nada. */
+@media (max-width: 700px) {
+  .rec-summary {
+    align-items: stretch;
+  }
+  .rec-funnel {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(5.5rem, 1fr));
+    gap: 0.35rem;
+    min-width: 0;
+    width: 100%;
+  }
+  .rec-funnel__arrow {
+    display: none;
+  }
+}
+
+/* --- Listas do Painel: empilhar em vez de espremer ---------------------- */
+/* `.mark-item` e `.today-item` são hora + texto + botão numa linha. No
+   telemóvel o botão ("Marcar presenças") não encolhe e o texto ficava com
+   trinta pixels — o nome da equipa e o "há 12 dias" deixavam de se ler, que
+   é a única informação da linha. */
+@media (max-width: 560px) {
+  .mark-item,
+  .today-item,
+  .noplan-item {
+    flex-wrap: wrap;
+    gap: 0.35rem 0.7rem;
+  }
+  .mark-item__body,
+  .today-item__body,
+  .noplan-item__body {
+    flex: 1 1 100%;
+    min-width: 0;
+    order: 3;
+  }
+  .mark-item .btn,
+  .today-item .btn,
+  .noplan-item .btn {
+    order: 4;
+    flex: 1 1 100%;
+  }
+  .today-item__time,
+  .mark-item__when,
+  .noplan-item__date {
+    width: auto;
+  }
+}
+/* O texto de apoio trunca em vez de esticar a linha (o título já truncava). */
+.mark-item__sub,
+.today-item__meta,
+.noplan-item__body {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.today-item__title {
+  min-width: 0;
+}
+.today-item__title > :not(.badge) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- Cabeçalho do perfil do atleta ------------------------------------- */
+/* Nome + crachás numa linha só: o nome espremia-se até desaparecer. */
+.ap-head {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.ap-head > * {
+  min-width: 0;
+}
+
+/* =========================================================================
+   Toque (telemóvel e tablet): alvos de 44px
+   =========================================================================
+   O que se faz com o dedo tem de ser tocável à primeira: marcar vinte
+   presenças à entrada do pavilhão, arquivar a ficha certa, mudar de
+   separador. Estes controlos viviam entre os 22 e os 38px — e a diferença
+   entre 36 e 44 é a diferença entre tocar no atleta certo e no de baixo.
+   No portátil nada disto se aplica: os mesmos botões ficam compactos. */
+@media (hover: none) {
+  .player-card__actions { opacity: 1; }
+
+  .icon-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+  }
+  /* O botão de ícone dos cartões do kanban nascia a 24px — metade do alvo. */
+  .icon-btn--xs {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+  }
+  /* No rato, as ações aparecem sobre o canto do cartão só ao passar por cima.
+     Ao toque estão sempre visíveis — e a 44px tapavam o nome do atleta, que é
+     a única coisa pela qual se procura um cartão. Descem para o fim do
+     cartão, em fluxo normal, onde não tapam nada. */
+  .player-card {
+    display: flex;
+    flex-direction: column;
+  }
+  .player-card__actions {
+    position: static;
+    justify-content: flex-end;
+    gap: 0.15rem;
+    padding: 0.15rem 0.35rem 0.25rem;
+    border-radius: 0;
+    box-shadow: none;
+    background: none;
+    border-top: 1px dashed var(--border);
+    margin-top: -0.35rem;
+  }
+  .pres-btn {
+    min-height: 44px;
+    padding-inline: 0.85rem;
+  }
+  .tp-star {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Botões: o `--sm` é o que aparece em todas as listas (editar, arquivar,
+     preparar plano) — era o alvo mais usado da app e o mais pequeno. */
+  .btn {
+    min-height: 44px;
+  }
+  .btn--sm {
+    min-height: 44px;
+    padding: 0.4rem 0.8rem;
+  }
+
+  /* Separadores e alternadores: mudar de vista é dos gestos mais repetidos. */
+  .pres-tab,
+  .ap-tab,
+  .cal-toggle__btn,
+  .mode-toggle__btn,
+  .tab-btn {
+    min-height: 44px;
+  }
+  .modal__close {
+    width: 44px;
+    height: 44px;
+  }
+
+  /* Campos de formulário: escrever num campo de 38px falha o toque tanto
+     como um botão, e no telemóvel abaixo de 16px o iOS dá zoom ao focar. */
+  .field input,
+  .field select,
+  .field textarea,
+  .filters select,
+  .filters input,
+  input[type='text'],
+  input[type='number'],
+  input[type='date'],
+  input[type='time'],
+  input[type='search'],
+  input[type='email'],
+  input[type='password'],
+  select {
+    min-height: 44px;
+    font-size: max(16px, 0.95rem);
+  }
+
+  /* Ligações que se comportam como botões (abrir a ficha, abrir o vídeo). */
+  .player-link,
+  .player-list__name,
+  .tp-link {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+}
+
+/* --- Correções finas de largura --------------------------------------- */
+/* Paginação: "Anterior · 1 de 4 · Seguinte" com botões de 44px não cabe numa
+   linha de telemóvel. */
+.pagination {
+  flex-wrap: wrap;
+  gap: 0.5rem 0.9rem;
+}
+
+/* O funil de recrutamento partilha a linha com os chips do resumo. Com
+   `flex: 1` e `min-width: 0` colapsava para 65px em vez de passar à linha
+   seguinte — o `min-width` resolvia o overflow criando outro problema. */
+@media (max-width: 700px) {
+  .rec-funnel {
+    flex: 1 1 100%;
+  }
+}
+
+/* Colunas de flex que não encolhem os filhos: sem isto o rótulo do stat
+   ("PRESENÇAS") ou o título do objetivo saem da caixa em vez de quebrar. */
+.pstat > *,
+.obj-card__heading > * {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+/* Os números do cartão de atleta passam à linha seguinte em vez de espremer. */
+.player-card__stats {
+  flex-wrap: wrap;
+  gap: 0.5rem 0.9rem;
+}
+
+/* O modal encostava aos dois lados do ecrã (96vw não conta a barra de
+   deslize) e transbordava 1px. Uma margem explícita é mais previsível. */
+.modal {
+  width: min(560px, 100% - 1.5rem);
+}
+.modal--confirm {
+  width: min(430px, 100% - 1.5rem);
+}
+.modal--wide {
+  width: min(680px, 100% - 1.5rem);
+}
+
+/* Um crachá de objetivo pode ser mais largo do que o cartão no telemóvel
+   ("Todas as equipas · Taxa de presenças"): aí quebra linha, em vez de sair. */
+.obj-card__tags > * {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* --- Grelha do mês: as células têm de poder encolher -------------------- */
+/* Sete colunas num telemóvel de 360px dão 46px cada. Sem `min-width: 0` a
+   célula ficava com a largura do texto do evento (99px) e a grelha saía
+   460px para fora do ecrã — a vista de mês era inutilizável ao toque. */
+.cal-grid__cell,
+.cal-grid__day-head,
+.cal-grid__events,
+.cal-grid__ev {
+  min-width: 0;
+}
+
+/* --- Fichas clínicas e cabeçalhos com ação à direita -------------------- */
+/* Título + botão numa linha só: no telemóvel o botão ("Novo episódio") não
+   encolhe e o conjunto saía do cartão. */
+@media (max-width: 820px) {
+  .cf-section-head,
+  .cf-episode__head {
+    flex-wrap: wrap;
+  }
+  .cf-section-head > *,
+  .cf-episode__head > * {
+    min-width: 0;
+  }
+  /* O título fica com a linha toda e as ações passam para baixo: a partilhar
+     a linha com quatro botões sobravam-lhe 104px. */
+  .cf-section-head > :first-child,
+  .cf-episode__toggle {
+    flex: 1 1 100%;
+  }
+  /* A `.cell-actions` nasceu para células de tabela (que deslizam na
+     horizontal). Nos cartões e nas fichas, o `white-space: nowrap` que ela
+     traz empurrava a página inteira para o lado. */
+  div.cell-actions,
+  span.cell-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.4rem;
+    white-space: normal;
+  }
+  div.cell-actions .btn + .btn,
+  span.cell-actions .btn + .btn {
+    margin-left: 0;
+  }
+}
+
+/* --- Alvos de toque que faltavam --------------------------------------- */
+@media (hover: none) {
+  .aval-seg__btn,
+  .weekday-pill,
+  .chip__remove {
+    min-height: 44px;
+  }
+  .chip__remove {
+    min-width: 44px;
+  }
+  /* O seletor de cor nativo desenha-se em 13px de altura no Chrome de
+     Android — sem altura explícita é praticamente intocável. */
+  input[type='color'] {
+    min-height: 44px;
+    width: 56px;
+  }
+  /* O "+" da célula do mês é a única forma de criar um evento num dia certo
+     a partir da vista de mês (o detalhe do dia não cria). Fica nos 32px: a
+     célula tem 60px de altura e um alvo de 44 tapava-a por inteiro. */
+  .cal-grid__add {
+    width: 32px;
+    height: 32px;
+    opacity: 1;
+  }
+}
+
+/* --- Título do episódio clínico ---------------------------------------- */
+/* O botão que abre o episódio é crachá + título numa linha: sem permitir a
+   quebra, o diagnóstico ("Tendinopatia rotuliana") saía do cartão. */
+.cf-episode__toggle {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.cf-episode__toggle > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* --- Últimos alvos de toque -------------------------------------------- */
+@media (hover: none) {
+  /* Setas de ordenar e remover dos escalões/posições nas Definições. */
+  .chip__actions button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  /* A caixa de seleção nativa desenha-se em 13px. Cresce, e a etiqueta à
+     volta passa a ser o alvo — é nela que se toca, não no quadrado. */
+  input[type='checkbox'],
+  input[type='radio'] {
+    width: 22px;
+    height: 22px;
+    min-height: 0;
+  }
+  label.coach-check,
+  .check-row,
+  .checkbox-row {
+    min-height: 44px;
+  }
+  /* O par cor + hex tem regra própria mais específica (`.color-field`). */
+  .color-field input[type='color'] {
+    height: 44px;
+    width: 48px;
+  }
 }
