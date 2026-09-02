@@ -692,6 +692,17 @@ separador antes de navegar (usado pelos cartões do Painel).
     com o quiosque QR e o "fechar sessão";
   - **jogo** → respostas + convocatória (convocado / titular / suplente).
 
+  - **O seletor do evento ordena-se pela distância a hoje**, em três grupos
+    (`Hoje` · `Próximos` · `Anteriores`, este do mais recente para trás), e o
+    evento pré-selecionado é o mais perto de agora. Ordenado do mais recente
+    para o mais antigo, à quinta jornada o treino de hoje estava a meio de
+    duzentas linhas e marcar presenças começava por deslizar a lista inteira.
+  - **As estatísticas veem-se por época E por mês** (`monthBarHTML`): a taxa da
+    época é a média de oito meses e esconde precisamente o que há para
+    explicar — em novembro o plantel vinha a 90%, em fevereiro a 55%. A barra
+    de períodos é ao mesmo tempo o filtro e a leitura: cada mês mostra a sua
+    taxa, por ordem cronológica, e clicar recalcula a tabela.
+
   A separação por tipo é deliberada: `attendanceStats` conta TODAS as presenças
   que existirem, por isso marcar presenças em jogos misturaria comparência ao
   treino com participação em jogo — os dois números que o
@@ -955,6 +966,27 @@ separador antes de navegar (usado pelos cartões do Painel).
   do Dept. Médico, a vista de mês do Calendário) empurrava a página inteira
   para o lado no telemóvel em vez de apertar a coluna. Pela mesma razão, uma
   coluna de flex que tenha de encolher precisa de `min-width: 0` nos filhos.
+- **No telemóvel uma tabela não é uma tabela** (`.table--stack` +
+  `stampTableLabels` em `ui.js`): abaixo dos 640px o cabeçalho desaparece e
+  cada linha passa a um cartão de "etiqueta: valor". A saída anterior era
+  sempre `overflow-x`, e deslizar a tabela para o lado tira do ecrã a coluna
+  do nome — para ver as quotas de um atleta perdia-se de vista quem se estava
+  a ver. A etiqueta sai do cabeçalho da coluna, escrita em `data-label` por um
+  **MutationObserver** ligado uma vez no `app-shell` (`initTableLabels`): pô-la
+  à mão em cada `<td>` seriam vinte vistas e vinte sítios para alguém se
+  esquecer, e há tabelas que nascem dentro de modais muito depois do primeiro
+  desenho. Uma tabela que não deva empilhar (matriz de números, colunas fixas)
+  marca-se com `no-stack`; uma sem `<thead>` é ignorada, que não há etiqueta
+  possível.
+- **Listas longas agrupam-se em `<details class="group">`**: utilizadores por
+  papel, convites por estado, contas da plataforma por clube. A pergunta que se
+  faz a estas listas nunca é "quem é o abc@gmail" — é "quem são os meus
+  treinadores", "que convites ainda estão de pé", "quem pertence a este
+  clube". É `<details>` e não JavaScript porque o browser já trata do teclado
+  e do anúncio do estado, e o grupo aberto sobrevive a um redesenho sem estado
+  guardado. Os grupos grandes nascem fechados (o plantel inteiro aberto
+  empurrava tudo o resto para fora do ecrã) e os convites já usados também:
+  são histórico, não trabalho por fazer.
 - **A `.cell-actions` é de tabelas.** Traz `white-space: nowrap`, que numa
   tabela está certo (a tabela desliza na horizontal) e num cartão ou numa
   ficha faz a página deslizar. Abaixo dos 820px, uma `.cell-actions` que não

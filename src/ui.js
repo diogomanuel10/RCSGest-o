@@ -147,6 +147,73 @@ export function paginationHTML({ page, totalPages, total, start, end, id = 'pg' 
   `;
 }
 
+// ---------------------------------------------------------------------------
+// Tabelas no telemóvel
+// ---------------------------------------------------------------------------
+// Uma tabela de sete colunas não cabe num ecrã de 360px, e a saída que a app
+// tinha era sempre a mesma: `overflow-x` e o utilizador a deslizar para o lado
+// para ver a coluna que lhe interessa. Ao lado do polegar isso não é uma
+// tabela, é um puzzle — e quem marca presenças ou confere quotas fá-lo no
+// telemóvel, à porta do pavilhão.
+//
+// Abaixo dos 640px cada linha passa a ser um cartão com "etiqueta: valor" (ver
+// `.table--stack` no style.css). A etiqueta de cada célula é o cabeçalho da sua
+// coluna — e é por isso que isto é JavaScript e não só CSS: o `content` do
+// `::before` tem de sair de um atributo, e escrever `data-label` à mão em cada
+// `<td>` de vinte vistas seria vinte sítios para alguém se esquecer de o pôr.
+//
+// Uma tabela que não deva empilhar (colunas fixas, matriz de números) marca-se
+// com a classe `no-stack`.
+function stampTable(table) {
+  if (table.classList.contains('no-stack') || table.closest('.no-stack')) return;
+  const heads = [...table.querySelectorAll(':scope > thead > tr > th')]
+    .map((th) => th.textContent.trim());
+  // Sem cabeçalho não há etiqueta possível — a tabela fica como está.
+  if (!heads.some(Boolean)) return;
+  table.classList.add('table--stack');
+  table.querySelectorAll(':scope > tbody > tr').forEach((tr) => {
+    let col = 0;
+    [...tr.children].forEach((cell) => {
+      if (cell.tagName === 'TD') {
+        const label = heads[col] || '';
+        // Uma coluna sem título (a das ações) não ganha etiqueta: mostrá-la
+        // vazia deixava um traço solto por cima dos botões.
+        if (label) cell.setAttribute('data-label', label);
+        else cell.removeAttribute('data-label');
+      }
+      col += Number(cell.getAttribute('colspan')) || 1;
+    });
+  });
+}
+
+// Percorre as tabelas de um pedaço do DOM e etiqueta-lhes as células.
+export function stampTableLabels(root = document) {
+  root.querySelectorAll?.('table').forEach(stampTable);
+}
+
+let tableObserver = null;
+
+// As vistas escrevem `innerHTML` e só depois ligam os eventos, e há tabelas que
+// nascem dentro de modais muito depois do primeiro desenho. Em vez de obrigar
+// cada vista a lembrar-se de chamar isto, um observador trata de todas —
+// registado uma só vez, mesmo que o shell seja montado outra vez.
+export function initTableLabels() {
+  stampTableLabels(document);
+  if (tableObserver) return;
+  let queued = false;
+  tableObserver = new MutationObserver(() => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => {
+      queued = false;
+      stampTableLabels(document);
+    });
+  });
+  // Só `childList`: o observador altera atributos das células, e observá-los
+  // punha-o a acordar-se a si próprio em ciclo.
+  tableObserver.observe(document.body, { childList: true, subtree: true });
+}
+
 // Liga os botões de uma barra de paginação. onChange(novaPagina) é chamado.
 export function wirePagination(container, id, page, totalPages, onChange) {
   const nav = container.querySelector(`[data-pagination="${id}"]`);

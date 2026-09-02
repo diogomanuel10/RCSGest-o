@@ -2293,6 +2293,74 @@ button.metric--nav:focus-visible {
   padding-bottom: 0.8rem;
   border-bottom: 1px solid var(--border);
 }
+/* ---------------------------------------------------------------------------
+   Grupos colapsáveis (utilizadores por papel, convites por estado, contas por
+   clube). É um `<details>` e não JavaScript: o browser já trata do abrir/
+   fechar, do teclado e do anúncio do estado a quem usa leitor de ecrã, e o
+   estado sobrevive a um redesenho da vista sem precisar de ser guardado.
+   --------------------------------------------------------------------------- */
+.group {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  margin-bottom: 0.6rem;
+  overflow: hidden;
+}
+.group__head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.65rem 0.9rem;
+  cursor: pointer;
+  background: var(--surface-2);
+  list-style: none;
+  user-select: none;
+}
+.group__head::-webkit-details-marker {
+  display: none;
+}
+/* Seta própria, para o triângulo do browser não variar entre plataformas. */
+.group__head::before {
+  content: '';
+  flex: none;
+  width: 0;
+  height: 0;
+  border-left: 5px solid var(--text-muted);
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  transition: transform 0.15s ease;
+}
+.group[open] > .group__head::before {
+  transform: rotate(90deg);
+}
+.group__head:hover {
+  background: var(--navy-100);
+}
+.group__head:focus-visible {
+  outline: 2px solid var(--navy);
+  outline-offset: -2px;
+}
+.group__title {
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.group__count {
+  margin-left: auto;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.05rem 0.5rem;
+}
+/* Dentro do grupo a tabela já tem a moldura do próprio grupo. */
+.group .table-wrap {
+  border: none;
+  border-radius: 0;
+  border-top: 1px solid var(--border);
+}
+
 .role-select {
   max-width: 200px;
 }
@@ -3077,6 +3145,60 @@ button.metric--nav:focus-visible {
 .stat-bar__fill--warn   { background: var(--warn); }
 .stat-bar__fill--danger { background: var(--danger); }
 .stat-bar__fill--       { background: var(--border); }
+
+/* Barra de períodos das estatísticas: época inteira + um botão por mês. */
+.month-bar {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-top: 0.9rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--border);
+}
+.month-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  padding: 0.4rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.month-chip:hover {
+  border-color: var(--navy-300);
+}
+.month-chip--active {
+  border-color: var(--navy);
+  background: var(--navy-100);
+  box-shadow: inset 0 0 0 1px var(--navy);
+}
+.month-chip__label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.month-chip__pct {
+  font-size: 0.9rem;
+}
+@media (max-width: 640px) {
+  .month-bar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 0.3rem;
+  }
+  .month-chip {
+    flex: 0 0 auto;
+  }
+}
 
 /* =========================================================================
    Calendário — toggle lista/grelha + grelha mensal
@@ -7055,6 +7177,115 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 }
 .ap-head > * {
   min-width: 0;
+}
+
+/* --- Tabelas: no telemóvel cada linha é um cartão ----------------------- */
+/* Sete colunas não cabem em 360px, e a app resolvia isso a deslizar para o
+   lado: para ver as quotas de um atleta era preciso arrastar a tabela e
+   perder de vista o nome de quem se está a ver. Abaixo dos 640px o cabeçalho
+   desaparece e cada célula passa a "etiqueta: valor" — a etiqueta é o título
+   da coluna, escrito em `data-label` por `stampTableLabels` (ui.js).
+   Uma tabela que não deva empilhar marca-se com `no-stack`. */
+@media (max-width: 640px) {
+  .table--stack {
+    display: block;
+    min-width: 0;
+    font-size: 0.9rem;
+  }
+  .table--stack > thead {
+    /* `display: none` esconde-o também dos leitores de ecrã, e é o que se
+       quer: a etiqueta de cada célula passa a estar na própria célula. */
+    display: none;
+  }
+  .table--stack > tbody,
+  .table--stack > tbody > tr,
+  .table--stack > tbody > tr > td {
+    display: block;
+    width: auto;
+  }
+  .table--stack > tbody > tr {
+    padding: 0.65rem 0.85rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .table--stack > tbody > tr:last-child {
+    border-bottom: none;
+  }
+  .table--stack > tbody > tr > td {
+    padding: 0.22rem 0;
+    border: none;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  /* A etiqueta à esquerda, o valor à direita — o olho desce pela coluna das
+     etiquetas como descia pelo cabeçalho. */
+  .table--stack > tbody > tr > td[data-label] {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.9rem;
+  }
+  .table--stack > tbody > tr > td[data-label]::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 700;
+    color: var(--text-muted);
+  }
+  .table--stack > tbody > tr > td[data-label] > * {
+    min-width: 0;
+    text-align: right;
+  }
+  /* A primeira célula identifica a linha — fica em destaque, mas MANTÉM a
+     etiqueta: nem todas as tabelas começam pelo nome (os plantéis começam
+     pelo número, as finanças pela data), e um valor solto no topo do cartão
+     obrigava a adivinhar o que é. */
+  .table--stack > tbody > tr > td:first-child {
+    font-weight: 700;
+    padding-bottom: 0.4rem;
+  }
+  /* A coluna das ações não tem título; os botões ganham a linha toda. */
+  .table--stack > tbody > tr > td:not([data-label]) {
+    padding-top: 0.5rem;
+  }
+  .table--stack .cell-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    white-space: normal;
+    padding-left: 0;
+  }
+  .table--stack .cell-actions .btn + .btn {
+    margin-left: 0;
+  }
+  /* Um seletor espremido contra a etiqueta não se lê nem se toca: o valor
+     fica com a largura que sobra da linha. */
+  .table--stack > tbody > tr > td[data-label] > :last-child {
+    flex: 1 1 auto;
+  }
+  /* Um crachá é do tamanho do seu conteúdo: esticado de margem a margem
+     deixava de se ler como estado e passava a barra colorida. */
+  .table--stack > tbody > tr > td[data-label] > .badge {
+    flex: 0 0 auto;
+  }
+  .table--stack td[data-label] select,
+  .table--stack td[data-label] input:not([type="checkbox"]) {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+  }
+  /* Uma linha "sem resultados" (colspan) não é um cartão de campos. */
+  .table--stack > tbody > tr > td[colspan]:only-child {
+    text-align: center;
+    font-weight: 400;
+  }
+  /* Os contentores deixam de precisar de deslize horizontal. */
+  .table-wrap:has(.table--stack),
+  .scroll-x:has(.table--stack),
+  .stat-table-wrap:has(.table--stack) {
+    overflow-x: visible;
+  }
 }
 
 /* =========================================================================
