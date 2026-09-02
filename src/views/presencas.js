@@ -32,6 +32,8 @@ import { toastError } from '../toast.js';
 let selectedEventId = null;
 let presTab = 'sessao'; // 'sessao' | 'estatisticas'
 let summaryTeamId = '';
+// Período das estatísticas: '' = toda a época, ou 'YYYY-MM' para um mês.
+let summaryMonth = '';
 
 // Pré-seleciona um evento (usado pelos atalhos do Painel e do Calendário —
 // tanto para marcar presenças num treino como para abrir a convocatória de um
@@ -80,8 +82,9 @@ export function renderPresencas(container) {
   }
 
   if (!selectedEventId || !eventos.some((e) => e.id === selectedEventId)) {
-    // Seleciona o evento mais recente por omissão
-    selectedEventId = eventos[0].id;
+    // Por omissão, o evento mais PERTO de agora — não o mais recente da lista.
+    // Numa época inteira, "o mais recente" no fim de agosto é um jogo de maio.
+    selectedEventId = nearestEvent(eventos).id;
   }
 
   const ev = eventos.find((e) => e.id === selectedEventId);
@@ -152,17 +155,7 @@ export function renderPresencas(container) {
         <div style="min-width:260px;flex:1">
           <label for="pres-event">Treino ou jogo</label>
           <select id="pres-event">
-            ${eventos.map((t) => {
-              const dt = eventDateTime(t).toLocaleDateString('pt-PT', {
-                day: '2-digit', month: 'short', year: 'numeric',
-              });
-              const tm = teamById(t.team_id);
-              const range = eventTimeRange(t);
-              const tipo = t.type === 'jogo' ? 'Jogo' : 'Treino';
-              const vs = t.type === 'jogo' && t.opponent ? ' vs ' + t.opponent : '';
-              const label = `${tipo} · ${dt}${range ? ' ' + range : ''}${tm ? ' — ' + teamName(tm) : ''}${vs}${t.title ? ' — ' + t.title : ''}`;
-              return `<option value="${t.id}" ${t.id === selectedEventId ? 'selected' : ''}>${esc(label)}</option>`;
-            }).join('')}
+            ${eventPickerHTML(eventos, selectedEventId)}
           </select>
         </div>
         <div class="presenca-meta muted" style="font-size:0.86rem;align-self:flex-end;padding-bottom:0.1rem">
@@ -310,6 +303,69 @@ export function renderPresencas(container) {
       });
     });
   }
+}
+
+// ---------------------------------------------------------------------------
+// Seletor do evento
+// ---------------------------------------------------------------------------
+// A lista estava ordenada do mais recente para o mais antigo, e à quinta
+// jornada isso quer dizer que o treino de hoje está a meio de duzentas linhas:
+// para marcar as presenças do dia era preciso deslizar a lista inteira. A
+// ordem passa a ser a DISTÂNCIA A HOJE, em três grupos — hoje, o que vem a
+// seguir, e o passado do mais recente para trás. Assim o que se procura em
+// 95% das visitas (hoje, ou o treino de ontem que ficou por fechar) está
+// sempre no topo.
+function eventLabel(ev) {
+  const dt = eventDateTime(ev).toLocaleDateString('pt-PT', {
+    day: '2-digit', month: 'short', year: 'numeric',
+  });
+  const tm = teamById(ev.team_id);
+  const range = eventTimeRange(ev);
+  const tipo = ev.type === 'jogo' ? 'Jogo' : 'Treino';
+  const vs = ev.type === 'jogo' && ev.opponent ? ' vs ' + ev.opponent : '';
+  return `${tipo} · ${dt}${range ? ' ' + range : ''}${tm ? ' — ' + teamName(tm) : ''}${vs}${ev.title ? ' — ' + ev.title : ''}`;
+}
+
+// "YYYY-MM-DD" no fuso do utilizador (o mesmo formato de `events.date`).
+function localDate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// Divide os eventos em hoje / futuros (ascendente) / passados (descendente).
+function eventGroups(eventos) {
+  // Data local e não `toISOString()`: em Portugal, no verão, à meia-noite e
+  // meia o UTC ainda está no dia anterior — e o treino de hoje aparecia em
+  // "Anteriores".
+  const hojeStr = localDate(new Date());
+  const hoje = [];
+  const proximos = [];
+  const anteriores = [];
+  eventos.forEach((e) => {
+    if (e.date === hojeStr) hoje.push(e);
+    else if (e.date > hojeStr) proximos.push(e);
+    else anteriores.push(e);
+  });
+  hoje.sort((a, b) => eventDateTime(a) - eventDateTime(b));
+  proximos.sort((a, b) => eventDateTime(a) - eventDateTime(b));
+  anteriores.sort((a, b) => eventDateTime(b) - eventDateTime(a));
+  return { hoje, proximos, anteriores };
+}
+
+// O evento mais perto de agora, em qualquer direção.
+function nearestEvent(eventos) {
+  const now = Date.now();
+  return eventos.reduce((best, e) =>
+    Math.abs(eventDateTime(e) - now) < Math.abs(eventDateTime(best) - now) ? e : best
+  , eventos[0]);
+}
+
+function eventPickerHTML(eventos, selectedId) {
+  const { hoje, proximos, anteriores } = eventGroups(eventos);
+  const opt = (e) =>
+    `<option value="${e.id}" ${e.id === selectedId ? 'selected' : ''}>${esc(eventLabel(e))}</option>`;
+  const group = (label, list) =>
+    list.length ? `<optgroup label="${esc(label)}">${list.map(opt).join('')}</optgroup>` : '';
+  return group('Hoje', hoje) + group('Próximos', proximos) + group('Anteriores', anteriores);
 }
 
 // Uma linha da convocatória: o atleta, o que ELE respondeu e o estado que o
@@ -657,9 +713,18 @@ function renderSummary(container, tabBar) {
     .sort((a, b) => (Number(a.number) || 999) - (Number(b.number) || 999));
 
   // Treinos passados desta equipa (só esses têm presenças a contar).
-  const trainings = state.events.filter(
+  const allTrainings = state.events.filter(
     (e) => e.type === 'treino' && e.team_id === summaryTeamId && eventDateTime(e) <= new Date()
   );
+
+  // Meses com treinos, do mais recente para o mais antigo.
+  const months = [...new Set(allTrainings.map((t) => (t.date || '').slice(0, 7)).filter(Boolean))]
+    .sort((a, b) => b.localeCompare(a));
+  if (summaryMonth && !months.includes(summaryMonth)) summaryMonth = '';
+
+  const trainings = summaryMonth
+    ? allTrainings.filter((t) => (t.date || '').startsWith(summaryMonth))
+    : allTrainings;
   const totalTrainings = trainings.length;
   const trainingIds = new Set(trainings.map((t) => t.id));
 
@@ -705,17 +770,20 @@ function renderSummary(container, tabBar) {
         <div class="stat-summary">
           <span class="stat-summary__item"><strong>${totalTrainings}</strong> treino${totalTrainings === 1 ? '' : 's'}</span>
           <span class="stat-summary__item"><strong>${players.length}</strong> atleta${players.length === 1 ? '' : 's'}</span>
-          <span class="stat-summary__item">Taxa global
+          <span class="stat-summary__item">${summaryMonth ? 'Taxa do mês' : 'Taxa global'}
             <strong class="stat-pct ${globalPct !== null ? (globalPct >= 70 ? 'stat-pct--ok' : globalPct >= 50 ? 'stat-pct--warn' : 'stat-pct--danger') : ''}">
               ${globalPct !== null ? globalPct + '%' : '—'}
             </strong>
           </span>
         </div>
       </div>
+      ${monthBarHTML(months, allTrainings)}
     </div>
 
     ${!totalTrainings
-      ? `<div class="card">${emptyHTML('Esta equipa ainda não tem treinos passados com presenças.')}</div>`
+      ? `<div class="card">${emptyHTML(summaryMonth
+          ? 'Este mês não tem treinos com presenças registadas.'
+          : 'Esta equipa ainda não tem treinos passados com presenças.')}</div>`
       : !players.length
         ? `<div class="card">${emptyHTML('Sem atletas nesta equipa.')}</div>`
         : `<div class="card">
@@ -745,8 +813,63 @@ function renderSummary(container, tabBar) {
   wireTabs();
   container.querySelector('#sum-team').addEventListener('change', (e) => {
     summaryTeamId = e.target.value;
+    summaryMonth = '';
     renderSummary(container, tabBar);
   });
+  container.querySelectorAll('[data-month]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      summaryMonth = btn.dataset.month;
+      renderSummary(container, tabBar);
+    });
+  });
+}
+
+// Barra de períodos: "Toda a época" + um botão por mês, cada um com a sua taxa
+// de comparência.
+//
+// Não é só um filtro. A taxa da época inteira é uma média de oito meses e
+// esconde exatamente o que interessa explicar a alguém: em novembro o plantel
+// vinha a 90% e em fevereiro a 55%. Ver os meses lado a lado dá a conversa
+// ("o que aconteceu em fevereiro?") que o número único não dá — e é por isso
+// que cada botão mostra a percentagem em vez de ser só o nome do mês.
+function monthBarHTML(months, allTrainings) {
+  if (months.length < 2) return '';
+  const chip = (key, label, pct) => {
+    const cls = pct === null ? '' : pct >= 70 ? 'stat-pct--ok' : pct >= 50 ? 'stat-pct--warn' : 'stat-pct--danger';
+    return `
+      <button type="button" class="month-chip${summaryMonth === key ? ' month-chip--active' : ''}" data-month="${esc(key)}">
+        <span class="month-chip__label">${esc(label)}</span>
+        <span class="month-chip__pct stat-pct ${cls}">${pct !== null ? pct + '%' : '—'}</span>
+      </button>`;
+  };
+  const rate = (list) => {
+    const ids = new Set(list.map((t) => t.id));
+    const atts = state.attendances.filter((a) => ids.has(a.event_id));
+    if (!atts.length) return null;
+    const ok = atts.filter((a) => a.status === 'presente' || a.status === 'atraso').length;
+    return Math.round((ok / atts.length) * 100);
+  };
+  // Do mês mais antigo para o mais recente: lê-se como uma linha do tempo.
+  const cronologico = [...months].reverse();
+  return `
+    <div class="month-bar" role="group" aria-label="Período">
+      ${chip('', 'Toda a época', rate(allTrainings))}
+      ${cronologico.map((m) => chip(
+        m,
+        monthLabel(m),
+        rate(allTrainings.filter((t) => (t.date || '').startsWith(m)))
+      )).join('')}
+    </div>
+  `;
+}
+
+// "2026-02" -> "fev 2026"
+function monthLabel(key) {
+  const [y, m] = key.split('-');
+  const label = new Date(Number(y), Number(m) - 1, 1)
+    .toLocaleDateString('pt-PT', { month: 'short' })
+    .replace('.', '');
+  return `${label} ${y}`;
 }
 
 function statRow({ player, byStatus, pct, semRegisto }) {

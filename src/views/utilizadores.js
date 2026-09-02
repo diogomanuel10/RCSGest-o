@@ -80,10 +80,7 @@ export function renderUtilizadores(container) {
 
       ${
         profiles.length
-          ? `<div class="table-wrap"><table class="users-table">
-              <thead><tr><th>Email</th><th>Papel</th><th>Vínculo</th><th>Acessos</th></tr></thead>
-              <tbody>${profiles.map(userRow).join('')}</tbody>
-            </table></div>`
+          ? usersGroupedHTML(profiles)
           : emptyHTML('Ainda não há outros utilizadores registados.')
       }
       <p class="settings-msg hidden" id="roles-msg"></p>
@@ -145,13 +142,16 @@ export function renderUtilizadores(container) {
         if (role === 'seccionista' && !hadPerms) {
           await updateProfilePermissions(id, [...DEFAULT_SECCIONISTA_SECTIONS]);
         }
-        const updated = state.profiles.find((p) => p.id === id);
-        // Reconstrói o vínculo e os acessos para o novo papel.
-        const linkWrap = container.querySelector(`[data-link-wrap="${id}"]`);
-        if (linkWrap) { linkWrap.innerHTML = linkControl(updated); wireLink(linkWrap); }
-        const accWrap = container.querySelector(`[data-acc-wrap="${id}"]`);
-        if (accWrap) { accWrap.innerHTML = accessControl(updated); wireAccess(accWrap); }
-        showMsg(`Papel atualizado para ${ROLE_LABEL[role]}.`, 'ok');
+        // Redesenha a vista inteira: mudar de papel muda o GRUPO em que a
+        // pessoa aparece, além do vínculo e dos acessos. Corrigir só a linha
+        // deixava um treinador listado debaixo de "Leitura".
+        renderUtilizadores(container);
+        const newMsg = container.querySelector('#roles-msg');
+        if (newMsg) {
+          newMsg.textContent = `Papel atualizado para ${ROLE_LABEL[role]}.`;
+          newMsg.className = 'settings-msg settings-msg--ok';
+        }
+        return;
       } catch (err) {
         e.target.value = previous;
         showMsg(dbErrorMessage(err), 'error');
@@ -251,6 +251,49 @@ export function renderUtilizadores(container) {
       });
     });
   }
+}
+
+// ---------------------------------------------------------------------------
+// Lista de utilizadores, agrupada
+// ---------------------------------------------------------------------------
+// Uma lista corrida de emails ordenada alfabeticamente responde à pergunta
+// errada. Ninguém procura "quem é o abc@gmail"; procura-se "quem são os meus
+// treinadores" ou "quem é que ainda está em Leitura sem acessos nenhuns" — e
+// num clube com trinta contas isso obrigava a ler o papel linha a linha.
+// Os grupos são por papel, colapsáveis (`<details>`), e o rodapé de cada um
+// diz quantas contas tem: o coordenador abre o grupo que lhe interessa e
+// fecha o resto.
+//
+// Os grupos grandes começam fechados de propósito — "Atleta" costuma ser o
+// plantel inteiro, e aberto empurrava tudo o resto para fora do ecrã. No
+// telemóvel a tabela de cada grupo empilha-se em cartões (`.table--stack`).
+const GROUP_OPEN_LIMIT = 12;
+
+function usersGroupedHTML(profiles) {
+  // A ordem dos grupos é a de ROLES (do mais poderoso ao mais restrito) e não
+  // a alfabética: é assim que se lê uma estrutura de clube.
+  const groups = ROLES
+    .map((r) => ({ role: r, list: profiles.filter((p) => p.role === r.key) }))
+    .filter((g) => g.list.length);
+
+  // Papéis desconhecidos (uma migração antiga, um valor à mão na BD) não podem
+  // simplesmente desaparecer da lista.
+  const known = new Set(ROLES.map((r) => r.key));
+  const orfaos = profiles.filter((p) => !known.has(p.role));
+  if (orfaos.length) groups.push({ role: { key: '', label: 'Outros' }, list: orfaos });
+
+  return groups.map((g) => `
+    <details class="group" ${g.list.length <= GROUP_OPEN_LIMIT ? 'open' : ''}>
+      <summary class="group__head">
+        <span class="group__title">${esc(g.role.label)}</span>
+        <span class="group__count">${g.list.length}</span>
+      </summary>
+      <div class="table-wrap"><table class="users-table">
+        <thead><tr><th>Email</th><th>Papel</th><th>Vínculo</th><th>Acessos</th></tr></thead>
+        <tbody>${g.list.map(userRow).join('')}</tbody>
+      </table></div>
+    </details>
+  `).join('');
 }
 
 function userRow(p) {
@@ -381,18 +424,39 @@ function openAccessModal(profile, onSaved) {
   });
 }
 
-// Lista dos convites do clube (pendentes primeiro, com link e ações).
+// Lista dos convites do clube, agrupada pelo ESTADO e não numa lista corrida.
+//
+// Só os pendentes é que ainda dão trabalho — são os únicos com link para
+// copiar e para revogar. Os usados e os expirados são histórico: interessa
+// que existam (para se ver que já se convidou aquela pessoa), não que ocupem
+// o ecrã. Um clube com um ano de convites tinha os três pendentes perdidos no
+// meio de sessenta linhas mortas, por isso só o grupo dos pendentes abre.
+const INVITE_GROUPS = [
+  { key: 'pendente', label: 'Pendentes', open: true },
+  { key: 'usado',    label: 'Usados',    open: false },
+  { key: 'expirado', label: 'Expirados', open: false },
+];
+
 function invitesListHTML() {
   const invites = state.invitations || [];
   if (!invites.length) {
     return '<p class="muted" style="font-size:0.85rem;margin:0.4rem 0 0">Ainda não há convites.</p>';
   }
-  return `
-    <div class="table-wrap"><table class="users-table">
-      <thead><tr><th>Para</th><th>Papel</th><th>Estado</th><th>Ações</th></tr></thead>
-      <tbody>${invites.map(inviteRow).join('')}</tbody>
-    </table></div>
-  `;
+  return INVITE_GROUPS.map((g) => {
+    const list = invites.filter((inv) => inviteState(inv).key === g.key);
+    if (!list.length) return '';
+    return `
+      <details class="group" ${g.open ? 'open' : ''}>
+        <summary class="group__head">
+          <span class="group__title">${g.label}</span>
+          <span class="group__count">${list.length}</span>
+        </summary>
+        <div class="table-wrap"><table class="users-table">
+          <thead><tr><th>Para</th><th>Papel</th><th>Estado</th><th>Ações</th></tr></thead>
+          <tbody>${list.map(inviteRow).join('')}</tbody>
+        </table></div>
+      </details>`;
+  }).join('');
 }
 
 function inviteRow(inv) {
@@ -410,8 +474,10 @@ function inviteRow(inv) {
       <td><span class="badge badge--${st.badge}">${st.label}</span></td>
       <td>
         ${pending ? `
-          <button class="btn btn--ghost btn--sm" data-invite-copy="${esc(inv.token)}" type="button">Copiar link</button>
-          <button class="btn btn--link btn--sm" data-invite-revoke="${esc(inv.id)}" type="button">Revogar</button>
+          <span class="cell-actions">
+            <button class="btn btn--ghost btn--sm" data-invite-copy="${esc(inv.token)}" type="button">Copiar link</button>
+            <button class="btn btn--link btn--sm" data-invite-revoke="${esc(inv.id)}" type="button">Revogar</button>
+          </span>
         ` : '<span class="muted" style="font-size:0.8rem">—</span>'}
       </td>
     </tr>

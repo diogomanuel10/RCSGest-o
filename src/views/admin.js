@@ -290,17 +290,53 @@ function renderAccounts(body, accounts) {
         ${ACCOUNT_FILTERS.map((f) => `<option value="${f.key}" ${f.key === accountFilter ? 'selected' : ''}>${f.label}</option>`).join('')}
       </select>
     </div>
-    ${rows.length ? `
-      <div class="table-wrap"><table class="users-table">
-        <thead><tr>
-          <th>Email</th><th>Clube</th><th>Papel</th><th>Registo</th>
-          <th>Último acesso</th><th>Ações</th>
-        </tr></thead>
-        <tbody>${rows.map(accountRow).join('')}</tbody>
-      </table></div>` : emptyHTML('Nenhuma conta neste filtro.')}
+    ${rows.length ? accountsByClubHTML(rows) : emptyHTML('Nenhuma conta neste filtro.')}
     <p class="settings-msg hidden" id="acc-msg"></p>
   `;
   wireAccounts(body, accounts);
+}
+
+// As contas agrupadas POR CLUBE, em blocos colapsáveis.
+//
+// A pergunta que se faz a esta lista não é "quem é o fulano@gmail" — é "quem
+// são as pessoas deste clube" (antes de o eliminar, ao responder a um pedido
+// de suporte, ao ver se um cliente tem mesmo utilizadores). Numa lista corrida
+// de várias centenas, isso obrigava a ler a coluna "Clube" linha a linha.
+// Os clubes maiores primeiro, e as contas SEM clube ficam num grupo próprio no
+// fim: são o alvo do filtro "sem clube" e não pertencem a lado nenhum.
+function accountsByClubHTML(rows) {
+  const groups = new Map();
+  rows.forEach((a) => {
+    const key = a.org_id || '';
+    if (!groups.has(key)) {
+      groups.set(key, { name: a.org_name || 'Sem clube', semClube: !a.org_id, list: [] });
+    }
+    groups.get(key).list.push(a);
+  });
+
+  const ordered = [...groups.values()].sort((x, y) => {
+    if (x.semClube !== y.semClube) return x.semClube ? 1 : -1;
+    return y.list.length - x.list.length || x.name.localeCompare(y.name);
+  });
+
+  return ordered.map((g) => {
+    const table = `
+      <div class="table-wrap"><table class="users-table">
+        <thead><tr>
+          <th>Email</th><th>Papel</th><th>Registo</th>
+          <th>Último acesso</th><th>Ações</th>
+        </tr></thead>
+        <tbody>${g.list.map(accountRow).join('')}</tbody>
+      </table></div>`;
+    return `
+      <details class="group" ${g.list.length <= 15 ? 'open' : ''}>
+        <summary class="group__head">
+          <span class="group__title">${esc(g.name)}</span>
+          <span class="group__count">${g.list.length}</span>
+        </summary>
+        ${table}
+      </details>`;
+  }).join('');
 }
 
 function accountRow(a) {
@@ -311,7 +347,6 @@ function accountRow(a) {
   return `
     <tr>
       <td style="font-size:0.85rem"><strong>${esc(a.email || '—')}</strong>${tag}</td>
-      <td style="font-size:0.85rem">${a.org_name ? esc(a.org_name) : '<span class="muted">sem clube</span>'}</td>
       <td style="font-size:0.85rem">${esc(a.role || '—')}</td>
       <td style="font-size:0.85rem">${fmtDate(a.created_at)}</td>
       <td style="font-size:0.85rem">${sinceLabel(a.last_sign_in_at)}</td>
