@@ -1,12 +1,13 @@
 // Vista: Plantéis. Equipas agrupadas por género, com lista de atletas
 // expansível e operações de adicionar/editar/remover equipas e atletas.
 
-import { state, createRow, createRows, updateRow, archiveRow, saveTeamCoaches, sendTeamAnnouncement, dbErrorMessage } from '../store.js';
+import { state, subscribe, createRow, createRows, updateRow, archiveRow, saveTeamCoaches, sendTeamAnnouncement, dbErrorMessage } from '../store.js';
 import { esc, emptyHTML, paginate, paginationHTML, wirePagination, wireEmptyAction, PAGE_SIZE } from '../ui.js';
 import {
   teamName, teamCoaches, escaloes, currentCoach, coachTeams, positions,
   playerAttendanceStats, playerAvailability, playerQuotas,
   escalaoColor, positionColor,
+  playerAge, upcomingBirthdays, birthdayCalendar, playersWithoutBirthday, birthDateReady,
 } from '../compute.js';
 import { openModal, confirmDialog, wireDialog } from '../modal.js';
 import { toastError, toastOk } from '../toast.js';
@@ -77,12 +78,12 @@ function escalaoBadge(esc) {
   return digits ? letter + digits : s.slice(0, 3).toUpperCase();
 }
 
-// Idade a partir do ano de nascimento (só se for um ano plausível).
-function ageFrom(birthYear) {
-  const y = Number(birthYear);
-  if (!y || y < 1900 || y > 2100) return null;
-  const a = new Date().getFullYear() - y;
-  return a >= 0 && a < 120 ? a : null;
+// Idade a mostrar na lista e no cartão. Com data de nascimento é a idade
+// real; só com o ano é a idade do ano civil — daí o "~", que diz que o número
+// é aproximado em vez de o fazer passar por exato.
+function ageLabel(p) {
+  const a = playerAge(p);
+  return a ? `${a.exact ? '' : '~'}${a.age} anos` : null;
 }
 
 // Equipas visíveis ao utilizador atual. O coordenador vê todas; o treinador
@@ -254,6 +255,9 @@ export function renderPlanteis(container) {
   container.querySelectorAll('[data-invite-team]').forEach((b) =>
     b.addEventListener('click', () => openPortalInvites(b.dataset.inviteTeam))
   );
+  container.querySelectorAll('[data-birthdays]').forEach((b) =>
+    b.addEventListener('click', () => openBirthdays(b.dataset.birthdays))
+  );
   container.querySelectorAll('[data-announce]').forEach((b) =>
     b.addEventListener('click', () => openAnnounceForm(b.dataset.announce))
   );
@@ -358,6 +362,11 @@ function rosterHTML(team, canTeams, canPlayers, canRemovePlayers, filtering) {
   // Quantos atletas ainda não entram na app — o número no botão diz de
   // imediato se há trabalho a fazer, sem abrir o painel de convites.
   const semConta = state.players.filter((p) => p.team_id === team.id && !p.user_id).length;
+  // Quantas fichas ainda não têm data de nascimento. O número no botão é o
+  // que transforma "aniversários" numa lista de trabalho: sem ele, uma lista
+  // curta tanto pode ser um mês calmo como metade do plantel por preencher.
+  const showBirthdays = birthDateReady();
+  const semData = showBirthdays ? playersWithoutBirthday(team.id).length : 0;
   const pg = pagedPlayers(team.id);
   const countLabel = filtering
     ? `${players.length} de ${totalInTeam} atleta${totalInTeam === 1 ? '' : 's'}`
@@ -373,14 +382,19 @@ function rosterHTML(team, canTeams, canPlayers, canRemovePlayers, filtering) {
             <span class="muted roster__count">${countLabel}</span>
           </div>
         </div>
-        ${
-          canTeams
-            ? `<div class="cell-actions">
-                 <button class="btn btn--ghost btn--sm" data-team-edit="${team.id}" type="button">Editar equipa</button>
-                 <button class="btn btn--danger btn--sm" data-team-del="${team.id}" type="button">Remover</button>
-               </div>`
-            : ''
-        }
+        <div class="cell-actions">
+          ${showBirthdays
+            ? `<button class="btn btn--ghost btn--sm" data-birthdays="${team.id}" type="button">
+                 Aniversários${semData ? ` (${semData} sem data)` : ''}
+               </button>`
+            : ''}
+          ${
+            canTeams
+              ? `<button class="btn btn--ghost btn--sm" data-team-edit="${team.id}" type="button">Editar equipa</button>
+                 <button class="btn btn--danger btn--sm" data-team-del="${team.id}" type="button">Remover</button>`
+              : ''
+          }
+        </div>
       </div>
 
       ${
@@ -618,7 +632,7 @@ function playerListHTML(players, teamId, canPlayers, canRemovePlayers) {
         </thead>
         <tbody>
           ${players.map((p) => {
-            const age = ageFrom(p.birth_year);
+            const age = ageLabel(p);
             const rate = showAttendance ? playerAttendanceStats(p.id).rate : null;
             const q = showQuotas ? playerQuotas(p.id) : null;
             const st = playerAvailability(p.id)?.status || 'apto';
@@ -631,7 +645,7 @@ function playerListHTML(players, teamId, canPlayers, canRemovePlayers) {
                   </button>
                 </td>
                 <td><span class="pos-tag">${esc(p.position || 'Sem posição')}</span></td>
-                <td>${age != null ? `${age} anos` : '—'}</td>
+                <td>${age || '—'}</td>
                 ${showAttendance
                   ? `<td class="${rate != null && rate < 75 ? 'player-list__warn' : ''}">${rate == null ? '—' : rate + '%'}</td>`
                   : ''}
@@ -661,7 +675,7 @@ function playerCardHTML(p, teamId, canPlayers, canRemovePlayers) {
   const initials = (p.name || '?')
     .split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
   const color = positionColor(p.position);
-  const age = ageFrom(p.birth_year);
+  const age = ageLabel(p);
   return `
     <article class="player-card" style="--pc:${color}">
       <button class="player-card__main" data-player-view="${p.id}" data-team="${teamId}" type="button">
@@ -672,7 +686,7 @@ function playerCardHTML(p, teamId, canPlayers, canRemovePlayers) {
             <span class="player-card__name">${esc(p.name)}</span>
             <span class="player-card__tags">
               <span class="pos-tag">${esc(p.position || 'Sem posição')}</span>
-              ${age != null ? `<span class="player-card__age">${age} anos</span>` : ''}
+              ${age ? `<span class="player-card__age">${esc(age)}</span>` : ''}
             </span>
           </span>
         </span>
@@ -704,6 +718,14 @@ function openPlayerForm(teamId, playerId) {
     fields: [
       { name: 'name', label: 'Nome', required: true, full: true },
       { name: 'number', label: 'Número' },
+      ...(birthDateReady()
+        ? [{
+            name: 'birth_date',
+            label: 'Data de nascimento',
+            type: 'date',
+            hint: 'Preenche o ano sozinho. Deixa vazio se só souberes o ano.',
+          }]
+        : []),
       { name: 'birth_year', label: 'Ano de nascimento', placeholder: 'ex.: 2008' },
       {
         name: 'position',
@@ -722,7 +744,13 @@ function openPlayerForm(teamId, playerId) {
         team_id: teamId,
         name: values.name.trim(),
         number: values.number?.trim() || null,
-        birth_year: values.birth_year?.trim() || null,
+        ...(birthDateReady() ? { birth_date: values.birth_date || null } : {}),
+        // Com data completa, o ano é derivado dela: são a mesma informação e
+        // o ano é o que o escalão usa. Deixar os dois à mão acabava numa
+        // ficha a dizer 2008 no ano e 2009 na data.
+        birth_year: values.birth_date
+          ? values.birth_date.slice(0, 4)
+          : values.birth_year?.trim() || null,
         position: values.position || null,
         federation_number: values.federation_number?.trim() || null,
         guardian_contact: values.guardian_contact?.trim() || null,
@@ -874,4 +902,138 @@ async function removePlayer(id, container) {
   } catch (err) {
     alert(dbErrorMessage(err));
   }
+}
+
+// --- Aniversários ---------------------------------------------------------
+// Quem faz anos e quem ainda não tem data preenchida, no mesmo sítio. São as
+// duas metades da mesma pergunta: uma lista de aniversários sem a contagem do
+// que falta preencher parece completa mesmo quando é meia dúzia de fichas de
+// vinte — e ninguém desconfia do que não vê.
+const BIRTHDAY_WINDOW = 60; // dias mostrados em "A seguir"
+
+function dayMonth(date) {
+  return date.toLocaleDateString('pt-PT', { day: '2-digit', month: 'long' });
+}
+
+// "Hoje" / "Amanhã" / "em 12 dias": a distância diz mais do que a data quando
+// a pergunta é "tenho de me lembrar disto esta semana?".
+function whenLabel(days) {
+  if (days === 0) return 'Hoje';
+  if (days === 1) return 'Amanhã';
+  return `em ${days} dias`;
+}
+
+function birthdayRowHTML(b, { showTeam }) {
+  const cls = b.days === 0 ? ' birthday-row--today' : '';
+  return `
+    <li class="birthday-row${cls}">
+      <button class="birthday-row__name" data-bd-player="${b.player.id}" type="button">${esc(b.player.name)}</button>
+      <span class="muted birthday-row__meta">
+        ${esc(dayMonth(b.date))}${showTeam && b.team ? ` · ${esc(teamName(b.team))}` : ''}
+      </span>
+      <span class="badge badge--${b.days === 0 ? 'ok' : 'muted'}">${esc(whenLabel(b.days))} · faz ${b.turning}</span>
+    </li>`;
+}
+
+function missingRowHTML(p, { showTeam, canPlayers }) {
+  const team = state.teams.find((t) => t.id === p.team_id);
+  return `
+    <li class="birthday-row birthday-row--missing">
+      <button class="birthday-row__name" data-bd-player="${p.id}" type="button">${esc(p.name)}</button>
+      <span class="muted birthday-row__meta">
+        ${p.birth_year ? `nasceu em ${esc(p.birth_year)} — falta o dia` : 'sem data nem ano'}${showTeam && team ? ` · ${esc(teamName(team))}` : ''}
+      </span>
+      ${canPlayers
+        ? `<button class="btn btn--ghost btn--sm" data-bd-edit="${p.id}" data-team="${p.team_id}" type="button">Preencher</button>`
+        : ''}
+    </li>`;
+}
+
+function openBirthdays(teamId) {
+  const canPlayers = canEdit('players');
+  let scope = 'equipa'; // 'equipa' | 'todas'
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal card" role="dialog" aria-modal="true" aria-labelledby="bd-title" style="width:min(620px,96vw)">
+      <div class="modal__head">
+        <h2 class="section-title" id="bd-title">Aniversários</h2>
+        <button class="modal__close" type="button" aria-label="Fechar">&times;</button>
+      </div>
+      <div class="mode-toggle" role="group" aria-label="Âmbito" id="bd-scope">
+        <button class="mode-toggle__btn is-active" data-scope="equipa" type="button" aria-pressed="true">Esta equipa</button>
+        <button class="mode-toggle__btn" data-scope="todas" type="button" aria-pressed="false">Todas as equipas</button>
+      </div>
+      <div id="bd-body"></div>
+      <div class="modal__actions">
+        <button class="btn btn--ghost" id="bd-close" type="button">Fechar</button>
+      </div>
+    </div>
+  `;
+  // Preencher uma data a partir daqui tem de se ver aqui: sem isto, o
+  // formulário gravava, a lista por baixo atualizava-se e o diálogo aberto
+  // continuava a pedir a data que o utilizador acabou de escrever.
+  const unsubscribe = subscribe(() => paint());
+  const close = wireDialog(overlay, { initialFocus: '#bd-close', onClose: unsubscribe });
+  overlay.querySelector('#bd-close').addEventListener('click', close);
+
+  function paint() {
+    const only = scope === 'equipa' ? teamId : null;
+    const showTeam = scope === 'todas';
+    const proximos = upcomingBirthdays(BIRTHDAY_WINDOW, only);
+    const semData = playersWithoutBirthday(only);
+    const todos = birthdayCalendar(only);
+    const body = overlay.querySelector('#bd-body');
+
+    body.innerHTML = `
+      <section class="pd-section">
+        <span class="pd-label">Nos próximos ${BIRTHDAY_WINDOW} dias</span>
+        ${proximos.length
+          ? `<ul class="birthday-list">${proximos.map((b) => birthdayRowHTML(b, { showTeam })).join('')}</ul>`
+          : `<p class="muted" style="margin:0.3rem 0">${todos.length
+              ? 'Ninguém faz anos nos próximos dois meses.'
+              : 'Ainda não há datas de nascimento preenchidas.'}</p>`}
+      </section>
+
+      ${semData.length
+        ? `<section class="pd-section">
+             <span class="pd-label">Sem data de nascimento (${semData.length})</span>
+             <ul class="birthday-list">${semData.map((p) => missingRowHTML(p, { showTeam, canPlayers })).join('')}</ul>
+           </section>`
+        : `<p class="muted" style="margin:0.6rem 0 0">Todas as fichas têm data de nascimento. ✓</p>`}
+
+      ${todos.length
+        ? `<details class="group">
+             <summary class="group__head">
+               <span class="group__title">Todos por ordem do calendário</span>
+               <span class="group__count">${todos.length}</span>
+             </summary>
+             <ul class="birthday-list birthday-list--grouped">${todos.map((b) => birthdayRowHTML(b, { showTeam })).join('')}</ul>
+           </details>`
+        : ''}
+    `;
+
+    body.querySelectorAll('[data-bd-player]').forEach((b) =>
+      b.addEventListener('click', () => openAthleteProfile(b.dataset.bdPlayer))
+    );
+    body.querySelectorAll('[data-bd-edit]').forEach((b) =>
+      b.addEventListener('click', () => openPlayerForm(b.dataset.team, b.dataset.bdEdit))
+    );
+  }
+
+  overlay.querySelectorAll('[data-scope]').forEach((b) =>
+    b.addEventListener('click', () => {
+      if (scope === b.dataset.scope) return;
+      scope = b.dataset.scope;
+      overlay.querySelectorAll('[data-scope]').forEach((x) => {
+        const on = x.dataset.scope === scope;
+        x.classList.toggle('is-active', on);
+        x.setAttribute('aria-pressed', String(on));
+      });
+      paint();
+    })
+  );
+
+  paint();
 }

@@ -37,6 +37,9 @@ import {
   trainingsWithoutPlan,
   gamesWithoutResult,
   myUnavailablePlayers,
+  upcomingBirthdays,
+  playersWithoutBirthday,
+  birthDateReady,
 } from '../compute.js';
 import {
   EVENT_TYPE_LABEL,
@@ -552,6 +555,8 @@ export const ALERT_CATALOG = [
   { key: 'avaliacoes',      label: 'Avaliações de atleta por decidir', can: () => canEdit('players') },
   { key: 'documentos',      label: 'Documentos a expirar',           can: () => canEdit('documents') },
   { key: 'presencas',       label: 'Presenças por marcar',           can: () => canEdit('attendances') },
+  { key: 'aniversarios',    label: 'Aniversários esta semana',       can: () => canAccess('planteis') },
+  { key: 'aniversarios_falta', label: 'Datas de nascimento por preencher', can: () => canEdit('players') },
 ];
 
 // Catálogo dos INDICADORES (os cartões de números no topo). Mesma regra dos
@@ -684,6 +689,38 @@ function buildActions() {
           : `De ${d.anterior}% para ${d.recente}% nos últimos ${d.treinosRecentes} treinos${equipa}.`,
       });
     });
+  }
+
+  // Aniversários da semana. É o aviso mais barato de todos — chega a tempo de
+  // alguém dizer os parabéns no treino, que é a única altura em que isto vale
+  // alguma coisa. Um aniversário que se soube no dia seguinte não se recupera.
+  if (canAccess('planteis') && alertOn('aniversarios') && birthDateReady()) {
+    upcomingBirthdays(7).slice(0, 5).forEach((b) => {
+      const equipa = b.team ? ' — ' + teamName(b.team) : '';
+      items.push({
+        variant: b.days === 0 ? 'ok' : 'info',
+        route: 'planteis',
+        title: b.days === 0
+          ? `${b.player.name} faz ${b.turning} anos hoje 🎂`
+          : `${b.player.name} faz ${b.turning} anos ${b.days === 1 ? 'amanhã' : `daqui a ${b.days} dias`}`,
+        sub: `${b.date.toLocaleDateString('pt-PT', { weekday: 'long', day: '2-digit', month: 'long' })}${equipa}.`,
+      });
+    });
+  }
+
+  // As datas por preencher andam com os aniversários de propósito: uma lista
+  // de aniversários curta tanto pode ser um mês calmo como metade do plantel
+  // sem data, e só este aviso distingue as duas coisas.
+  if (canEdit('players') && alertOn('aniversarios_falta') && birthDateReady()) {
+    const semData = playersWithoutBirthday();
+    if (semData.length && state.players.length) {
+      items.push({
+        variant: 'info',
+        route: 'planteis',
+        title: `${semData.length} atleta${semData.length === 1 ? '' : 's'} sem data de nascimento`,
+        sub: 'Sem a data não há aniversário — preencher nos Plantéis, em "Aniversários".',
+      });
+    }
   }
 
   if (canEdit('players') && alertOn('avaliacoes')) {

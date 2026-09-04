@@ -84,7 +84,10 @@ function identificacao(player, team) {
       ${item('Nome', player.name)}
       ${item('Número', player.number || '')}
       ${item('Posição', player.position || '')}
-      ${item('Ano de nascimento', player.birth_year || '')}
+      ${item('Data de nascimento', player.birth_date
+        ? new Date(player.birth_date + 'T00:00:00').toLocaleDateString('pt-PT',
+            { day: '2-digit', month: '2-digit', year: 'numeric' })
+        : player.birth_year || '')}
       ${item('Equipa', team ? teamName(team) : '')}
       ${item('Treinador', coaches.map((c) => c.coach?.name).filter(Boolean).join(', '))}
       ${item('Disponibilidade', AVAILABILITY_LABEL[status] || status)}

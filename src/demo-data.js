@@ -61,13 +61,24 @@ function makeRandom(seed = 20260818) {
 // Um plantel: nomes, números e posições da modalidade do clube.
 function buildSquad(teamId, nomes, n, rnd) {
   const pos = positions();
-  return nomes.slice(0, n).map((name, i) => ({
-    team_id: teamId,
-    name,
-    number: String(i + 1),
-    birth_year: String(2008 + Math.floor(rnd() * 3)),
-    position: pos.length ? pos[i % pos.length] : null,
-  }));
+  return nomes.slice(0, n).map((name, i) => {
+    const ano = 2008 + Math.floor(rnd() * 3);
+    // Duas fichas de cada plantel ficam SEM data: um clube de exemplo onde
+    // está tudo preenchido não mostra o aviso das datas em falta — e é esse
+    // aviso que explica para que serve a lista de aniversários.
+    const mes = 1 + Math.floor(rnd() * 12);
+    const dia = 1 + Math.floor(rnd() * 28);
+    const semData = i % 7 === 3;
+    const pad = (v) => String(v).padStart(2, '0');
+    return {
+      team_id: teamId,
+      name,
+      number: String(i + 1),
+      birth_date: semData ? null : `${ano}-${pad(mes)}-${pad(dia)}`,
+      birth_year: String(ano),
+      position: pos.length ? pos[i % pos.length] : null,
+    };
+  });
 }
 
 // --- Semear ---------------------------------------------------------------
@@ -115,10 +126,21 @@ export async function seedDemoData() {
   ]);
 
   // 2. Plantéis.
-  const players = await ins('players', [
+  // A data de nascimento chega por migração (`supabase/aniversarios.sql`). Num
+  // clube que ainda não a tenha corrido, insistir nela rebentava o exemplo
+  // inteiro — o exemplo é a primeira coisa que alguém vê da app, e vale mais
+  // sem aniversários do que sem clube nenhum.
+  const squads = [
     ...buildSquad(teams[0].id, NOMES_F, 11, rnd),
     ...buildSquad(teams[1].id, NOMES_M, 10, rnd),
-  ]);
+  ];
+  let players;
+  try {
+    players = await ins('players', squads);
+  } catch (err) {
+    if (!String(err?.message || '').includes('birth_date')) throw err;
+    players = await ins('players', squads.map(({ birth_date, ...rest }) => rest));
+  }
   const byTeam = (teamId) => players.filter((p) => p.team_id === teamId);
 
   // 3. Calendário: quatro semanas passadas de treinos (2/semana por equipa),

@@ -177,6 +177,7 @@ src/
 supabase/schema.sql     Tabelas, índices, RLS e dados iniciais (correr no Supabase)
 supabase/qrcode-presencas.sql  Presenças por QR: token do atleta + RPCs de check-in
 supabase/convites-massa.sql    Convites de atleta em lote (RPC create_invitations_bulk)
+supabase/aniversarios.sql      Data de nascimento do atleta (aniversários + quem falta)
 supabase/portal-atleta.sql     Portal: o atleta lê a sua própria disponibilidade
 supabase/comunicacao.sql       Respostas do atleta a eventos + avisos do clube
 supabase/resultados.sql        Resultado dos jogos (final + parciais) e pontos jogados
@@ -419,6 +420,34 @@ separador antes de navegar (usado pelos cartões do Painel).
   recrutamentos (que ainda pode editar). A vista `arquivados.js` (só
   coordenador) lista os inativos e permite repô-los. Converter um prospeto em
   atleta também o arquiva (`status='inscrito'`), preservando o funil.
+- **Aniversários** (`supabase/aniversarios.sql`): a ficha só guardava o ANO de
+  nascimento — chega para o escalão e para a idade aproximada, mas não diz
+  quando é o aniversário, que é a única coisa que se faz com esta data no dia a
+  dia de um clube de formação. `players.birth_date` é a data completa.
+  - **O ano NÃO é apagado.** É o que está preenchido em todas as fichas
+    existentes e continua a servir quem só sabe o ano (uma importação antiga,
+    um atleta que chegou a meio da época). `playerAge()` usa a data quando
+    existe e recorre ao ano quando não existe — e a idade vinda só do ano
+    aparece com "~", porque é a idade do ano civil e não a real.
+  - **De um ano não se inventa um dia**: nada é preenchido por retroação. Uma
+    data adivinhada dá os parabéns na altura errada, o que é pior do que não
+    dar. Por isso há sempre DUAS listas — os aniversários e quem falta
+    preencher (`playersWithoutBirthday`). Uma lista de aniversários curta tanto
+    pode ser um mês calmo como metade do plantel sem data, e só a segunda lista
+    distingue as duas coisas: vivem no mesmo diálogo (Plantéis →
+    "Aniversários", com o número em falta no próprio botão) e são dois avisos
+    do Painel (`aniversarios`, `aniversarios_falta`).
+  - **As duas colunas não podem divergir**: com data completa, o ano é derivado
+    dela (no formulário, na importação `.xlsx` e num trigger na base de dados).
+    O escalão é calculado pelo ano — uma ficha a dizer 2008 no ano e 2009 na
+    data decidia o escalão pelo campo errado.
+  - **A app só oferece o campo depois da migração** (`birthDateReady()`, na
+    linha do `'qr_checkin_enabled' in state.settings`): sem a coluna, gravar a
+    data rebentava a ficha inteira. Pela mesma razão, o clube de exemplo
+    reinsere os atletas sem a data se ela ainda não existir — vale mais um
+    exemplo sem aniversários do que nenhum clube.
+  - **Quem vê o quê**: a mesma regra de `myTeams()` — o treinador vê os
+    aniversários das SUAS equipas, os papéis de âmbito de clube veem todos.
 - **Total angariado** = soma do valor do nível dos patrocínios com
   `status = 'confirmado'` (Ouro 3000 / Prata 1500 / Bronze 500).
 - **Confirmar exige nível**: validado em `patrocinios.js` no `onSubmit`.

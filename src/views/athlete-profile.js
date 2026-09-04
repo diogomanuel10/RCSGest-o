@@ -27,6 +27,8 @@ import {
   playerTests,
   playerGameShare,
   sport,
+  playerAge,
+  nextBirthday,
 } from '../compute.js';
 import {
   REVIEW_LABEL,
@@ -43,6 +45,24 @@ import { canAccess, canEdit, canManageUsers } from '../permissions.js';
 import { renderClinicalInto } from './clinical-file.js';
 import { renderPhysicalInto } from './physical-file.js';
 import { renderDocumentsInto } from './documents-section.js';
+
+// Nascimento na ficha: a data completa quando existe (com a idade e o próximo
+// aniversário), e o ano quando é só o que se sabe. Não se escreve "—" para
+// uma coisa que alguém tem de ir preencher: mostra-se o que falta.
+function birthLine(player) {
+  const idade = playerAge(player);
+  const next = nextBirthday(player);
+  if (player.birth_date) {
+    const quando = next?.days === 0
+      ? ' · faz anos hoje 🎂'
+      : next && next.days <= 30
+        ? ` · faz ${next.turning} em ${next.days} dia${next.days === 1 ? '' : 's'}`
+        : '';
+    return `${fmtDate(player.birth_date)}${idade ? ` · ${idade.age} anos` : ''}${quando}`;
+  }
+  if (player.birth_year) return `${player.birth_year} (falta o dia)`;
+  return '';
+}
 
 const fmtDate = (d) =>
   d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-PT', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
@@ -176,7 +196,7 @@ function renderGeral(container, playerId, _opts = {}) {
     ${av?.limitations ? `<div class="pd-notes"><span class="pd-label">Limitações ao treino</span><p>${esc(av.limitations)}</p></div>` : ''}
 
     <div class="pd-grid">
-      ${dataItem('Ano de nascimento', player.birth_year)}
+      ${dataItem('Nascimento', birthLine(player))}
       ${dataItem('Nº de federado', player.federation_number)}
       ${dataItem('Contacto do encarregado', player.guardian_contact)}
       ${dataItem('Posição', player.position)}

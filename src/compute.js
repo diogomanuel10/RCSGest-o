@@ -103,6 +103,115 @@ export function expiringDocuments(days = docAlertDays()) {
   return out;
 }
 
+// --- Aniversários ---------------------------------------------------------
+// A ficha guarda `birth_date` (data completa) e `birth_year` (só o ano — o que
+// existia antes desta coluna e o que sobra quando ninguém sabe o dia). Tudo o
+// que se segue lê a data quando ela existe e NÃO inventa um dia a partir do
+// ano: uma data adivinhada dá parabéns na altura errada, que é pior do que
+// não dar. Por isso há sempre duas listas — os aniversários e quem falta
+// preencher.
+
+// A coluna `birth_date` chega por migração (`supabase/aniversarios.sql`). Sem
+// ela, gravar uma data rebentava a ficha inteira — por isso a app só oferece o
+// campo e a lista depois de a migração ter corrido. Um clube sem atletas
+// nenhuns é o caso indecidível: assume-se que está pronta, que é o estado de
+// quem acabou de instalar.
+export function birthDateReady() {
+  return !state.players.length || 'birth_date' in state.players[0];
+}
+
+// Data de nascimento de um atleta como `Date` local (ou null). Constrói-se com
+// a hora explícita para o fuso não empurrar a data um dia para trás.
+export function birthDate(player) {
+  const iso = player?.birth_date;
+  if (!iso) return null;
+  const d = new Date(String(iso).slice(0, 10) + 'T00:00:00');
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+// Idade do atleta. Com data completa é a idade REAL (já fez anos este ano ou
+// ainda não); só com o ano é a idade que faz durante o ano civil — que é a
+// que conta para o escalão, e a única que os dados sustentam.
+export function playerAge(player) {
+  const d = birthDate(player);
+  const now = new Date();
+  if (d) {
+    let age = now.getFullYear() - d.getFullYear();
+    const passou =
+      now.getMonth() > d.getMonth() ||
+      (now.getMonth() === d.getMonth() && now.getDate() >= d.getDate());
+    if (!passou) age -= 1;
+    return age >= 0 && age < 120 ? { age, exact: true } : null;
+  }
+  const y = Number(player?.birth_year);
+  if (!y || y < 1900 || y > 2100) return null;
+  const age = now.getFullYear() - y;
+  return age >= 0 && age < 120 ? { age, exact: false } : null;
+}
+
+// Próximo aniversário: a data, quantos dias faltam e que idade faz.
+// `days === 0` é hoje. Um 29 de fevereiro em ano comum cai a 1 de março (é o
+// que o construtor faz), o que é o comportamento normal dos calendários.
+export function nextBirthday(player, from = new Date()) {
+  const d = birthDate(player);
+  if (!d) return null;
+  const hoje = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  let next = new Date(hoje.getFullYear(), d.getMonth(), d.getDate());
+  if (next < hoje) next = new Date(hoje.getFullYear() + 1, d.getMonth(), d.getDate());
+  const days = Math.round((next - hoje) / 86400000);
+  return { date: next, days, turning: next.getFullYear() - d.getFullYear() };
+}
+
+// Atletas cujo aniversário o utilizador atual pode ver: todos para quem tem
+// âmbito de clube, só os das suas equipas para o treinador — a mesma regra de
+// `myTeams()`. Uma ficha sem equipa na cache não entra.
+function birthdayScope() {
+  if (isClubWide()) return state.players;
+  const ids = myTeamIds();
+  return state.players.filter((p) => ids.has(p.team_id));
+}
+
+// Aniversários dentro dos próximos `days` dias (hoje incluído), do mais
+// próximo para o mais distante. `teamId` limita a uma equipa.
+export function upcomingBirthdays(days = 30, teamId = null) {
+  const out = [];
+  for (const player of birthdayScope()) {
+    if (teamId && player.team_id !== teamId) continue;
+    const next = nextBirthday(player);
+    if (!next || next.days > days) continue;
+    out.push({ player, team: teamById(player.team_id), ...next });
+  }
+  return out.sort((a, b) => a.days - b.days || a.player.name.localeCompare(b.player.name, 'pt'));
+}
+
+// Todos os aniversários que se conhecem, por ordem do calendário (mês e dia),
+// independentemente do ano — é assim que se afixa a lista no balneário.
+export function birthdayCalendar(teamId = null) {
+  return birthdayScope()
+    .filter((p) => (!teamId || p.team_id === teamId) && birthDate(p))
+    .map((player) => {
+      const d = birthDate(player);
+      return {
+        player,
+        team: teamById(player.team_id),
+        date: d,
+        month: d.getMonth(),
+        day: d.getDate(),
+        ...nextBirthday(player),
+      };
+    })
+    .sort((a, b) => a.month - b.month || a.day - b.day || a.player.name.localeCompare(b.player.name, 'pt'));
+}
+
+// Quem ainda não tem data de nascimento na ficha. É a lista de trabalho: sem
+// ela, "não há aniversários esta semana" e "faltam dez datas por preencher"
+// eram indistinguíveis.
+export function playersWithoutBirthday(teamId = null) {
+  return birthdayScope()
+    .filter((p) => (!teamId || p.team_id === teamId) && !birthDate(p))
+    .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt'));
+}
+
 // Total angariado = soma do valor do nível dos patrocínios CONFIRMADOS.
 // Patrocínios confirmados sem nível contam 0 (não deviam existir, pois a app
 // exige nível ao confirmar — mas o cálculo é defensivo na mesma).
