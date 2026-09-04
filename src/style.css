@@ -7550,3 +7550,60 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
     width: 48px;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Aniversários (diálogo dos Plantéis). Uma linha por atleta: nome clicável,
+   data e o que falta. Não é tabela porque não há colunas a comparar — o que
+   se procura é um nome e uma data, e no telemóvel a linha quebra sozinha.
+   --------------------------------------------------------------------------- */
+.birthday-list {
+  list-style: none;
+  margin: 0.35rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.birthday-list--grouped {
+  margin: 0;
+  padding: 0.4rem 0.9rem 0.6rem;
+}
+.birthday-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.6rem;
+  padding: 0.4rem 0.2rem;
+  border-bottom: 1px solid var(--border);
+}
+.birthday-row:last-child {
+  border-bottom: none;
+}
+/* Quem faz anos hoje não pode ter o mesmo peso de quem faz em outubro. */
+.birthday-row--today {
+  background: var(--ok-bg);
+  border-radius: var(--radius-sm);
+}
+.birthday-row__name {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+.birthday-row__name:hover {
+  text-decoration: underline;
+}
+.birthday-row__meta {
+  font-size: 0.82rem;
+  min-width: 0;
+}
+/* O crachá e o botão encostam à direita; abaixo dos 480px a linha quebra e
+   deixa de haver direita nenhuma, por isso a margem é automática e não fixa. */
+.birthday-row .badge,
+.birthday-row .btn {
+  margin-left: auto;
+}

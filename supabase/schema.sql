@@ -103,6 +103,9 @@ alter table players add column if not exists review_status text not null default
   check (review_status in ('pendente','mantem','sai'));
 
 -- Dados adicionais do atleta (adicionados por ALTER para tabelas já criadas).
+-- `birth_date` é a data completa; `birth_year` fica como recurso para as fichas
+-- antigas (e para quem só sabe o ano). Ver `supabase/aniversarios.sql`.
+alter table players add column if not exists birth_date        date;
 alter table players add column if not exists guardian_contact  text;
 alter table players add column if not exists federation_number text;
 alter table players add column if not exists notes             text;
