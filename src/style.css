@@ -901,7 +901,9 @@ tbody tr:hover {
    ========================================================================= */
 .cards-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  /* `minmax(0, …)`: com `1fr` a pista não encolhe abaixo da legenda do cartão
+     ("patrocínios a decorrer") e o cartão saía para fora do ecrã a 360px. */
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 1rem;
   margin-bottom: 1.3rem;
 }
@@ -1266,12 +1268,12 @@ button.metric--nav:focus-visible {
 
 @media (max-width: 900px) {
   .cards-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 @media (max-width: 480px) {
   .cards-grid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.75rem;
   }
 }
@@ -1281,7 +1283,7 @@ button.metric--nav:focus-visible {
    ========================================================================= */
 .tier-cards {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1rem;
   margin-bottom: 1.3rem;
 }
@@ -2690,7 +2692,7 @@ button.metric--nav:focus-visible {
     display: none;
   }
   .cards-grid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -7484,6 +7486,19 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
   span.cell-actions .btn + .btn {
     margin-left: 0;
   }
+  /* Dentro de uma tabela a regra acima faz o contrário do que se quer: numa
+     célula estreita os dois botões empilham e passam a mandar na ALTURA da
+     linha (44+44 = 94px por atleta na lista dos Plantéis). Aí a tabela já
+     desliza na horizontal — os botões ficam lado a lado, como sempre. */
+  td .cell-actions,
+  th .cell-actions {
+    display: block;
+    white-space: nowrap;
+  }
+  td .cell-actions .btn + .btn,
+  th .cell-actions .btn + .btn {
+    margin-left: 0.3rem;
+  }
 }
 
 /* --- Alvos de toque que faltavam --------------------------------------- */
@@ -7606,4 +7621,158 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 .birthday-row .badge,
 .birthday-row .btn {
   margin-left: auto;
+}
+
+/* =========================================================================
+   Plantéis no telemóvel: mostrar atletas, não moldura
+   =========================================================================
+   O ecrã dos atletas cabia no ecrã sem transbordar — e mesmo assim, num
+   telemóvel de 844px de altura, não se via UM atleta sem deslizar: o
+   cabeçalho, quatro filtros empilhados com etiqueta cada, os separadores das
+   equipas e o cabeçalho da equipa comiam os primeiros 760px. Um ecrã que se
+   chama Plantéis e não mostra plantel nenhum está desconfigurado, ainda que
+   nada esteja fora do sítio. As regras abaixo apertam a moldura e alargam o
+   conteúdo. ========================================================================= */
+@media (max-width: 700px) {
+  /* --- Barra de filtros: grelha de duas colunas em vez de quatro linhas --- */
+  /* Cada filtro tinha a sua linha e a sua etiqueta por cima: 210px de altura
+     para quatro caixas que cabem em duas linhas. */
+  .filter-bar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem 0.6rem;
+    align-items: end;
+  }
+  .filter-bar .field--grow {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+  .filter-bar .field label {
+    font-size: 0.72rem;
+    margin-bottom: 0.15rem;
+  }
+  .filter-bar .field select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  /* --- Cabeçalho da equipa mais baixo --- */
+  .roster__head {
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+  .roster__badge {
+    width: 34px;
+    height: 34px;
+    font-size: 0.75rem;
+  }
+  .roster__head .section-title {
+    font-size: 1.05rem;
+    letter-spacing: 0.04em;
+  }
+}
+
+/* --- O cartão de atleta perdia meio cartão para uma faixa vazia --------- */
+/* Ao toque as ações deixam de estar escondidas atrás do rato e passavam a
+   uma faixa própria no fim do cartão. Com alvos de 44px isso são ~55px de
+   altura por cartão, só para dois ícones — num plantel de doze, meio ecrã
+   de nada. Passam a uma coluna à direita, alinhadas ao centro: continuam
+   fora do caminho do nome (que foi por isso que saíram do canto superior) e
+   deixam de custar altura. */
+@media (hover: none) and (max-width: 700px) {
+  .player-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+  .player-card__actions {
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.15rem;
+    margin: 0;
+    padding: 0.25rem 0.35rem 0.25rem 0;
+    border-top: none;
+    border-left: 1px dashed var(--border);
+    align-self: stretch;
+  }
+  /* O cartão ocupa a largura toda do telemóvel: aqui o nome cabe em duas
+     linhas e não há razão para o cortar. Truncar faz sentido na grelha de
+     cartões estreitos do portátil, não aqui — e o nome é a única coisa pela
+     qual se procura um atleta. */
+  .player-card__name {
+    white-space: normal;
+    overflow: visible;
+    overflow-wrap: anywhere;
+  }
+}
+
+/* --- Vista de lista: linhas de três andares ---------------------------- */
+/* A tabela desliza na horizontal (é essa a ideia), mas sem largura mínima na
+   coluna do nome ela encolhia até "Ana Rita Sousa Almeida" ocupar três
+   linhas, e cada atleta gastava 120px de altura. */
+@media (max-width: 700px) {
+  .player-list__name {
+    min-width: 9rem;
+  }
+  .player-list td,
+  .player-list th {
+    padding: 0.5rem 0.6rem;
+  }
+}
+
+/* --- Cabeçalho do perfil do atleta no telemóvel ------------------------ */
+/* Três peças (voltar, avatar, nome) numa flex que quebra, mais um bloco de
+   botões irmão: o nome caía para a linha de baixo enquanto o "Ficha
+   (imprimir)" subia para o lado do avatar, e o cabeçalho lia-se como um
+   erro. No telemóvel isto é uma pilha: voltar, identidade, ações. */
+@media (max-width: 700px) {
+  .ap-page-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.6rem;
+  }
+  .ap-page-head .ap-head {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 0.3rem 0.7rem;
+  }
+  .ap-page-head .ap-head > [data-ap-back] {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+  .ap-page-head .pd-hero__name {
+    overflow-wrap: anywhere;
+  }
+  /* As ações ficam lado a lado, a dividir a linha. */
+  .ap-page-head > .row {
+    display: flex;
+  }
+  .ap-page-head > .row > .btn {
+    flex: 1;
+  }
+}
+
+/* --- Cartões de número e crachá de validade ---------------------------- */
+.metric,
+.metric > * {
+  min-width: 0;
+}
+/* O crachá traz o estado colado à data ("10 set 2026 ⚠ A expirar") e não cabe
+   numa linha na coluna estreita do cartão de documento. */
+.doc-expiry {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.doc-card,
+.doc-card__body {
+  min-width: 0;
+}
+/* A 360px o cartão tem ~165px e "3000 €" a 2,1rem não lá cabe. O número é o
+   conteúdo do cartão — encolhe com o ecrã em vez de sair dele. */
+@media (max-width: 480px) {
+  .metric__value {
+    font-size: 1.7rem;
+    overflow-wrap: anywhere;
+  }
 }
