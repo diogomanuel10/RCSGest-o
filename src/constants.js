@@ -390,6 +390,33 @@ export const EQUIPMENT_ARTICLES = [
 ];
 export const ARTICLE_LABEL = Object.fromEntries(EQUIPMENT_ARTICLES.map((a) => [a.key, a.label]));
 
+// --- Pedidos de equipamento (treinador -> clube) ---
+
+// Porque é que se está a pedir. É a informação que faz a diferença entre
+// "aprovar" e "recusar" — um par de meias rasgado a meio da época não é o
+// mesmo pedido que um blusão a mais.
+export const REQUEST_REASONS = [
+  { key: 'novo',       label: 'Atleta sem o artigo' },
+  { key: 'danificado', label: 'Danificado' },
+  { key: 'tamanho',    label: 'Tamanho já não serve' },
+  { key: 'perdido',    label: 'Perdido' },
+  { key: 'outro',      label: 'Outro motivo' },
+];
+export const REQUEST_REASON_LABEL = Object.fromEntries(REQUEST_REASONS.map((r) => [r.key, r.label]));
+
+// Percurso de um pedido. São quatro estados e não mais: o que interessa saber
+// é se ainda está por decidir, se foi aprovado, se já chegou às mãos do atleta
+// ou se foi recusado. Um estado a mais ("em encomenda", "em conferência") é
+// mais um sítio onde um pedido fica parado sem ninguém reparar.
+export const REQUEST_STATUSES = [
+  { key: 'pendente', label: 'Por decidir', badge: 'warn' },
+  { key: 'aprovado', label: 'Aprovado',    badge: 'info' },
+  { key: 'entregue', label: 'Entregue',    badge: 'ok' },
+  { key: 'recusado', label: 'Recusado',    badge: 'danger' },
+];
+export const REQUEST_STATUS_LABEL = Object.fromEntries(REQUEST_STATUSES.map((s) => [s.key, s.label]));
+export const REQUEST_STATUS_BADGE = Object.fromEntries(REQUEST_STATUSES.map((s) => [s.key, s.badge]));
+
 // --- Convocatórias ---
 
 export const SQUAD_STATUSES = [

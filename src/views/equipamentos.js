@@ -5,8 +5,9 @@
 import { state, createRow, updateRow, deleteRow, dbErrorMessage } from '../store.js';
 import { esc, emptyHTML, paginate, paginationHTML, wirePagination, wireEmptyAction, PAGE_SIZE } from '../ui.js';
 import { openModal, confirmDialog } from '../modal.js';
-import { canEdit, canAccess } from '../permissions.js';
+import { canEdit, canAccess, canDecideRequests } from '../permissions.js';
 import { renderEncomendasBody } from './encomendas.js';
+import { renderPedidosBody } from './pedidos.js';
 import {
   EQUIPMENT_CATEGORIES,
   EQUIPMENT_CONDITIONS,
@@ -15,14 +16,23 @@ import {
 } from '../constants.js';
 
 let page = 1;
-let equipTab = 'inventario'; // 'inventario' | 'encomendas'
+let equipTab = 'inventario'; // 'inventario' | 'pedidos' | 'encomendas'
 
-// Orquestrador "Equipamentos": junta o Inventário e as Encomendas (tamanhos por
-// atleta) num só ecrã com separadores. As Encomendas são só do coordenador
-// (canAccess('encomendas')); o Inventário segue o acesso a 'equipamentos'.
+// Orquestrador "Equipamentos": junta o Inventário, os Pedidos (o treinador
+// pede material para uma atleta) e as Encomendas (tamanhos por atleta) num só
+// ecrã com separadores. As Encomendas são só do coordenador
+// (canAccess('encomendas')); o Inventário segue o acesso a 'equipamentos'; os
+// Pedidos abrem também ao treinador, que é quem os faz.
+
+// Deixa outra vista (o Painel) escolher o separador antes de navegar para cá.
+export function openEquipamentosTab(key) {
+  equipTab = key;
+}
+
 export function renderEquipamentos(container) {
   const tabs = [];
   if (canAccess('equipamentos')) tabs.push({ key: 'inventario', label: 'Inventário' });
+  if (canAccess('pedidos')) tabs.push({ key: 'pedidos', label: pedidosLabel() });
   if (canAccess('encomendas')) tabs.push({ key: 'encomendas', label: 'Encomendas' });
   if (!tabs.some((t) => t.key === equipTab)) equipTab = tabs[0]?.key || 'inventario';
 
@@ -30,7 +40,7 @@ export function renderEquipamentos(container) {
     <header class="page-head">
       <div>
         <h1 class="section-title">Equipamentos</h1>
-        <p class="muted" style="margin:0;font-size:0.88rem">Inventário do clube e encomendas por atleta</p>
+        <p class="muted" style="margin:0;font-size:0.88rem">${esc(headSubtitle(tabs))}</p>
       </div>
       ${tabs.length > 1
         ? `<div class="cal-toggle" role="group" aria-label="Separador">
@@ -47,7 +57,30 @@ export function renderEquipamentos(container) {
 
   const body = container.querySelector('#equip-body');
   if (equipTab === 'encomendas') renderEncomendasBody(body);
+  else if (equipTab === 'pedidos') renderPedidosBody(body);
   else renderInventarioBody(body);
+}
+
+// A legenda descreve o que a pessoa tem à frente. Um treinador que só vê os
+// Pedidos não devia ler sobre inventário e encomendas — nada disso lhe abre.
+function headSubtitle(tabs) {
+  const keys = tabs.map((t) => t.key);
+  if (keys.length === 1 && keys[0] === 'pedidos') return 'Pedidos de material para as tuas atletas';
+  const bits = [];
+  if (keys.includes('inventario')) bits.push('inventário do clube');
+  if (keys.includes('pedidos')) bits.push('pedidos dos treinadores');
+  if (keys.includes('encomendas')) bits.push('encomendas por atleta');
+  return bits.join(' · ').replace(/^./, (c) => c.toUpperCase());
+}
+
+// O número de pedidos por decidir vai no próprio separador: um pedido que
+// ninguém vê é igual à mensagem de telemóvel que isto veio substituir. Só
+// aparece a quem decide — para o treinador o contador seria o seu próprio
+// pedido a olhar para ele.
+function pedidosLabel() {
+  if (!canDecideRequests()) return 'Pedidos';
+  const n = state.equipmentRequests.filter((r) => r.status === 'pendente').length;
+  return n ? `Pedidos (${n})` : 'Pedidos';
 }
 
 function renderInventarioBody(container) {
