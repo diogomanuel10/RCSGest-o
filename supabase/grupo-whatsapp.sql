@@ -1,0 +1,21 @@
+-- Grupo de WhatsApp do escalão (guia de entrada no portal)
+-- ------------------------------------------------------------------
+-- Correr no SQL Editor do Supabase (depois de `schema.sql`).
+--
+-- Dar acesso ao portal a um escalão não é só entregar links: cada família
+-- ainda tem de instalar a app no ecrã principal (no iPhone, sem isso não há
+-- notificação nenhuma) e entrar no grupo do escalão. Isso explicava-se
+-- pessoa a pessoa, vinte vezes por equipa, e ficava por explicar às que
+-- chegavam depois.
+--
+-- O link do grupo vive na EQUIPA e não nas definições do clube: na formação
+-- os grupos são por escalão, e um único link do clube mandava os pais dos
+-- infantis para o grupo dos séniores. Fica vazio enquanto ninguém o
+-- preencher — o guia funciona à mesma, só sem esse passo.
+alter table teams add column if not exists whatsapp_url text;
+
+-- Sem política nova: `teams` já tem o RLS por papel do `schema.sql`, e o link
+-- do grupo é apenas mais uma coluna da equipa. Também não há CHECK ao
+-- endereço — a app valida-o (`safeUrl`) e, se não for http(s), simplesmente
+-- não desenha o passo; um CHECK recusava a gravação da equipa inteira por
+-- causa de um campo opcional mal escrito.

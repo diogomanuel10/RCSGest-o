@@ -81,6 +81,12 @@ export function wireEmptyAction(container, key, onClick) {
 // http(s): sem esta guarda, um `javascript:` colado no plano de treino
 // corria no primeiro clique de quem o abrisse. Devolve o URL normalizado
 // (sem esquema assume-se https://) ou null se não servir.
+// Endereço da app tal como está aberta (sem hash nem query): é o que se
+// escreve num cartaz ou numa mensagem para alguém abrir no telemóvel.
+export function appUrl() {
+  return `${window.location.origin}${window.location.pathname}`;
+}
+
 export function safeUrl(value) {
   const raw = String(value ?? '').trim();
   if (!raw) return null;

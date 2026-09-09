@@ -8,6 +8,7 @@ import {
   playerAttendanceStats, playerAvailability, playerQuotas,
   escalaoColor, positionColor,
   playerAge, upcomingBirthdays, birthdayCalendar, playersWithoutBirthday, birthDateReady,
+  whatsappReady,
 } from '../compute.js';
 import { openModal, confirmDialog, wireDialog } from '../modal.js';
 import { toastError, toastOk } from '../toast.js';
@@ -18,6 +19,7 @@ import { parsePlayersFile, downloadPlayersTemplate } from '../players-xlsx.js';
 import { openAthleteProfile } from './athlete-profile.js';
 import { evaluationHTML, wireEvaluation } from './avaliacao.js';
 import { openPortalInvites } from './convites-portal.js';
+import { openJoinGuide } from './guia-entrada.js';
 
 // Equipa selecionada (mostra o seu plantel). Mantida entre re-desenhos.
 let selectedTeamId = null;
@@ -258,6 +260,9 @@ export function renderPlanteis(container) {
   container.querySelectorAll('[data-birthdays]').forEach((b) =>
     b.addEventListener('click', () => openBirthdays(b.dataset.birthdays))
   );
+  container.querySelectorAll('[data-join-guide]').forEach((b) =>
+    b.addEventListener('click', () => openJoinGuide(b.dataset.joinGuide))
+  );
   container.querySelectorAll('[data-announce]').forEach((b) =>
     b.addEventListener('click', () => openAnnounceForm(b.dataset.announce))
   );
@@ -428,6 +433,7 @@ function rosterHTML(team, canTeams, canPlayers, canRemovePlayers, filtering) {
                <button class="btn btn--ghost btn--sm" data-import-player="${team.id}" type="button">Importar (xlsx)</button>
                <button class="btn btn--ghost btn--sm" data-qr-cards="${team.id}" type="button">Cartões QR</button>
                ${canManageUsers() ? `<button class="btn btn--ghost btn--sm" data-invite-team="${team.id}" type="button">Convidar para o portal${semConta ? ` (${semConta})` : ''}</button>` : ''}
+               <button class="btn btn--ghost btn--sm" data-join-guide="${team.id}" type="button">Guia de entrada</button>
                <button class="btn btn--ghost btn--sm" data-announce="${team.id}" type="button">Enviar aviso</button>
                <button class="btn btn--link btn--sm" data-template type="button">Descarregar modelo</button>
              </div>`
@@ -462,6 +468,17 @@ function openTeamForm(id) {
           ${escalaoList.map((e) => `<option value="${esc(e)}" ${existing?.escalao === e ? 'selected' : ''}>${esc(e)}</option>`).join('')}
         </select>
       </div>
+
+      ${whatsappReady() ? `
+      <div class="field field--full">
+        <label for="team-whatsapp">Grupo de WhatsApp</label>
+        <input id="team-whatsapp" type="url" inputmode="url" placeholder="https://chat.whatsapp.com/…"
+               value="${esc(existing?.whatsapp_url || '')}" aria-describedby="team-whatsapp-hint" />
+        <p class="field__hint muted" id="team-whatsapp-hint" style="margin:0.25rem 0 0;font-size:0.82rem">
+          Entra no “Guia de entrada” deste escalão (mensagem e cartaz). O link é por
+          equipa: na formação os grupos são por escalão.
+        </p>
+      </div>` : ''}
 
       <div class="field field--full">
         <label for="team-principal">Treinador principal</label>
@@ -545,7 +562,14 @@ function openTeamForm(id) {
     confirmBtn.disabled = true;
     confirmBtn.textContent = 'A guardar…';
 
+    // A coluna pode ainda não existir (migração por correr): mandá-la nesse
+    // caso rebentava a gravação da equipa inteira por causa de um campo
+    // opcional. Guarda-se vazio como NULL, para `safeUrl` não ter de decidir
+    // entre "sem link" e "link em branco".
     const payload = { escalao, gender, coach_id: principal };
+    if (whatsappReady()) {
+      payload.whatsapp_url = overlay.querySelector('#team-whatsapp')?.value.trim() || null;
+    }
     const entries = [];
     if (principal) entries.push({ coach_id: principal, role: 'principal' });
     adjuntos.forEach((cid) => entries.push({ coach_id: cid, role: 'adjunto' }));

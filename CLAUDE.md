@@ -51,6 +51,48 @@ conforme o `role` + RLS. Ver `supabase/multitenant.sql` (corre DEPOIS de
     seleção. O número devolvido diz quantos convites saíram mesmo.
   - **Nada é enviado pelas costas de ninguém**: os botões abrem o email/WhatsApp
     com o texto escrito, e quem carrega vê a mensagem antes de a mandar.
+- **Guia de entrada no portal** (`supabase/grupo-whatsapp.sql`,
+  `join-guide.js`, `join-poster.js`, `views/guia-entrada.js`): o convite dá o
+  acesso, mas não dá a app. Depois do link cada família ainda tem de instalar
+  a Rumia no ecrã principal, ligar as notificações e entrar no grupo do
+  escalão — e isso explicava-se **pessoa a pessoa**, vinte vezes por equipa,
+  ficando por explicar a quem chegasse a meio da época.
+  - **O convite e o guia são a MESMA mensagem.** Cada atleta continua a ter o
+    SEU link, ligado à sua ficha (`create_invitations_bulk`) — o que mudou é
+    que a mensagem que segue com ele já leva os passos seguintes. Mandar o
+    link e deixar o resto "para depois" era mandar meia coisa: a segunda
+    mensagem, na prática, nunca chegava a ser escrita. O guia sem link
+    (mensagem do escalão e cartaz) é a mesma coisa com o primeiro passo
+    genérico, para quem ainda não tem convite ou já entrou.
+  - **Mensagem com todos** (`rosterInviteMessage`): uma mensagem só, com o link
+    de cada atleta lá dentro, para publicar no grupo em vez de mandar vinte.
+    Poupa vinte envios e **é uma troca**: numa mensagem partilhada cada família
+    vê os links das outras, e um link aberto pela pessoa errada liga a conta à
+    FICHA errada — presenças, quotas e cartão QR de outra atleta. Por isso o
+    aviso vai no próprio texto (onde é lido por quem o recebe, e não só no
+    painel do coordenador), a lista atleta a atleta continua a ser o caminho
+    recomendado, e a mensagem mostra-se por inteiro antes de sair daqui.
+  - **"Aberto" não é "enviado"**: a lista marca as linhas cujo envio já foi
+    aberto, para não se perder o sítio a meio de vinte nomes. O envio decide-se
+    dentro do WhatsApp/email, fora da app — por isso a marca vive na sessão do
+    painel e não na base de dados, e diz-se o que é.
+  - **Instalar não é conforto**: no iPhone a Apple só entrega push a uma PWA
+    instalada (`push.js`). Sem esse passo o clube manda avisos que nunca
+    chegam e ninguém dá por isso — por isso o passo é o segundo da lista e
+    di-lo com todas as letras.
+  - **Os passos vivem num sítio só** (`joinSteps`) e têm dois desenhos: a
+    mensagem para colar no grupo e o cartaz A4 para afixar. Escritos duas
+    vezes divergiam à primeira correção, e o cartaz é o que fica meses na
+    parede.
+  - **O cartaz existe porque a mensagem só chega a quem está no grupo**: o pai
+    que veio buscar a filha e o atleta que entrou em janeiro são exatamente
+    quem fica de fora. Leva o QR da app e o do grupo, e **nenhum link
+    pessoal** — um cartaz é público e o convite está ligado a uma ficha.
+  - **O link do grupo é da EQUIPA** (`teams.whatsapp_url`) e não das
+    definições do clube: na formação os grupos são por escalão, e um link
+    único mandava os pais dos infantis para o grupo dos séniores. É opcional —
+    sem ele o guia sai à mesma, sem esse passo — e passa por `safeUrl`, como
+    as ligações do plano de treino.
 - **Subscrições**: `organizations.status` (`trial`/`ativa`/`suspensa`/
   `cancelada`) + `trial_ends_at`. O *gate* em `app-shell.js` (`orgAccess()`)
   bloqueia clubes inativos (`subscription-blocked.js`).
@@ -139,6 +181,8 @@ src/
   qrcode.js             Cartões QR: gerar, ler pela câmara, traduzir (libs lazy)
   players-qr.js         Folha de cartões QR imprimíveis (A4, tamanho cartão)
   invite-slips.js       Talões de convite ao portal imprimíveis (A4, QR do link)
+  join-guide.js         Guia de entrada no portal: passos comuns + mensagem do escalão
+  join-poster.js        Cartaz A4 do guia de entrada (QR da app + QR do grupo)
   offline-card.js       Cartão QR guardado no dispositivo (ecrã de recurso sem rede)
   tactical-court.js     Campo em SVG + exercício de decisão (todas as posições)
   report-sheet.js       Folha A4 imprimível: janela, estilos e blocos comuns
@@ -154,6 +198,7 @@ src/
     patrocinios.js      Separador Patrocínios (dentro do Financeiro)
     planteis.js         Vista Plantéis (CRUD + importar atletas via .xlsx)
     convites-portal.js  Convites ao portal de um plantel inteiro (links + envio)
+    guia-entrada.js     Guia de entrada de um escalão (mensagem para o grupo + cartaz)
     pedidos.js          Pedidos de equipamento do treinador ao clube (separador)
     athlete-profile.js  Perfil do Atleta (modal unificado com separadores)
     avaliacao.js        Vista Avaliação de plantel (Mantém/Sai/Pendente)
@@ -178,6 +223,7 @@ src/
 supabase/schema.sql     Tabelas, índices, RLS e dados iniciais (correr no Supabase)
 supabase/qrcode-presencas.sql  Presenças por QR: token do atleta + RPCs de check-in
 supabase/convites-massa.sql    Convites de atleta em lote (RPC create_invitations_bulk)
+supabase/grupo-whatsapp.sql    Link do grupo de WhatsApp da equipa (guia de entrada)
 supabase/pedidos-equipamento.sql  Pedidos de equipamento (treinador -> clube) + notificações
 supabase/aniversarios.sql      Data de nascimento do atleta (aniversários + quem falta)
 supabase/portal-atleta.sql     Portal: o atleta lê a sua própria disponibilidade

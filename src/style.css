@@ -6620,6 +6620,32 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 .app--solo .topbar { padding-left: 1.2rem; }
 
 /* =========================================================================
+   Guia de entrada (Plantéis → Guia de entrada)
+   -------------------------------------------------------------------------
+   A mensagem mostra-se por inteiro, tal como vai ser colada. Um resumo com
+   "…" obrigava a copiar às cegas para o WhatsApp para saber o que lá ia — e
+   isto é texto que vai para os encarregados de educação de um escalão
+   inteiro. Quebra as linhas (o texto tem endereços longos) e cresce até um
+   limite, a partir do qual desliza dentro do modal em vez de o empurrar para
+   fora do ecrã.
+   ========================================================================= */
+.guia-msg {
+  margin: 0;
+  padding: 0.8rem 0.9rem;
+  max-height: 45vh;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* =========================================================================
    Convites ao portal em lote (Plantéis → Convidar para o portal)
    -------------------------------------------------------------------------
    Cada linha é um atleta com o SEU link. O endereço aparece por inteiro (e não
@@ -6657,6 +6683,11 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
   border-radius: var(--radius-sm);
   background: var(--surface);
 }
+/* Linha já aberta para envio. Esbate-se em vez de desaparecer: ainda pode
+   ser preciso reenviar, e uma lista que encolhe a cada clique tira do ecrã a
+   referência de onde se ia. */
+.inv-row--done { opacity: 0.62; }
+.inv-row--done .inv-row__name { font-weight: 600; }
 .inv-row__main { min-width: 0; flex: 1; }
 .inv-row__name { display: block; font-size: 0.92rem; }
 .inv-row__meta { display: block; font-size: 0.76rem; }
