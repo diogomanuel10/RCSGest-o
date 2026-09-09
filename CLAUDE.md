@@ -45,6 +45,20 @@ conforme o `role` + RLS. Ver `supabase/multitenant.sql` (corre DEPOIS de
     clube, o passo seguinte é criar um — ou seja, um link expirado convidava
     uma família a **criar um clube**. O erro do resgate viaja para o
     `renderOnboarding` como `notice` e diz o que aconteceu e o que fazer.
+  - **O `localStorage` sozinho não aguenta o percurso real.** O link abre no
+    browser interno do WhatsApp; o email de confirmação abre no Safari — outro
+    armazenamento, convite perdido. E perder o convite não dá erro nenhum: a
+    conta fica sem clube e a app propõe-lhe **criar um clube**, que foi o que
+    aconteceu às primeiras famílias convidadas. Por isso o token viaja também
+    nos **metadados da conta** (`signUp` → `options.data.invite_token`, lido no
+    arranque a partir da sessão) e no `emailRedirectTo`, que devolve o
+    `?invite=` no endereço. Servidor e URL cobrem o que o dispositivo não
+    guarda.
+  - **O onboarding tem a saída de emergência**: "Tens um convite do teu
+    clube?" — cola-se o link (ou só o código) e resgata-se ali. É onde a
+    pessoa aterra quando tudo o resto falha, e sem isto a única ação
+    disponível nesse ecrã era criar um clube que ela não quer. Serve também
+    quem já criou conta antes disto existir.
   - **O token é apagado também quando NÃO é usado**: quem já tem clube (o
     coordenador a testar o link) deixava-o guardado para sempre no
     dispositivo, à espera de ser resgatado por outra conta mais tarde.

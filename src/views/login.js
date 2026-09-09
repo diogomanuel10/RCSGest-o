@@ -151,7 +151,7 @@ export function renderLogin(root, onSuccess) {
           await signIn(email, password);
           onSuccess?.(); // a transição é tratada pelo onAuthChange
         } else {
-          const { needsConfirmation } = await signUp(email, password);
+          const { needsConfirmation } = await signUp(email, password, { inviteToken: pendingInvite() });
           if (needsConfirmation) {
             // Conta criada, mas é preciso confirmar o email antes de entrar.
             form.reset();

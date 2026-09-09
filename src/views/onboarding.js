@@ -1,10 +1,16 @@
 // Onboarding do clube (multi-tenant).
 //
 // Mostrado a um utilizador autenticado que ainda não pertence a nenhum clube:
-// cria o seu clube e torna-se coordenador. Quem chega por convite não vê este
-// ecrã — o convite é resgatado automaticamente no arranque (ver app-shell).
+// cria o seu clube e torna-se coordenador. Quem chega por convite não devia
+// ver este ecrã — o convite é resgatado no arranque (ver app-shell).
+//
+// "Não devia" não chega: quando o resgate falha (link expirado, ou o convite
+// perdido entre o browser do WhatsApp e o do email), é AQUI que a pessoa
+// aterra — e o que a app lhe propõe é criar um clube, que é exatamente o que
+// ela não quer. Por isso este ecrã tem a saída de emergência: colar o link do
+// convite e entrar no clube certo, sem passar por lado nenhum.
 
-import { createClub, dbErrorMessage, TRIAL_DAYS } from '../store.js';
+import { createClub, redeemInvitation, dbErrorMessage, TRIAL_DAYS } from '../store.js';
 import { seedDemoData } from '../demo-data.js';
 import { signOut } from '../auth.js';
 import { esc } from '../ui.js';
@@ -68,6 +74,23 @@ export function renderOnboarding(root, onDone, { notice = '' } = {}) {
         <button type="button" class="btn btn--ghost btn--sm" id="onboarding-logout"
                 style="margin-top:0.5rem">Sair</button>
       </form>
+
+      <div class="card login__card" style="margin-top:1rem">
+        <h2 class="section-title" style="margin:0 0 0.4rem;font-size:1rem">Tens um convite do teu clube?</h2>
+        <p class="muted" style="margin:0 0 0.8rem;font-size:0.86rem">
+          Então não crias clube nenhum. Cola aqui o link que recebeste e entras
+          direto para a tua ficha.
+        </p>
+        <div class="field">
+          <label for="ob-invite">Link do convite</label>
+          <input type="text" id="ob-invite" inputmode="url" autocomplete="off"
+                 placeholder="https://…?invite=…" />
+        </div>
+        <p class="login__error hidden" id="ob-invite-error" role="alert"></p>
+        <button type="button" class="btn btn--primary login__submit" id="ob-invite-go">
+          Entrar com o convite
+        </button>
+      </div>
     </main>
   `;
 
@@ -76,6 +99,39 @@ export function renderOnboarding(root, onDone, { notice = '' } = {}) {
   const submitBtn = root.querySelector('#onboarding-submit');
 
   root.querySelector('#onboarding-logout').addEventListener('click', () => signOut());
+
+  // Aceita o link inteiro ou só o token: quem cola de uma mensagem traz o
+  // endereço todo, quem escreve à mão traz o código. Exigir uma das duas
+  // formas era pôr o problema de volta na pessoa que já está perdida.
+  const inviteInput = root.querySelector('#ob-invite');
+  const inviteErr = root.querySelector('#ob-invite-error');
+  const inviteBtn = root.querySelector('#ob-invite-go');
+
+  inviteBtn.addEventListener('click', async () => {
+    inviteErr.classList.add('hidden');
+    const raw = inviteInput.value.trim();
+    const token = (raw.match(/[?&]invite=([^&\s]+)/)?.[1] || raw).trim();
+    if (!token) {
+      inviteErr.textContent = 'Cola o link do convite.';
+      inviteErr.classList.remove('hidden');
+      return;
+    }
+    inviteBtn.disabled = true;
+    inviteBtn.textContent = 'A entrar…';
+    try {
+      await redeemInvitation(decodeURIComponent(token));
+      try { localStorage.removeItem('rcs.invite'); } catch { /* ignora */ }
+      onDone?.();
+    } catch (error) {
+      inviteErr.textContent =
+        'Esse convite não funcionou — pode ter expirado ou já ter sido usado. '
+        + 'Pede um novo ao teu clube.';
+      inviteErr.classList.remove('hidden');
+      console.warn('Convite recusado:', error?.message);
+      inviteBtn.disabled = false;
+      inviteBtn.textContent = 'Entrar com o convite';
+    }
+  });
 
   form.addEventListener('submit', async (event) => {
     event.preventDefault();

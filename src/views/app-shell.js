@@ -138,8 +138,17 @@ export async function renderAppShell(root, session) {
     await loadProfile();
 
     // Resgata um convite pendente (link ?invite=) se ainda não tiver clube.
+    // O convite pode chegar por dois sítios. O `localStorage` é o caminho
+    // normal (mesmo browser do princípio ao fim); os metadados da conta são o
+    // que salva o caminho real, em que o link abre no browser do WhatsApp e o
+    // email de confirmação abre no Safari — outro armazenamento, convite
+    // perdido, e a app a propor "cria o teu clube" a uma família.
     const pendingInvite = (() => {
-      try { return localStorage.getItem('rcs.invite'); } catch { return null; }
+      try {
+        const stored = localStorage.getItem('rcs.invite');
+        if (stored) return stored;
+      } catch { /* localStorage indisponível */ }
+      return session?.user?.user_metadata?.invite_token || null;
     })();
     // O convite falhado NÃO pode passar em silêncio: sem clube, o passo
     // seguinte é o onboarding — ou seja, uma família que clicou num link

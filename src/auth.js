@@ -23,10 +23,28 @@ export async function signIn(email, password) {
 // Cria uma conta nova com email + password.
 // Devolve { needsConfirmation } — true quando o Supabase exige confirmação
 // por email antes de a sessão ficar ativa.
-export async function signUp(email, password) {
+// `inviteToken` — o convite que trouxe a pessoa até aqui (link `?invite=`).
+// Vai por DOIS caminhos de propósito, porque o `localStorage` onde o `main.js`
+// o guardou não sobrevive ao percurso real: o link abre-se no browser interno
+// do WhatsApp, mas o email de confirmação abre-se no Safari — outro browser,
+// outro armazenamento, convite perdido. E perder o convite não dá um erro:
+// a conta fica sem clube e a app oferece-lhe CRIAR UM CLUBE, que foi o que
+// aconteceu às primeiras famílias convidadas.
+//   - `data.invite_token` fica nos metadados da conta, no servidor: é lido no
+//     arranque em qualquer dispositivo ou browser.
+//   - `emailRedirectTo` devolve o `?invite=` no endereço, para o caso de a
+//     confirmação abrir noutro lado.
+export async function signUp(email, password, { inviteToken = null } = {}) {
+  const base = window.location.origin + window.location.pathname;
   const { data, error } = await supabase.auth.signUp({
     email: email.trim(),
     password,
+    options: {
+      ...(inviteToken ? { data: { invite_token: inviteToken } } : {}),
+      emailRedirectTo: inviteToken
+        ? `${base}?invite=${encodeURIComponent(inviteToken)}`
+        : base,
+    },
   });
   if (error) throw error;
   // Sem sessão imediata => a conta requer confirmação por email.
