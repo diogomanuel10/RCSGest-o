@@ -32,6 +32,22 @@ conforme o `role` + RLS. Ver `supabase/multitenant.sql` (corre DEPOIS de
   vínculo errado dá ao atleta as presenças, quotas e o **cartão QR** de outro.
   O servidor força `role='atleta'`, valida que a ficha é do clube e substitui
   qualquer convite pendente do mesmo atleta.
+- **Quem chega por um link de convite não vê um ecrã de login qualquer**
+  (`login.js`, `app-shell.js`, `onboarding.js`): o `main.js` guarda o
+  `?invite=` em `localStorage` e limpa-o do endereço, e o resgate só acontece
+  depois de haver sessão. Pelo meio, o ecrã de login era o normal — aberto em
+  "Entrar", sem uma palavra sobre o convite — e uma família que nunca teve
+  conta ficava a preencher um formulário de login com uma conta que não
+  existe: o link parecia não fazer nada. Com convite pendente, o login abre em
+  **"Criar conta"** e explica-o num aviso (os separadores continuam a poder
+  trocar-se: o convite é resgatado à mesma se a conta já existir).
+  - **Um convite que falha não pode cair no onboarding em silêncio**: sem
+    clube, o passo seguinte é criar um — ou seja, um link expirado convidava
+    uma família a **criar um clube**. O erro do resgate viaja para o
+    `renderOnboarding` como `notice` e diz o que aconteceu e o que fazer.
+  - **O token é apagado também quando NÃO é usado**: quem já tem clube (o
+    coordenador a testar o link) deixava-o guardado para sempre no
+    dispositivo, à espera de ser resgatado por outra conta mais tarde.
 - **Convites de atleta em lote** (`supabase/convites-massa.sql`,
   `views/convites-portal.js`): ficha a ficha resolve um caso isolado e falha na
   escala real — dar acesso a um escalão eram vinte fichas abertas, vinte

@@ -11,7 +11,10 @@ import { esc } from '../ui.js';
 import { logoSrc, branding } from '../branding.js';
 import { SPORTS, DEFAULT_SPORT } from '../constants.js';
 
-export function renderOnboarding(root, onDone) {
+// `notice` — aviso a mostrar por cima do formulário (ex.: o convite que falhou
+// no arranque). Sem ele, quem chegou aqui por um link gasto não tinha como
+// saber que o link é que falhou, e criava um clube por engano.
+export function renderOnboarding(root, onDone, { notice = '' } = {}) {
   root.removeAttribute('aria-busy');
   const b = branding();
 
@@ -20,6 +23,7 @@ export function renderOnboarding(root, onDone) {
       <form class="card login__card" id="onboarding-form" novalidate>
         <img class="login__logo" src="${esc(logoSrc())}" alt="" width="72" height="72" />
         <h1 class="section-title login__title">Bem-vindo à ${esc(b.app_name)}</h1>
+        ${notice ? `<p class="login__error" role="alert">${esc(notice)}</p>` : ''}
         <p class="muted login__subtitle">
           Cria o teu clube para começar. Tens <strong>${TRIAL_DAYS} dias</strong>
           gratuitos para experimentar tudo, e podes convidar os teus treinadores.

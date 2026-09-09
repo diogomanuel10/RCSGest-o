@@ -141,20 +141,33 @@ export async function renderAppShell(root, session) {
     const pendingInvite = (() => {
       try { return localStorage.getItem('rcs.invite'); } catch { return null; }
     })();
+    // O convite falhado NÃO pode passar em silêncio: sem clube, o passo
+    // seguinte é o onboarding — ou seja, uma família que clicou num link
+    // gasto era convidada a CRIAR UM CLUBE, sem nada a explicar porquê. A
+    // mensagem viaja para lá para dizer o que aconteceu e o que fazer.
+    let inviteNotice = '';
     if (!state.profile?.org_id && pendingInvite) {
       try {
         await redeemInvitation(pendingInvite);
       } catch (err) {
         console.warn('Convite inválido ou expirado:', err?.message);
+        inviteNotice =
+          'O link de convite já não é válido — pode ter expirado ou já ter sido usado. '
+          + 'Pede um novo ao teu clube. (Se vieste criar o teu próprio clube, continua abaixo.)';
       } finally {
         try { localStorage.removeItem('rcs.invite'); } catch { /* ignora */ }
       }
+    } else if (state.profile?.org_id && pendingInvite) {
+      // Já tem clube (ex.: o coordenador abriu o link para o testar). O token
+      // ficava guardado para sempre e podia ser resgatado muito mais tarde,
+      // noutra conta do mesmo dispositivo.
+      try { localStorage.removeItem('rcs.invite'); } catch { /* ignora */ }
     }
 
     const access = orgAccess();
     if (!access.ok) {
       if (access.reason === 'pending') {
-        renderOnboarding(root, () => renderAppShell(root, session));
+        renderOnboarding(root, () => renderAppShell(root, session), { notice: inviteNotice });
       } else {
         renderSubscriptionBlocked(root, access.reason);
       }
