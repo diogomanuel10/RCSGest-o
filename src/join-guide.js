@@ -97,3 +97,42 @@ export function joinMessage(team, groupUrl, personal = null) {
     'Qualquer dúvida, é só dizer.',
   ].join('\n').trim();
 }
+
+// Uma mensagem só, com o link de TODOS os atletas do escalão — para publicar
+// no grupo em vez de mandar vinte mensagens.
+//
+// `rows`: [{ name, url }], já ordenados pela vista.
+//
+// O que se ganha é óbvio (um envio em vez de vinte). O que se perde tem de ser
+// dito: numa mensagem partilhada cada família vê os links de todas as outras,
+// e um link aberto pela pessoa errada liga a conta à FICHA errada — que é
+// precisamente o que o convite por atleta existe para evitar (as presenças,
+// as quotas e o cartão QR passam a ser os de outra pessoa). Por isso o aviso
+// vai dentro do próprio texto, onde é lido por quem o recebe, e não só num
+// canto da app onde só o coordenador o veria.
+export function rosterInviteMessage(team, rows, groupUrl) {
+  const b = branding();
+  const club = b.club_name || b.app_name || 'clube';
+  const who = team ? `${club} · ${teamName(team)}` : club;
+  const steps = joinSteps({ groupUrl });
+
+  // O primeiro passo deixa de ser uma explicação e passa a ser a lista: é o
+  // link de cada uma que faz a mensagem valer alguma coisa.
+  steps[0] = {
+    title: 'Abre o TEU link (é pessoal — cada atleta tem o seu)',
+    lines: [
+      ...rows.map((r) => `${r.name}: ${r.url}`),
+      '',
+      'Abre só o teu: cada link liga a conta a UMA ficha, e o link de outra atleta liga-te à ficha dela.',
+    ],
+  };
+
+  return [
+    `Acesso ao portal — ${who}`,
+    '',
+    'O portal é onde vês os treinos e jogos, respondes às convocatórias e consultas as presenças e as quotas.',
+    '',
+    ...steps.flatMap((s, i) => [`${i + 1}. ${s.title}`, ...s.lines, '']),
+    'Qualquer dúvida, é só dizer.',
+  ].join('\n').trim();
+}

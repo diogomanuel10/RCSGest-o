@@ -19,7 +19,7 @@ import { esc, safeUrl } from '../ui.js';
 import { wireDialog } from '../modal.js';
 import { toastOk, toastError } from '../toast.js';
 import { teamName } from '../compute.js';
-import { joinMessage } from '../join-guide.js';
+import { joinMessage, rosterInviteMessage } from '../join-guide.js';
 import { openJoinGuide } from './guia-entrada.js';
 
 // Link de convite a partir do token (mesma origem/caminho da app).
@@ -141,7 +141,8 @@ export function openPortalInvites(teamId) {
           <div class="inv-block__head">
             <h3 class="inv-block__title">Prontos a enviar (${ready.length})${opened.size ? ` · ${opened.size} aberto${opened.size === 1 ? '' : 's'}` : ''}</h3>
             <div class="row row--wrap" style="gap:0.4rem">
-              <button class="btn btn--ghost btn--sm" id="inv-copy-all" type="button">Copiar todos</button>
+              <button class="btn btn--accent btn--sm" id="inv-all-msg" type="button">Mensagem com todos</button>
+              <button class="btn btn--ghost btn--sm" id="inv-copy-all" type="button">Copiar só os links</button>
               <button class="btn btn--ghost btn--sm" id="inv-csv" type="button">Descarregar (.csv)</button>
               <button class="btn btn--ghost btn--sm" id="inv-print" type="button">Folha para imprimir</button>
             </div>
@@ -277,6 +278,10 @@ export function openPortalInvites(teamId) {
       copy(text, `${ready.length} link${ready.length === 1 ? '' : 's'} ${ready.length === 1 ? 'copiado' : 'copiados'}.`);
     });
 
+    body.querySelector('#inv-all-msg')?.addEventListener('click', () => {
+      openRosterMessage(team, ready);
+    });
+
     body.querySelector('#inv-guide')?.addEventListener('click', () => openJoinGuide(team.id));
 
     body.querySelector('#inv-csv')?.addEventListener('click', () => downloadCsv(ready, team));
@@ -341,4 +346,46 @@ function downloadCsv(ready, team) {
   a.download = `convites-${(teamName(team) || 'equipa').toLowerCase().replace(/\s+/g, '-')}.csv`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+// Pré-visualização da mensagem com TODOS os links, antes de sair daqui.
+//
+// Não se copia nem se envia às cegas: esta é a mensagem que vai para o grupo
+// de um escalão inteiro, com um link por atleta lá dentro. Ver o texto é
+// parte da decisão — a começar por perceber que toda a gente vê os links de
+// toda a gente.
+function openRosterMessage(team, ready) {
+  const rows = ready.map((r) => ({ name: r.player.name, url: inviteLink(r.invite.token) }));
+  const text = rosterInviteMessage(team, rows, safeUrl(team?.whatsapp_url));
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal card modal--wide" role="dialog" aria-modal="true" aria-labelledby="invall-title">
+      <div class="modal__head">
+        <h2 class="section-title" id="invall-title">Mensagem com todos — ${esc(teamName(team))}</h2>
+        <button class="modal__close" type="button" aria-label="Fechar">&times;</button>
+      </div>
+
+      <p class="modal__error" style="margin:0 0 0.7rem">
+        Nesta mensagem cada família vê os links de todas as outras. Um link aberto
+        pela pessoa errada liga a conta à ficha errada — presenças, quotas e cartão
+        QR de outra atleta. Para evitar isso, envia atleta a atleta na lista atrás.
+      </p>
+
+      <pre class="guia-msg">${esc(text)}</pre>
+
+      <div class="modal__actions">
+        <button class="btn btn--ghost" id="invall-close" type="button">Fechar</button>
+        <button class="btn btn--ghost" id="invall-copy" type="button">Copiar mensagem</button>
+        <button class="btn btn--accent" id="invall-send" type="button">Enviar por WhatsApp</button>
+      </div>
+    </div>
+  `;
+  const close = wireDialog(overlay, { initialFocus: '#invall-close' });
+  overlay.querySelector('#invall-close').addEventListener('click', close);
+  overlay.querySelector('#invall-copy').addEventListener('click', () => copy(text, 'Mensagem copiada.'));
+  overlay.querySelector('#invall-send').addEventListener('click', () => {
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+  });
 }

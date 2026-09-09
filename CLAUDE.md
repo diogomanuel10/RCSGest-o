@@ -64,6 +64,14 @@ conforme o `role` + RLS. Ver `supabase/multitenant.sql` (corre DEPOIS de
     mensagem, na prática, nunca chegava a ser escrita. O guia sem link
     (mensagem do escalão e cartaz) é a mesma coisa com o primeiro passo
     genérico, para quem ainda não tem convite ou já entrou.
+  - **Mensagem com todos** (`rosterInviteMessage`): uma mensagem só, com o link
+    de cada atleta lá dentro, para publicar no grupo em vez de mandar vinte.
+    Poupa vinte envios e **é uma troca**: numa mensagem partilhada cada família
+    vê os links das outras, e um link aberto pela pessoa errada liga a conta à
+    FICHA errada — presenças, quotas e cartão QR de outra atleta. Por isso o
+    aviso vai no próprio texto (onde é lido por quem o recebe, e não só no
+    painel do coordenador), a lista atleta a atleta continua a ser o caminho
+    recomendado, e a mensagem mostra-se por inteiro antes de sair daqui.
   - **"Aberto" não é "enviado"**: a lista marca as linhas cujo envio já foi
     aberto, para não se perder o sítio a meio de vinte nomes. O envio decide-se
     dentro do WhatsApp/email, fora da app — por isso a marca vive na sessão do
