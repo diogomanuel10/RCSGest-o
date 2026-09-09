@@ -57,10 +57,17 @@ conforme o `role` + RLS. Ver `supabase/multitenant.sql` (corre DEPOIS de
   a Rumia no ecrã principal, ligar as notificações e entrar no grupo do
   escalão — e isso explicava-se **pessoa a pessoa**, vinte vezes por equipa,
   ficando por explicar a quem chegasse a meio da época.
-  - **É o que NÃO muda de atleta para atleta.** O link de convite continua a
-    ser um por ficha (`convites-portal.js`); o que se manda uma vez ao grupo
-    são os passos comuns. Os dois painéis apontam um para o outro, para
-    ninguém esperar que o guia dê acesso a alguém.
+  - **O convite e o guia são a MESMA mensagem.** Cada atleta continua a ter o
+    SEU link, ligado à sua ficha (`create_invitations_bulk`) — o que mudou é
+    que a mensagem que segue com ele já leva os passos seguintes. Mandar o
+    link e deixar o resto "para depois" era mandar meia coisa: a segunda
+    mensagem, na prática, nunca chegava a ser escrita. O guia sem link
+    (mensagem do escalão e cartaz) é a mesma coisa com o primeiro passo
+    genérico, para quem ainda não tem convite ou já entrou.
+  - **"Aberto" não é "enviado"**: a lista marca as linhas cujo envio já foi
+    aberto, para não se perder o sítio a meio de vinte nomes. O envio decide-se
+    dentro do WhatsApp/email, fora da app — por isso a marca vive na sessão do
+    painel e não na base de dados, e diz-se o que é.
   - **Instalar não é conforto**: no iPhone a Apple só entrega push a uma PWA
     instalada (`push.js`). Sem esse passo o clube manda avisos que nunca
     chegam e ninguém dá por isso — por isso o passo é o segundo da lista e

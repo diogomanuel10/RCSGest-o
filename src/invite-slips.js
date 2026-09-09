@@ -138,8 +138,9 @@ function slipHTML({ player, url, expiresAt }, team, svg, b, logo) {
         <p class="slip__meta">${esc(meta || '—')}</p>
         <ol class="slip__steps">
           <li>Aponta a câmara ao código (ou escreve o endereço).</li>
-          <li>Cria conta com o teu email.</li>
-          <li>Ficas logo ligado a esta ficha.</li>
+          <li>Cria conta com o teu email — ficas logo ligado a esta ficha.</li>
+          <li>Adiciona ao ecrã principal (Partilhar → “Adicionar ao ecrã principal”).
+            No iPhone, sem isto não chegam notificações.</li>
         </ol>
         <p class="slip__url">${esc(url)}</p>
         <p class="slip__warn">

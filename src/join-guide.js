@@ -20,17 +20,35 @@ import { appUrl } from './ui.js';
 import { teamName } from './compute.js';
 import { branding } from './branding.js';
 
+const fmtDate = (d) =>
+  d ? new Date(d).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+
 // Os passos, por ordem. O `url` é parâmetro para o cartaz poder desenhar o
 // mesmo endereço que vai no QR.
-export function joinSteps({ groupUrl, url = appUrl() } = {}) {
+//
+// `personal` ({ name, url, expiresAt }) é o que torna a mensagem de UM atleta
+// diferente do cartaz do escalão: no lugar do "cada atleta recebe um link só
+// dela" entra o link mesmo, com o nome de quem o recebe. É o mesmo guia — o
+// que muda é o primeiro passo, que é precisamente o passo que não pode ser
+// igual para toda a gente.
+export function joinSteps({ groupUrl, url = appUrl(), personal = null } = {}) {
   const steps = [
-    {
-      title: 'Abre o teu link pessoal',
-      lines: [
-        'Cada atleta recebe um link só dela, que a liga à ficha do clube.',
-        'É pessoal: não o reencaminhes a mais ninguém.',
-      ],
-    },
+    personal
+      ? {
+          title: `Abre o link de ${personal.name}`,
+          lines: [
+            personal.url,
+            'Abre, cria conta com o teu email e ficas logo ligado à ficha.',
+            `O link é só de ${personal.name}${personal.expiresAt ? `, válido até ${fmtDate(personal.expiresAt)}` : ''} — não o reencaminhes a mais ninguém.`,
+          ],
+        }
+      : {
+          title: 'Abre o teu link pessoal',
+          lines: [
+            'Cada atleta recebe um link só dela, que a liga à ficha do clube.',
+            'É pessoal: não o reencaminhes a mais ninguém.',
+          ],
+        },
     {
       title: 'Instala no ecrã principal',
       lines: [
@@ -56,16 +74,22 @@ export function joinSteps({ groupUrl, url = appUrl() } = {}) {
   return steps;
 }
 
-// Mensagem pronta a colar no grupo. Texto simples de propósito: é o que
-// sobrevive ao WhatsApp, ao SMS e ao email sem se desmanchar.
-export function joinMessage(team, groupUrl) {
+// Mensagem pronta a enviar. Texto simples de propósito: é o que sobrevive ao
+// WhatsApp, ao SMS e ao email sem se desmanchar.
+//
+// Com `personal` é a mensagem de UM atleta (o convite dele, com tudo o que a
+// família precisa de saber a seguir); sem ele é o guia do escalão inteiro.
+// São a mesma coisa escrita uma vez: mandar o link numa mensagem e as
+// instruções noutra é como isto estava — e a segunda mensagem, na prática,
+// nunca chegava a ser escrita.
+export function joinMessage(team, groupUrl, personal = null) {
   const b = branding();
   const club = b.club_name || b.app_name || 'clube';
   const who = team ? `${club} · ${teamName(team)}` : club;
-  const steps = joinSteps({ groupUrl });
+  const steps = joinSteps({ groupUrl, personal });
 
   return [
-    `Acesso ao portal — ${who}`,
+    personal ? `Acesso ao portal de ${personal.name} — ${who}` : `Acesso ao portal — ${who}`,
     '',
     'O portal é onde vês os treinos e jogos, respondes às convocatórias e consultas as presenças e as quotas.',
     '',

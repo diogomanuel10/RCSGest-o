@@ -15,11 +15,11 @@
 // existe para evitar.
 
 import { state, createInvitationsBulk, dbErrorMessage } from '../store.js';
-import { esc } from '../ui.js';
+import { esc, safeUrl } from '../ui.js';
 import { wireDialog } from '../modal.js';
 import { toastOk, toastError } from '../toast.js';
 import { teamName } from '../compute.js';
-import { branding } from '../branding.js';
+import { joinMessage } from '../join-guide.js';
 import { openJoinGuide } from './guia-entrada.js';
 
 // Link de convite a partir do token (mesma origem/caminho da app).
@@ -55,13 +55,19 @@ function contactChannel(raw) {
 
 // Texto que segue com o link. Escrito para o encarregado de educação, que é
 // quem recebe a mensagem na formação.
-function inviteMessage(player, url, invite) {
-  const club = branding().club_name || 'clube';
-  return (
-    `Olá! Este é o link de acesso de ${player.name} ao portal do ${club}: ${url}\n\n` +
-    `Basta abrir o link, criar conta e fica logo ligado à ficha. ` +
-    `O link é pessoal e válido até ${fmtDate(invite.expires_at)}.`
-  );
+//
+// É o convite E o guia de entrada na MESMA mensagem (`join-guide.js`): o link
+// pessoal como primeiro passo, e a seguir instalar no ecrã principal, ligar as
+// notificações e o grupo do escalão. Enviar o link e deixar o resto "para
+// depois" era mandar meia coisa — a segunda mensagem, na prática, nunca
+// chegava a ser escrita, e sem instalar no iPhone não há notificação nenhuma.
+// Cada família recebe uma mensagem só, e é a dela.
+function inviteMessage(player, url, invite, team) {
+  return joinMessage(team, safeUrl(team?.whatsapp_url), {
+    name: player.name,
+    url,
+    expiresAt: invite.expires_at,
+  });
 }
 
 // Abre o painel de convites de uma equipa.
@@ -89,6 +95,14 @@ export function openPortalInvites(teamId) {
   overlay.querySelector('#inv-close').addEventListener('click', close);
 
   const body = overlay.querySelector('#inv-body');
+
+  // Linhas cujo envio já foi aberto nesta sessão do painel. NÃO é um registo
+  // de que a mensagem seguiu (isso acontece dentro do WhatsApp/email, fora
+  // daqui) — é o sítio onde se vai, numa lista de vinte nomes que se percorre
+  // um a um. Sem isto, quem for interrompido a meio recomeça sem saber onde
+  // ficou; por isso também não vai para a base de dados.
+  const opened = new Set();
+
   render();
 
   // Desenha (e redesenha, depois de gerar) o corpo do painel. Um atleta está
@@ -125,13 +139,18 @@ export function openPortalInvites(teamId) {
       ${ready.length ? `
         <div class="inv-block">
           <div class="inv-block__head">
-            <h3 class="inv-block__title">Prontos a enviar (${ready.length})</h3>
+            <h3 class="inv-block__title">Prontos a enviar (${ready.length})${opened.size ? ` · ${opened.size} aberto${opened.size === 1 ? '' : 's'}` : ''}</h3>
             <div class="row row--wrap" style="gap:0.4rem">
               <button class="btn btn--ghost btn--sm" id="inv-copy-all" type="button">Copiar todos</button>
               <button class="btn btn--ghost btn--sm" id="inv-csv" type="button">Descarregar (.csv)</button>
               <button class="btn btn--ghost btn--sm" id="inv-print" type="button">Folha para imprimir</button>
             </div>
           </div>
+          <p class="muted" style="margin:0 0 0.5rem;font-size:0.8rem">
+            Cada mensagem leva o link daquele atleta e, a seguir, como instalar a app
+            e o grupo do escalão. “Aberto” marca onde vais na lista — não confirma que
+            a mensagem seguiu, isso decides tu no WhatsApp ou no email.
+          </p>
           <div class="inv-list">
             ${ready.map((r) => inviteRowHTML(r)).join('')}
           </div>
@@ -158,21 +177,29 @@ export function openPortalInvites(teamId) {
     const url = inviteLink(invite.token);
     const ch = contactChannel(player.guardian_contact);
     const sendLabel = ch?.kind === 'email' ? 'Email' : ch?.kind === 'phone' ? 'WhatsApp' : '';
+    const done = opened.has(player.id);
     return `
-      <div class="inv-row" data-player="${player.id}">
+      <div class="inv-row${done ? ' inv-row--done' : ''}" data-player="${player.id}">
         <div class="inv-row__main">
-          <strong class="inv-row__name">${esc(player.name)}</strong>
+          <strong class="inv-row__name">${esc(player.name)}
+            ${done ? '<span class="badge badge--ok">Aberto</span>' : ''}
+          </strong>
           <span class="inv-row__meta muted">
             ${ch ? esc(player.guardian_contact) : 'Sem contacto na ficha'} · válido até ${esc(fmtDate(invite.expires_at))}
           </span>
           <code class="inv-row__link">${esc(url)}</code>
         </div>
         <div class="inv-row__actions">
-          <button class="btn btn--ghost btn--sm" data-copy="${player.id}" type="button">Copiar</button>
+          <button class="btn btn--ghost btn--sm" data-copy="${player.id}" type="button">Copiar mensagem</button>
           ${sendLabel ? `<button class="btn btn--accent btn--sm" data-send="${player.id}" type="button">${sendLabel}</button>` : ''}
         </div>
       </div>
     `;
+  }
+
+  function markOpened(id) {
+    opened.add(id);
+    markOpenedIn(body, id);
   }
 
   function wire(ready) {
@@ -217,7 +244,10 @@ export function openPortalInvites(teamId) {
       btn.addEventListener('click', () => {
         const r = rowOf(btn.dataset.copy);
         if (!r) return;
-        copy(inviteLink(r.invite.token), 'Link copiado.');
+        // Copia a MENSAGEM e não só o link: o link sozinho é o que se enviava
+        // antes, e obrigava a escrever à mão, vinte vezes, o que fazer com
+        // ele. O endereço continua à vista na linha para quem só quer isso.
+        copy(inviteMessage(r.player, inviteLink(r.invite.token), r.invite, team), 'Mensagem copiada.');
       });
     });
 
@@ -229,13 +259,14 @@ export function openPortalInvites(teamId) {
         const r = rowOf(btn.dataset.send);
         if (!r) return;
         const ch = contactChannel(r.player.guardian_contact);
-        const text = inviteMessage(r.player, inviteLink(r.invite.token), r.invite);
+        const text = inviteMessage(r.player, inviteLink(r.invite.token), r.invite, team);
         const href = ch.kind === 'email'
           ? `mailto:${encodeURIComponent(ch.value)}?subject=${encodeURIComponent(
               `Acesso ao portal — ${r.player.name}`
             )}&body=${encodeURIComponent(text)}`
           : `https://wa.me/${ch.value}?text=${encodeURIComponent(text)}`;
         window.open(href, '_blank');
+        markOpened(r.player.id);
       });
     });
 
@@ -269,6 +300,16 @@ export function openPortalInvites(teamId) {
       }
     });
   }
+}
+
+// Marca a linha como já aberta, sem redesenhar o painel: um `render()` a meio
+// de uma lista de vinte devolvia o scroll ao topo a cada envio.
+function markOpenedIn(body, id) {
+  const row = body.querySelector(`.inv-row[data-player="${id}"]`);
+  if (!row || row.classList.contains('inv-row--done')) return;
+  row.classList.add('inv-row--done');
+  const name = row.querySelector('.inv-row__name');
+  if (name) name.insertAdjacentHTML('beforeend', ' <span class="badge badge--ok">Aberto</span>');
 }
 
 function copy(text, okMsg) {

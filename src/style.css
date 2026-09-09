@@ -6683,6 +6683,11 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
   border-radius: var(--radius-sm);
   background: var(--surface);
 }
+/* Linha já aberta para envio. Esbate-se em vez de desaparecer: ainda pode
+   ser preciso reenviar, e uma lista que encolhe a cada clique tira do ecrã a
+   referência de onde se ia. */
+.inv-row--done { opacity: 0.62; }
+.inv-row--done .inv-row__name { font-weight: 600; }
 .inv-row__main { min-width: 0; flex: 1; }
 .inv-row__name { display: block; font-size: 0.92rem; }
 .inv-row__meta { display: block; font-size: 0.76rem; }
