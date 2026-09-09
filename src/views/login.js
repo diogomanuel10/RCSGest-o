@@ -5,8 +5,21 @@ import { signIn, signUp, requestPasswordReset, authErrorMessage } from '../auth.
 import { esc } from '../ui.js';
 import { logoSrc, branding } from '../branding.js';
 
+// Token de convite guardado pelo `main.js` a partir do `?invite=` (o parâmetro
+// é apagado do endereço para não ficar partilhável por engano).
+function pendingInvite() {
+  try { return localStorage.getItem('rcs.invite'); } catch { return null; }
+}
+
 export function renderLogin(root, onSuccess) {
-  let mode = 'login'; // 'login' | 'register' | 'reset'
+  // Quem chega por um link de convite quase nunca tem conta: é uma família a
+  // abrir isto pela primeira vez. Abrir em "Entrar" mandava-a preencher um
+  // formulário de login com uma conta que não existe — o link parecia não
+  // fazer nada. O convite é resgatado no arranque (ver `app-shell.js`), quer
+  // se crie conta quer se entre numa que já exista, por isso o separador é só
+  // o ponto de partida e continua a poder trocar-se.
+  const invited = Boolean(pendingInvite());
+  let mode = invited ? 'register' : 'login'; // 'login' | 'register' | 'reset'
   root.removeAttribute('aria-busy');
 
   const submitLabel = () =>
@@ -22,6 +35,13 @@ export function renderLogin(root, onSuccess) {
           <img class="login__logo" src="${esc(logoSrc())}" alt="${esc(b.club_name)}" width="84" height="84" />
           <h1 class="section-title login__title">${esc(b.app_name)}</h1>
           <p class="muted login__subtitle">${esc(b.motto)}</p>
+
+          ${invited && !isReset ? `
+          <p class="login__invited" role="status">
+            <strong>Tens um convite para entrar.</strong>
+            Cria conta com o teu email e ficas logo ligado à tua ficha do clube.
+            Já tens conta? Entra — o convite é aplicado à mesma.
+          </p>` : ''}
 
           ${isReset ? '' : `
           <div class="login__tabs" role="tablist">
@@ -131,7 +151,7 @@ export function renderLogin(root, onSuccess) {
           await signIn(email, password);
           onSuccess?.(); // a transição é tratada pelo onAuthChange
         } else {
-          const { needsConfirmation } = await signUp(email, password);
+          const { needsConfirmation } = await signUp(email, password, { inviteToken: pendingInvite() });
           if (needsConfirmation) {
             // Conta criada, mas é preciso confirmar o email antes de entrar.
             form.reset();

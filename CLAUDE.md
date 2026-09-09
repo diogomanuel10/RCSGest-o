@@ -32,6 +32,36 @@ conforme o `role` + RLS. Ver `supabase/multitenant.sql` (corre DEPOIS de
   vínculo errado dá ao atleta as presenças, quotas e o **cartão QR** de outro.
   O servidor força `role='atleta'`, valida que a ficha é do clube e substitui
   qualquer convite pendente do mesmo atleta.
+- **Quem chega por um link de convite não vê um ecrã de login qualquer**
+  (`login.js`, `app-shell.js`, `onboarding.js`): o `main.js` guarda o
+  `?invite=` em `localStorage` e limpa-o do endereço, e o resgate só acontece
+  depois de haver sessão. Pelo meio, o ecrã de login era o normal — aberto em
+  "Entrar", sem uma palavra sobre o convite — e uma família que nunca teve
+  conta ficava a preencher um formulário de login com uma conta que não
+  existe: o link parecia não fazer nada. Com convite pendente, o login abre em
+  **"Criar conta"** e explica-o num aviso (os separadores continuam a poder
+  trocar-se: o convite é resgatado à mesma se a conta já existir).
+  - **Um convite que falha não pode cair no onboarding em silêncio**: sem
+    clube, o passo seguinte é criar um — ou seja, um link expirado convidava
+    uma família a **criar um clube**. O erro do resgate viaja para o
+    `renderOnboarding` como `notice` e diz o que aconteceu e o que fazer.
+  - **O `localStorage` sozinho não aguenta o percurso real.** O link abre no
+    browser interno do WhatsApp; o email de confirmação abre no Safari — outro
+    armazenamento, convite perdido. E perder o convite não dá erro nenhum: a
+    conta fica sem clube e a app propõe-lhe **criar um clube**, que foi o que
+    aconteceu às primeiras famílias convidadas. Por isso o token viaja também
+    nos **metadados da conta** (`signUp` → `options.data.invite_token`, lido no
+    arranque a partir da sessão) e no `emailRedirectTo`, que devolve o
+    `?invite=` no endereço. Servidor e URL cobrem o que o dispositivo não
+    guarda.
+  - **O onboarding tem a saída de emergência**: "Tens um convite do teu
+    clube?" — cola-se o link (ou só o código) e resgata-se ali. É onde a
+    pessoa aterra quando tudo o resto falha, e sem isto a única ação
+    disponível nesse ecrã era criar um clube que ela não quer. Serve também
+    quem já criou conta antes disto existir.
+  - **O token é apagado também quando NÃO é usado**: quem já tem clube (o
+    coordenador a testar o link) deixava-o guardado para sempre no
+    dispositivo, à espera de ser resgatado por outra conta mais tarde.
 - **Convites de atleta em lote** (`supabase/convites-massa.sql`,
   `views/convites-portal.js`): ficha a ficha resolve um caso isolado e falha na
   escala real — dar acesso a um escalão eram vinte fichas abertas, vinte

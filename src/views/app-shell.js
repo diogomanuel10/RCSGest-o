@@ -138,23 +138,45 @@ export async function renderAppShell(root, session) {
     await loadProfile();
 
     // Resgata um convite pendente (link ?invite=) se ainda não tiver clube.
+    // O convite pode chegar por dois sítios. O `localStorage` é o caminho
+    // normal (mesmo browser do princípio ao fim); os metadados da conta são o
+    // que salva o caminho real, em que o link abre no browser do WhatsApp e o
+    // email de confirmação abre no Safari — outro armazenamento, convite
+    // perdido, e a app a propor "cria o teu clube" a uma família.
     const pendingInvite = (() => {
-      try { return localStorage.getItem('rcs.invite'); } catch { return null; }
+      try {
+        const stored = localStorage.getItem('rcs.invite');
+        if (stored) return stored;
+      } catch { /* localStorage indisponível */ }
+      return session?.user?.user_metadata?.invite_token || null;
     })();
+    // O convite falhado NÃO pode passar em silêncio: sem clube, o passo
+    // seguinte é o onboarding — ou seja, uma família que clicou num link
+    // gasto era convidada a CRIAR UM CLUBE, sem nada a explicar porquê. A
+    // mensagem viaja para lá para dizer o que aconteceu e o que fazer.
+    let inviteNotice = '';
     if (!state.profile?.org_id && pendingInvite) {
       try {
         await redeemInvitation(pendingInvite);
       } catch (err) {
         console.warn('Convite inválido ou expirado:', err?.message);
+        inviteNotice =
+          'O link de convite já não é válido — pode ter expirado ou já ter sido usado. '
+          + 'Pede um novo ao teu clube. (Se vieste criar o teu próprio clube, continua abaixo.)';
       } finally {
         try { localStorage.removeItem('rcs.invite'); } catch { /* ignora */ }
       }
+    } else if (state.profile?.org_id && pendingInvite) {
+      // Já tem clube (ex.: o coordenador abriu o link para o testar). O token
+      // ficava guardado para sempre e podia ser resgatado muito mais tarde,
+      // noutra conta do mesmo dispositivo.
+      try { localStorage.removeItem('rcs.invite'); } catch { /* ignora */ }
     }
 
     const access = orgAccess();
     if (!access.ok) {
       if (access.reason === 'pending') {
-        renderOnboarding(root, () => renderAppShell(root, session));
+        renderOnboarding(root, () => renderAppShell(root, session), { notice: inviteNotice });
       } else {
         renderSubscriptionBlocked(root, access.reason);
       }

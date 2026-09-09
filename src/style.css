@@ -2781,6 +2781,20 @@ button.metric--nav:focus-visible {
   padding: 0.75rem 1rem;
   font-size: 0.95rem;
 }
+/* Aviso de "tens um convite" no ecrã de login. É informação e não erro: usa a
+   cor de informação e fica ACIMA dos separadores, porque o que tem de mudar
+   é a escolha entre "Entrar" e "Criar conta". */
+.login__invited {
+  background: var(--info-bg);
+  color: var(--info-ink);
+  font-size: 0.85rem;
+  line-height: 1.45;
+  text-align: left;
+  padding: 0.65rem 0.8rem;
+  border-radius: var(--radius-sm);
+  margin: 0 0 1rem;
+}
+
 .login__error {
   background: var(--danger-bg);
   color: var(--danger-ink);
