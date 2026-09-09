@@ -120,6 +120,15 @@ export function birthDateReady() {
   return !state.players.length || 'birth_date' in state.players[0];
 }
 
+// A coluna `teams.whatsapp_url` chega por migração (`supabase/grupo-whatsapp.sql`).
+// Mesma regra da data de nascimento: sem a coluna, gravar o link rebentava a
+// gravação da equipa inteira, por isso o campo só aparece depois da migração.
+// Um clube ainda sem equipas assume-se pronto — é o estado de quem instalou
+// agora.
+export function whatsappReady() {
+  return !state.teams.length || 'whatsapp_url' in state.teams[0];
+}
+
 // Data de nascimento de um atleta como `Date` local (ou null). Constrói-se com
 // a hora explícita para o fuso não empurrar a data um dia para trás.
 export function birthDate(player) {

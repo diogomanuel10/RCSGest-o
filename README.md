@@ -54,7 +54,8 @@ As permissões são impostas pela base de dados (RLS), não só pela interface.
    antigos), `qrcode-presencas.sql` (presenças por QR / modo quiosque),
    `trainer-notifications.sql`, `convite-atleta.sql` (convites ligados à
    ficha do atleta), `convites-massa.sql` (convidar um plantel inteiro de uma
-   vez), `portal-atleta.sql`, `comunicacao.sql` (respostas do
+   vez), `grupo-whatsapp.sql` (link do grupo do escalão, para o guia de
+   entrada), `portal-atleta.sql`, `comunicacao.sql` (respostas do
    atleta + avisos do clube), `resultados.sql` (resultados de jogo),
    `tatica.sql` (Decisão Tática: cenários de leitura de jogo + respostas),
    `exercicios.sql` (biblioteca de exercícios do clube),

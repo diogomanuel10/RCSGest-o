@@ -6620,6 +6620,32 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 .app--solo .topbar { padding-left: 1.2rem; }
 
 /* =========================================================================
+   Guia de entrada (Plantéis → Guia de entrada)
+   -------------------------------------------------------------------------
+   A mensagem mostra-se por inteiro, tal como vai ser colada. Um resumo com
+   "…" obrigava a copiar às cegas para o WhatsApp para saber o que lá ia — e
+   isto é texto que vai para os encarregados de educação de um escalão
+   inteiro. Quebra as linhas (o texto tem endereços longos) e cresce até um
+   limite, a partir do qual desliza dentro do modal em vez de o empurrar para
+   fora do ecrã.
+   ========================================================================= */
+.guia-msg {
+  margin: 0;
+  padding: 0.8rem 0.9rem;
+  max-height: 45vh;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* =========================================================================
    Convites ao portal em lote (Plantéis → Convidar para o portal)
    -------------------------------------------------------------------------
    Cada linha é um atleta com o SEU link. O endereço aparece por inteiro (e não

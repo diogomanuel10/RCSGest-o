@@ -51,6 +51,33 @@ conforme o `role` + RLS. Ver `supabase/multitenant.sql` (corre DEPOIS de
     seleção. O número devolvido diz quantos convites saíram mesmo.
   - **Nada é enviado pelas costas de ninguém**: os botões abrem o email/WhatsApp
     com o texto escrito, e quem carrega vê a mensagem antes de a mandar.
+- **Guia de entrada no portal** (`supabase/grupo-whatsapp.sql`,
+  `join-guide.js`, `join-poster.js`, `views/guia-entrada.js`): o convite dá o
+  acesso, mas não dá a app. Depois do link cada família ainda tem de instalar
+  a Rumia no ecrã principal, ligar as notificações e entrar no grupo do
+  escalão — e isso explicava-se **pessoa a pessoa**, vinte vezes por equipa,
+  ficando por explicar a quem chegasse a meio da época.
+  - **É o que NÃO muda de atleta para atleta.** O link de convite continua a
+    ser um por ficha (`convites-portal.js`); o que se manda uma vez ao grupo
+    são os passos comuns. Os dois painéis apontam um para o outro, para
+    ninguém esperar que o guia dê acesso a alguém.
+  - **Instalar não é conforto**: no iPhone a Apple só entrega push a uma PWA
+    instalada (`push.js`). Sem esse passo o clube manda avisos que nunca
+    chegam e ninguém dá por isso — por isso o passo é o segundo da lista e
+    di-lo com todas as letras.
+  - **Os passos vivem num sítio só** (`joinSteps`) e têm dois desenhos: a
+    mensagem para colar no grupo e o cartaz A4 para afixar. Escritos duas
+    vezes divergiam à primeira correção, e o cartaz é o que fica meses na
+    parede.
+  - **O cartaz existe porque a mensagem só chega a quem está no grupo**: o pai
+    que veio buscar a filha e o atleta que entrou em janeiro são exatamente
+    quem fica de fora. Leva o QR da app e o do grupo, e **nenhum link
+    pessoal** — um cartaz é público e o convite está ligado a uma ficha.
+  - **O link do grupo é da EQUIPA** (`teams.whatsapp_url`) e não das
+    definições do clube: na formação os grupos são por escalão, e um link
+    único mandava os pais dos infantis para o grupo dos séniores. É opcional —
+    sem ele o guia sai à mesma, sem esse passo — e passa por `safeUrl`, como
+    as ligações do plano de treino.
 - **Subscrições**: `organizations.status` (`trial`/`ativa`/`suspensa`/
   `cancelada`) + `trial_ends_at`. O *gate* em `app-shell.js` (`orgAccess()`)
   bloqueia clubes inativos (`subscription-blocked.js`).
@@ -139,6 +166,8 @@ src/
   qrcode.js             Cartões QR: gerar, ler pela câmara, traduzir (libs lazy)
   players-qr.js         Folha de cartões QR imprimíveis (A4, tamanho cartão)
   invite-slips.js       Talões de convite ao portal imprimíveis (A4, QR do link)
+  join-guide.js         Guia de entrada no portal: passos comuns + mensagem do escalão
+  join-poster.js        Cartaz A4 do guia de entrada (QR da app + QR do grupo)
   offline-card.js       Cartão QR guardado no dispositivo (ecrã de recurso sem rede)
   tactical-court.js     Campo em SVG + exercício de decisão (todas as posições)
   report-sheet.js       Folha A4 imprimível: janela, estilos e blocos comuns
@@ -154,6 +183,7 @@ src/
     patrocinios.js      Separador Patrocínios (dentro do Financeiro)
     planteis.js         Vista Plantéis (CRUD + importar atletas via .xlsx)
     convites-portal.js  Convites ao portal de um plantel inteiro (links + envio)
+    guia-entrada.js     Guia de entrada de um escalão (mensagem para o grupo + cartaz)
     pedidos.js          Pedidos de equipamento do treinador ao clube (separador)
     athlete-profile.js  Perfil do Atleta (modal unificado com separadores)
     avaliacao.js        Vista Avaliação de plantel (Mantém/Sai/Pendente)
@@ -178,6 +208,7 @@ src/
 supabase/schema.sql     Tabelas, índices, RLS e dados iniciais (correr no Supabase)
 supabase/qrcode-presencas.sql  Presenças por QR: token do atleta + RPCs de check-in
 supabase/convites-massa.sql    Convites de atleta em lote (RPC create_invitations_bulk)
+supabase/grupo-whatsapp.sql    Link do grupo de WhatsApp da equipa (guia de entrada)
 supabase/pedidos-equipamento.sql  Pedidos de equipamento (treinador -> clube) + notificações
 supabase/aniversarios.sql      Data de nascimento do atleta (aniversários + quem falta)
 supabase/portal-atleta.sql     Portal: o atleta lê a sua própria disponibilidade

@@ -20,6 +20,7 @@ import { wireDialog } from '../modal.js';
 import { toastOk, toastError } from '../toast.js';
 import { teamName } from '../compute.js';
 import { branding } from '../branding.js';
+import { openJoinGuide } from './guia-entrada.js';
 
 // Link de convite a partir do token (mesma origem/caminho da app).
 export function inviteLink(token) {
@@ -136,6 +137,13 @@ export function openPortalInvites(teamId) {
           </div>
         </div>` : ''}
 
+      ${roster.length ? `
+        <p class="muted" style="margin:0.8rem 0 0;font-size:0.85rem">
+          O link é a única coisa que muda de atleta para atleta. Instalar a app no
+          ecrã principal e ligar as notificações explica-se uma vez ao escalão
+          inteiro — <button class="btn btn--link btn--sm" id="inv-guide" type="button">abrir o guia de entrada</button>.
+        </p>` : ''}
+
       ${linked.length ? `
         <p class="muted" style="margin:0.8rem 0 0;font-size:0.85rem">
           ${linked.length === 1 ? '1 atleta já entra' : `${linked.length} atletas já entram`} na app
@@ -237,6 +245,8 @@ export function openPortalInvites(teamId) {
         .join('\n');
       copy(text, `${ready.length} link${ready.length === 1 ? '' : 's'} ${ready.length === 1 ? 'copiado' : 'copiados'}.`);
     });
+
+    body.querySelector('#inv-guide')?.addEventListener('click', () => openJoinGuide(team.id));
 
     body.querySelector('#inv-csv')?.addEventListener('click', () => downloadCsv(ready, team));
 
