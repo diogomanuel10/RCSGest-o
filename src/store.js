@@ -36,6 +36,7 @@ const ENTITY_LABEL = {
   documents: 'Documento',
   tactical_scenarios: 'Cenário',
   exercises: 'Exercício',
+  equipment_requests: 'Pedido',
 };
 
 // Etiquetas femininas — o particípio concorda em género («Equipa guardada»).
@@ -82,6 +83,11 @@ export const state = {
   trainingEvaluations: [], // avaliações pós treino (1:1 com evento treino)
   trainingPlayerEvals: [], // avaliações individuais por atleta
   playerSizes: [],        // tamanhos de equipamento por atleta
+  equipmentRequests: [],  // pedidos de equipamento (treinador -> clube)
+  // A migração `pedidos-equipamento.sql` já correu? Sem a tabela, o separador
+  // avisa quem pode resolver em vez de mostrar uma lista vazia e falhar só na
+  // gravação — um ecrã vazio parece "ainda não há pedidos", que é mentira.
+  equipmentRequestsReady: true,
   playerDocuments: [],    // documentos (exame médico, seguro, CC)
   squads: [],             // convocatórias (1:1 com evento jogo)
   squadPlayers: [],       // atletas em cada convocatória
@@ -137,6 +143,8 @@ export function resetState() {
   state.trainingEvaluations = [];
   state.trainingPlayerEvals = [];
   state.playerSizes = [];
+  state.equipmentRequests = [];
+  state.equipmentRequestsReady = true;
   state.playerDocuments = [];
   state.squads = [];
   state.squadPlayers = [];
@@ -367,7 +375,8 @@ export async function loadAll() {
          physProfiles, medHistory, physTests, phases, mesocycles, gymSessions, gymExercises, gymAttendance, gameMinutes, availability,
          trainingPlans, trainingPlanItems, trainingEvaluations, trainingPlayerEvals,
          playerDocuments, playerSizes, squads, squadPlayers, financialEntries, gamePlans, objectives,
-         eventResponses, gameResults, gameSets, tacticalScenarios, tacticalAnswers, exercises] =
+         eventResponses, gameResults, gameSets, tacticalScenarios, tacticalAnswers, exercises,
+         equipmentRequests] =
     await Promise.all([
       // Multi-tenant: o RLS limita as definições ao clube do utilizador, por
       // isso não filtramos por id — devolve a (única) linha do clube atual.
@@ -428,6 +437,8 @@ export async function loadAll() {
       supabase.from('tactical_answers').select('*'),
       // Biblioteca de exercícios. Tolerante à migração em falta (ver abaixo).
       supabase.from('exercises').select('*').order('name'),
+      // Pedidos de equipamento. Tolerante à migração em falta (ver abaixo).
+      supabase.from('equipment_requests').select('*').order('created_at', { ascending: false }),
     ]);
 
   for (const res of [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects, episodes, sessions, appointments,
@@ -487,6 +498,10 @@ export async function loadAll() {
   // Sem `exercicios.sql` a biblioteca fica vazia e a secção avisa que falta a
   // migração, em vez de impedir a app de arrancar.
   state.exercises         = exercises.error         ? [] : (exercises.data         || []);
+  // Sem `pedidos-equipamento.sql` o separador Pedidos avisa que falta a
+  // migração, em vez de impedir a app de arrancar.
+  state.equipmentRequests = equipmentRequests.error ? [] : (equipmentRequests.data || []);
+  state.equipmentRequestsReady = !equipmentRequests.error;
 
   // Coerência da cache: com pais arquivados (ex.: uma equipa), os filhos que os
   // referenciam não devem aparecer nos ecrãs ativos.
@@ -579,6 +594,8 @@ function pruneOrphans() {
   state.playerDocuments = state.playerDocuments.filter((d) => playerIds.has(d.player_id));
   // Tamanhos de equipamento: só para atletas ativos.
   state.playerSizes = state.playerSizes.filter((s) => playerIds.has(s.player_id));
+  // Pedidos de equipamento: só de atletas ativos.
+  state.equipmentRequests = state.equipmentRequests.filter((r) => playerIds.has(r.player_id));
 
   // Convocatórias: só para jogos ativos e atletas ativos.
   state.squads = state.squads.filter((s) => eventIds.has(s.event_id));
@@ -1191,6 +1208,8 @@ function cleanupPlayerClinical(playerId) {
   state.gymAttendance = state.gymAttendance.filter((a) => a.player_id !== playerId);
   state.gameMinutes = state.gameMinutes.filter((g) => g.player_id !== playerId);
   state.availability = state.availability.filter((a) => a.player_id !== playerId);
+  // Pedidos de equipamento do atleta apagado (cascade na BD).
+  state.equipmentRequests = state.equipmentRequests.filter((r) => r.player_id !== playerId);
 }
 
 // Arquiva (soft-delete) um registo: marca-o como inativo em vez de apagar, para
@@ -1458,6 +1477,32 @@ export async function upsertPlayerSizes(playerId, values) {
   else state.playerSizes.push(data);
   notify();
   return data;
+}
+
+// --- Pedidos de equipamento ----------------------------------------------
+
+// Cria um pedido carimbando quem o fez. O `requested_by` não é decorativo: a
+// política de INSERT exige que seja o próprio (`requested_by = auth.uid()`) e
+// é por ele que a decisão volta, por notificação, a quem pediu.
+export async function createEquipmentRequest(values) {
+  return createRow('equipment_requests', 'equipmentRequests', {
+    ...values,
+    requested_by: state.profile?.id || null,
+  });
+}
+
+// Decide um pedido (aprovar / entregar / recusar). Guarda quem decidiu e
+// quando — um pedido que muda de estado sozinho, sem dono nem data, não
+// responde à única pergunta que se lhe faz um mês depois: "quem disse que
+// sim?". O servidor recusa esta escrita a quem não é coordenador/seccionista
+// (trigger `guard_request_decision`).
+export async function decideEquipmentRequest(id, status, note = null) {
+  return updateRow('equipment_requests', 'equipmentRequests', id, {
+    status,
+    decision_note: note?.trim() || null,
+    decided_by: state.profile?.id || null,
+    decided_at: new Date().toISOString(),
+  });
 }
 
 // --- Convocatórias -------------------------------------------------------

@@ -154,6 +154,7 @@ src/
     patrocinios.js      Separador Patrocínios (dentro do Financeiro)
     planteis.js         Vista Plantéis (CRUD + importar atletas via .xlsx)
     convites-portal.js  Convites ao portal de um plantel inteiro (links + envio)
+    pedidos.js          Pedidos de equipamento do treinador ao clube (separador)
     athlete-profile.js  Perfil do Atleta (modal unificado com separadores)
     avaliacao.js        Vista Avaliação de plantel (Mantém/Sai/Pendente)
     saude.js            Vista Saúde & Física (orquestra Médico + Prep. Física)
@@ -177,6 +178,7 @@ src/
 supabase/schema.sql     Tabelas, índices, RLS e dados iniciais (correr no Supabase)
 supabase/qrcode-presencas.sql  Presenças por QR: token do atleta + RPCs de check-in
 supabase/convites-massa.sql    Convites de atleta em lote (RPC create_invitations_bulk)
+supabase/pedidos-equipamento.sql  Pedidos de equipamento (treinador -> clube) + notificações
 supabase/aniversarios.sql      Data de nascimento do atleta (aniversários + quem falta)
 supabase/portal-atleta.sql     Portal: o atleta lê a sua própria disponibilidade
 supabase/comunicacao.sql       Respostas do atleta a eventos + avisos do clube
@@ -334,7 +336,7 @@ camada extra.
 | `treino`       | Exercícios (`exercicios`) · Decisão tática (`tatica`)                |
 | `financeiro`   | Livro-razão (`financeiro`) · Patrocínios (`patrocinios`) · Quotas (`quotas`) |
 | `saude`        | Fisioterapia (`medico`) · Prep. física (`fisica`)                    |
-| `equipamentos` | Inventário (`equipamentos`) · Encomendas (`encomendas`)              |
+| `equipamentos` | Inventário (`equipamentos`) · Pedidos (`pedidos`) · Encomendas (`encomendas`) |
 
 A entrada só aparece se **alguma** das suas permissões passar (ver `can` no
 `NAV`). `openFinanceiroTab()` / `openSaudeTab()` deixam outra vista escolher o
@@ -485,6 +487,48 @@ separador antes de navegar (usado pelos cartões do Painel).
     desaparece: três colunas num telemóvel não são três colunas, são três
     cartões ilegíveis — e um controlo que não faz nada é pior do que controlo
     nenhum.
+- **Pedidos de equipamento** (`supabase/pedidos-equipamento.sql`,
+  `views/pedidos.js`): o Inventário diz o que o clube TEM e as Encomendas dizem
+  o tamanho de cada atleta. Nenhum dos dois responde à pergunta que aparece
+  mesmo, a meio da época — "a Ana rasgou as meias, arranjas-lhe umas?". Isso
+  vivia em mensagens de telemóvel: quem pede não sabe se foi tratado e quem
+  trata não tem lista nenhuma para trabalhar.
+  - **Quem PEDE não é quem DECIDE.** O treinador pede (é ele que vê a atleta),
+    o coordenador/seccionista aprova, entrega ou recusa (é quem paga o
+    material). Não é separação de UI: a política de UPDATE deixa o treinador
+    corrigir o SEU pedido enquanto está pendente, e era isso, sozinho, que lhe
+    deixava escrever `status='aprovado'` — o trigger `guard_request_decision`
+    fecha-o, na mesma lógica do `guard_archive`.
+  - **Um pedido é UM artigo para UM atleta**, porque é assim que é entregue e é
+    assim que se decide: aprovar as meias de uma e recusar o blusão de outro
+    não pode obrigar a decidir os dois de uma vez.
+  - **O tamanho vem da ficha, mas é editável** (`player_sizes`): o treinador não
+    devia ter de decorar que a Ana veste M. Trocar de atleta ou de artigo
+    recalcula a sugestão — deixar lá o "M" do artigo anterior é pior do que não
+    sugerir nada. E é editável porque metade dos pedidos existem precisamente
+    porque o tamanho registado deixou de servir (`reason = 'tamanho'`).
+  - **Não há coluna `team_id`**: a equipa lê-se do atleta. Guardá-la aqui seria
+    um segundo dono do mesmo dado, e um atleta que muda de escalão ficava com o
+    pedido preso à equipa antiga.
+  - **Quatro estados e não mais** (`pendente|aprovado|entregue|recusado`): o que
+    se quer saber é se está por decidir, se foi aprovado, se chegou às mãos do
+    atleta ou se foi recusado. Um estado a mais ("em conferência") é mais um
+    sítio onde um pedido fica parado sem ninguém reparar.
+  - **A recusa pede motivo** e viaja de volta por notificação: uma recusa sem
+    explicação volta como o mesmo pedido na semana seguinte. Pelo mesmo motivo
+    há notificação nos dois sentidos — pedido novo para quem decide, decisão
+    para quem pediu. Um pedido a que ninguém responde ensina o treinador a não
+    voltar a pedir, e volta tudo para o telemóvel.
+  - **O atleta não vê isto** (RLS): mostrar-lhe o pedido criava a expectativa de
+    que o material está a caminho antes de alguém o ter decidido. O treinador vê
+    os das SUAS equipas; os papéis de âmbito de clube veem todos.
+  - **O separador conta os que faltam decidir** ("Pedidos (3)") e o Painel tem o
+    aviso `pedidos_equipamento` — mas só para quem decide: ao treinador, o
+    contador seria o seu próprio pedido a olhar para ele.
+  - Não é uma secção configurável (`canAccess('pedidos')`): é a ferramenta do
+    próprio treinador, e tirar-lha não é uma escolha que faça sentido pôr ao
+    coordenador. Segue o módulo `equipamentos` no plano — não há plano com
+    inventário e sem pedidos.
 - **Importar atletas (.xlsx)**: nos Plantéis, cada equipa tem "Importar (xlsx)".
   `players-xlsx.js` lê o ficheiro com SheetJS (carregado dinamicamente) e mapeia
   as colunas por cabeçalho (Nome, Número, Ano de nascimento, Posição; aceita

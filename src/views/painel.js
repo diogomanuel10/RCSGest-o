@@ -52,7 +52,7 @@ import {
   EPISODE_STATUS_BADGE,
 } from '../constants.js';
 import {
-  canEdit, canAccess, isFisio, isPreparador, isTreinador,
+  canEdit, canAccess, canDecideRequests, isFisio, isPreparador, isTreinador,
   canManageUsers, canManageSettings,
 } from '../permissions.js';
 import { openQuickAttendance } from './presencas.js';
@@ -549,6 +549,7 @@ export const ALERT_CATALOG = [
   { key: 'quotas',          label: 'Quotas por cobrar',              can: () => canEdit('quotas') },
   { key: 'recrutamento',    label: 'Prospetos prontos a inscrever',  can: () => canEdit('prospects') },
   { key: 'equipamentos',    label: 'Equipamento em mau estado',      can: () => canEdit('equipment') },
+  { key: 'pedidos_equipamento', label: 'Pedidos de equipamento por decidir', can: () => canDecideRequests() },
   { key: 'objetivos',       label: 'Objetivos em risco',             can: () => canAccess('objetivos') },
   { key: 'gap_treino_jogo', label: 'Treina muito, joga pouco',       can: () => canAccess('planteis') },
   { key: 'queda_presencas', label: 'Quedas de comparência',          can: () => canAccess('presencas') },
@@ -624,6 +625,21 @@ function buildActions() {
         route: 'recrutamento',
         title: `${ready} prospeto${ready === 1 ? '' : 's'} pronto${ready === 1 ? '' : 's'} a inscrever`,
         sub: 'Confirmados no recrutamento — inscrever no plantel.',
+      });
+    }
+  }
+
+  // Pedidos de equipamento à espera de decisão. Vive no Painel porque é do
+  // coordenador que o treinador está à espera — e um pedido esquecido num
+  // separador ensina o treinador a voltar ao telemóvel.
+  if (canDecideRequests() && alertOn('pedidos_equipamento')) {
+    const n = state.equipmentRequests.filter((r) => r.status === 'pendente').length;
+    if (n > 0) {
+      items.push({
+        variant: 'warn',
+        route: 'pedidos',
+        title: `${n} pedido${n === 1 ? '' : 's'} de equipamento por decidir`,
+        sub: 'Aprovar, entregar ou recusar — abrir Equipamentos.',
       });
     }
   }

@@ -124,6 +124,10 @@ const EDIT_ROLES = {
   game_plans: ['coordenador', 'treinador'],
   // Tamanhos de equipamento: coordenador e seccionista.
   sizes: ['coordenador', 'seccionista'],
+  // Pedidos de equipamento: quem PEDE. O treinador entra aqui de propósito —
+  // é ele que vê a atleta com as meias rasgadas. Decidir o pedido é outra
+  // coisa e tem a sua própria porta (canDecideRequests).
+  equipment_requests: ['coordenador', 'treinador', 'seccionista'],
   // Documentos dos atletas: coordenador + fisioterapeuta + preparador.
   documents: ['coordenador', 'fisioterapeuta', 'preparador'],
 };
@@ -186,7 +190,10 @@ export function currentPermissions() {
 //   2) o plano do clube (planAllowsFeature) — que módulos premium estão ativos.
 // Um módulo premium só aparece se o papel O permitir E o plano O incluir.
 export function canAccess(key) {
-  return roleCanAccess(key) && planAllowsFeature(key);
+  // Os Pedidos são um separador do módulo Equipamentos: quem tem o módulo no
+  // plano tem os pedidos: não há um "plano com inventário mas sem pedidos".
+  const feature = key === 'pedidos' ? 'equipamentos' : key;
+  return roleCanAccess(key) && planAllowsFeature(feature);
 }
 
 // Acesso por PAPEL (sem considerar o plano). Base histórica das permissões.
@@ -226,6 +233,11 @@ function roleCanAccess(key) {
   }
   // Encomendas: exclusivo do coordenador (não configurável).
   if (key === 'encomendas') return false;
+  // Pedidos de equipamento: quem pede (treinador) e quem trata do material
+  // (seccionista) — o coordenador e a direção já passaram acima. Não é uma
+  // secção configurável: é a ferramenta do próprio treinador, e dar-lha ou não
+  // não é uma escolha que faça sentido pôr ao coordenador.
+  if (key === 'pedidos') return ['treinador', 'seccionista'].includes(role);
   // Objetivos / KPIs: visíveis a toda a equipa técnica (não ao atleta, já
   // tratado acima). Transparência para todos; edição só do coordenador.
   if (key === 'objetivos') return true;
@@ -254,6 +266,13 @@ const DELETE_ROLES = {
 export function canDelete(entity) {
   if (DELETE_ROLES[entity]) return DELETE_ROLES[entity].includes(currentRole());
   return canEdit(entity);
+}
+
+// Decidir um pedido de equipamento (aprovar/entregar/recusar) é de quem trata
+// do material e paga a fatura — nunca de quem pede. Espelha o trigger
+// `guard_request_decision` no Supabase.
+export function canDecideRequests() {
+  return isCoordenador() || isSeccionista();
 }
 
 // Só o coordenador gere utilizadores (papéis, vínculos e acessos).

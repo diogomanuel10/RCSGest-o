@@ -29,7 +29,7 @@ import { renderInicio, openInicioTab } from './inicio.js';
 import { renderPlanteis } from './planteis.js';
 import { renderCalendario } from './calendario.js';
 import { renderPresencas } from './presencas.js';
-import { renderEquipamentos } from './equipamentos.js';
+import { renderEquipamentos, openEquipamentosTab } from './equipamentos.js';
 import { renderTreinadores } from './treinadores.js';
 import { renderDefinicoes } from './definicoes.js';
 import { renderUtilizadores } from './utilizadores.js';
@@ -103,7 +103,7 @@ const NAV = [
   { key: 'calendario',   label: 'Calendário',    icon: ICONS.calendario,   render: renderCalendario,    group: 'competicao' },
   { key: 'presencas',    label: 'Presenças',     icon: ICONS.presencas,    render: renderPresencas,     group: 'competicao' },
 
-  { key: 'equipamentos', label: 'Equipamentos',  icon: ICONS.equipamentos, render: renderEquipamentos,  group: 'admin', alias: 'inventário encomendas tamanhos', can: () => canAccess('equipamentos') || canAccess('encomendas') },
+  { key: 'equipamentos', label: 'Equipamentos',  icon: ICONS.equipamentos, render: renderEquipamentos,  group: 'admin', alias: 'inventário encomendas tamanhos pedidos material meias', can: () => canAccess('equipamentos') || canAccess('encomendas') || canAccess('pedidos') },
   { key: 'financeiro',   label: 'Financeiro',    icon: ICONS.financeiro,   render: renderFinanceiro,    group: 'admin', alias: 'quotas patrocínios livro-razão receitas despesas', can: () => canAccess('financeiro') || canAccess('patrocinios') || canAccess('quotas') },
 ];
 
@@ -320,6 +320,7 @@ export async function renderAppShell(root, session) {
     tatica:      { route: 'treino',     open: () => openTreinoTab('tatica') },
     objetivos:   { route: 'painel',     open: () => openInicioTab('objetivos') },
     patrocinios: { route: 'financeiro', open: () => openFinanceiroTab('patrocinios') },
+    pedidos:     { route: 'equipamentos', open: () => openEquipamentosTab('pedidos') },
   };
 
   // Traduz o endereço atual em { route } ou { playerId, tab }.
@@ -829,6 +830,9 @@ export async function renderAppShell(root, session) {
       player_unavailable:   `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" y1="8" x2="23" y2="14"/><line x1="23" y1="8" x2="17" y2="14"/></svg>`,
       player_available:     `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>`,
       clinical_alta:        `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>`,
+      // Pedidos de equipamento (treinador <-> clube)
+      equipment_request:          `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>`,
+      equipment_request_decided:  `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="m9 13 2 2 4-4"/></svg>`,
       attendance_reminder:  `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
     };
     return icons[type] || `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`;
