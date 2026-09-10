@@ -7,6 +7,7 @@ import {
   DEFAULT_SPORT, SPORT_POSITIONS, DEFAULT_POSITIONS, DOC_TYPE_LABEL, DOCUMENT_TYPES,
   PHYSICAL_TEST_LABEL, PHYSICAL_TEST_UNIT, PHYSICAL_TEST_BETTER,
   RESPONSE_LEAD_HOURS, DEFAULT_RESPONSE_LEAD_HOURS,
+  DEFAULT_EQUIPMENT_ARTICLES,
 } from './constants.js';
 
 // Tipos de documento que deviam ter data de validade (exame médico, seguro…).
@@ -33,6 +34,100 @@ export function positions() {
   const custom = state.settings?.positions;
   if (Array.isArray(custom) && custom.length) return custom;
   return SPORT_POSITIONS[sport()] || DEFAULT_POSITIONS;
+}
+
+// --- Artigos de equipamento -----------------------------------------------
+
+// A app só oferece artigos configuráveis depois de `artigos-configuraveis.sql`
+// correr — é ele que traz `settings.equipment_articles` e `player_sizes.sizes`.
+// Sem a migração, gravar um tamanho rebentava a ficha inteira; é a mesma linha
+// do `'qr_checkin_enabled' in state.settings`.
+export function equipmentArticlesReady() {
+  return 'equipment_articles' in (state.settings || {});
+}
+
+
+// Artigos em vigor (configuráveis nas Definições → Estrutura). Recorre à
+// lista por omissão enquanto o clube não tiver a sua, no mesmo padrão dos
+// escalões e das posições.
+//
+// Os artigos DESATIVADOS ficam de fora: deixam de se poder preencher e de
+// aparecer nas encomendas, mas a chave continua a existir para o histórico
+// (os tamanhos e os pedidos já registados mantêm a etiqueta certa — ver
+// `articleLabel`). Apagar a definição punha "blusao" no lugar de "Blusão"
+// num pedido de dezembro.
+export function equipmentArticles() {
+  const custom = state.settings?.equipment_articles;
+  const list = Array.isArray(custom) && custom.length ? custom : DEFAULT_EQUIPMENT_ARTICLES;
+  return list
+    .filter((a) => a && a.key && a.active !== false)
+    .map((a) => ({
+      key: a.key,
+      label: a.label || a.key,
+      sizes: Array.isArray(a.sizes) ? a.sizes.filter(Boolean) : [],
+    }));
+}
+
+// Todos os artigos, ativos e desativados — para o editor das Definições e
+// para traduzir chaves que já não estão em uso.
+export function allEquipmentArticles() {
+  const custom = state.settings?.equipment_articles;
+  const list = Array.isArray(custom) && custom.length ? custom : DEFAULT_EQUIPMENT_ARTICLES;
+  return list
+    .filter((a) => a && a.key)
+    .map((a) => ({
+      key: a.key,
+      label: a.label || a.key,
+      sizes: Array.isArray(a.sizes) ? a.sizes.filter(Boolean) : [],
+      active: a.active !== false,
+    }));
+}
+
+// Etiqueta de uma chave de artigo. Procura também nos desativados e na lista
+// por omissão: um pedido antigo de um artigo que o clube entretanto tirou da
+// lista tem de continuar legível.
+export function articleLabel(key) {
+  if (!key) return '';
+  const found = allEquipmentArticles().find((a) => a.key === key)
+    || DEFAULT_EQUIPMENT_ARTICLES.find((a) => a.key === key);
+  return found ? found.label : key;
+}
+
+// Tamanhos de um atleta, já normalizados. Lê a coluna `sizes` (jsonb) e
+// recorre às colunas antigas enquanto a migração `artigos-configuraveis.sql`
+// não tiver corrido — sem isto, um clube que ainda não migrou via a tabela
+// das Encomendas inteira vazia.
+export function playerSizes(playerId) {
+  const row = state.playerSizes.find((s) => s.player_id === playerId);
+  if (!row) return {};
+  if (row.sizes && typeof row.sizes === 'object') {
+    return Object.keys(row.sizes).length ? row.sizes : legacySizes(row);
+  }
+  return legacySizes(row);
+}
+
+function legacySizes(row) {
+  const out = {};
+  DEFAULT_EQUIPMENT_ARTICLES.forEach((a) => {
+    if (row[a.key]) out[a.key] = row[a.key];
+  });
+  return out;
+}
+
+// Ordenação de tamanhos pela ordem em que o clube os escreveu (é ela que diz
+// que XS vem antes de S, sem a app ter de conhecer a escala). Um valor que já
+// não esteja na lista — um tamanho registado antes de o artigo mudar — vai
+// para o fim, por ordem natural, em vez de desaparecer.
+export function sortSizes(values, article) {
+  const order = article?.sizes || [];
+  return values.slice().sort((a, b) => {
+    const ia = order.indexOf(a);
+    const ib = order.indexOf(b);
+    if (ia !== -1 && ib !== -1) return ia - ib;
+    if (ia !== -1) return -1;
+    if (ib !== -1) return 1;
+    return String(a).localeCompare(String(b), 'pt', { numeric: true });
+  });
 }
 
 // Cor de identidade por escalão / posição: índice na lista configurada (que é

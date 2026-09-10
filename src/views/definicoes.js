@@ -6,8 +6,9 @@ import { toastOk } from '../toast.js';
 import { confirmDialog } from '../modal.js';
 import { isCoordenador } from '../permissions.js';
 import { hasDemoData, seedDemoData, clearDemoData } from '../demo-data.js';
-import { escaloes, positions, sport } from '../compute.js';
-import { SPORTS, SPORT_POSITIONS } from '../constants.js';
+import { escaloes, positions, sport, allEquipmentArticles, equipmentArticlesReady } from '../compute.js';
+import { SPORTS, SPORT_POSITIONS, TEXT_SIZES, DEFAULT_EQUIPMENT_ARTICLES } from '../constants.js';
+import { openModal } from '../modal.js';
 import { branding, logoSrc, defaultLogo, parseHex, DEFAULT_BRANDING } from '../branding.js';
 
 // Limite do emblema guardado (data URL na linha de definições). Mantém a linha
@@ -23,6 +24,9 @@ export function renderDefinicoes(container) {
   // Os dados de exemplo só existem depois de `supabase/dados-exemplo.sql` correr
   // (é ele que traz a coluna) — sem migração, o cartão não aparece.
   const demoReady = 'demo_seed' in (state.settings || {});
+  // Os artigos configuráveis só existem depois de `artigos-configuraveis.sql`
+  // correr (é ele que traz a coluna) — sem migração, o cartão não aparece.
+  const articlesReady = equipmentArticlesReady();
   const demoOn = demoReady && hasDemoData();
   // "Cópia de segurança" só existe para o coordenador — evita ficar preso nesse
   // separador se o utilizador não lhe tiver acesso.
@@ -205,6 +209,27 @@ export function renderDefinicoes(container) {
         <button type="button" class="btn btn--primary" id="save-pos">Guardar modalidade e posições</button>
       </div>
     </section>
+
+    ${articlesReady ? `
+    <section class="card settings-card">
+      <h2 class="section-title settings-card__title">Artigos de equipamento</h2>
+      <p class="muted" style="margin-top:0">
+        Os artigos que o clube dá aos atletas e os tamanhos de cada um. É esta
+        lista que faz as colunas das Encomendas e as opções dos Pedidos. Um
+        artigo <strong>sem tamanhos</strong> pede o tamanho em texto livre —
+        é o caso das meias, que se medem em números.
+      </p>
+      <ul class="chips" id="art-list"></ul>
+      <div class="row row--wrap" style="gap:0.6rem;margin-top:0.5rem">
+        <button type="button" class="btn btn--ghost btn--sm" id="art-add">+ Novo artigo</button>
+        <button type="button" class="btn btn--ghost btn--sm" id="art-defaults">Repor lista de origem</button>
+      </div>
+      <p class="settings-msg hidden" id="art-msg"></p>
+      <div class="row" style="justify-content:flex-end">
+        <button type="button" class="btn btn--primary" id="save-art">Guardar artigos</button>
+      </div>
+    </section>
+    ` : ''}
 
     <section class="card settings-card">
       <h2 class="section-title settings-card__title">Avaliação de plantel</h2>
@@ -770,6 +795,177 @@ export function renderDefinicoes(container) {
       btn.textContent = 'Guardar escalões';
     }
   });
+
+  // --- Artigos de equipamento configuráveis ---
+  if (articlesReady) wireArticles();
+
+  function wireArticles() {
+    // A CHAVE de um artigo é imutável depois de criada: é ela que está guardada
+    // nos tamanhos de cada atleta (player_sizes.sizes) e em cada pedido
+    // (equipment_requests.article). Renomear "Blusão" para "Casaco" muda só a
+    // etiqueta; mudar a chave perdia os tamanhos todos.
+    let artList = allEquipmentArticles().map((a) => ({ ...a, sizes: [...a.sizes] }));
+    const artListEl = container.querySelector('#art-list');
+    const artMsg = container.querySelector('#art-msg');
+
+    // Chave a partir da etiqueta: minúsculas sem acentos. Só serve para
+    // artigos NOVOS — nunca se recalcula a de um artigo existente.
+    function articleKeyFrom(label) {
+      const base = String(label)
+        .trim()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .toLowerCase() || 'artigo';
+      // 'outro' é a chave reservada do "Outro artigo…" nos Pedidos.
+      let key = base === 'outro' ? 'artigo_outro' : base;
+      let n = 2;
+      while (artList.some((a) => a.key === key)) key = `${base}_${n++}`;
+      return key;
+    }
+
+    function drawArtList() {
+      if (!artList.length) {
+        artListEl.innerHTML = '<li class="muted" style="list-style:none">Sem artigos. As Encomendas ficam vazias.</li>';
+        return;
+      }
+      artListEl.innerHTML = artList
+        .map((a, i) => `
+          <li class="chip chip--rich${a.active ? '' : ' chip--off'}">
+            <span class="chip__label">
+              ${esc(a.label)}
+              ${a.active ? '' : '<span class="badge badge--muted">Desativado</span>'}
+              <small class="muted" style="display:block;font-weight:400">
+                ${a.sizes.length ? esc(a.sizes.join(' · ')) : 'Tamanho em texto livre'}
+              </small>
+            </span>
+            <span class="chip__actions">
+              <button type="button" data-aup="${i}" aria-label="Mover para cima" ${i === 0 ? 'disabled' : ''}>↑</button>
+              <button type="button" data-adown="${i}" aria-label="Mover para baixo" ${i === artList.length - 1 ? 'disabled' : ''}>↓</button>
+              <button type="button" data-aedit="${i}" aria-label="Editar ${esc(a.label)}">✎</button>
+              <button type="button" data-atoggle="${i}"
+                      aria-label="${a.active ? 'Desativar' : 'Reativar'} ${esc(a.label)}">${a.active ? '⏻' : '↺'}</button>
+            </span>
+          </li>`)
+        .join('');
+
+      artListEl.querySelectorAll('[data-aup]').forEach((b) =>
+        b.addEventListener('click', () => moveArt(Number(b.dataset.aup), -1))
+      );
+      artListEl.querySelectorAll('[data-adown]').forEach((b) =>
+        b.addEventListener('click', () => moveArt(Number(b.dataset.adown), 1))
+      );
+      artListEl.querySelectorAll('[data-aedit]').forEach((b) =>
+        b.addEventListener('click', () => openArticleForm(Number(b.dataset.aedit)))
+      );
+      // Desativar e NÃO apagar: os tamanhos e os pedidos já registados guardam a
+      // chave deste artigo, e sem a definição um pedido de dezembro passava a
+      // dizer "blusao" em vez de "Blusão". Desativado, deixa de se poder
+      // preencher e sai das Encomendas — o histórico fica legível.
+      artListEl.querySelectorAll('[data-atoggle]').forEach((b) =>
+        b.addEventListener('click', () => {
+          const i = Number(b.dataset.atoggle);
+          artList[i] = { ...artList[i], active: !artList[i].active };
+          drawArtList();
+        })
+      );
+    }
+
+    function moveArt(i, dir) {
+      const j = i + dir;
+      if (j < 0 || j >= artList.length) return;
+      [artList[i], artList[j]] = [artList[j], artList[i]];
+      drawArtList();
+    }
+
+    // Os tamanhos escrevem-se numa linha separada por vírgulas, e não em chips
+    // um a um: escrever "XS, S, M, L, XL" é um gesto; cinco chips são cinco
+    // submissões de formulário para dizer a mesma coisa. A ORDEM em que se
+    // escrevem é a ordem em que aparecem — é ela que diz que XS vem antes de S,
+    // sem a app ter de conhecer escala nenhuma.
+    function openArticleForm(index) {
+      const editing = index != null ? artList[index] : null;
+      openModal({
+        title: editing ? `Artigo — ${editing.label}` : 'Novo artigo',
+        submitLabel: 'Aplicar',
+        values: {
+          label: editing?.label || '',
+          sizes: (editing?.sizes || TEXT_SIZES).join(', '),
+        },
+        fields: [
+          {
+            name: 'label', label: 'Nome do artigo', required: true,
+            placeholder: 'ex.: Joelheiras',
+            hint: editing
+              ? 'Muda só o que se lê no ecrã — os tamanhos já registados mantêm-se.'
+              : undefined,
+          },
+          {
+            name: 'sizes', label: 'Tamanhos', type: 'text',
+            placeholder: 'XS, S, M, L, XL, XXL',
+            hint: 'Separados por vírgulas, pela ordem em que devem aparecer. Deixa vazio para pedir o tamanho em texto livre.',
+          },
+        ],
+        onSubmit: (values) => {
+          const label = values.label.trim();
+          // O nome é o cabeçalho de uma coluna da tabela das Encomendas — um
+          // parágrafo ali dentro deita a tabela ao lado.
+          if (label.length > 40) throw new Error('O nome do artigo não pode ter mais de 40 caracteres.');
+          if (artList.some((a, j) => j !== index && a.label.toLowerCase() === label.toLowerCase())) {
+            throw new Error('Já existe um artigo com esse nome.');
+          }
+          const sizes = (values.sizes || '')
+            .split(',')
+            .map((x) => x.trim())
+            .filter(Boolean)
+            // Um tamanho repetido dava duas opções iguais no select.
+            .filter((x, i, arr) => arr.findIndex((y) => y.toLowerCase() === x.toLowerCase()) === i);
+          if (editing) {
+            artList[index] = { ...editing, label, sizes };
+          } else {
+            artList.push({ key: articleKeyFrom(label), label, sizes, active: true });
+          }
+          artMsg.classList.add('hidden');
+          drawArtList();
+        },
+      });
+  }
+
+  drawArtList();
+
+  container.querySelector('#art-add').addEventListener('click', () => openArticleForm(null));
+
+  container.querySelector('#art-defaults').addEventListener('click', async () => {
+    const ok = await confirmDialog(
+      'Repor a lista de artigos de origem? Os artigos que criaste desaparecem da lista. '
+      + 'Os tamanhos já registados não são apagados — voltam a aparecer se o artigo for recriado com a mesma chave.',
+      { confirmLabel: 'Repor', danger: false }
+    );
+    if (!ok) return;
+    artList = DEFAULT_EQUIPMENT_ARTICLES.map((a) => ({ ...a, sizes: [...a.sizes], active: true }));
+    drawArtList();
+  });
+
+  container.querySelector('#save-art').addEventListener('click', async (e) => {
+    if (!artList.some((a) => a.active)) {
+      showMsg(artMsg, 'Tem de ficar pelo menos um artigo ativo.', 'error');
+      return;
+    }
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    btn.textContent = 'A guardar…';
+    try {
+      await saveSettings({ equipment_articles: artList });
+      showMsg(artMsg, 'Artigos guardados.', 'ok');
+    } catch (err) {
+      showMsg(artMsg, dbErrorMessage(err), 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Guardar artigos';
+    }
+  });
+  }
 
   // --- Modalidade e posições configuráveis ---
   let posList = [...positions()];
