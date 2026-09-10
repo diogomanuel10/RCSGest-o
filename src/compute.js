@@ -577,8 +577,9 @@ export function playerRecentForm(playerId, last = 5) {
   return { compareceu, total: rows.length, rate: Math.round((compareceu / rows.length) * 100) };
 }
 
-// Convocatórias de um atleta para os jogos que ainda vêm (a `nextPlayerSquadEvent`
-// devolve só o próximo). Ordenadas do mais próximo para o mais distante.
+// Jogos que ainda vêm e para os quais o atleta foi convocado, do mais próximo
+// para o mais distante. Não há estado que devolver: estar na lista é a
+// resposta toda.
 export function playerUpcomingSquads(playerId, limit = 5) {
   const now = new Date();
   const mySquadIds = new Set(
@@ -586,21 +587,14 @@ export function playerUpcomingSquads(playerId, limit = 5) {
       .filter((sp) => sp.player_id === playerId)
       .map((sp) => sp.squad_id)
   );
-  const eventStatus = new Map();
-  state.squads
-    .filter((s) => mySquadIds.has(s.id))
-    .forEach((s) => {
-      const sp = state.squadPlayers.find(
-        (p) => p.squad_id === s.id && p.player_id === playerId
-      );
-      eventStatus.set(s.event_id, sp?.status || 'convocado');
-    });
+  const myEventIds = new Set(
+    state.squads.filter((s) => mySquadIds.has(s.id)).map((s) => s.event_id)
+  );
 
   return state.events
-    .filter((e) => e.type === 'jogo' && eventStatus.has(e.id) && eventDateTime(e) >= now)
+    .filter((e) => e.type === 'jogo' && myEventIds.has(e.id) && eventDateTime(e) >= now)
     .sort((a, b) => eventDateTime(a) - eventDateTime(b))
-    .slice(0, limit)
-    .map((ev) => ({ event: ev, status: eventStatus.get(ev.id) }));
+    .slice(0, limit);
 }
 
 // --- Resultados de jogo --------------------------------------------------
@@ -1153,42 +1147,6 @@ export function financialSummary() {
     totalIncome: income + quotas,
     totalBalance: income + quotas - expenses,
   };
-}
-
-// --- Convocatórias -------------------------------------------------------
-
-// Devolve o estado de convocatória de um atleta para um evento específico,
-// ou null se não estiver convocado.
-export function playerSquadStatus(playerId, eventId) {
-  const squad = state.squads.find((s) => s.event_id === eventId);
-  if (!squad) return null;
-  const sp = state.squadPlayers.find(
-    (p) => p.squad_id === squad.id && p.player_id === playerId
-  );
-  return sp ? sp.status : null;
-}
-
-// Próximo jogo ao qual o atleta está convocado (ou null se nenhum).
-export function nextPlayerSquadEvent(playerId) {
-  const now = new Date();
-  const mySquadIds = new Set(
-    state.squadPlayers
-      .filter((sp) => sp.player_id === playerId)
-      .map((sp) => sp.squad_id)
-  );
-  const myEventIds = new Set(
-    state.squads.filter((s) => mySquadIds.has(s.id)).map((s) => s.event_id)
-  );
-  const upcoming = state.events
-    .filter((e) => e.type === 'jogo' && myEventIds.has(e.id) && eventDateTime(e) >= now)
-    .sort((a, b) => eventDateTime(a) - eventDateTime(b));
-  if (!upcoming.length) return null;
-  const ev = upcoming[0];
-  const squad = state.squads.find((s) => s.event_id === ev.id);
-  const sp = state.squadPlayers.find(
-    (p) => p.squad_id === squad.id && p.player_id === playerId
-  );
-  return { event: ev, status: sp?.status || 'convocado' };
 }
 
 // --- Preparação Física ---------------------------------------------------

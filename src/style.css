@@ -2863,6 +2863,12 @@ button.metric--nav:focus-visible {
   border-left-color: var(--danger);
   background: linear-gradient(90deg, rgba(220,38,38,0.05), transparent 40%);
 }
+/* Convocatória: só há convocado e não convocado — a linha marcada é a
+   chamada, a lisa é quem fica de fora. */
+.pres-row--convocado {
+  border-left-color: var(--ok);
+  background: linear-gradient(90deg, rgba(22,163,74,0.05), transparent 40%);
+}
 
 .pres-actions {
   display: flex;

@@ -203,9 +203,8 @@ export async function seedDemoData() {
   for (const [i, jogo] of jogos.entries()) {
     const plantel = byTeam(jogo.team_id);
     const [squad] = await ins('squads', [{ event_id: jogo.id }]);
-    await ins('squad_players', plantel.slice(0, 10).map((p, k) => ({
+    await ins('squad_players', plantel.slice(0, 10).map((p) => ({
       squad_id: squad.id, player_id: p.id,
-      status: k < 6 ? 'titular' : k < 9 ? 'suplente' : 'convocado',
     })));
 
     const venceu = i % 2 === 0;
@@ -221,8 +220,9 @@ export async function seedDemoData() {
       event_id: jogo.id, set_number: k + 1, points_for: f, points_against: a,
     })));
 
-    // Participação: os titulares jogam quase tudo, os suplentes pouco. É este
-    // contraste que faz aparecer o aviso "treina muito, joga pouco".
+    // Participação: convocada não é jogada. Seis atletas disputam quase tudo e
+    // as restantes entram pouco — é este contraste que faz aparecer o aviso
+    // "treina muito, joga pouco".
     const totalPontos = parciais.reduce((t, [f, a]) => t + f + a, 0);
     await ins('game_minutes', plantel.slice(0, 10).map((p, k) => ({
       event_id: jogo.id, player_id: p.id,

@@ -8,7 +8,7 @@
 // vai estar. Passam a ser um só ecrã, escolhido pelo tipo do evento:
 //
 //   • treino → respostas + presenças (Presente / Atraso / Justificado / Falta)
-//   • jogo   → respostas + convocatória (convocado / titular / suplente)
+//   • jogo   → respostas + convocatória (convocado / não convocado)
 //
 // A separação por tipo é deliberada e não é preguiça. Presença é registo de
 // treino: `attendanceStats` conta TODAS as presenças que existirem, e marcar
@@ -23,7 +23,7 @@ import { esc, emptyHTML } from '../ui.js';
 import { eventDateTime, eventTimeRange, teamById, teamName, eventResponseSummary,
          playerEventResponse } from '../compute.js';
 import { ATTENDANCE_STATUSES, ATTENDANCE_LABEL, ATTENDANCE_BADGE,
-         SQUAD_STATUSES, SQUAD_STATUS_LABEL, SQUAD_STATUS_BADGE,
+         SQUAD_CALLED,
          EVENT_RESPONSE_LABEL, EVENT_RESPONSE_BADGE } from '../constants.js';
 import { canEdit } from '../permissions.js';
 import { confirmDialog, wireDialog } from '../modal.js';
@@ -106,19 +106,14 @@ export function renderPresencas(container) {
       counts[a.status] = (counts[a.status] || 0) + 1;
     });
 
-  // Convocatória do evento (só existe em jogos). O estado de cada atleta vem
-  // de `squad_players`; sem linha, não está convocado.
+  // Convocatória do evento (só existe em jogos). Estar convocado é ter linha
+  // em `squad_players`; não ter linha é não estar convocado. Não há terceiro
+  // estado (ver SQUAD_CALLED em constants.js).
   const squad = state.squads.find((sq) => sq.event_id === selectedEventId) || null;
-  const squadStatus = (playerId) => {
-    if (!squad) return null;
-    const sp = state.squadPlayers.find((x) => x.squad_id === squad.id && x.player_id === playerId);
-    return sp ? sp.status : null;
-  };
-  const squadCounts = players.reduce((acc, p) => {
-    const st = squadStatus(p.id);
-    if (st !== null) { acc.total++; acc[st] = (acc[st] || 0) + 1; }
-    return acc;
-  }, { total: 0, convocado: 0, titular: 0, suplente: 0 });
+  const isCalled = (playerId) => !!squad && state.squadPlayers.some(
+    (x) => x.squad_id === squad.id && x.player_id === playerId
+  );
+  const calledCount = players.filter((p) => isCalled(p.id)).length;
 
   const totalPlayers = players.length;
   const marked = counts.presente + counts.atraso + counts.justificado + counts.falta;
@@ -186,10 +181,8 @@ export function renderPresencas(container) {
 
     <section class="cards-grid aval-summary" style="margin-bottom:1.2rem">
       ${isGame
-        ? `${summaryCard('Convocados', squadCounts.total, 'info')}
-           ${summaryCard('Titulares', squadCounts.titular, 'green')}
-           ${summaryCard('Suplentes', squadCounts.suplente, 'warn')}
-           ${summaryCard('Fora', totalPlayers - squadCounts.total, '')}`
+        ? `${summaryCard('Convocados', calledCount, 'green')}
+           ${summaryCard('Fora', totalPlayers - calledCount, '')}`
         : `${summaryCard('Presentes', counts.presente, 'green')}
            ${summaryCard('Atrasos', counts.atraso, 'warn')}
            ${summaryCard('Justificados', counts.justificado, 'info')}
@@ -200,7 +193,7 @@ export function renderPresencas(container) {
       <div class="goal-card__header">
         <h2 class="section-title goal-card__title">${isGame ? 'Convocatória' : 'Lista de atletas'}</h2>
         <span class="goal-card__pct">${isGame
-          ? `${squadCounts.total} de ${totalPlayers}`
+          ? `${calledCount} de ${totalPlayers}`
           : `${pct}% registado`}</span>
       </div>
       ${isGame ? '' : `<div class="progress"><div class="progress__bar" style="width:${pct}%"></div></div>`}
@@ -208,7 +201,7 @@ export function renderPresencas(container) {
       ${isGame && canSquad && totalPlayers
         ? `<div class="row row--wrap pres-close" style="gap:0.5rem">
              <button class="btn btn--ghost btn--sm" id="squad-all" type="button">Convocar todos</button>
-             ${squadCounts.total
+             ${calledCount
                ? '<button class="btn btn--ghost btn--sm" id="squad-clear" type="button">Limpar convocatória</button>'
                : ''}
            </div>`
@@ -228,7 +221,7 @@ export function renderPresencas(container) {
         : !players.length
         ? '<p class="muted" style="margin:1rem 0 0">Sem atletas nesta equipa.</p>'
         : `<ul class="pres-list">${players.map((p) => isGame
-            ? squadRow(p, squadStatus(p.id), ev, canSquad)
+            ? squadRow(p, isCalled(p.id), ev, canSquad)
             : playerRow(p, attendanceMap[p.id], ev, editable)).join('')}</ul>`
       }
 
@@ -271,34 +264,33 @@ export function renderPresencas(container) {
     const withError = async (fn) => {
       try { await fn(); } catch (err) { toastError(dbErrorMessage(err)); }
     };
-    container.querySelectorAll('[data-squad-status]').forEach((btn) => {
+    // Um só botão por atleta: convocar quem não está, retirar quem está.
+    container.querySelectorAll('[data-squad-toggle]').forEach((btn) => {
       btn.addEventListener('click', () => withError(async () => {
+        const playerId = btn.dataset.squadToggle;
+        if (btn.dataset.called === '1') {
+          if (squad) await removeSquadPlayer(squad.id, playerId);
+          return;
+        }
         const sq = await ensureSquad(selectedEventId);
-        await upsertSquadPlayer(sq.id, btn.dataset.player, btn.dataset.squadStatus);
-      }));
-    });
-    container.querySelectorAll('[data-squad-remove]').forEach((btn) => {
-      btn.addEventListener('click', () => withError(async () => {
-        if (squad) await removeSquadPlayer(squad.id, btn.dataset.squadRemove);
+        await upsertSquadPlayer(sq.id, playerId, SQUAD_CALLED);
       }));
     });
     container.querySelector('#squad-all')?.addEventListener('click', () => withError(async () => {
       const sq = await ensureSquad(selectedEventId);
-      // Só os que ainda não têm estado: convocar todos não desfaz titulares
-      // e suplentes já escolhidos.
       for (const p of players) {
-        if (squadStatus(p.id) === null) await upsertSquadPlayer(sq.id, p.id, 'convocado');
+        if (!isCalled(p.id)) await upsertSquadPlayer(sq.id, p.id, SQUAD_CALLED);
       }
     }));
     container.querySelector('#squad-clear')?.addEventListener('click', async () => {
       const ok = await confirmDialog(
-        `Limpar a convocatória deste jogo (${squadCounts.total} atleta${squadCounts.total === 1 ? '' : 's'})?`,
+        `Limpar a convocatória deste jogo (${calledCount} atleta${calledCount === 1 ? '' : 's'})?`,
         { confirmLabel: 'Limpar', danger: true }
       );
       if (!ok) return;
       withError(async () => {
         for (const p of players) {
-          if (squadStatus(p.id) !== null) await removeSquadPlayer(squad.id, p.id);
+          if (isCalled(p.id)) await removeSquadPlayer(squad.id, p.id);
         }
       });
     });
@@ -368,13 +360,13 @@ function eventPickerHTML(eventos, selectedId) {
   return group('Hoje', hoje) + group('Próximos', proximos) + group('Anteriores', anteriores);
 }
 
-// Uma linha da convocatória: o atleta, o que ELE respondeu e o estado que o
-// treinador lhe deu. Os dois lados aparecem juntos de propósito — um atleta
-// convocado que avisou que não pode ir é exatamente o cruzamento que interessa
-// ver, e era o que obrigava a abrir dois ecrãs.
-function squadRow(player, status, event, editable) {
+// Uma linha da convocatória: o atleta, o que ELE respondeu e se o treinador o
+// chamou. Os dois lados aparecem juntos de propósito — um atleta convocado que
+// avisou que não pode ir é exatamente o cruzamento que interessa ver, e era o
+// que obrigava a abrir dois ecrãs.
+function squadRow(player, called, event, editable) {
   return `
-    <li class="pres-row pres-row--${status || 'none'}" data-player-row="${player.id}">
+    <li class="pres-row pres-row--${called ? 'convocado' : 'none'}" data-player-row="${player.id}">
       <div class="aval-row__player">
         <span class="aval-row__num">${esc(player.number || '—')}</span>
         <div>
@@ -385,18 +377,14 @@ function squadRow(player, status, event, editable) {
       </div>
       ${editable
         ? `<div class="pres-actions">
-            ${SQUAD_STATUSES.map((sq) => `
-              <button type="button"
-                class="pres-btn ${status === sq.key ? 'is-active' : ''}"
-                data-squad-status="${sq.key}" data-player="${player.id}"
-                title="${esc(sq.label)}">${esc(sq.label)}</button>`).join('')}
-            ${status !== null
-              ? `<button type="button" class="pres-btn" data-squad-remove="${player.id}"
-                   title="Retirar da convocatória">✕</button>`
-              : ''}
+             <button type="button" class="pres-btn ${called ? 'is-active' : ''}"
+               data-squad-toggle="${player.id}" data-called="${called ? '1' : '0'}"
+               aria-pressed="${called}"
+               title="${called ? 'Retirar da convocatória' : 'Convocar'}">${
+                 called ? 'Convocado' : 'Convocar'}</button>
            </div>`
-        : status !== null
-          ? `<span class="badge badge--${SQUAD_STATUS_BADGE[status]}">${esc(SQUAD_STATUS_LABEL[status])}</span>`
+        : called
+          ? '<span class="badge badge--ok">Convocado</span>'
           : '<span class="badge badge--muted">Não convocado</span>'
       }
     </li>

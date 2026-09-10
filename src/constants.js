@@ -419,11 +419,18 @@ export const REQUEST_STATUS_BADGE = Object.fromEntries(REQUEST_STATUSES.map((s) 
 
 // --- Convocatórias ---
 
-export const SQUAD_STATUSES = [
-  { key: 'convocado', label: 'Convocado', badge: 'info' },
-  { key: 'titular',   label: 'Titular',   badge: 'ok' },
-  { key: 'suplente',  label: 'Suplente',  badge: 'warn' },
-];
+// Uma convocatória tem DUAS respostas: convocado ou não convocado. Ter linha
+// em `squad_players` é estar convocado; não ter, é não estar.
+//
+// Houve `titular` e `suplente` pelo meio, e eram a decisão errada no sítio
+// errado. O 6 inicial decide-se no pavilhão, muda no aquecimento e muda outra
+// vez a meio do primeiro set — mas o portal do atleta mostrava-o como um facto
+// dias antes do jogo, sem conversa nenhuma à volta. E quem jogou mesmo já se
+// mede em pontos, no registo do resultado, que é onde isso é verdade.
+// Ao treinador só pedia arrumar o plantel em três gavetas para responder a uma
+// pergunta de duas.
+export const SQUAD_CALLED = 'convocado';
+
 // --- Respostas do atleta a um evento ---
 // O mesmo conjunto serve para confirmar uma convocatória e para avisar que
 // falta a um treino: do lado de quem treina o problema é o mesmo — saber com
@@ -448,9 +455,6 @@ export const RESPONSE_LEAD_HOURS = { treino: 6, jogo: 0 };
 export const DEFAULT_RESPONSE_LEAD_HOURS = 0;
 export const EVENT_RESPONSE_LABEL = Object.fromEntries(EVENT_RESPONSES.map((r) => [r.key, r.label]));
 export const EVENT_RESPONSE_BADGE = Object.fromEntries(EVENT_RESPONSES.map((r) => [r.key, r.badge]));
-
-export const SQUAD_STATUS_LABEL = Object.fromEntries(SQUAD_STATUSES.map((s) => [s.key, s.label]));
-export const SQUAD_STATUS_BADGE = Object.fromEntries(SQUAD_STATUSES.map((s) => [s.key, s.badge]));
 
 // --- Gestão financeira ---
 
