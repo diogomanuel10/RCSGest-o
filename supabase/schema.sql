@@ -1170,8 +1170,10 @@ create policy "sizes_write" on player_sizes for all to authenticated
   with check (app_role() in ('coordenador','seccionista'));
 -- =====================================================================
 -- Lista de atletas convocados para um jogo. A convocatória está ligada
--- 1:1 a um evento do tipo 'jogo'. Cada atleta pode estar convocado,
--- ser titular ou suplente.
+-- 1:1 a um evento do tipo 'jogo'. Só há duas respostas: convocado (tem linha
+-- em squad_players) ou não convocado (não tem). O 6 inicial NÃO se guarda
+-- aqui — decide-se no pavilhão e muda até ao aquecimento; quem jogou mesmo
+-- mede-se em pontos, no registo do resultado (game_minutes).
 
 create table if not exists squads (
   id         uuid primary key default gen_random_uuid(),
@@ -1186,7 +1188,7 @@ create table if not exists squad_players (
   squad_id   uuid not null references squads(id)   on delete cascade,
   player_id  uuid not null references players(id) on delete cascade,
   status     text not null default 'convocado'
-             check (status in ('convocado','titular','suplente')),
+             check (status = 'convocado'),
   created_at timestamptz default now(),
   unique (squad_id, player_id)
 );

@@ -253,6 +253,7 @@ src/
 supabase/schema.sql     Tabelas, índices, RLS e dados iniciais (correr no Supabase)
 supabase/qrcode-presencas.sql  Presenças por QR: token do atleta + RPCs de check-in
 supabase/convites-massa.sql    Convites de atleta em lote (RPC create_invitations_bulk)
+supabase/convocatoria-simples.sql Convocatória só com convocado/não convocado
 supabase/grupo-whatsapp.sql    Link do grupo de WhatsApp da equipa (guia de entrada)
 supabase/pedidos-equipamento.sql  Pedidos de equipamento (treinador -> clube) + notificações
 supabase/aniversarios.sql      Data de nascimento do atleta (aniversários + quem falta)
@@ -839,7 +840,20 @@ separador antes de navegar (usado pelos cartões do Painel).
   Escolhe-se o evento e o ecrã adapta-se ao tipo:
   - **treino** → respostas + presenças (Presente / Atraso / Justificado / Falta),
     com o quiosque QR e o "fechar sessão";
-  - **jogo** → respostas + convocatória (convocado / titular / suplente).
+  - **jogo** → respostas + convocatória (convocado / não convocado).
+
+  - **A convocatória tem DUAS respostas, não três**
+    (`SQUAD_CALLED` em `constants.js`, `supabase/convocatoria-simples.sql`):
+    estar convocado é ter linha em `squad_players`; não ter linha é ficar de
+    fora. Houve `titular` e `suplente`, e eram a decisão errada no sítio
+    errado — o 6 inicial decide-se no pavilhão, muda no aquecimento e muda
+    outra vez a meio do primeiro set, mas o **portal do atleta** mostrava-o
+    como um facto dias antes do jogo, sem conversa nenhuma à volta. E quem
+    jogou mesmo já se mede em PONTOS, no registo do resultado, que é onde isso
+    é verdade. Ao treinador, só pedia arrumar o plantel em três gavetas para
+    responder a uma pergunta de duas. A coluna `status` fica (com um só valor
+    permitido) para não mexer no índice nem na chave única; no portal a atleta
+    lê "Convocada" e mais nada.
 
   - **O seletor do evento ordena-se pela distância a hoje**, em três grupos
     (`Hoje` · `Próximos` · `Anteriores`, este do mais recente para trás), e o

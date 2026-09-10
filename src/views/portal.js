@@ -37,8 +37,6 @@ import {
   ATTENDANCE_LABEL,
   ATTENDANCE_BADGE,
   MONTHS,
-  SQUAD_STATUS_LABEL,
-  SQUAD_STATUS_BADGE,
   AVAILABILITY_LABEL,
   AVAILABILITY_BADGE,
   EVENT_RESPONSES,
@@ -605,7 +603,10 @@ function trainingRow({ event, attendance }) {
   `;
 }
 
-function squadRow({ event, status }) {
+// A convocatória diz UMA coisa: foste chamada. Quem começa o jogo decide-se no
+// pavilhão e muda até ao aquecimento — mostrá-lo aqui, dias antes, era dar como
+// facto uma decisão que ainda não está tomada.
+function squadRow(event) {
   const day = shortDay(eventDateTime(event));
   return `
     <li class="portal-att-row">
@@ -613,9 +614,7 @@ function squadRow({ event, status }) {
       <span class="portal-att-row__title">
         ${event.opponent ? `vs ${esc(event.opponent)}` : esc(event.title || 'Jogo')}
       </span>
-      <span class="badge badge--${SQUAD_STATUS_BADGE[status] || 'info'}">
-        ${esc(SQUAD_STATUS_LABEL[status] || status)}
-      </span>
+      <span class="badge badge--ok">Convocado</span>
     </li>
   `;
 }
