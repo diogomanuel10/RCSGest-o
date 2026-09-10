@@ -259,6 +259,7 @@ supabase/pedidos-equipamento.sql  Pedidos de equipamento (treinador -> clube) + 
 supabase/aniversarios.sql      Data de nascimento do atleta (aniversários + quem falta)
 supabase/portal-atleta.sql     Portal: o atleta lê a sua própria disponibilidade
 supabase/comunicacao.sql       Respostas do atleta a eventos + avisos do clube
+supabase/notificacoes-atleta.sql Notificações para o atleta (agenda + convocatória)
 supabase/resultados.sql        Resultado dos jogos (final + parciais) e pontos jogados
 supabase/tatica.sql            Decisão Tática: cenários de leitura de jogo + respostas
 supabase/exercicios.sql        Biblioteca de exercícios (tabela + ligação ao plano de treino)
@@ -947,6 +948,29 @@ separador antes de navegar (usado pelos cartões do Painel).
     faltas deixava quem está do outro lado sem forma de distinguir "ainda
     ninguém respondeu" de "não está a chegar nada". Repetir a mesma resposta não
     notifica.
+  - **O atleta também é notificado sem ninguém escrever nada**
+    (`supabase/notificacoes-atleta.sql`): o clube tinha notificações para
+    tudo — evento novo, alterado, cancelado, disponibilidade, alta clínica,
+    pedidos, resumo semanal — e do lado do atleta havia UMA, o aviso escrito
+    à mão. Ser convocado não avisava, uma mudança de hora não avisava, um
+    treino cancelado não avisava. O sino e o push já funcionavam no portal;
+    não chegava lá nada para tocar. Passam a existir cinco: evento novo,
+    alterado (data/hora/local), cancelado, convocado e retirado da
+    convocatória.
+    - **Convocar e retirar avisam AMBOS**: avisar só a convocatória deixava
+      a atleta a contar com um jogo de que já tinha sido retirada. A troca é
+      conhecida — "Limpar convocatória" para refazer a lista manda um aviso
+      por atleta.
+    - **Nada do passado notifica**: um treino lançado ou corrigido à
+      posteriori é trabalho de secretaria. O mesmo para o TÍTULO de um
+      evento — corrigir uma gralha não muda nada a quem lá vai, e um aviso
+      que não pede nada a ninguém gasta a atenção de que o próximo precisa.
+    - **Um evento do clube (`team_id` nulo) não notifica ninguém**: não há
+      plantel de onde tirar os destinatários. É a mesma limitação que as
+      notificações do treinador já tinham.
+    - Só chega a quem tem **conta ligada à ficha** (`players.user_id`) — sem
+      conta não há a quem notificar, que é o que o convite ao portal
+      resolve — e, no iPhone, só com a app instalada no ecrã principal.
   - **Clube → atleta**: RPC `send_team_announcement` cria uma notificação por
     atleta COM CONTA (reaproveita `notifications`). O **inbox é de toda a
     gente**: `setupNotifications` no `app-shell` estava reservado ao
