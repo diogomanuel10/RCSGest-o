@@ -355,6 +355,7 @@ export async function renderAppShell(root, session) {
   }
 
   function applyHash() {
+    routeReady = true;
     const parsed = parseHash();
     if (parsed?.playerId) {
       detail = { playerId: parsed.playerId, opts: parsed.tab ? { tab: parsed.tab } : {} };
@@ -386,11 +387,20 @@ export async function renderAppShell(root, session) {
   };
   window.addEventListener('hashchange', onHashChange);
 
+  // O endereço só passa a ser escrito depois de ter sido LIDO uma vez. Entre a
+  // montagem e o `applyHash()` há um `paint()` — o `loadAll()` notifica o store
+  // ao terminar — e esse desenho parte do `current` por omissão ('painel'). Sem
+  // esta guarda, o `syncHash` desse desenho reescrevia `#/planteis` para
+  // `#/painel` ANTES de alguém ter lido o endereço com que a página abriu: cada
+  // recarga (ou link partilhado, ou favorito) aterrava no Painel.
+  let routeReady = false;
+
   // Alinha o endereço com o que está desenhado, sem criar um passo no
   // histórico. Usa-se quando o paint() muda de rota por sua conta (rota sem
   // permissão, atleta apagado…) e o endereço ficaria a apontar para o sítio
   // errado.
   function syncHash(route) {
+    if (!routeReady) return;
     const expected = `#/${route}`;
     if (location.hash === expected) return;
     // replaceState não dispara `hashchange`, por isso não há re-desenho a

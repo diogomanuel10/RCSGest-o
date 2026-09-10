@@ -50,7 +50,12 @@ function captureInviteToken() {
       // Limpa o parâmetro do URL para não ficar visível/partilhável por engano.
       params.delete('invite');
       const qs = params.toString();
-      window.history.replaceState({}, '', window.location.pathname + (qs ? '?' + qs : ''));
+      // O hash vai junto: é a rota (`#/planteis`) e reescrever o endereço sem
+      // ele mandava a pessoa para outra secção só por ter chegado com convite.
+      window.history.replaceState(
+        {}, '',
+        window.location.pathname + (qs ? '?' + qs : '') + window.location.hash
+      );
     }
   } catch {
     /* URL/localStorage indisponível: segue sem convite */
