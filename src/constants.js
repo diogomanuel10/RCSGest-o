@@ -371,24 +371,36 @@ export const DOCUMENT_TYPES = [
 ];
 export const DOC_TYPE_LABEL = Object.fromEntries(DOCUMENT_TYPES.map((d) => [d.key, d.label]));
 
-// --- Tamanhos de equipamento ---
+// --- Tamanhos e artigos de equipamento ---
 
+// Conjunto de tamanhos por omissão para vestuário. Serve de sugestão no
+// editor de artigos das Definições — o clube pode escrever os que quiser.
 export const TEXT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
 
-// Artigos de equipamento com o tipo de tamanho:
-//   'text' = XS–XXL (select)  |  'free' = texto livre (numérico, ex.: meias)
-export const EQUIPMENT_ARTICLES = [
-  { key: 'camisola',        label: 'Camisola',               type: 'text' },
-  { key: 'camisola_alt',    label: 'Camisola Alternativa',   type: 'text' },
-  { key: 'calcoes',         label: 'Calções',                type: 'text' },
-  { key: 'meias',           label: 'Meias',                  type: 'free' },
-  { key: 'casaco_treino',   label: 'Casaco Fato de Treino',  type: 'text' },
-  { key: 'calca_treino',    label: 'Calça Fato de Treino',   type: 'text' },
-  { key: 'mochila',         label: 'Mochila',                type: 'text' },
-  { key: 'blusao',          label: 'Blusão',                 type: 'text' },
-  { key: 'camisola_treino', label: 'Camisola de Treino',     type: 'text' },
+// Artigos de equipamento POR OMISSÃO. A lista em vigor obtém-se por
+// `compute.equipmentArticles()`, que usa a do clube (settings.equipment_articles)
+// quando existe — um clube que dá joelheiras, ou que compra em tamanhos de
+// criança, não cabia numa lista cravada no código.
+//
+// Cada artigo tem:
+//   key    — estável e imutável; é o que fica guardado em player_sizes.sizes
+//            e em equipment_requests.article. Mudar a etiqueta não lhe toca,
+//            senão renomear "Blusão" para "Casaco" perdia os tamanhos todos.
+//   label  — o que se lê no ecrã.
+//   sizes  — os tamanhos possíveis. Lista VAZIA = texto livre (é o caso das
+//            meias, que se medem em números e variam com a marca).
+export const DEFAULT_EQUIPMENT_ARTICLES = [
+  { key: 'camisola',        label: 'Camisola',               sizes: TEXT_SIZES },
+  { key: 'camisola_alt',    label: 'Camisola Alternativa',   sizes: TEXT_SIZES },
+  { key: 'calcoes',         label: 'Calções',                sizes: TEXT_SIZES },
+  { key: 'meias',           label: 'Meias',                  sizes: [] },
+  { key: 'casaco_treino',   label: 'Casaco Fato de Treino',  sizes: TEXT_SIZES },
+  { key: 'calca_treino',    label: 'Calça Fato de Treino',   sizes: TEXT_SIZES },
+  { key: 'mochila',         label: 'Mochila',                sizes: TEXT_SIZES },
+  { key: 'blusao',          label: 'Blusão',                 sizes: TEXT_SIZES },
+  { key: 'camisola_treino', label: 'Camisola de Treino',     sizes: TEXT_SIZES },
 ];
-export const ARTICLE_LABEL = Object.fromEntries(EQUIPMENT_ARTICLES.map((a) => [a.key, a.label]));
+
 
 // --- Pedidos de equipamento (treinador -> clube) ---
 

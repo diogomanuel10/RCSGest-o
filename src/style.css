@@ -2481,6 +2481,22 @@ button.metric--nav:focus-visible {
   display: flex;
   gap: 0.2rem;
 }
+
+/* Variante de duas linhas (nome + o que o artigo tem lá dentro): o alinhamento
+   ao centro punha os botões a meio de um bloco alto. */
+.chip--rich {
+  align-items: flex-start;
+}
+.chip--rich .chip__label {
+  min-width: 0;
+}
+/* Um artigo desativado continua na lista — é o histórico que o obriga a
+   existir — mas não é trabalho por fazer, e não pode ter o mesmo peso
+   visual do que está em uso. */
+.chip--off {
+  opacity: 0.62;
+}
+
 .chip__actions button {
   width: 30px;
   height: 30px;

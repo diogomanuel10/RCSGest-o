@@ -256,6 +256,7 @@ supabase/convites-massa.sql    Convites de atleta em lote (RPC create_invitation
 supabase/convocatoria-simples.sql Convocatória só com convocado/não convocado
 supabase/grupo-whatsapp.sql    Link do grupo de WhatsApp da equipa (guia de entrada)
 supabase/pedidos-equipamento.sql  Pedidos de equipamento (treinador -> clube) + notificações
+supabase/artigos-configuraveis.sql Artigos e tamanhos de equipamento definidos pelo clube
 supabase/aniversarios.sql      Data de nascimento do atleta (aniversários + quem falta)
 supabase/portal-atleta.sql     Portal: o atleta lê a sua própria disponibilidade
 supabase/comunicacao.sql       Respostas do atleta a eventos + avisos do clube
@@ -583,7 +584,8 @@ separador antes de navegar (usado pelos cartões do Painel).
   - **O tamanho vem da ficha, mas é editável** (`player_sizes`): o treinador não
     devia ter de decorar que a Ana veste M. Trocar de atleta ou de artigo
     recalcula a sugestão — deixar lá o "M" do artigo anterior é pior do que não
-    sugerir nada. E é editável porque metade dos pedidos existem precisamente
+    sugerir nada. As opções são as que o clube definiu PARA AQUELE ARTIGO
+    (ver «Artigos e tamanhos configuráveis»). E é editável porque metade dos pedidos existem precisamente
     porque o tamanho registado deixou de servir (`reason = 'tamanho'`).
   - **Não há coluna `team_id`**: a equipa lê-se do atleta. Guardá-la aqui seria
     um segundo dono do mesmo dado, e um atleta que muda de escalão ficava com o
@@ -607,6 +609,44 @@ separador antes de navegar (usado pelos cartões do Painel).
     próprio treinador, e tirar-lha não é uma escolha que faça sentido pôr ao
     coordenador. Segue o módulo `equipamentos` no plano — não há plano com
     inventário e sem pedidos.
+- **Artigos e tamanhos de equipamento configuráveis**
+  (`supabase/artigos-configuraveis.sql`): a lista de artigos vivia cravada no
+  código e os tamanhos eram XS–XXL para todos. Um clube que dá joelheiras, ou
+  que compra camisolas em tamanhos de criança (6/8/10/12), não tinha onde o
+  dizer — e o que a app não sabe registar acaba registado numa folha de Excel
+  à parte, que é onde as encomendas se perdem. A lista em vigor obtém-se por
+  `compute.equipmentArticles()` (recorre a `DEFAULT_EQUIPMENT_ARTICLES` se o
+  clube não tiver a sua), no mesmo padrão dos escalões e das posições. Editada
+  nas Definições → Estrutura, só pelo coordenador: é estrutura do clube, e
+  mudar a lista afeta as Encomendas, os Pedidos e o histórico de toda a gente.
+  - **O obstáculo era o FORMATO, não a UI**: `player_sizes` tinha uma coluna
+    por artigo, por isso criar um artigo novo exigia um `ALTER TABLE` — e um
+    coordenador não corre `ALTER TABLE`. Os tamanhos passam todos para
+    `player_sizes.sizes` (jsonb), com a chave do artigo como chave do objeto.
+    É jsonb e não uma tabela filha porque isto lê-se sempre inteiro (a tabela
+    das Encomendas é uma linha por atleta com todas as colunas) e nunca por
+    artigo isolado.
+  - **A chave é imutável; a etiqueta é que se edita.** A chave está guardada
+    nos tamanhos de cada atleta e em `equipment_requests.article`: renomear
+    "Blusão" para "Casaco" muda o que se lê, mas mudar a chave perdia os
+    tamanhos todos.
+  - **Um artigo tira-se de circulação, não se apaga** (`active: false`):
+    deixa de se poder preencher e sai das Encomendas, mas a definição fica.
+    Sem ela, um pedido de dezembro passava a dizer `blusao` no lugar de
+    "Blusão" — `articleLabel()` procura de propósito também nos desativados e
+    na lista de origem.
+  - **Os tamanhos são do ARTIGO e não do clube**: um conjunto único não serve,
+    porque as meias são `35-38` e a camisola é `M`. Lista vazia = texto livre.
+    E a ORDEM em que o coordenador os escreve é a ordem em que aparecem — é
+    ela que diz que XS vem antes de S, sem a app ter de conhecer escala
+    nenhuma (`sortSizes`). Um tamanho registado antes de o artigo mudar vai
+    para o fim da lista em vez de desaparecer.
+  - **Enquanto a migração não correr, nada muda**: `equipmentArticlesReady()`
+    esconde o editor e o `upsertPlayerSizes` volta a escrever nas colunas
+    antigas — é a mesma linha do `birthDateReady()`. As colunas antigas ficam
+    na base de dados de propósito: uma migração que apaga a origem no mesmo
+    passo em que copia não tem volta se a cópia correr mal.
+
 - **Importar atletas (.xlsx)**: nos Plantéis, cada equipa tem "Importar (xlsx)".
   `players-xlsx.js` lê o ficheiro com SheetJS (carregado dinamicamente) e mapeia
   as colunas por cabeçalho (Nome, Número, Ano de nascimento, Posição; aceita

@@ -9,6 +9,7 @@
 import { supabase } from './supabase.js';
 import { applyBranding } from './branding.js';
 import { toastOk } from './toast.js';
+import { DEFAULT_EQUIPMENT_ARTICLES } from './constants.js';
 
 // Nome legível de cada tabela, para as mensagens de confirmação das operações
 // genéricas (createRow/updateRow/…). Uma tabela sem entrada aqui grava na
@@ -1462,11 +1463,33 @@ export async function getDocumentSignedUrl(storagePath) {
 
 // --- Tamanhos de equipamento ---------------------------------------------
 
-export async function upsertPlayerSizes(playerId, values) {
+// Um valor por coluna antiga: as que faltam vão a null, senão apagar um
+// tamanho no formulário deixava-o na base de dados.
+function legacySizeColumns(sizes = {}) {
+  const out = {};
+  DEFAULT_EQUIPMENT_ARTICLES.forEach((a) => { out[a.key] = sizes[a.key] || null; });
+  return out;
+}
+
+// Os tamanhos vão TODOS na coluna `sizes` (jsonb), com a chave do artigo
+// como chave do objeto: a lista de artigos é configurável pelo clube, por
+// isso não pode haver uma coluna por artigo. `sizes` substitui o objeto
+// inteiro em vez de o fundir — um artigo que se apaga no formulário tem de
+// desaparecer mesmo, e um merge deixava-o lá para sempre.
+export async function upsertPlayerSizes(playerId, { sizes, ...values }) {
+  // Enquanto `artigos-configuraveis.sql` não correr não há coluna `sizes`, e
+  // enviá-la fazia falhar a gravação inteira. Nesse caso escreve-se nas
+  // colunas antigas — que são exatamente as chaves da lista por omissão, a
+  // única que um clube por migrar consegue ter.
+  const migrated = 'equipment_articles' in (state.settings || {});
+  const payload = migrated
+    ? { ...values, sizes: sizes || {} }
+    : { ...values, ...legacySizeColumns(sizes) };
+
   const { data, error } = await supabase
     .from('player_sizes')
     .upsert(
-      { player_id: playerId, ...values, updated_at: new Date().toISOString() },
+      { player_id: playerId, ...payload, updated_at: new Date().toISOString() },
       { onConflict: 'player_id' }
     )
     .select()

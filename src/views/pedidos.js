@@ -13,11 +13,11 @@ import { state, createEquipmentRequest, decideEquipmentRequest, updateRow, delet
 import { esc, emptyHTML, paginate, paginationHTML, wirePagination, wireEmptyAction, PAGE_SIZE } from '../ui.js';
 import { openModal, confirmDialog } from '../modal.js';
 import { canEdit, canDecideRequests, isClubWide } from '../permissions.js';
-import { teamName, myTeams } from '../compute.js';
 import {
-  EQUIPMENT_ARTICLES,
-  ARTICLE_LABEL,
-  TEXT_SIZES,
+  teamName, myTeams, equipmentArticles, playerSizes,
+  articleLabel as configuredArticleLabel,
+} from '../compute.js';
+import {
   REQUEST_REASONS,
   REQUEST_REASON_LABEL,
   REQUEST_STATUSES,
@@ -186,7 +186,9 @@ function byUrgency(a, b) {
 
 function articleLabel(req) {
   if (req.article === 'outro') return req.article_other?.trim() || 'Outro artigo';
-  return ARTICLE_LABEL[req.article] || req.article;
+  // Passa pela lista configurada do clube, e essa também traduz os artigos
+  // já desativados: um pedido de dezembro tem de continuar a dizer "Blusão".
+  return configuredArticleLabel(req.article);
 }
 
 // Quem pediu. O nome do treinador vem da ficha (coaches.user_id); só o
@@ -304,15 +306,17 @@ async function cancelRequest(id) {
 // Opções de artigo: a lista da encomenda mais "outro". O "outro" existe porque
 // o material que se pede a meio da época é muitas vezes o que não está na
 // lista de equipamento oficial (joelheiras, uma bola para levar para casa).
-const ARTICLE_OPTIONS = [
-  ...EQUIPMENT_ARTICLES.map((a) => ({ key: a.key, label: a.label })),
-  { key: 'outro', label: 'Outro artigo…' },
-];
+function articleOptions() {
+  return [
+    ...equipmentArticles().map((a) => ({ key: a.key, label: a.label })),
+    { key: 'outro', label: 'Outro artigo…' },
+  ];
+}
 
 // Tamanho já registado na ficha do atleta para aquele artigo.
 function sizeFromFile(playerId, article) {
   if (!playerId || !article || article === 'outro') return '';
-  return state.playerSizes.find((s) => s.player_id === playerId)?.[article] || '';
+  return playerSizes(playerId)[article] || '';
 }
 
 function openForm(id, draft) {
@@ -326,7 +330,10 @@ function openForm(id, draft) {
 
   const teamId = values.team_id || '';
   const article = values.article || '';
-  const articleType = EQUIPMENT_ARTICLES.find((a) => a.key === article)?.type;
+  const articles = equipmentArticles();
+  // Os tamanhos possíveis são os que o clube definiu PARA ESTE ARTIGO. Sem
+  // nenhum definido (as meias, o "outro"), o campo é texto livre.
+  const articleSizes = articles.find((a) => a.key === article)?.sizes || [];
 
   const players = state.players
     .filter((p) => !teamId || p.team_id === teamId)
@@ -354,7 +361,7 @@ function openForm(id, draft) {
     {
       name: 'article', label: 'Artigo', type: 'select', required: true, reactive: true,
       placeholder: 'Escolher artigo…',
-      options: ARTICLE_OPTIONS,
+      options: articleOptions(),
     },
   ];
 
@@ -368,11 +375,11 @@ function openForm(id, draft) {
   // O tamanho vem pré-preenchido da ficha, mas é editável: um pedido acontece
   // muitas vezes porque o tamanho registado deixou de servir.
   fields.push(
-    articleType === 'text'
+    articleSizes.length
       ? {
           name: 'size', label: 'Tamanho', type: 'select',
           placeholder: '— Não definido —',
-          options: TEXT_SIZES.map((s) => ({ key: s, label: s })),
+          options: articleSizes.map((s) => ({ key: s, label: s })),
           hint: suggested ? `Da ficha do atleta: ${suggested}.` : 'A ficha do atleta ainda não tem este tamanho.',
         }
       : {
