@@ -125,9 +125,11 @@ const EDIT_ROLES = {
   // Tamanhos de equipamento: coordenador e seccionista.
   sizes: ['coordenador', 'seccionista'],
   // Pedidos de equipamento: quem PEDE. O treinador entra aqui de propósito —
-  // é ele que vê a atleta com as meias rasgadas. Decidir o pedido é outra
-  // coisa e tem a sua própria porta (canDecideRequests).
-  equipment_requests: ['coordenador', 'treinador', 'seccionista'],
+  // é ele que pede por quem não tem conta ligada ao portal. A ATLETA não
+  // aparece nesta lista: ela não usa o ecrã de Pedidos, pede da sua página
+  // (portal.js) e o servidor recorta-a à sua própria ficha. Decidir o pedido
+  // é outra coisa e tem a sua própria porta (canDecideRequests).
+  equipment_requests: ['coordenador', 'direcao', 'treinador'],
   // Documentos dos atletas: coordenador + fisioterapeuta + preparador.
   documents: ['coordenador', 'fisioterapeuta', 'preparador'],
 };
@@ -233,11 +235,12 @@ function roleCanAccess(key) {
   }
   // Encomendas: exclusivo do coordenador (não configurável).
   if (key === 'encomendas') return false;
-  // Pedidos de equipamento: quem pede (treinador) e quem trata do material
-  // (seccionista) — o coordenador e a direção já passaram acima. Não é uma
-  // secção configurável: é a ferramenta do próprio treinador, e dar-lha ou não
-  // não é uma escolha que faça sentido pôr ao coordenador.
-  if (key === 'pedidos') return ['treinador', 'seccionista'].includes(role);
+  // Pedidos de equipamento: o treinador, que é quem pede — o coordenador e a
+  // direção já passaram acima. O seccionista saiu: decidir um pedido é
+  // comprometer verba, e a lista toda ficou de quem responde por ela. Não é
+  // uma secção configurável: é a ferramenta do próprio treinador, e dar-lha
+  // ou não não é uma escolha que faça sentido pôr ao coordenador.
+  if (key === 'pedidos') return role === 'treinador';
   // Objetivos / KPIs: visíveis a toda a equipa técnica (não ao atleta, já
   // tratado acima). Transparência para todos; edição só do coordenador.
   if (key === 'objetivos') return true;
@@ -268,11 +271,11 @@ export function canDelete(entity) {
   return canEdit(entity);
 }
 
-// Decidir um pedido de equipamento (aprovar/entregar/recusar) é de quem trata
-// do material e paga a fatura — nunca de quem pede. Espelha o trigger
+// Decidir um pedido de equipamento (aprovar/entregar/recusar) é de quem
+// responde pela verba — nunca de quem pede. Espelha o trigger
 // `guard_request_decision` no Supabase.
 export function canDecideRequests() {
-  return isCoordenador() || isSeccionista();
+  return isCoordenador() || isDirecao();
 }
 
 // Só o coordenador gere utilizadores (papéis, vínculos e acessos).

@@ -257,6 +257,7 @@ supabase/convocatoria-simples.sql Convocatória só com convocado/não convocado
 supabase/grupo-whatsapp.sql    Link do grupo de WhatsApp da equipa (guia de entrada)
 supabase/pedidos-equipamento.sql  Pedidos de equipamento (treinador -> clube) + notificações
 supabase/artigos-configuraveis.sql Artigos e tamanhos de equipamento definidos pelo clube
+supabase/pedidos-atleta.sql    A atleta pede equipamento do portal; decide o coordenador/direção
 supabase/aniversarios.sql      Data de nascimento do atleta (aniversários + quem falta)
 supabase/portal-atleta.sql     Portal: o atleta lê a sua própria disponibilidade
 supabase/comunicacao.sql       Respostas do atleta a eventos + avisos do clube
@@ -450,7 +451,9 @@ separador antes de navegar (usado pelos cartões do Painel).
   coordenador). O **Seccionista** (`seccionista`) tem acessos por secção
   escolhidos pelo coordenador (como o `leitura`) e escreve, ao nível do clube,
   nas entidades administrativas (`players`, `quotas`, `equipment`, `prospects`,
-  `sizes`); não arquiva registos (decisão do coordenador). `isClubWide()` em
+  `sizes`); não arquiva registos (decisão do coordenador) e **não vê nem
+  decide os Pedidos de equipamento** — decidir um pedido é comprometer verba,
+  e isso ficou no coordenador e na direção. `isClubWide()` em
   `permissions.js` marca os papéis que veem todas as equipas/escalões (todos
   menos o treinador e o atleta).
 - O **Departamento Médico** (`medico`) não é uma secção configurável: é
@@ -572,9 +575,9 @@ separador antes de navegar (usado pelos cartões do Painel).
   mesmo, a meio da época — "a Ana rasgou as meias, arranjas-lhe umas?". Isso
   vivia em mensagens de telemóvel: quem pede não sabe se foi tratado e quem
   trata não tem lista nenhuma para trabalhar.
-  - **Quem PEDE não é quem DECIDE.** O treinador pede (é ele que vê a atleta),
-    o coordenador/seccionista aprova, entrega ou recusa (é quem paga o
-    material). Não é separação de UI: a política de UPDATE deixa o treinador
+  - **Quem PEDE não é quem DECIDE.** O treinador e a própria atleta pedem; o
+    coordenador e a **direção** aprovam, entregam ou recusam (é quem responde
+    pela verba). Não é separação de UI: a política de UPDATE deixa o treinador
     corrigir o SEU pedido enquanto está pendente, e era isso, sozinho, que lhe
     deixava escrever `status='aprovado'` — o trigger `guard_request_decision`
     fecha-o, na mesma lógica do `guard_archive`.
@@ -599,12 +602,51 @@ separador antes de navegar (usado pelos cartões do Painel).
     há notificação nos dois sentidos — pedido novo para quem decide, decisão
     para quem pediu. Um pedido a que ninguém responde ensina o treinador a não
     voltar a pedir, e volta tudo para o telemóvel.
-  - **O atleta não vê isto** (RLS): mostrar-lhe o pedido criava a expectativa de
-    que o material está a caminho antes de alguém o ter decidido. O treinador vê
-    os das SUAS equipas; os papéis de âmbito de clube veem todos.
+  - **A atleta pede o SEU material do portal** (`supabase/pedidos-atleta.sql`):
+    quem sabe que a camisola de treino já não serve é quem a veste, e nos
+    escalões com conta ligada essa pessoa já está na app. O caminho "digo ao
+    treinador, o treinador lança" é uma mensagem de telemóvel a mais no meio,
+    com a mesma perda que o módulo veio resolver.
+    - **É o MESMO pedido**: mesma tabela, mesmos quatro estados, mesma
+      decisão. O formulário é que perde dois campos — a equipa e a atleta já
+      se sabem.
+    - **O tamanho NÃO vem da ficha dela**, ao contrário do ecrã do treinador
+      (que não tem de decorar que a Ana veste M). Aqui quem preenche é quem
+      veste a roupa, e uma sugestão só serviria para ela aceitar sem pensar o
+      número que já não lhe serve — que é metade da razão por que os pedidos
+      existem. Por isso é **obrigatório**: sem recurso à ficha, um tamanho em
+      branco não deixa encomendar nada.
+    - **O que ela pode pedir escolhe-o o coordenador**, artigo a artigo
+      (`requestable` em `settings.equipment_articles`): as camisolas de treino
+      sim, a camisola de jogo com o número dela não — essa não se pede, vem na
+      encomenda. Um artigo novo nasce **não** pedível: pôr um artigo no
+      catálogo e abri-lo aos pedidos são duas decisões, e a segunda custa
+      dinheiro. É isto — e não um tudo-ou-nada — que trava o volume, que era o
+      risco real de dar um botão "pedir" a duzentas atletas.
+    - **A regra antiga não caiu, mudou de caso.** "O atleta não vê isto,
+      porque cria a expectativa de que o material está a caminho antes de
+      alguém o ter decidido" vale para o pedido que OUTRO fez por ela — não
+      para o que ela própria escreveu. Quem pede sabe que pediu; o que lhe
+      faltava era saber em que ficou.
+    - **A recusa passa a ser lida por uma criança.** O `decision_note` já
+      viajava por notificação para quem pediu; com a atleta do outro lado, a
+      lista marca o pedido como sendo "(a própria)" para quem decide saber a
+      quem está a responder.
+  - **Quem vê o quadro TODO são o coordenador e a direção.** Saíram o
+    seccionista, o leitura, a fisio e o preparador: nenhum deles tem nada a
+    fazer com um pedido de equipamento, e uma lista que toda a gente vê deixa
+    de ser um sítio onde se escreve "a Ana rasgou as meias". Ao lado disso há
+    duas leituras recortadas — o treinador vê os das SUAS equipas (um pedido
+    que quem pediu não pode acompanhar é a mensagem de telemóvel outra vez) e
+    a atleta vê os SEUS.
   - **O separador conta os que faltam decidir** ("Pedidos (3)") e o Painel tem o
     aviso `pedidos_equipamento` — mas só para quem decide: ao treinador, o
     contador seria o seu próprio pedido a olhar para ele.
+  - **A etiqueta do artigo na notificação lê a lista do clube**
+    (`equipment_article_label`): tinha os nove artigos de origem escritos num
+    `CASE`, por isso um artigo criado nas Definições chegava ao telemóvel como
+    `joelheiras`. Com a atleta a receber estas notificações, isso passava a ser
+    lido por quem não faz ideia do que é uma chave.
   - Não é uma secção configurável (`canAccess('pedidos')`): é a ferramenta do
     próprio treinador, e tirar-lha não é uma escolha que faça sentido pôr ao
     coordenador. Segue o módulo `equipamentos` no plano — não há plano com
@@ -635,6 +677,10 @@ separador antes de navegar (usado pelos cartões do Painel).
     Sem ela, um pedido de dezembro passava a dizer `blusao` no lugar de
     "Blusão" — `articleLabel()` procura de propósito também nos desativados e
     na lista de origem.
+  - **`active` e `requestable` são perguntas diferentes**: a primeira diz se o
+    artigo existe no clube, a segunda se uma atleta o pode pedir do portal
+    (ver «Pedidos de equipamento»). Um artigo pode existir e não ser pedível —
+    é o caso da camisola de jogo.
   - **Os tamanhos são do ARTIGO e não do clube**: um conjunto único não serve,
     porque as meias são `35-38` e a camisola é `M`. Lista vazia = texto livre.
     E a ORDEM em que o coordenador os escreve é a ordem em que aparecem — é
@@ -945,6 +991,13 @@ separador antes de navegar (usado pelos cartões do Painel).
   - O motivo de um "não vou" pede-se no `openModal` e não no `prompt()` do
     browser — e a gravação corre DENTRO do `onSubmit`, para o erro aparecer no
     formulário e para cancelar não deixar os botões presos à espera.
+  - **"O meu material"** vive em «A época», ao lado das quotas: é a mesma
+    conversa administrativa com o clube, e não uma pergunta que se faça todos
+    os dias. Um quarto separador para uma ação que acontece duas vezes por
+    época dava-lhe o peso do "o que tenho a seguir", que é a razão real das
+    visitas. A secção só aparece se o clube tiver aberto algum artigo aos
+    pedidos — ou se ela já tiver pedidos feitos, senão o histórico (e uma
+    decisão pendente) desaparecia no dia em que o coordenador fechasse a lista.
   - **Moldura de quem só tem uma secção** (`.app--solo` no `app-shell`): sem
     sítios para onde ir não há navegação a mostrar. O atleta tem UMA rota
     permitida e ficava com barra lateral, hambúrguer e uma pesquisa que —

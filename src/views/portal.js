@@ -10,10 +10,13 @@
 // É de leitura, tirando as respostas a eventos e a decisão tática. O RLS
 // garante que o atleta só recebe os seus próprios dados.
 
-import { state, respondToEvent, saveTacticalAnswer, dbErrorMessage } from '../store.js';
+import {
+  state, respondToEvent, saveTacticalAnswer, dbErrorMessage,
+  createEquipmentRequest, deleteRow,
+} from '../store.js';
 import { toastOk, toastError } from '../toast.js';
 import { getNotifications, markRead } from '../notifications.js';
-import { openModal, wireDialog } from '../modal.js';
+import { openModal, wireDialog, confirmDialog } from '../modal.js';
 import { saveOfflineCard } from '../offline-card.js';
 import { renderDrill } from '../tactical-court.js';
 import { esc, euros, emptyHTML } from '../ui.js';
@@ -29,6 +32,8 @@ import {
   playerRecentTrainings,
   playerRecentForm,
   playerUpcomingSquads,
+  requestableArticles,
+  articleLabel,
 } from '../compute.js';
 import {
   EVENT_TYPE_LABEL,
@@ -43,6 +48,10 @@ import {
   WEEKDAYS,
   TACTICAL_ROLE_LABEL,
   TACTICAL_ROLE_MATCH,
+  REQUEST_REASONS,
+  REQUEST_REASON_LABEL,
+  REQUEST_STATUS_LABEL,
+  REQUEST_STATUS_BADGE,
 } from '../constants.js';
 
 // Estado local de UI, como nos filtros das outras vistas: sobrevive aos
@@ -327,6 +336,7 @@ function epocaHTML(me) {
   const recent = playerRecentTrainings(me.id, 8);
   const squads = playerUpcomingSquads(me.id, 5);
   const quotas = playerQuotas(me.id);
+  const pedidos = myRequests(me.id);
 
   // Só os estados que aconteceram mesmo. A grelha com os quatro estados é
   // contabilidade de treinador: a um atleta sem faltas, três chips a zero só
@@ -376,6 +386,81 @@ function epocaHTML(me) {
            <ul class="portal-quota-list">${quotas.list.slice(0, 12).map(quotaLine).join('')}</ul>`
         : '<p class="portal-section__note">Sem quotas registadas.</p>'}
     </section>
+
+    ${materialHTML(pedidos)}
+  `;
+}
+
+// --- O meu material ------------------------------------------------------
+//
+// Vive em "A época", ao lado das quotas: é a mesma conversa administrativa
+// com o clube, e não uma pergunta que se faça todos os dias. Um quarto
+// separador para uma ação que acontece duas vezes por época seria dar-lhe o
+// peso do "o que tenho a seguir", que é a razão real das visitas.
+//
+// Só aparece quando o clube abriu ALGUM artigo aos pedidos — ou quando ela
+// já tem pedidos feitos (senão o histórico desaparecia no dia em que o
+// coordenador fechasse a lista, e uma decisão pendente sumia com ele).
+function materialHTML(pedidos) {
+  const articles = requestableArticles();
+  if (!articles.length && !pedidos.length) return '';
+
+  return `
+    <section class="card portal-section">
+      <div class="portal-section__head">
+        <h2 class="section-title portal-section__title">O meu material</h2>
+        ${articles.length
+          ? '<button class="btn btn--primary btn--sm" id="portal-pedir" type="button">Pedir equipamento</button>'
+          : ''}
+      </div>
+      ${pedidos.length
+        ? `<ul class="portal-req-list">${pedidos.map(requestRow).join('')}</ul>`
+        : `<p class="portal-section__note">
+             Ainda não pediste nada. Se precisares de equipamento — porque se
+             estragou, se perdeu ou já não te serve — pede aqui e o clube
+             responde-te.
+           </p>`}
+    </section>
+  `;
+}
+
+// Os pedidos desta atleta, do mais recente para trás. O RLS já só lhe entrega
+// os seus; o filtro por `player_id` é a mesma regra do resto do portal — o
+// atleta é encontrado pela ficha e por mais nada.
+function myRequests(playerId) {
+  return state.equipmentRequests
+    .filter((r) => r.player_id === playerId)
+    .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+}
+
+function requestRow(r) {
+  const pendente = r.status === 'pendente';
+  const nota = (r.decision_note || '').trim();
+  return `
+    <li class="portal-req">
+      <div class="portal-req__main">
+        <span class="portal-req__art">
+          ${esc(r.article === 'outro'
+            ? (r.article_other || '').trim() || 'Outro artigo'
+            : articleLabel(r.article))}
+        </span>
+        <span class="badge badge--${REQUEST_STATUS_BADGE[r.status] || 'muted'}">
+          ${esc(REQUEST_STATUS_LABEL[r.status] || r.status)}
+        </span>
+      </div>
+      <p class="portal-req__meta muted">
+        ${r.size ? `Tamanho ${esc(r.size)}` : 'Sem tamanho'}
+        ${r.quantity > 1 ? ` · ×${r.quantity}` : ''}
+        · ${esc(REQUEST_REASON_LABEL[r.reason] || r.reason)}
+        ${r.created_at
+          ? ` · ${new Date(r.created_at).toLocaleDateString('pt-PT', { day: '2-digit', month: 'short' })}`
+          : ''}
+      </p>
+      ${nota ? `<p class="portal-req__note">${esc(nota)}</p>` : ''}
+      ${pendente
+        ? `<button class="btn btn--ghost btn--sm" data-cancel-req="${r.id}" type="button">Cancelar pedido</button>`
+        : ''}
+    </li>
   `;
 }
 
@@ -400,12 +485,119 @@ function cartaoHTML() {
 
 // --- Ligações -------------------------------------------------------------
 
+// --- Pedir equipamento ---------------------------------------------------
+//
+// É o MESMO pedido do ecrã de Equipamentos (mesma tabela, mesmos estados,
+// mesma decisão) — o formulário é que perde dois campos, porque a equipa e a
+// atleta já se sabem: é ela.
+//
+// O tamanho NÃO vem da ficha. No ecrã do treinador vem, porque ele não tem
+// de decorar que a Ana veste M; aqui quem preenche é quem veste a roupa, e
+// uma sugestão só serviria para ela aceitar sem pensar o número que já não
+// lhe serve — que é metade da razão por que os pedidos existem. Por isso é
+// obrigatório: sem fallback da ficha, um tamanho em branco não deixa
+// encomendar nada.
+function openRequestModal(me, draft) {
+  const articles = requestableArticles();
+  if (!articles.length) return;
+
+  const values = draft || { quantity: '1', reason: 'novo' };
+  const article = values.article || '';
+  const sizes = articles.find((a) => a.key === article)?.sizes || [];
+
+  let close;
+  close = openModal({
+    title: 'Pedir equipamento',
+    submitLabel: 'Pedir',
+    values,
+    fields: [
+      {
+        name: 'article', label: 'O que precisas?', type: 'select', required: true, reactive: true,
+        placeholder: 'Escolher…',
+        options: articles.map((a) => ({ key: a.key, label: a.label })),
+      },
+      // Sem artigo escolhido ainda não se sabe que tamanhos oferecer, e um
+      // campo de tamanho vazio antes disso é um campo que não se pode
+      // responder.
+      ...(article ? [
+        sizes.length
+          ? {
+              name: 'size', label: 'Que tamanho?', type: 'select', required: true,
+              placeholder: 'Escolher tamanho…',
+              options: sizes.map((x) => ({ key: x, label: x })),
+            }
+          : {
+              name: 'size', label: 'Que tamanho?', type: 'text', required: true,
+              placeholder: 'ex.: 38',
+            },
+      ] : []),
+      {
+        name: 'reason', label: 'Porquê?', type: 'select', required: true,
+        options: REQUEST_REASONS.map((r) => ({ key: r.key, label: r.label })),
+        hint: 'É o que ajuda o clube a decidir.',
+      },
+      {
+        name: 'notes', label: 'Queres explicar melhor?', type: 'textarea', full: true,
+        placeholder: 'Opcional…',
+      },
+    ],
+    // Trocar de artigo troca a lista de tamanhos: um "M" escolhido para a
+    // camisola não pode ficar lá quando ela muda para umas meias.
+    onFieldChange: (name, current) => {
+      close?.();
+      const next = { ...values, ...current };
+      if (name === 'article') delete next.size;
+      openRequestModal(me, next);
+    },
+    onSubmit: async (v) => {
+      try {
+        await createEquipmentRequest({
+          player_id: me.id,
+          article: v.article,
+          size: v.size?.trim() || null,
+          quantity: 1,
+          reason: v.reason || 'novo',
+          notes: v.notes?.trim() || null,
+        });
+      } catch (err) {
+        throw new Error(dbErrorMessage(err));
+      }
+    },
+  });
+}
+
+// Cancelar só enquanto ninguém decidiu — é o que o RLS permite, e a lista só
+// desenha o botão nos pendentes. Repetido aqui porque o estado pode ter
+// mudado entre o desenho e o clique.
+async function cancelMyRequest(id) {
+  const req = state.equipmentRequests.find((r) => r.id === id);
+  if (!req || req.status !== 'pendente') {
+    toastError('Este pedido já foi decidido pelo clube.');
+    return;
+  }
+  const ok = await confirmDialog('Cancelar este pedido de equipamento?', {
+    confirmLabel: 'Cancelar pedido',
+  });
+  if (!ok) return;
+  try {
+    await deleteRow('equipment_requests', 'equipmentRequests', id);
+  } catch (err) {
+    toastError(dbErrorMessage(err));
+  }
+}
+
 function wire(container, me, team) {
   container.querySelectorAll('[data-portal-tab]').forEach((b) =>
     b.addEventListener('click', () => {
       portalTab = b.dataset.portalTab;
       renderPortal(container);
     })
+  );
+
+  container.querySelector('#portal-pedir')?.addEventListener('click', () => openRequestModal(me));
+
+  container.querySelectorAll('[data-cancel-req]').forEach((btn) =>
+    btn.addEventListener('click', () => cancelMyRequest(btn.dataset.cancelReq))
   );
 
   container.querySelector('[data-drills-toggle]')?.addEventListener('click', () => {

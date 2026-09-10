@@ -68,7 +68,7 @@ function headSubtitle(tabs) {
   if (keys.length === 1 && keys[0] === 'pedidos') return 'Pedidos de material para as tuas atletas';
   const bits = [];
   if (keys.includes('inventario')) bits.push('inventário do clube');
-  if (keys.includes('pedidos')) bits.push('pedidos dos treinadores');
+  if (keys.includes('pedidos')) bits.push('pedidos dos treinadores e das atletas');
   if (keys.includes('encomendas')) bits.push('encomendas por atleta');
   return bits.join(' · ').replace(/^./, (c) => c.toUpperCase());
 }
