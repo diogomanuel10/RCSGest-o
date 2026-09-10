@@ -583,7 +583,11 @@ separador antes de navegar (usado pelos cartões do Painel).
     fecha-o, na mesma lógica do `guard_archive`.
   - **Um pedido é UM artigo para UM atleta**, porque é assim que é entregue e é
     assim que se decide: aprovar as meias de uma e recusar o blusão de outro
-    não pode obrigar a decidir os dois de uma vez.
+    não pode obrigar a decidir os dois de uma vez. Isto é sobre a LINHA, não
+    sobre o formulário: o portal da atleta pede vários artigos de uma vez e
+    grava **uma linha por artigo** (`createEquipmentRequests`, na lógica do
+    `createRows` da importação de atletas — uma escrita, um toast). As
+    decisões continuam independentes; o que se poupa é o preenchimento.
   - **O tamanho vem da ficha, mas é editável** (`player_sizes`): o treinador não
     devia ter de decorar que a Ana veste M. Trocar de atleta ou de artigo
     recalcula a sugestão — deixar lá o "M" do artigo anterior é pior do que não
@@ -610,6 +614,18 @@ separador antes de navegar (usado pelos cartões do Painel).
     - **É o MESMO pedido**: mesma tabela, mesmos quatro estados, mesma
       decisão. O formulário é que perde dois campos — a equipa e a atleta já
       se sabem.
+    - **Pede vários artigos de uma vez.** Quem chega em setembro sem nada
+      precisa de quatro coisas, e quatro voltas ao mesmo formulário num
+      telemóvel é a maneira de a quarta nunca ser pedida. A seleção é o
+      próprio TAMANHO e não uma caixa a marcar antes: escolher um tamanho já
+      diz que precisa daquilo, deixar em branco diz que não — uma caixa mais
+      um tamanho eram dois gestos para dizer uma coisa só. É a forma do modal
+      de tamanhos das Encomendas, que é o mesmo gesto.
+    - **O motivo é do pedido inteiro**, não de cada artigo: quem pede várias
+      coisas de uma vez pede-as quase sempre pela mesma razão (chegou agora,
+      perdeu o saco). Um motivo por artigo duplicava o formulário para o caso
+      raro — quem precisar de motivos diferentes faz dois pedidos. O motivo
+      escolhido é carimbado em todas as linhas.
     - **O tamanho NÃO vem da ficha dela**, ao contrário do ecrã do treinador
       (que não tem de decorar que a Ana veste M). Aqui quem preenche é quem
       veste a roupa, e uma sugestão só serviria para ela aceitar sem pensar o

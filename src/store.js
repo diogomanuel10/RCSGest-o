@@ -1514,6 +1514,19 @@ export async function createEquipmentRequest(values) {
   });
 }
 
+// Vários artigos de uma vez. Continua a ser UMA LINHA POR ARTIGO — é assim
+// que o material é entregue e é assim que se decide (aprovar as meias e
+// recusar o blusão não pode obrigar a decidir os dois de uma vez). O que se
+// poupa é o preenchimento: quatro artigos eram quatro voltas ao formulário,
+// e a quarta não chegava a ser dada.
+//
+// Uma escrita e um toast, na mesma lógica do `createRows` da importação de
+// atletas: é conceptualmente uma operação só.
+export async function createEquipmentRequests(list) {
+  return createRows('equipment_requests', 'equipmentRequests',
+    list.map((v) => ({ ...v, requested_by: state.profile?.id || null })));
+}
+
 // Decide um pedido (aprovar / entregar / recusar). Guarda quem decidiu e
 // quando — um pedido que muda de estado sozinho, sem dono nem data, não
 // responde à única pergunta que se lhe faz um mês depois: "quem disse que

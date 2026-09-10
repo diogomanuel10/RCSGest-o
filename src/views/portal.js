@@ -12,7 +12,7 @@
 
 import {
   state, respondToEvent, saveTacticalAnswer, dbErrorMessage,
-  createEquipmentRequest, deleteRow,
+  createEquipmentRequests, deleteRow,
 } from '../store.js';
 import { toastOk, toastError } from '../toast.js';
 import { getNotifications, markRead } from '../notifications.js';
@@ -491,74 +491,87 @@ function cartaoHTML() {
 // mesma decisão) — o formulário é que perde dois campos, porque a equipa e a
 // atleta já se sabem: é ela.
 //
-// O tamanho NÃO vem da ficha. No ecrã do treinador vem, porque ele não tem
-// de decorar que a Ana veste M; aqui quem preenche é quem veste a roupa, e
-// uma sugestão só serviria para ela aceitar sem pensar o número que já não
-// lhe serve — que é metade da razão por que os pedidos existem. Por isso é
-// obrigatório: sem fallback da ficha, um tamanho em branco não deixa
-// encomendar nada.
-function openRequestModal(me, draft) {
+// **Pede-se mais do que um artigo de uma vez, e continua a ser um pedido por
+// artigo.** A regra "um pedido é UM artigo" existe para as decisões serem
+// independentes (aprovar as meias e recusar o blusão), e essa mantém-se: o
+// formulário cria uma LINHA POR ARTIGO. O que se poupa é o preenchimento —
+// quem chega em setembro sem nada precisa de quatro coisas, e quatro voltas
+// ao mesmo formulário no telemóvel é a maneira de a quarta nunca ser pedida.
+//
+// A seleção é o próprio TAMANHO, e não uma caixa a marcar antes: escolher um
+// tamanho já diz que precisa daquilo, e deixar em branco diz que não. Uma
+// caixa por artigo mais um tamanho por artigo eram dois gestos para dizer uma
+// coisa só. É também a forma do modal de tamanhos das Encomendas — o mesmo
+// gesto, o mesmo desenho.
+//
+// O tamanho não vem da ficha dela. No ecrã do treinador vem, porque ele não
+// tem de decorar que a Ana veste M; aqui quem preenche é quem veste a roupa,
+// e uma sugestão só serviria para ela aceitar sem pensar o número que já não
+// lhe serve — que é metade da razão por que os pedidos existem.
+function openRequestModal(me) {
   const articles = requestableArticles();
   if (!articles.length) return;
 
-  const values = draft || { quantity: '1', reason: 'novo' };
-  const article = values.article || '';
-  const sizes = articles.find((a) => a.key === article)?.sizes || [];
-
-  let close;
-  close = openModal({
+  openModal({
     title: 'Pedir equipamento',
     submitLabel: 'Pedir',
-    values,
     fields: [
-      {
-        name: 'article', label: 'O que precisas?', type: 'select', required: true, reactive: true,
-        placeholder: 'Escolher…',
-        options: articles.map((a) => ({ key: a.key, label: a.label })),
-      },
-      // Sem artigo escolhido ainda não se sabe que tamanhos oferecer, e um
-      // campo de tamanho vazio antes disso é um campo que não se pode
-      // responder.
-      ...(article ? [
-        sizes.length
+      ...articles.map((a, i) => ({
+        name: `art__${a.key}`,
+        label: a.label,
+        // A instrução vai só no primeiro campo: repetida em cada artigo era
+        // a mesma frase cinco vezes num ecrã de telemóvel.
+        ...(i === 0
+          ? { hint: 'Escolhe o tamanho do que precisas. Deixa em branco o resto.' }
+          : {}),
+        ...(a.sizes.length
           ? {
-              name: 'size', label: 'Que tamanho?', type: 'select', required: true,
-              placeholder: 'Escolher tamanho…',
-              options: sizes.map((x) => ({ key: x, label: x })),
+              type: 'select',
+              placeholder: '— Não preciso —',
+              options: a.sizes.map((x) => ({ key: x, label: x })),
             }
           : {
-              name: 'size', label: 'Que tamanho?', type: 'text', required: true,
-              placeholder: 'ex.: 38',
-            },
-      ] : []),
+              type: 'text',
+              placeholder: 'Tamanho — vazio se não precisas',
+            }),
+      })),
+      // O motivo é do PEDIDO INTEIRO e não de cada artigo. Quem pede várias
+      // coisas de uma vez pede-as quase sempre pela mesma razão — chegou
+      // agora, ou perdeu o saco. Um motivo por artigo duplicava o formulário
+      // para o caso raro; quem precisar de motivos diferentes faz dois
+      // pedidos, que é o que já fazia para tudo.
       {
         name: 'reason', label: 'Porquê?', type: 'select', required: true,
         options: REQUEST_REASONS.map((r) => ({ key: r.key, label: r.label })),
-        hint: 'É o que ajuda o clube a decidir.',
+        hint: 'É o que ajuda o clube a decidir. Vale para tudo o que pedires agora.',
       },
       {
         name: 'notes', label: 'Queres explicar melhor?', type: 'textarea', full: true,
         placeholder: 'Opcional…',
       },
     ],
-    // Trocar de artigo troca a lista de tamanhos: um "M" escolhido para a
-    // camisola não pode ficar lá quando ela muda para umas meias.
-    onFieldChange: (name, current) => {
-      close?.();
-      const next = { ...values, ...current };
-      if (name === 'article') delete next.size;
-      openRequestModal(me, next);
-    },
     onSubmit: async (v) => {
-      try {
-        await createEquipmentRequest({
+      const pedidos = articles
+        .map((a) => ({ article: a.key, size: (v[`art__${a.key}`] || '').trim() }))
+        .filter((x) => x.size)
+        .map((x) => ({
           player_id: me.id,
-          article: v.article,
-          size: v.size?.trim() || null,
+          article: x.article,
+          size: x.size,
           quantity: 1,
           reason: v.reason || 'novo',
           notes: v.notes?.trim() || null,
-        });
+        }));
+
+      // Sem nenhum tamanho escolhido não há pedido nenhum. A validação nativa
+      // não apanha isto (os campos são todos opcionais de propósito), por
+      // isso o erro aparece no formulário em vez de o submit "não fazer nada".
+      if (!pedidos.length) {
+        throw new Error('Escolhe o tamanho de pelo menos um artigo — é isso que diz o que precisas.');
+      }
+
+      try {
+        await createEquipmentRequests(pedidos);
       } catch (err) {
         throw new Error(dbErrorMessage(err));
       }
