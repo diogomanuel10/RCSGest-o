@@ -375,6 +375,8 @@ function epocaHTML(me) {
     </section>
     ` : ''}
 
+    ${materialHTML(pedidos)}
+
     <section class="card portal-section">
       <h2 class="section-title portal-section__title">As minhas quotas</h2>
       ${quotas.list.length
@@ -387,8 +389,6 @@ function epocaHTML(me) {
            <ul class="portal-quota-list">${quotas.list.slice(0, 12).map(quotaLine).join('')}</ul>`
         : '<p class="portal-section__note">Sem quotas registadas.</p>'}
     </section>
-
-    ${materialHTML(pedidos)}
   `;
 }
 
