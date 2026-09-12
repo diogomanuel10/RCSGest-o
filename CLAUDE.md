@@ -723,6 +723,32 @@ separador antes de navegar (usado pelos cartões do Painel).
       certa. Uma foto que fique no bucket porque o coordenador desistiu a
       seguir é lixo de 60 KB; uma gravação que só mostra o resultado no fim
       é pior.
+  - **Cada artigo pode ter PREÇO unitário** (`price`, em euros, no mesmo JSON
+    — não precisa de migração). Serve três sítios, todos eles a mesma
+    pergunta feita por pessoas diferentes: quanto custa isto?
+    - **O resumo da encomenda** passa a dar o custo da equipa inteira, por
+      artigo e no total. É o número que se leva à direção, por isso está à
+      cabeça do resumo e não no fim de uma lista de cartões; o `.xlsx` leva
+      preço unitário, subtotal e total.
+    - **Quem decide um pedido vê quanto custa** — hoje decidia às cegas. O
+      cartão "Por decidir" soma o que está em cima da mesa: sete "sins"
+      pequenos são uma despesa que ninguém chegou a aprovar de uma vez.
+    - **A atleta vê o preço ANTES de pedir**, na etiqueta de cada artigo do
+      formulário do portal — ao mesmo tempo que lê o nome, não depois de
+      escolher. O objetivo é esse: quem pede sabe o que está a pedir ao
+      clube.
+    - **`null` e zero são coisas diferentes, e a distinção percorre tudo**:
+      zero é "o clube dá de graça" (um número, que soma), `null` é "ainda
+      não sei quanto custa" (a ausência, que não soma). Os artigos sem preço
+      contam-se à parte e **dizem-se pelo nome** — um orçamento que engole
+      em silêncio três artigos por orçamentar é um número que alguém leva à
+      direção a pensar que está fechado. No `.xlsx` ficam células vazias e
+      não zeros, que numa folha de cálculo somam.
+    - **É uma estimativa ao preço de HOJE, não um registo de despesa.**
+      Mudar o preço nas Definições muda estes números, de propósito: a
+      pergunta é "quanto vou gastar", não "quanto gastei". O que se gastou é
+      do Financeiro, e nada disto escreve lá — ligar as duas coisas é uma
+      decisão à parte.
   - **`active` e `requestable` são perguntas diferentes**: a primeira diz se o
     artigo existe no clube, a segunda se uma atleta o pode pedir do portal
     (ver «Pedidos de equipamento»). Um artigo pode existir e não ser pedível —

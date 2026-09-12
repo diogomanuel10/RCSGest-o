@@ -67,6 +67,7 @@ export function equipmentArticles() {
       sizes: Array.isArray(a.sizes) ? a.sizes.filter(Boolean) : [],
       requestable: a.requestable === true,
       photo: a.photo || '',
+      price: articlePrice(a),
     }));
 }
 
@@ -83,6 +84,7 @@ export function allEquipmentArticles() {
       sizes: Array.isArray(a.sizes) ? a.sizes.filter(Boolean) : [],
       requestable: a.requestable === true,
       photo: a.photo || '',
+      price: articlePrice(a),
       active: a.active !== false,
     }));
 }
@@ -104,6 +106,19 @@ export function requestableArticles() {
 export function athleteRequestsEnabled() {
   const s = state.settings || {};
   return 'athlete_requests_enabled' in s ? s.athlete_requests_enabled !== false : false;
+}
+
+// Preço unitário de um artigo, ou `null` quando não está definido.
+//
+// `null` e zero são coisas DIFERENTES e a distinção percorre tudo o que se
+// segue: zero é "o clube dá isto de graça" (um número, que soma), `null` é
+// "ainda não sei quanto custa" (a ausência de número, que não soma e que
+// obriga a dizer que o total está incompleto). Tratar os dois como zero
+// dava um orçamento a fingir que está fechado.
+export function articlePrice(a) {
+  if (a?.price === null || a?.price === undefined || a?.price === '') return null;
+  const n = Number(a.price);
+  return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
 // Etiqueta de uma chave de artigo. Procura também nos desativados e na lista

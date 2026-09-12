@@ -62,8 +62,15 @@ export async function exportEncomendaXLSX({ teamLabel, players, sizesById, artic
     ...articles.map(() => ({ wch: 16 })),
   ];
 
-  // --- Folha "Resumo": contagem por artigo e tamanho ---
-  const summaryRows = [['Artigo', 'Tamanho', 'Quantidade']];
+  // --- Folha "Resumo": contagem por artigo e tamanho, com o custo ---
+  // É esta folha que vai para o fornecedor e para a direção, por isso leva
+  // o preço unitário e o subtotal. Um artigo sem preço deixa as duas células
+  // VAZIAS em vez de zero: zero numa folha de cálculo soma, e um total que
+  // engole artigos por orçamentar é pior do que um total que falta.
+  const summaryRows = [['Artigo', 'Tamanho', 'Quantidade', 'Preço unit. (€)', 'Subtotal (€)']];
+  let grandTotal = 0;
+  let anyMissing = false;
+
   articles.forEach((article) => {
     const counts = {};
     players.forEach((p) => {
@@ -71,14 +78,28 @@ export async function exportEncomendaXLSX({ teamLabel, players, sizesById, artic
       if (v) counts[v] = (counts[v] || 0) + 1;
     });
     const entries = Object.entries(counts).sort(([a], [b]) => sizeSort(a, b, article.sizes));
+    const priced = article.price != null;
+
     if (!entries.length) {
-      summaryRows.push([article.label, '—', 0]);
-    } else {
-      entries.forEach(([size, count]) => summaryRows.push([article.label, size, count]));
+      summaryRows.push([article.label, '—', 0, priced ? article.price : '', '']);
+      return;
     }
+    entries.forEach(([size, count]) => {
+      const sub = priced ? article.price * count : '';
+      if (priced) grandTotal += article.price * count;
+      else anyMissing = true;
+      summaryRows.push([article.label, size, count, priced ? article.price : '', sub]);
+    });
   });
+
+  summaryRows.push([]);
+  summaryRows.push([
+    anyMissing ? 'TOTAL (sem os artigos por orçamentar)' : 'TOTAL',
+    '', '', '', grandTotal,
+  ]);
+
   const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
-  wsSummary['!cols'] = [{ wch: 22 }, { wch: 12 }, { wch: 12 }];
+  wsSummary['!cols'] = [{ wch: 30 }, { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 14 }];
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, wsDetail, 'Atletas');

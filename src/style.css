@@ -2522,6 +2522,28 @@ button.metric--nav:focus-visible {
 .field--with-image > label,
 .field--with-image > .field__hint { grid-column: 2; }
 
+/* Orçamento da encomenda: o número que se leva à direção, por isso à
+   cabeça do resumo e não no fim de uma lista de cartões. */
+.enc-budget {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.9rem;
+}
+.enc-budget__label {
+  display: block;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+.enc-budget__value {
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+.enc-budget__note { font-size: 0.82rem; }
+.enc-resumo-unit { font-size: 0.8rem; color: var(--text-muted); }
+
 /* Foto do artigo no editor das Definições. */
 .chip__photo {
   width: 40px;

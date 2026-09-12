@@ -10,12 +10,13 @@
 // o trigger `guard_request_decision` recusa a decisão a quem pediu.
 
 import { state, createEquipmentRequest, decideEquipmentRequest, updateRow, deleteRow, dbErrorMessage } from '../store.js';
-import { esc, emptyHTML, paginate, paginationHTML, wirePagination, wireEmptyAction, PAGE_SIZE } from '../ui.js';
+import { esc, emptyHTML, euros, paginate, paginationHTML, wirePagination, wireEmptyAction, PAGE_SIZE } from '../ui.js';
 import { openModal, confirmDialog } from '../modal.js';
 import { canEdit, canDecideRequests, isClubWide } from '../permissions.js';
 import {
   teamName, myTeams, equipmentArticles, playerSizes,
   articleLabel as configuredArticleLabel,
+  allEquipmentArticles,
 } from '../compute.js';
 import {
   REQUEST_REASONS,
@@ -62,6 +63,18 @@ export function renderPedidosBody(container) {
   const counts = { pendente: 0, aprovado: 0, entregue: 0, recusado: 0 };
   all.forEach((r) => { if (counts[r.status] !== undefined) counts[r.status]++; });
 
+  // Quanto está em cima da mesa por decidir. É o número que falta a quem
+  // aprova: hoje decide-se pedido a pedido sem nunca ver a soma, e sete
+  // "sins" pequenos são uma despesa que ninguém chegou a aprovar. Os
+  // pedidos sem preço contam-se à parte — somá-los como zero dizia que o
+  // orçamento está fechado quando não está.
+  const pendingCost = { total: 0, missing: 0 };
+  all.filter((r) => r.status === 'pendente').forEach((r) => {
+    const c = requestCost(r);
+    if (c == null) pendingCost.missing++;
+    else pendingCost.total += c;
+  });
+
   const rows = all.filter((r) => {
     if (teamFilter && playerById[r.player_id]?.team_id !== teamFilter) return false;
     if (statusFilter === 'todos') return true;
@@ -97,6 +110,10 @@ export function renderPedidosBody(container) {
       <div class="card metric metric--warn aval-metric">
         <span class="metric__label">Por decidir</span>
         <strong class="metric__value">${counts.pendente}</strong>
+        ${pendingCost.total
+          ? `<span class="muted" style="font-size:0.8rem">${esc(euros(pendingCost.total))}${
+              pendingCost.missing ? ` · ${pendingCost.missing} sem preço` : ''}</span>`
+          : ''}
       </div>
       <div class="card metric metric--info aval-metric">
         <span class="metric__label">Aprovados</span>
@@ -207,6 +224,18 @@ function requesterLabel(uid) {
   return profile?.email || '—';
 }
 
+// Quanto custa um pedido, ao preço de HOJE. `null` quando o artigo não tem
+// preço definido ou é um "outro artigo" escrito à mão — e aí não se mostra
+// número nenhum, em vez de se mostrar zero. Procura nos artigos TODOS
+// (incluindo os desativados): um pedido de dezembro de um artigo já retirado
+// continua a ter custado o que custava.
+function requestCost(req) {
+  if (req.article === 'outro') return null;
+  const a = allEquipmentArticles().find((x) => x.key === req.article);
+  if (!a || a.price == null) return null;
+  return a.price * (req.quantity || 1);
+}
+
 function rowHTML(req, player, canDecide) {
   const badge = REQUEST_STATUS_BADGE[req.status] || 'muted';
   const label = REQUEST_STATUS_LABEL[req.status] || req.status;
@@ -223,7 +252,12 @@ function rowHTML(req, player, canDecide) {
       </td>
       <td>${esc(articleLabel(req))}</td>
       <td>${req.size ? `<span class="badge badge--info">${esc(req.size)}</span>` : '<span class="muted">—</span>'}</td>
-      <td>${req.quantity}</td>
+      <td>
+        ${req.quantity}
+        ${(() => { const c = requestCost(req); return c != null
+          ? `<span class="muted" style="display:block;font-size:0.8rem">${esc(euros(c))}</span>`
+          : ''; })()}
+      </td>
       <td>
         ${esc(REQUEST_REASON_LABEL[req.reason] || req.reason)}
         ${req.notes ? `<span class="muted" style="display:block;font-size:0.8rem">${esc(req.notes)}</span>` : ''}
