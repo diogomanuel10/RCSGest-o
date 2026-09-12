@@ -57,15 +57,28 @@ drop policy if exists "equip_photos_write"  on storage.objects;
 drop policy if exists "equip_photos_update" on storage.objects;
 drop policy if exists "equip_photos_delete" on storage.objects;
 
+-- A primeira pasta do caminho é o `org_id`, e é verificada: sem isso um
+-- coordenador podia escrever dentro da pasta de outro clube. A app só
+-- escreve na sua, mas uma política que confia na app não é uma política.
 create policy "equip_photos_write" on storage.objects for insert to authenticated
-  with check (bucket_id = 'equipment-photos' and app_role() = 'coordenador');
+  with check (
+    bucket_id = 'equipment-photos'
+    and app_role() = 'coordenador'
+    and (storage.foldername(name))[1] = current_org_id()::text
+  );
 
 -- O UPDATE é preciso para o `upsert` do cliente: substituir a foto de um
 -- artigo sem ele é apagar-e-voltar-a-criar, e no meio disso o artigo fica
 -- sem imagem se a segunda metade falhar.
 create policy "equip_photos_update" on storage.objects for update to authenticated
-  using      (bucket_id = 'equipment-photos' and app_role() = 'coordenador')
-  with check (bucket_id = 'equipment-photos' and app_role() = 'coordenador');
+  using      (bucket_id = 'equipment-photos' and app_role() = 'coordenador'
+              and (storage.foldername(name))[1] = current_org_id()::text)
+  with check (bucket_id = 'equipment-photos' and app_role() = 'coordenador'
+              and (storage.foldername(name))[1] = current_org_id()::text);
 
 create policy "equip_photos_delete" on storage.objects for delete to authenticated
-  using (bucket_id = 'equipment-photos' and app_role() = 'coordenador');
+  using (
+    bucket_id = 'equipment-photos'
+    and app_role() = 'coordenador'
+    and (storage.foldername(name))[1] = current_org_id()::text
+  );
