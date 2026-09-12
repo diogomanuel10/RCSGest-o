@@ -1513,9 +1513,14 @@ export async function uploadArticlePhoto(articleKey, file) {
   const rand = Math.random().toString(36).slice(2, 10);
   const path = `${orgId}/${articleKey}-${rand}.jpg`;
 
+  // `upsert: false` de propósito: o nome já leva um sufixo aleatório, por
+  // isso o objeto é SEMPRE novo. Um upsert fazia o Storage exigir também
+  // UPDATE — e verificar primeiro se o ficheiro existe, o que pede leitura —
+  // alargando as permissões necessárias para uma colisão que não pode
+  // acontecer. Era o que fazia a gravação falhar com erro de RLS.
   const { error } = await supabase.storage
     .from(ARTICLE_PHOTO_BUCKET)
-    .upload(path, blob, { contentType: 'image/jpeg', upsert: true });
+    .upload(path, blob, { contentType: 'image/jpeg', upsert: false });
   if (error) throw error;
   return path;
 }

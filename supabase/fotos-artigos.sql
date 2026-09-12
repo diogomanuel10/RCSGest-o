@@ -50,12 +50,24 @@ on conflict (id) do update set
 -- ---------------------------------------------------------------------
 -- 2. Quem escreve
 -- ---------------------------------------------------------------------
--- A leitura é pública (é o que `public = true` faz) — não há política de
--- SELECT a escrever. Escrever e apagar é só do coordenador, pela mesma razão
--- que o resto do editor de artigos: é estrutura do clube.
+-- Escrever e apagar é só do coordenador, pela mesma razão que o resto do
+-- editor de artigos: é estrutura do clube.
+--
+-- **Há política de SELECT apesar de o bucket ser público.** O `public = true`
+-- só abre o endereço de DESCARGA; qualquer operação feita pela API
+-- autenticada continua a passar pelo RLS de `storage.objects`. Sem ela,
+-- listar ou substituir uma foto falhava com um erro de RLS que, do lado da
+-- app, aparecia como "Sem permissão para esta operação" — sem dizer porquê.
+drop policy if exists "equip_photos_read"   on storage.objects;
 drop policy if exists "equip_photos_write"  on storage.objects;
 drop policy if exists "equip_photos_update" on storage.objects;
 drop policy if exists "equip_photos_delete" on storage.objects;
+
+-- Leitura para quem tem sessão. Não restringe por clube de propósito: o
+-- bucket é público na descarga, por isso exigir aqui o `org_id` dava uma
+-- falsa sensação de fecho sem fechar nada.
+create policy "equip_photos_read" on storage.objects for select to authenticated
+  using (bucket_id = 'equipment-photos');
 
 -- A primeira pasta do caminho é o `org_id`, e é verificada: sem isso um
 -- coordenador podia escrever dentro da pasta de outro clube. A app só
