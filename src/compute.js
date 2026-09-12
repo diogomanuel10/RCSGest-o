@@ -66,6 +66,7 @@ export function equipmentArticles() {
       label: a.label || a.key,
       sizes: Array.isArray(a.sizes) ? a.sizes.filter(Boolean) : [],
       requestable: a.requestable === true,
+      photo: a.photo || '',
     }));
 }
 
@@ -81,6 +82,7 @@ export function allEquipmentArticles() {
       label: a.label || a.key,
       sizes: Array.isArray(a.sizes) ? a.sizes.filter(Boolean) : [],
       requestable: a.requestable === true,
+      photo: a.photo || '',
       active: a.active !== false,
     }));
 }

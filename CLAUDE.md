@@ -258,6 +258,7 @@ supabase/grupo-whatsapp.sql    Link do grupo de WhatsApp da equipa (guia de entr
 supabase/pedidos-equipamento.sql  Pedidos de equipamento (treinador -> clube) + notificações
 supabase/artigos-configuraveis.sql Artigos e tamanhos de equipamento definidos pelo clube
 supabase/pedidos-atleta.sql    A atleta pede equipamento do portal; decide o coordenador/direção
+supabase/fotos-artigos.sql     Bucket público com a foto de cada artigo de equipamento
 supabase/aniversarios.sql      Data de nascimento do atleta (aniversários + quem falta)
 supabase/portal-atleta.sql     Portal: o atleta lê a sua própria disponibilidade
 supabase/comunicacao.sql       Respostas do atleta a eventos + avisos do clube
@@ -693,6 +694,35 @@ separador antes de navegar (usado pelos cartões do Painel).
     Sem ela, um pedido de dezembro passava a dizer `blusao` no lugar de
     "Blusão" — `articleLabel()` procura de propósito também nos desativados e
     na lista de origem.
+  - **Cada artigo pode ter FOTO** (`supabase/fotos-artigos.sql`): "Casaco Fato
+    de Treino", "Blusão" e "Camisola de Treino" são três etiquetas que só
+    distinguem o material a quem já o conhece — e quem escolhe entre elas no
+    portal é uma atleta que entrou em setembro. Escolher o artigo errado
+    gasta um pedido, uma decisão e uma entrega, para depois recomeçar.
+    - **Storage e não data URL**, ao contrário do emblema do clube: o logótipo
+      é UM ficheiro de 256 KB; nove artigos na linha das definições eram
+      megabytes lidos em cada `loadAll()`, por toda a gente e em cada
+      arranque. O caminho vive em `settings.equipment_articles[].photo` e a
+      imagem carrega-se preguiçosamente.
+    - **O bucket é PÚBLICO**, ao contrário do `player-docs`. Um URL assinado
+      expira numa hora e isto desenha-se numa lista que se re-desenha a cada
+      notificação do store; e quem mais precisa de ver é a ATLETA, que não
+      tem leitura no `player-docs` — abrir esse bucket para aqui caber a foto
+      de um casaco punha as fotocópias do cartão de cidadão do lado errado da
+      porta. A foto de um casaco de treino não é dado pessoal.
+    - **O nome do ficheiro leva um sufixo aleatório** a cada gravação. O
+      bucket serve-se por CDN: substituir a foto num caminho fixo continuava
+      a mostrar a antiga durante horas, e o coordenador concluía que a
+      gravação tinha falhado.
+    - **Reduz-se no browser antes de subir** (`shrinkImage`, ~600px): o que
+      se quer poupar é a subida — quem tira a foto está no pavilhão, com a
+      mesma rede fraca do quiosque — e a descida, que é a atleta com dados
+      móveis a puxar uma miniatura de 56px.
+    - **Sobe no momento em que se aplica o artigo**, não no "Guardar
+      artigos": a miniatura aparece logo na lista e confirma que foi a imagem
+      certa. Uma foto que fique no bucket porque o coordenador desistiu a
+      seguir é lixo de 60 KB; uma gravação que só mostra o resultado no fim
+      é pior.
   - **`active` e `requestable` são perguntas diferentes**: a primeira diz se o
     artigo existe no clube, a segunda se uma atleta o pode pedir do portal
     (ver «Pedidos de equipamento»). Um artigo pode existir e não ser pedível —

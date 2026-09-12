@@ -61,13 +61,23 @@ function fieldHTML(field, value) {
   }
 
   const span = field.full ? ' field--full' : '';
+  // Miniatura ilustrativa ao lado da etiqueta (a foto de um artigo de
+  // equipamento). É `alt=""` de propósito: a imagem repete o que a etiqueta
+  // já diz, e anunciá-la duas vezes a quem usa leitor de ecrã é ruído. Falha
+  // em silêncio se o ficheiro não carregar — um campo sem foto continua a
+  // ser um campo que se responde.
+  const image = field.image
+    ? `<img class="field__image" src="${esc(field.image)}" alt="" loading="lazy"
+           onerror="this.remove()" />`
+    : '';
   // `hint` explica o campo por baixo do controlo (ligado por aria-describedby,
   // para os leitores de ecrã o anunciarem junto com a etiqueta).
   const hint = field.hint
     ? `<p class="field__hint muted" id="${id}-hint">${esc(field.hint)}</p>`
     : '';
   const described = field.hint ? ` aria-describedby="${id}-hint"` : '';
-  return `<div class="field${span}" data-field="${field.name}">
+  return `<div class="field${span}${field.image ? ' field--with-image' : ''}" data-field="${field.name}">
+    ${image}
     <label for="${id}">${esc(field.label)}${
       field.required ? ' <span class="field__req" title="Obrigatório">*</span>' : ''
     }</label>

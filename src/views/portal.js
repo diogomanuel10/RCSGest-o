@@ -12,7 +12,7 @@
 
 import {
   state, respondToEvent, saveTacticalAnswer, dbErrorMessage,
-  createEquipmentRequests, deleteRow,
+  createEquipmentRequests, deleteRow, articlePhotoUrl,
 } from '../store.js';
 import { toastOk, toastError } from '../toast.js';
 import { getNotifications, markRead } from '../notifications.js';
@@ -519,6 +519,11 @@ function openRequestModal(me) {
       ...articles.map((a, i) => ({
         name: `art__${a.key}`,
         label: a.label,
+        // "Casaco Fato de Treino", "Blusão" e "Camisola de Treino" são três
+        // etiquetas que só distinguem o material a quem já o conhece — e
+        // quem escolhe aqui entrou no clube em setembro. A foto responde à
+        // pergunta que o nome não responde.
+        ...(a.photo ? { image: articlePhotoUrl(a.photo) } : {}),
         // A instrução vai só no primeiro campo: repetida em cada artigo era
         // a mesma frase cinco vezes num ecrã de telemóvel.
         ...(i === 0
