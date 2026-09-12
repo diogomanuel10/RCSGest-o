@@ -4,7 +4,7 @@
 //   2. Resumo para encomenda — agrega os tamanhos de cada artigo da equipa.
 
 import { state, upsertPlayerSizes, dbErrorMessage } from '../store.js';
-import { esc, emptyHTML } from '../ui.js';
+import { esc, emptyHTML, euros } from '../ui.js';
 import { teamName, equipmentArticles, playerSizes, sortSizes } from '../compute.js';
 import { openModal } from '../modal.js';
 import { canEdit } from '../permissions.js';
@@ -211,10 +211,27 @@ function renderResumo(players, team) {
 
   const sem = players.filter((p) => !Object.keys(sizesMap[p.id]).length).length;
 
+  const orcamento = orderBudget(players, articles, sizesMap);
+
   return `
     ${sem > 0 ? `
       <div class="alert alert--warn" style="margin-bottom:0.9rem">
         ⚠️ ${sem} atleta${sem !== 1 ? 's' : ''} ainda não tem tamanhos preenchidos — o resumo pode estar incompleto.
+      </div>
+    ` : ''}
+
+    ${orcamento.units ? `
+      <div class="card enc-budget">
+        <div>
+          <span class="enc-budget__label">Custo desta encomenda</span>
+          <strong class="enc-budget__value">${esc(euros(orcamento.total))}</strong>
+        </div>
+        <span class="muted enc-budget__note">
+          ${orcamento.priced} de ${orcamento.units} unidade${orcamento.units !== 1 ? 's' : ''} com preço
+          ${orcamento.missing
+            ? `· <strong>${orcamento.missing} por orçamentar</strong> (${esc(orcamento.missingLabels)})`
+            : ''}
+        </span>
       </div>
     ` : ''}
 
@@ -227,6 +244,7 @@ function renderResumo(players, team) {
         });
         const entries = sortSizes(Object.keys(counts), article).map((k) => [k, counts[k]]);
         const total = entries.reduce((s, [, n]) => s + n, 0);
+        const custo = article.price != null ? article.price * total : null;
 
         return `
           <div class="card enc-resumo-card">
@@ -243,13 +261,56 @@ function renderResumo(players, team) {
                     </li>
                   `).join('')}
                 </ul>
-                <p class="muted enc-resumo-total">Total: ${total} unidade${total !== 1 ? 's' : ''}</p>`
+                <p class="muted enc-resumo-total">
+                   Total: ${total} unidade${total !== 1 ? 's' : ''}
+                   ${custo != null
+                     ? `· <strong>${esc(euros(custo))}</strong>
+                        <span class="enc-resumo-unit">(${esc(euros(article.price))}/un.)</span>`
+                     : '· <span class="enc-resumo-unit">preço por definir</span>'}
+                 </p>`
               : `<p class="muted" style="margin:0.4rem 0 0;font-size:0.85rem">Sem tamanhos registados.</p>`}
           </div>
         `;
       }).join('')}
     </div>
   `;
+}
+
+// Custo da encomenda desta equipa, aos preços de HOJE.
+//
+// Não é um registo de despesa — é uma estimativa do que custa encomendar
+// isto agora. Mudar o preço de um artigo nas Definições muda este número,
+// de propósito: a pergunta que se faz aqui é "quanto vou gastar", não
+// "quanto gastei". O que se gastou é do Financeiro.
+//
+// Os artigos SEM preço não somam zero: contam-se à parte e dizem-se pelo
+// nome. Um orçamento que engole em silêncio três artigos por orçamentar é
+// um número que alguém leva à direção a pensar que está fechado.
+function orderBudget(players, articles, sizesMap) {
+  let total = 0;
+  let units = 0;
+  let priced = 0;
+  const missingLabels = [];
+
+  articles.forEach((a) => {
+    const n = players.filter((p) => sizesMap[p.id]?.[a.key]).length;
+    if (!n) return;
+    units += n;
+    if (a.price != null) {
+      total += a.price * n;
+      priced += n;
+    } else {
+      missingLabels.push(a.label);
+    }
+  });
+
+  return {
+    total,
+    units,
+    priced,
+    missing: units - priced,
+    missingLabels: missingLabels.join(', '),
+  };
 }
 
 // ---------------------------------------------------------------------------

@@ -34,6 +34,7 @@ import {
   playerUpcomingSquads,
   requestableArticles,
   articleLabel,
+  allEquipmentArticles,
 } from '../compute.js';
 import {
   EVENT_TYPE_LABEL,
@@ -433,6 +434,16 @@ function myRequests(playerId) {
     .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
 }
 
+// Custo de um pedido ao preço de hoje. Procura nos artigos TODOS, incluindo
+// os desativados: um pedido antigo de um artigo já retirado continua a valer
+// o que valia.
+function requestCost(r) {
+  if (r.article === 'outro') return null;
+  const a = allEquipmentArticles().find((x) => x.key === r.article);
+  if (!a || a.price == null) return null;
+  return a.price * (r.quantity || 1);
+}
+
 function requestRow(r) {
   const pendente = r.status === 'pendente';
   const nota = (r.decision_note || '').trim();
@@ -451,6 +462,7 @@ function requestRow(r) {
       <p class="portal-req__meta muted">
         ${r.size ? `Tamanho ${esc(r.size)}` : 'Sem tamanho'}
         ${r.quantity > 1 ? ` · ×${r.quantity}` : ''}
+        ${(() => { const c = requestCost(r); return c != null ? ` · ${esc(euros(c))}` : ''; })()}
         · ${esc(REQUEST_REASON_LABEL[r.reason] || r.reason)}
         ${r.created_at
           ? ` · ${new Date(r.created_at).toLocaleDateString('pt-PT', { day: '2-digit', month: 'short' })}`
@@ -518,7 +530,11 @@ function openRequestModal(me) {
     fields: [
       ...articles.map((a, i) => ({
         name: `art__${a.key}`,
-        label: a.label,
+        // O preço vai na ETIQUETA e não numa ajuda por baixo: tem de ser
+        // lido ao mesmo tempo que o nome do artigo, no momento de escolher,
+        // e não depois de escolher. Um artigo sem preço definido não mostra
+        // número nenhum — melhor calar do que dizer "0 €" e parecer grátis.
+        label: a.price != null ? `${a.label} — ${euros(a.price)}` : a.label,
         // "Casaco Fato de Treino", "Blusão" e "Camisola de Treino" são três
         // etiquetas que só distinguem o material a quem já o conhece — e
         // quem escolhe aqui entrou no clube em setembro. A foto responde à
@@ -527,7 +543,9 @@ function openRequestModal(me) {
         // A instrução vai só no primeiro campo: repetida em cada artigo era
         // a mesma frase cinco vezes num ecrã de telemóvel.
         ...(i === 0
-          ? { hint: 'Escolhe o tamanho do que precisas. Deixa em branco o resto.' }
+          ? { hint: articles.some((x) => x.price != null)
+                ? 'Escolhe o tamanho do que precisas e deixa em branco o resto. Os valores são o que cada peça custa ao clube.'
+                : 'Escolhe o tamanho do que precisas. Deixa em branco o resto.' }
           : {}),
         ...(a.sizes.length
           ? {

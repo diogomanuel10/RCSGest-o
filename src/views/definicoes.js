@@ -1,7 +1,7 @@
 // Vista: Definições. Época, meta, identidade do clube, estrutura e limiares.
 
 import { state, saveSettings, dbErrorMessage, uploadArticlePhoto, deleteArticlePhoto, articlePhotoUrl } from '../store.js';
-import { esc } from '../ui.js';
+import { esc, euros } from '../ui.js';
 import { toastOk } from '../toast.js';
 import { confirmDialog } from '../modal.js';
 import { isCoordenador } from '../permissions.js';
@@ -845,6 +845,7 @@ export function renderDefinicoes(container) {
               ${a.active ? '' : '<span class="badge badge--muted">Desativado</span>'}
               <small class="muted" style="display:block;font-weight:400">
                 ${a.sizes.length ? esc(a.sizes.join(' · ')) : 'Tamanho em texto livre'}
+                ${a.price != null ? ` · ${esc(euros(a.price))}` : ''}
                 ${a.requestable ? ' · 🙋 as atletas podem pedir' : ''}
               </small>
             </span>
@@ -911,6 +912,7 @@ export function renderDefinicoes(container) {
         values: {
           label: editing?.label || '',
           sizes: (editing?.sizes || TEXT_SIZES).join(', '),
+          price: editing?.price ?? '',
           photo_action: 'manter',
         },
         fields: [
@@ -930,6 +932,11 @@ export function renderDefinicoes(container) {
           // "Blusão" são duas etiquetas que só distinguem o material a quem
           // já o conhece, e quem escolhe lá é uma atleta que entrou em
           // setembro. A imagem é reduzida no browser antes de subir.
+          {
+            name: 'price', label: 'Preço unitário (€)', type: 'number',
+            placeholder: 'ex.: 12.50',
+            hint: 'Opcional. Serve para orçamentar a encomenda e para decidires um pedido sabendo quanto custa. Deixa vazio se ainda não sabes — zero quer dizer que o clube dá de graça.',
+          },
           {
             name: 'photo_file', label: 'Foto', type: 'file', accept: 'image/*',
             ...(editing?.photo ? { image: articlePhotoUrl(editing.photo) } : {}),
@@ -955,6 +962,19 @@ export function renderDefinicoes(container) {
           if (artList.some((a, j) => j !== index && a.label.toLowerCase() === label.toLowerCase())) {
             throw new Error('Já existe um artigo com esse nome.');
           }
+          // Vazio continua vazio (null = "ainda não sei"); um número válido
+          // é guardado. Um texto que não seja número é engano de digitação e
+          // dizê-lo é melhor do que gravar zero em silêncio.
+          const rawPrice = (values.price ?? '').toString().trim();
+          let price = null;
+          if (rawPrice !== '') {
+            const n = Number(rawPrice.replace(',', '.'));
+            if (!Number.isFinite(n) || n < 0) {
+              throw new Error('O preço tem de ser um número igual ou maior que zero (ou vazio).');
+            }
+            price = Math.round(n * 100) / 100;
+          }
+
           const sizes = (values.sizes || '')
             .split(',')
             .map((x) => x.trim())
@@ -987,12 +1007,12 @@ export function renderDefinicoes(container) {
           }
 
           if (editing) {
-            artList[index] = { ...editing, label, sizes, photo };
+            artList[index] = { ...editing, label, sizes, photo, price };
           } else {
             // Nasce NÃO pedível: pôr um artigo no catálogo do clube e abri-lo
             // aos pedidos das atletas são duas decisões, e a segunda é a que
             // custa dinheiro.
-            artList.push({ key, label, sizes, photo, active: true, requestable: false });
+            artList.push({ key, label, sizes, photo, price, active: true, requestable: false });
           }
           artMsg.classList.add('hidden');
           drawArtList();
@@ -1012,7 +1032,7 @@ export function renderDefinicoes(container) {
     );
     if (!ok) return;
     artList = DEFAULT_EQUIPMENT_ARTICLES.map((a) => ({
-      ...a, sizes: [...a.sizes], photo: '', active: true, requestable: false,
+      ...a, sizes: [...a.sizes], photo: '', price: null, active: true, requestable: false,
     }));
     drawArtList();
   });
