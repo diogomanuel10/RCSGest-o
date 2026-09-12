@@ -174,6 +174,12 @@ function bodyHTML(teams) {
         A época atual é <strong>${esc(state.settings.season || '—')}</strong>.
         Escreve a nova para ficar registada nas Definições.
       </p>
+      <p class="muted res-block__hint">
+        A partir daqui o clube trabalha na época nova: o calendário abre vazio
+        e a comparência, as contas e o balanço V–D voltam ao zero, porque
+        passam a contar só o que acontecer de agora em diante. Nada se perde —
+        a época que fecha continua a ver-se no seletor de época, no topo.
+      </p>
       <div class="field" style="max-width:16rem">
         <label for="ne-season">Nova época</label>
         <input type="text" id="ne-season" maxlength="20"

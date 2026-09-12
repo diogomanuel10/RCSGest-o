@@ -101,6 +101,19 @@ export const state = {
   tacticalAnswers: [],    // respostas dos atletas aos cenários
   objectives: [],         // objetivos / KPIs da época (manuais e automáticos)
   exercises: [],          // biblioteca de exercícios do clube (reutilizáveis)
+  // --- Época ativa --------------------------------------------------------
+  // A época deixou de ser uma etiqueta nas Definições e passou a recortar os
+  // dados: `loadAll()` só traz o que pertence a esta época (ver `epocas.sql`).
+  // `season` arranca sempre na época CORRENTE do clube — quem abre a app quer
+  // o ano em que está a trabalhar, e uma preferência guardada mandava um
+  // treinador aterrar em 2024/2025 sem perceber porquê. Consultar uma época
+  // anterior é um gesto explícito, e dura enquanto a aba estiver aberta.
+  season: null,
+  seasons: [],        // épocas com registos neste clube (mais recente primeiro)
+  // A migração `epocas.sql` já correu? Sem ela não há coluna por onde filtrar:
+  // a app trabalha como sempre trabalhou (tudo junto) em vez de rebentar. É a
+  // mesma linha do `birthDateReady()` e do `equipmentRequestsReady`.
+  seasonsReady: false,
   profile: null, // perfil do utilizador atual (com o papel/role)
   profiles: [], // todos os perfis (preenchido só se o utilizador for coordenador)
   org: null, // organização (clube) do utilizador atual — multi-tenant
@@ -165,6 +178,11 @@ export function resetState() {
   state.invitations = [];
   state.plans = [];
   state.archived = { teams: [], players: [], coaches: [], sponsors: [], events: [], prospects: [] };
+  // A época em consulta é de quem estava na sessão: na próxima entrada volta a
+  // arrancar na época corrente do clube de quem entrar.
+  state.season = null;
+  state.seasons = [];
+  state.seasonsReady = false;
   state.loaded = false;
 }
 
@@ -369,42 +387,125 @@ export async function adminDeleteUser(userId) {
   return data;
 }
 
+// --- Época ativa ----------------------------------------------------------
+//
+// As tabelas que são CONTADAS por época (ver `supabase/epocas.sql` para o
+// porquê de cada uma estar ou não nesta lista). Serve dois sítios, e é por
+// isso que vive aqui em cima e não dentro do `loadAll`:
+//   • a leitura  — `loadAll()` filtra estas e só estas;
+//   • a escrita  — `createRow`/`createRows` carimbam nelas a época que está a
+//     ser vista, senão um registo criado enquanto se consulta 2024/2025 caía
+//     na época corrente e desaparecia do ecrã onde acabou de ser escrito.
+const SEASON_SCOPED = new Set([
+  'events', 'quotas', 'financial_entries', 'objectives',
+  'training_phases', 'mesocycles', 'gym_sessions', 'game_plans',
+]);
+
+// Aplica o filtro de época a uma consulta, quando há época por que filtrar.
+// Sem a migração (`seasonsReady` falso) devolve a consulta intacta: a app
+// trabalha como sempre trabalhou, em vez de pedir uma coluna que não existe e
+// não arrancar de todo.
+function bySeason(query) {
+  return state.seasonsReady && state.season ? query.eq('season', state.season) : query;
+}
+
+// A época que está a ser consultada é a corrente do clube? Falso significa
+// arquivo: os ecrãs avisam-no, porque um número da época passada apresentado
+// sem aviso é indistinguível de um número errado.
+export function isCurrentSeason() {
+  return !state.seasonsReady || !state.season || state.season === state.settings.season;
+}
+
+// Troca a época em consulta e recarrega. Não grava nada: mudar de época é
+// mudar de VISTA sobre os dados, não uma definição do clube (a época corrente
+// muda no assistente de viragem de época, e só lá).
+export async function setSeason(season) {
+  if (!season || season === state.season) return;
+  state.season = season;
+  state.loaded = false;
+  await loadAll();
+}
+
+// Lista as épocas com registos neste clube. A ausência da função é o sinal de
+// que `epocas.sql` ainda não correu — e é por isso que esta chamada vem ANTES
+// de todas as outras: é ela que decide se há sequer época por que filtrar.
+async function loadSeasons() {
+  const { data, error } = await supabase.rpc('list_seasons');
+  if (error || !Array.isArray(data)) {
+    state.seasonsReady = false;
+    state.seasons = [];
+    state.season = null;
+    return;
+  }
+  state.seasonsReady = true;
+  state.seasons = data.map((r) => r.season).filter(Boolean);
+  // A época pedida pode ter deixado de existir (o coordenador virou a época
+  // noutro dispositivo). Cair na corrente é melhor do que abrir vazio.
+  if (!state.season || !state.seasons.includes(state.season)) {
+    state.season = state.settings.season || state.seasons[0] || null;
+  }
+}
+
 // --- Carregamento inicial -------------------------------------------------
-// Vai buscar todas as tabelas em paralelo. Lança erro se alguma falhar.
+//
+// Duas fases, e a primeira existe por uma razão só: é preciso saber QUE época
+// se vai carregar antes de montar as consultas que a filtram. São duas idas à
+// base de dados em vez de uma — o custo de uma delas (~50 ms, uma linha e uma
+// lista de textos) contra trazer todas as épocas de sempre em cada arranque.
 export async function loadAll() {
-  const [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects, episodes, sessions, appointments,
+  // Fase 1 — definições e épocas. O RLS limita as definições ao clube do
+  // utilizador, por isso não filtramos por id: devolve a linha do clube atual.
+  const settings = await supabase.from('settings').select('*').limit(1).maybeSingle();
+  if (settings.error) throw settings.error;
+  if (settings.data) state.settings = settings.data;
+  // Aplica a marca do clube (cores, emblema, textos) assim que as definições
+  // chegam da BD.
+  applyBranding(state.settings);
+  await loadSeasons();
+
+  // Fase 2 — os dados. Tudo em paralelo.
+  const [coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects, episodes, sessions, appointments,
          physProfiles, medHistory, physTests, phases, mesocycles, gymSessions, gymExercises, gymAttendance, gameMinutes, availability,
          trainingPlans, trainingPlanItems, trainingEvaluations, trainingPlayerEvals,
          playerDocuments, playerSizes, squads, squadPlayers, financialEntries, gamePlans, objectives,
          eventResponses, gameResults, gameSets, tacticalScenarios, tacticalAnswers, exercises,
          equipmentRequests] =
     await Promise.all([
-      // Multi-tenant: o RLS limita as definições ao clube do utilizador, por
-      // isso não filtramos por id — devolve a (única) linha do clube atual.
-      supabase.from('settings').select('*').limit(1).maybeSingle(),
       // Só registos ativos (archived_at nulo). Os arquivados carregam-se à parte
       // (loadArchived) e só para o coordenador.
+      //
+      // Atletas, equipas e treinadores NÃO levam filtro de época: persistem
+      // entre épocas e quem sai é arquivado. Recortá-los por época esvaziava
+      // o plantel no dia da viragem.
       supabase.from('coaches').select('*').is('archived_at', null).order('name'),
       supabase.from('teams').select('*').is('archived_at', null).order('created_at'),
       supabase.from('players').select('*').is('archived_at', null).order('number'),
       supabase.from('sponsors').select('*').is('archived_at', null).order('name'),
-      supabase.from('events').select('*').is('archived_at', null).order('date'),
+      // Eventos: a espinha dorsal da época. Filtrar aqui recorta de uma vez
+      // as presenças, as convocatórias, os resultados e os planos de treino —
+      // que pendem do evento e são limpos pelo `pruneOrphans` a seguir.
+      bySeason(supabase.from('events').select('*').is('archived_at', null).order('date')),
       supabase.from('attendances').select('*'),
-      supabase.from('quotas').select('*'),
+      bySeason(supabase.from('quotas').select('*')),
       supabase.from('equipment').select('*').order('name'),
       supabase.from('team_coaches').select('*'),
+      // Recrutamento sem filtro de propósito: o funil atravessa a viragem
+      // (observa-se em março para inscrever em setembro).
       supabase.from('prospects').select('*').is('archived_at', null).order('created_at'),
       // Dados do departamento médico e da preparação física. Para papéis sem
       // acesso, o RLS devolve uma lista vazia (sem erro): é seguro consultar.
+      // Sem filtro de época: é o histórico clínico/físico do atleta, e é o
+      // cruzamento entre épocas que responde a "esta zona volta sempre".
       supabase.from('clinical_episodes').select('*').order('created_at', { ascending: false }),
       supabase.from('clinical_sessions').select('*').order('date', { ascending: false }),
       supabase.from('physio_appointments').select('*').order('date'),
       supabase.from('physical_profiles').select('*'),
       supabase.from('medical_history').select('*'),
       supabase.from('physical_tests').select('*').order('date', { ascending: false }),
-      supabase.from('training_phases').select('*').order('start_date'),
-      supabase.from('mesocycles').select('*').order('start_date'),
-      supabase.from('gym_sessions').select('*').order('date'),
+      // Periodização: é o planeamento DESTA época.
+      bySeason(supabase.from('training_phases').select('*').order('start_date')),
+      bySeason(supabase.from('mesocycles').select('*').order('start_date')),
+      bySeason(supabase.from('gym_sessions').select('*').order('date')),
       supabase.from('gym_exercises').select('*').order('position'),
       supabase.from('gym_attendance').select('*'),
       supabase.from('game_minutes').select('*'),
@@ -421,12 +522,13 @@ export async function loadAll() {
       // Convocatórias.
       supabase.from('squads').select('*'),
       supabase.from('squad_players').select('*'),
-      // Gestão financeira.
-      supabase.from('financial_entries').select('*').order('date', { ascending: false }),
+      // Gestão financeira: o balanço é o DA ÉPOCA. Sem este filtro, o resumo
+      // somava o livro-razão inteiro desde o primeiro dia do clube.
+      bySeason(supabase.from('financial_entries').select('*').order('date', { ascending: false })),
       // Planos de jogo.
-      supabase.from('game_plans').select('*').order('game_date', { ascending: false }),
-      // Objetivos / KPIs.
-      supabase.from('objectives').select('*').order('created_at'),
+      bySeason(supabase.from('game_plans').select('*').order('game_date', { ascending: false })),
+      // Objetivos / KPIs: as metas são de uma época concreta.
+      bySeason(supabase.from('objectives').select('*').order('created_at')),
       // Respostas do atleta aos eventos (convocatórias e treinos). Se a
       // migração `comunicacao.sql` ainda não correu, fica vazio (ver abaixo).
       supabase.from('event_responses').select('*'),
@@ -434,6 +536,7 @@ export async function loadAll() {
       supabase.from('game_results').select('*'),
       supabase.from('game_sets').select('*').order('set_number'),
       // Decisão tática. Tolerante à migração em falta (ver abaixo).
+      // Sem filtro de época: é biblioteca do clube, não acontecimento.
       supabase.from('tactical_scenarios').select('*').order('created_at', { ascending: false }),
       supabase.from('tactical_answers').select('*'),
       // Biblioteca de exercícios. Tolerante à migração em falta (ver abaixo).
@@ -442,17 +545,13 @@ export async function loadAll() {
       supabase.from('equipment_requests').select('*').order('created_at', { ascending: false }),
     ]);
 
-  for (const res of [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects, episodes, sessions, appointments,
+  for (const res of [coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects, episodes, sessions, appointments,
                      physProfiles, medHistory, physTests, phases, mesocycles, gymSessions, gymExercises, gymAttendance, gameMinutes, availability,
                      trainingPlans, trainingPlanItems, trainingEvaluations, trainingPlayerEvals,
                      playerDocuments, playerSizes, squads, squadPlayers, financialEntries, gamePlans, objectives]) {
     if (res.error) throw res.error;
   }
 
-  if (settings.data) state.settings = settings.data;
-  // Aplica a marca do clube (cores, emblema, textos) assim que as definições
-  // chegam da BD.
-  applyBranding(state.settings);
   state.coaches     = coaches.data     || [];
   state.teams       = teams.data       || [];
   state.players     = players.data     || [];
@@ -504,7 +603,8 @@ export async function loadAll() {
   state.equipmentRequests = equipmentRequests.error ? [] : (equipmentRequests.data || []);
   state.equipmentRequestsReady = !equipmentRequests.error;
 
-  // Coerência da cache: com pais arquivados (ex.: uma equipa), os filhos que os
+  // Coerência da cache: com pais arquivados (ex.: uma equipa) — ou de outra
+  // época, que é o mesmo problema visto de outro ângulo — os filhos que os
   // referenciam não devem aparecer nos ecrãs ativos.
   pruneOrphans();
 
@@ -604,6 +704,17 @@ function pruneOrphans() {
   state.squadPlayers = state.squadPlayers.filter(
     (sp) => squadIds.has(sp.squad_id) && playerIds.has(sp.player_id)
   );
+
+  // Resultados e respostas: pendem do evento e não têm época própria (ver
+  // `epocas.sql` — um dado com dois donos acaba em divergência). Carregam-se
+  // todos e é aqui que ficam recortados à época dos eventos que vieram; sem
+  // isto, o balanço V-D continuava a contar os jogos de todas as épocas, que
+  // era exatamente o problema que a época veio resolver.
+  state.gameResults = state.gameResults.filter((r) => eventIds.has(r.event_id));
+  state.gameSets = state.gameSets.filter((g) => eventIds.has(g.event_id));
+  state.eventResponses = state.eventResponses.filter(
+    (r) => eventIds.has(r.event_id) && playerIds.has(r.player_id)
+  );
 }
 
 // Carrega os registos arquivados (só para o coordenador, que tem a área
@@ -621,7 +732,10 @@ async function loadArchived() {
     arch('players', 'archived_at'),
     arch('coaches', 'archived_at'),
     arch('sponsors', 'archived_at'),
-    arch('events', 'archived_at'),
+    // Eventos arquivados seguem a época em consulta, como os ativos: repor um
+    // evento de 2024/2025 enquanto se trabalha em 2026/2027 fazia-o
+    // desaparecer no mesmo gesto em que era reposto.
+    bySeason(arch('events', 'archived_at')),
     arch('prospects', 'archived_at'),
   ]);
   state.archived = {
@@ -724,10 +838,22 @@ export async function updateProfilePermissions(id, permissions) {
 // Cada operação atualiza o Supabase e, em caso de sucesso, a cache local,
 // avisando depois as vistas. `collection` é a chave em `state` (ex.: 'coaches').
 
+// Carimba a época que está a ser CONSULTADA nas tabelas recortadas por época.
+// O `default current_season()` da base de dados resolve o caso normal (estar na
+// época corrente), mas não o outro: um evento criado enquanto se consulta
+// 2024/2025 nascia na época corrente e desaparecia do ecrã onde acabou de ser
+// escrito — a pior forma de perder um registo, porque parece que a gravação
+// falhou. Tabelas fora da lista passam intactas.
+function withSeason(table, values) {
+  if (!state.seasonsReady || !state.season || !SEASON_SCOPED.has(table)) return values;
+  if (Array.isArray(values)) return values.map((v) => ({ season: state.season, ...v }));
+  return { season: state.season, ...values };
+}
+
 export async function createRow(table, collection, values) {
   const { data, error } = await supabase
     .from(table)
-    .insert(values)
+    .insert(withSeason(table, values))
     .select()
     .single();
   if (error) throw error;
@@ -741,7 +867,7 @@ export async function createRow(table, collection, values) {
 // criadas e atualiza a cache local de uma só vez.
 export async function createRows(table, collection, rows) {
   if (!rows.length) return [];
-  const { data, error } = await supabase.from(table).insert(rows).select();
+  const { data, error } = await supabase.from(table).insert(withSeason(table, rows)).select();
   if (error) throw error;
   state[collection].push(...data);
   const label = ENTITY_LABEL[table];
@@ -1282,6 +1408,10 @@ export async function applySeasonRollover({ moves = [], archives = [], resets = 
     const query = supabase.from('settings').update({ season });
     const { error } = await (orgId ? query.eq('org_id', orgId) : query.eq('id', state.settings.id));
     if (error) throw error;
+    // Seguir para a época nova. Ficar na anterior era mostrar o clube que
+    // acabou de ser virado — com o plantel já movido — dentro do calendário e
+    // das contas do ano que fechou.
+    state.season = season;
   }
 
   await loadAll();

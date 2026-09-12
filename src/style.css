@@ -608,6 +608,61 @@ tbody tr:hover {
 .topbar__spacer {
   flex: 1;
 }
+
+/* --- Seletor de época -----------------------------------------------------
+   A época recorta os dados (ver `supabase/epocas.sql`), por isso o seletor
+   vive no cabeçalho e não nas Definições: é um filtro sobre TUDO o que está
+   no ecrã, e não uma preferência do clube. Só é desenhado quando há mais do
+   que uma época registada. */
+.topbar__season {
+  display: flex;
+  align-items: center;
+}
+.season-select {
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface-2, var(--bg));
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.3rem 0.6rem;
+  max-width: 12rem;
+  cursor: pointer;
+}
+.season-select:focus-visible {
+  outline: 2px solid var(--brand-primary, currentColor);
+  outline-offset: 2px;
+}
+
+/* Faixa de arquivo: a única coisa no ecrã que distingue um número desta época
+   de um número de há dois anos. Fica ACIMA do conteúdo, fora do `#content`,
+   para sobreviver ao `innerHTML` que cada vista escreve. */
+.season-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 1.2rem;
+  font-size: 0.85rem;
+  color: var(--warn-ink);
+  background: color-mix(in srgb, var(--warn) 14%, transparent);
+  border-bottom: 1px solid var(--warn);
+}
+.season-banner__tag {
+  flex: none;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  color: var(--warn-ink);
+  border: 1px solid var(--warn);
+}
+.season-banner button {
+  margin-left: auto;
+}
 .topbar__account {
   display: flex;
   align-items: center;

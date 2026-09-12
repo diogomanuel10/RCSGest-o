@@ -251,6 +251,7 @@ src/
     utilizadores.js     Vista Utilizadores (gestão de papéis — só coordenador)
     arquivados.js       Vista Arquivados (registos inativos + repor — só coordenador)
 supabase/schema.sql     Tabelas, índices, RLS e dados iniciais (correr no Supabase)
+supabase/epocas.sql     A época recorta os dados (coluna season + list_seasons)
 supabase/qrcode-presencas.sql  Presenças por QR: token do atleta + RPCs de check-in
 supabase/convites-massa.sql    Convites de atleta em lote (RPC create_invitations_bulk)
 supabase/convocatoria-simples.sql Convocatória só com convocado/não convocado
@@ -493,6 +494,63 @@ separador antes de navegar (usado pelos cartões do Painel).
   (não para o atleta); o detalhe clínico continua reservado (`med_rw`).
 
 ## Regras de negócio
+
+- **A época é uma DIMENSÃO dos dados, não uma etiqueta** (`supabase/epocas.sql`):
+  `settings.season` era só um texto no cabeçalho das Definições e nenhuma tabela
+  sabia a que época pertencia. O assistente de viragem arquivava atletas e
+  gravava a época nova — mas os eventos, as presenças, as quotas, os resultados
+  e o livro-razão do ano anterior continuavam no mesmo saco. No Painel, isso
+  queria dizer que a "taxa de comparência" era a média de todas as épocas, que
+  o balanço V–D era o de sempre e que o resumo financeiro somava o livro-razão
+  desde o primeiro dia do clube. Os números em que a app se apoia ficavam
+  errados a partir do segundo ano de uso — que é exatamente quando o clube
+  começa a confiar neles.
+  - **Levam `season` o que ACONTECE dentro de uma época**: `events`, `quotas`,
+    `financial_entries`, `objectives`, `training_phases`, `mesocycles`,
+    `gym_sessions`, `game_plans` (lista em `SEASON_SCOPED`, no `store.js`).
+  - **Não levam, de propósito**: `players`/`teams`/`coaches`/`sponsors`
+    PERSISTEM (quem sai é arquivado, que é o mecanismo que já existia);
+    `attendances`, `squads`, `game_results`, `event_responses`,
+    `training_plans` e `game_minutes` pendem de um EVENTO, que já tem época —
+    uma segunda cópia seria um dado com dois donos; o processo clínico e as
+    avaliações físicas são histórico do ATLETA (é o cruzamento entre épocas que
+    responde a "esta zona volta sempre"); a biblioteca de exercícios e os
+    cenários táticos são património do clube; e o **recrutamento atravessa a
+    viragem** (observa-se em março para inscrever em setembro), pelo que
+    recortá-lo escondia o funil no dia em que ele é mais usado.
+  - **É uma coluna de texto e não uma tabela `seasons`**: a época já é texto
+    livre escrito pelo coordenador e é assim que aparece em todo o lado. Uma
+    tabela com ids exigia FK em oito tabelas, um ecrã de gestão de épocas e
+    resolução de nomes na migração — para guardar a mesma informação. Segue o
+    padrão dos escalões e das posições: o valor em vigor em `settings`, o
+    histórico derivado do que existe (`list_seasons()`, que faz `distinct` e
+    inclui sempre a época corrente, para o seletor não abrir vazio num clube
+    novo).
+  - **O `loadAll()` passou a ter duas fases**: é preciso saber QUE época se vai
+    carregar antes de montar as consultas que a filtram. A primeira traz as
+    definições e a lista de épocas (e é a ausência do `list_seasons` que diz que
+    a migração ainda não correu — `state.seasonsReady`, na linha do
+    `birthDateReady()`); a segunda traz os dados. Filtrar os EVENTOS recorta de
+    uma vez as presenças, as convocatórias e os planos de treino, que o
+    `pruneOrphans` limpa a seguir pelo `event_id` — foi por isso que os
+    resultados e as respostas entraram lá também.
+  - **Quem escreve numa época anterior escreve NELA** (`withSeason` no
+    `store.js`): o `default current_season()` da base de dados resolve o caso
+    normal, mas não o outro — um evento criado enquanto se consulta 2024/2025
+    nascia na época corrente e desaparecia do ecrã onde acabou de ser escrito,
+    que é a pior forma de perder um registo, porque parece que a gravação
+    falhou.
+  - **O seletor está no CABEÇALHO e não nas Definições**: é um filtro sobre
+    tudo o que está no ecrã, não uma preferência do clube. Só aparece com mais
+    do que uma época registada (no primeiro ano seria um controlo que não faz
+    nada) e não aparece a quem só tem uma secção — o portal responde a "o que
+    tenho a seguir", e essa pergunta não tem versão de 2024/2025.
+  - **Uma época que já fechou diz que fechou** (faixa `.season-banner`, fora do
+    `#content` para sobreviver ao `innerHTML` das vistas): sem ela, um número da
+    época passada é indistinguível de um número errado. A época em consulta
+    **não é guardada** entre sessões — arranca sempre na corrente, porque um
+    treinador a aterrar em 2024/2025 sem perceber porquê é o mesmo problema com
+    outra roupa.
 
 - **Arquivar em vez de apagar (soft-delete)**: as entidades principais
   (`players`, `teams`, `coaches`, `sponsors`, `events`, `prospects`) **nunca

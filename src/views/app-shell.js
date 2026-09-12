@@ -6,7 +6,10 @@
 
 import { logoSrc, branding } from '../branding.js';
 import { signOut } from '../auth.js';
-import { state, subscribe, loadAll, loadProfile, orgAccess, redeemInvitation } from '../store.js';
+import {
+  state, subscribe, loadAll, loadProfile, orgAccess, redeemInvitation,
+  setSeason, isCurrentSeason,
+} from '../store.js';
 import { loadingHTML, errorHTML, esc, initTableLabels } from '../ui.js';
 import { renderOfflineCard, clearOfflineCard } from '../offline-card.js';
 import {
@@ -241,6 +244,10 @@ export async function renderAppShell(root, session) {
             <span>${esc(branding().club_name)}</span>
           </div>
         </div>
+        <div class="topbar__season" id="season-wrap" hidden>
+          <select id="season-select" class="season-select"
+                  aria-label="Época em consulta"></select>
+        </div>
         <div class="topbar__search" id="topbar-search">
           <div class="search-wrap">
             <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -301,7 +308,10 @@ export async function renderAppShell(root, session) {
           <div class="sidebar__foot">${navHTML(FOOTER, true)}</div>
         </aside>
         <div class="scrim" id="scrim"></div>
-        <main class="content"><div class="content__inner" id="content"></div></main>
+        <main class="content">
+          <div class="season-banner" id="season-banner" role="status" hidden></div>
+          <div class="content__inner" id="content"></div>
+        </main>
       </div>
     </div>
   `;
@@ -421,6 +431,25 @@ export async function renderAppShell(root, session) {
     appRoot.classList.remove('app--drawer');
   }
 
+  // Trocar de época recarrega os dados todos. Vai por delegação porque a faixa
+  // de arquivo (e o seu botão de voltar) é reescrita a cada `refreshChrome`.
+  async function changeSeason(season) {
+    if (!season || season === state.season) return;
+    content.innerHTML = loadingHTML(`A carregar a época ${season}…`);
+    try {
+      await setSeason(season);
+    } catch (err) {
+      content.innerHTML = errorHTML('Não foi possível mudar de época.');
+      console.error(err);
+    }
+  }
+  root.querySelector('#season-select').addEventListener('change', (e) => {
+    changeSeason(e.target.value);
+  });
+  root.querySelector('#season-banner').addEventListener('click', (e) => {
+    if (e.target.closest('#season-back')) changeSeason(state.settings.season);
+  });
+
   root.querySelector('#menu-toggle').addEventListener('click', toggleMenu);
   root.querySelector('#scrim').addEventListener('click', closeDrawer);
   root.querySelector('#logout').addEventListener('click', () => {
@@ -510,6 +539,56 @@ export async function renderAppShell(root, session) {
     if (role) {
       const badge = root.querySelector('#role-badge');
       badge.textContent = ROLE_LABEL[role] || role;
+    }
+    refreshSeason();
+  }
+
+  // Seletor de época + faixa de "estás a ver uma época que já fechou".
+  //
+  // Só aparece com MAIS DO QUE UMA época registada: no primeiro ano de um
+  // clube um seletor com uma opção é um controlo que não faz nada, que é pior
+  // do que controlo nenhum. Também não aparece a quem só tem uma secção (o
+  // atleta): o portal responde a "o que tenho a seguir", e essa pergunta não
+  // tem versão de 2024/2025.
+  function refreshSeason() {
+    const wrap = root.querySelector('#season-wrap');
+    const select = root.querySelector('#season-select');
+    const banner = root.querySelector('#season-banner');
+    if (!wrap || !select || !banner) return;
+
+    const show = state.seasonsReady && state.seasons.length > 1 && !soloRoute;
+    wrap.hidden = !show;
+    if (show) {
+      const opts = state.seasons
+        .map((sea) => {
+          const atual = sea === state.settings.season;
+          return `<option value="${esc(sea)}"${sea === state.season ? ' selected' : ''}>${
+            esc(sea)}${atual ? ' (atual)' : ''}</option>`;
+        })
+        .join('');
+      // Só se reescreve quando muda: o `paint()` corre a cada notificação do
+      // store, e reescrever um <select> fecha-o na cara de quem o abriu.
+      if (select.dataset.sig !== opts) {
+        select.innerHTML = opts;
+        select.dataset.sig = opts;
+      }
+      select.value = state.season || '';
+    }
+
+    // A faixa é o que impede um número da época passada de se fazer passar
+    // por um número de hoje: o Painel, as contas e a comparência mudam todos
+    // de significado, e nada mais no ecrã o diz.
+    const arquivo = state.seasonsReady && state.season && !isCurrentSeason();
+    banner.hidden = !arquivo;
+    if (arquivo) {
+      banner.innerHTML = `
+        <span class="season-banner__tag">Arquivo</span>
+        <span>Estás a ver a época <strong>${esc(state.season)}</strong>. Os números,
+          o calendário e as contas são os dessa época — o que criares aqui fica
+          registado nela.</span>
+        <button class="btn btn--ghost btn--xs" id="season-back" type="button">
+          Voltar a ${esc(state.settings.season || 'época atual')}
+        </button>`;
     }
   }
 

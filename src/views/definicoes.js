@@ -127,6 +127,13 @@ export function renderDefinicoes(container) {
         avaliações e regista a época nova. Mostra tudo antes de aplicar, e
         quem for arquivado pode ser reposto nos Arquivados.
       </p>
+      <p class="muted" style="margin-top:0;font-size:0.85rem">
+        A época separa mesmo os dados: o calendário, as presenças, as quotas,
+        os resultados, os objetivos e as contas passam a ser os da época nova,
+        e os da anterior ficam a poder consultar-se no seletor de época, no
+        topo. Os atletas, as equipas e a biblioteca de exercícios atravessam a
+        viragem — quem sai é arquivado, como sempre foi.
+      </p>
       <div class="row" style="justify-content:flex-end">
         <button class="btn btn--primary" id="open-rollover" type="button">Abrir assistente</button>
       </div>
