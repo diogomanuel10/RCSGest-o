@@ -113,6 +113,22 @@ npm run build      # gera a pasta dist/
 npm run preview    # pré-visualiza a build
 ```
 
+Para correr os testes:
+
+```bash
+npm test           # uma vez
+npm run test:watch # a repetir a cada gravação
+```
+
+Os testes (`test/`) cobrem a camada de **cálculo** — `compute.js`,
+`permissions.js` e o `safeUrl` do `ui.js` — e não as vistas. É uma escolha:
+um erro numa vista vê-se no ecrã, e um erro num cálculo não se vê em lado
+nenhum. Uma taxa de comparência que passe a contar os treinos por fechar, um
+objetivo em percentagem tratado como acumulável ou uma secção confidencial
+aberta a um papel a mais dão todos um resultado plausível — e é isso que os
+torna caros. O mesmo corre no GitHub a cada *pull request*
+(`.github/workflows/ci.yml`), com o build a seguir.
+
 ## 4. Notificações no telemóvel (Android e iOS)
 
 Sem isto a app funciona na mesma: as notificações aparecem no sino, dentro da

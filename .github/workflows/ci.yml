@@ -1,0 +1,33 @@
+# Rede de segurança mínima: os testes de cálculo e o build.
+#
+# Não é aqui que se apanham erros de UI — isso vê-se no ecrã. É aqui que se
+# apanha a outra família, a que não dá exceção nenhuma: uma taxa de comparência
+# que passa a contar os treinos por fechar, um objetivo em percentagem tratado
+# como acumulável, um `javascript:` a passar pelo `safeUrl`, uma secção
+# confidencial a abrir-se a um papel a mais. Nenhuma dessas se vê a olho, e
+# todas elas mudam decisões de quem gere o clube.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - name: Testes
+        run: npm test
+      # O build corre sem as variáveis do Supabase de propósito: a app tem de
+      # compilar sem credenciais (o `supabase.js` devolve `null` e o arranque
+      # mostra o ecrã de ajuda). Se isto passar a precisar de segredos, é
+      # sinal de que alguma coisa deixou de ser opcional.
+      - name: Build
+        run: npm run build

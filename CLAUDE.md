@@ -1347,6 +1347,35 @@ separador antes de navegar (usado pelos cartões do Painel).
     de jogos); `physical-file.js` é a ficha física do atleta (abre também dos
     Plantéis). Editável por quem tem `canEdit('physical')`.
 
+## Testes (`test/`, Vitest)
+
+`npm test` corre a suite; `npm run test:watch` deixa-a a repetir. O mesmo corre
+no GitHub a cada *pull request* (`.github/workflows/ci.yml`), seguido do build.
+
+- **Testa-se o CÁLCULO, não as vistas.** `compute.js` (1700 linhas de regras de
+  negócio puras), `permissions.js` e o `safeUrl` do `ui.js`. É uma escolha e não
+  uma etapa por fazer: um erro numa vista vê-se no ecrã: o botão não aparece, a
+  lista fica vazia. Um erro num cálculo dá um número **plausível** — uma taxa de
+  comparência de 61% quando devia ser 74% — que ninguém consegue verificar a
+  olho e que é usado para decidir quem está a desistir do clube.
+- **Cada teste diz a REGRA, não o resultado.** O nome e o comentário explicam a
+  decisão de produto que está a ser fixada ("uma justificada quebra a série de
+  faltas seguidas", "zero e sem preço são coisas diferentes"). Um teste que só
+  diga `expect(x).toBe(3)` protege o número e perde a razão — e é a razão que a
+  próxima pessoa precisa de ler para saber se pode mudá-lo.
+- **As fixtures são relativas a hoje** (`dayOffset` em `test/helpers.js`): metade
+  destas funções compara com `new Date()`, e uma data cravada faz o teste passar
+  hoje e falhar no mês que vem.
+- **O `state` escreve-se diretamente** (`resetTestState`), como a app faz depois
+  de um `loadAll()`. Não há rede: sem as variáveis de ambiente o `supabase.js`
+  exporta `null` e nunca é chamado por uma função de cálculo. Só o
+  `test/epocas.test.js` substitui o cliente, porque aí o que está em teste é o
+  *payload* que vai para o INSERT.
+- **As áreas confidenciais têm teste de regressão explícito**: dar 'medico' ou
+  'fisica' ao treinador na lista de secções configuráveis não pode abrir a
+  porta. É o único sítio da app onde um erro não estraga um número — deixa
+  alguém ver o processo clínico de uma menor.
+
 ## Convenções
 
 - Interface 100% em **português europeu**, com acentos.
