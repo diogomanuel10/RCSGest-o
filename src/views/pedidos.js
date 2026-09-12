@@ -198,6 +198,11 @@ function requesterLabel(uid) {
   if (uid === state.profile?.id) return 'Tu';
   const coach = state.coaches.find((c) => c.user_id === uid);
   if (coach) return coach.name;
+  // Pedido feito pela PRÓPRIA atleta, do portal. Distingui-lo importa para
+  // quem decide: um pedido do treinador já passou por um adulto que viu o
+  // material, e este não — e a resposta vai ser lida por ela.
+  const player = state.players.find((p) => p.user_id === uid);
+  if (player) return `${player.name} (a própria)`;
   const profile = state.profiles?.find((p) => p.id === uid);
   return profile?.email || '—';
 }

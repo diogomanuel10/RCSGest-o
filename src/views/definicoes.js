@@ -217,7 +217,10 @@ export function renderDefinicoes(container) {
         Os artigos que o clube dá aos atletas e os tamanhos de cada um. É esta
         lista que faz as colunas das Encomendas e as opções dos Pedidos. Um
         artigo <strong>sem tamanhos</strong> pede o tamanho em texto livre —
-        é o caso das meias, que se medem em números.
+        é o caso das meias, que se medem em números. O <strong>🙋 pedível</strong>
+        marca o que uma atleta pode pedir da sua página: as camisolas de treino
+        sim, a camisola de jogo com o número dela não — essa não se pede, vem
+        na encomenda.
       </p>
       <ul class="chips" id="art-list"></ul>
       <div class="row row--wrap" style="gap:0.6rem;margin-top:0.5rem">
@@ -844,6 +847,10 @@ export function renderDefinicoes(container) {
               <button type="button" data-aup="${i}" aria-label="Mover para cima" ${i === 0 ? 'disabled' : ''}>↑</button>
               <button type="button" data-adown="${i}" aria-label="Mover para baixo" ${i === artList.length - 1 ? 'disabled' : ''}>↓</button>
               <button type="button" data-aedit="${i}" aria-label="Editar ${esc(a.label)}">✎</button>
+              <button type="button" data-areq="${i}" class="${a.requestable ? 'chip__on' : ''}"
+                      aria-pressed="${a.requestable ? 'true' : 'false'}"
+                      aria-label="${a.requestable ? 'Deixar de permitir' : 'Permitir'} que as atletas peçam ${esc(a.label)}"
+                      title="As atletas podem pedir este artigo">🙋</button>
               <button type="button" data-atoggle="${i}"
                       aria-label="${a.active ? 'Desativar' : 'Reativar'} ${esc(a.label)}">${a.active ? '⏻' : '↺'}</button>
             </span>
@@ -858,6 +865,13 @@ export function renderDefinicoes(container) {
       );
       artListEl.querySelectorAll('[data-aedit]').forEach((b) =>
         b.addEventListener('click', () => openArticleForm(Number(b.dataset.aedit)))
+      );
+      artListEl.querySelectorAll('[data-areq]').forEach((b) =>
+        b.addEventListener('click', () => {
+          const i = Number(b.dataset.areq);
+          artList[i] = { ...artList[i], requestable: !artList[i].requestable };
+          drawArtList();
+        })
       );
       // Desativar e NÃO apagar: os tamanhos e os pedidos já registados guardam a
       // chave deste artigo, e sem a definição um pedido de dezembro passava a
@@ -924,7 +938,10 @@ export function renderDefinicoes(container) {
           if (editing) {
             artList[index] = { ...editing, label, sizes };
           } else {
-            artList.push({ key: articleKeyFrom(label), label, sizes, active: true });
+            // Nasce NÃO pedível: pôr um artigo no catálogo do clube e abri-lo
+          // aos pedidos das atletas são duas decisões, e a segunda é a que
+          // custa dinheiro.
+          artList.push({ key: articleKeyFrom(label), label, sizes, active: true, requestable: false });
           }
           artMsg.classList.add('hidden');
           drawArtList();
@@ -943,7 +960,9 @@ export function renderDefinicoes(container) {
       { confirmLabel: 'Repor', danger: false }
     );
     if (!ok) return;
-    artList = DEFAULT_EQUIPMENT_ARTICLES.map((a) => ({ ...a, sizes: [...a.sizes], active: true }));
+    artList = DEFAULT_EQUIPMENT_ARTICLES.map((a) => ({
+      ...a, sizes: [...a.sizes], active: true, requestable: false,
+    }));
     drawArtList();
   });
 

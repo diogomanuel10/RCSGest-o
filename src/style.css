@@ -2496,6 +2496,12 @@ button.metric--nav:focus-visible {
 .chip--off {
   opacity: 0.62;
 }
+/* Interruptor ligado dentro de um chip (ex.: artigo que as atletas podem
+   pedir). Um ícone sozinho não diz se está ligado ou desligado. */
+.chip__actions button.chip__on {
+  background: var(--ok);
+  border-color: var(--ok);
+}
 
 .chip__actions button {
   width: 30px;
@@ -6384,6 +6390,55 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 
 /* --- Próximos treinos e jogos --- */
 .portal-events,
+/* Pedidos de equipamento da atleta. Cada pedido é um bloco e não uma linha
+   de tabela: o que ela precisa de ler é "o quê" e "em que ficou", e a
+   resposta do clube (a razão de uma recusa) tem de caber em várias linhas
+   sem apertar o resto. */
+.portal-req-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+.portal-req {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.75rem;
+  background: var(--surface-2);
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  align-items: flex-start;
+}
+.portal-req__main {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  width: 100%;
+  min-width: 0;
+}
+.portal-req__art {
+  font-weight: 600;
+  font-size: 0.94rem;
+  min-width: 0;
+}
+.portal-req__meta {
+  margin: 0;
+  font-size: 0.82rem;
+}
+/* A resposta do clube. Destacada porque é a única parte do bloco que outra
+   pessoa escreveu — e numa recusa é a coisa toda. */
+.portal-req__note {
+  margin: 0.15rem 0 0;
+  font-size: 0.86rem;
+  border-left: 3px solid var(--border);
+  padding-left: 0.6rem;
+  color: var(--text);
+}
+
 .portal-quota-list {
   list-style: none;
   margin: 0.5rem 0 0;

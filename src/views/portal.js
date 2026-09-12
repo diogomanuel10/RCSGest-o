@@ -10,10 +10,13 @@
 // É de leitura, tirando as respostas a eventos e a decisão tática. O RLS
 // garante que o atleta só recebe os seus próprios dados.
 
-import { state, respondToEvent, saveTacticalAnswer, dbErrorMessage } from '../store.js';
+import {
+  state, respondToEvent, saveTacticalAnswer, dbErrorMessage,
+  createEquipmentRequests, deleteRow,
+} from '../store.js';
 import { toastOk, toastError } from '../toast.js';
 import { getNotifications, markRead } from '../notifications.js';
-import { openModal, wireDialog } from '../modal.js';
+import { openModal, wireDialog, confirmDialog } from '../modal.js';
 import { saveOfflineCard } from '../offline-card.js';
 import { renderDrill } from '../tactical-court.js';
 import { esc, euros, emptyHTML } from '../ui.js';
@@ -29,6 +32,8 @@ import {
   playerRecentTrainings,
   playerRecentForm,
   playerUpcomingSquads,
+  requestableArticles,
+  articleLabel,
 } from '../compute.js';
 import {
   EVENT_TYPE_LABEL,
@@ -43,6 +48,10 @@ import {
   WEEKDAYS,
   TACTICAL_ROLE_LABEL,
   TACTICAL_ROLE_MATCH,
+  REQUEST_REASONS,
+  REQUEST_REASON_LABEL,
+  REQUEST_STATUS_LABEL,
+  REQUEST_STATUS_BADGE,
 } from '../constants.js';
 
 // Estado local de UI, como nos filtros das outras vistas: sobrevive aos
@@ -327,6 +336,7 @@ function epocaHTML(me) {
   const recent = playerRecentTrainings(me.id, 8);
   const squads = playerUpcomingSquads(me.id, 5);
   const quotas = playerQuotas(me.id);
+  const pedidos = myRequests(me.id);
 
   // Só os estados que aconteceram mesmo. A grelha com os quatro estados é
   // contabilidade de treinador: a um atleta sem faltas, três chips a zero só
@@ -376,6 +386,81 @@ function epocaHTML(me) {
            <ul class="portal-quota-list">${quotas.list.slice(0, 12).map(quotaLine).join('')}</ul>`
         : '<p class="portal-section__note">Sem quotas registadas.</p>'}
     </section>
+
+    ${materialHTML(pedidos)}
+  `;
+}
+
+// --- O meu material ------------------------------------------------------
+//
+// Vive em "A época", ao lado das quotas: é a mesma conversa administrativa
+// com o clube, e não uma pergunta que se faça todos os dias. Um quarto
+// separador para uma ação que acontece duas vezes por época seria dar-lhe o
+// peso do "o que tenho a seguir", que é a razão real das visitas.
+//
+// Só aparece quando o clube abriu ALGUM artigo aos pedidos — ou quando ela
+// já tem pedidos feitos (senão o histórico desaparecia no dia em que o
+// coordenador fechasse a lista, e uma decisão pendente sumia com ele).
+function materialHTML(pedidos) {
+  const articles = requestableArticles();
+  if (!articles.length && !pedidos.length) return '';
+
+  return `
+    <section class="card portal-section">
+      <div class="portal-section__head">
+        <h2 class="section-title portal-section__title">O meu material</h2>
+        ${articles.length
+          ? '<button class="btn btn--primary btn--sm" id="portal-pedir" type="button">Pedir equipamento</button>'
+          : ''}
+      </div>
+      ${pedidos.length
+        ? `<ul class="portal-req-list">${pedidos.map(requestRow).join('')}</ul>`
+        : `<p class="portal-section__note">
+             Ainda não pediste nada. Se precisares de equipamento — porque se
+             estragou, se perdeu ou já não te serve — pede aqui e o clube
+             responde-te.
+           </p>`}
+    </section>
+  `;
+}
+
+// Os pedidos desta atleta, do mais recente para trás. O RLS já só lhe entrega
+// os seus; o filtro por `player_id` é a mesma regra do resto do portal — o
+// atleta é encontrado pela ficha e por mais nada.
+function myRequests(playerId) {
+  return state.equipmentRequests
+    .filter((r) => r.player_id === playerId)
+    .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+}
+
+function requestRow(r) {
+  const pendente = r.status === 'pendente';
+  const nota = (r.decision_note || '').trim();
+  return `
+    <li class="portal-req">
+      <div class="portal-req__main">
+        <span class="portal-req__art">
+          ${esc(r.article === 'outro'
+            ? (r.article_other || '').trim() || 'Outro artigo'
+            : articleLabel(r.article))}
+        </span>
+        <span class="badge badge--${REQUEST_STATUS_BADGE[r.status] || 'muted'}">
+          ${esc(REQUEST_STATUS_LABEL[r.status] || r.status)}
+        </span>
+      </div>
+      <p class="portal-req__meta muted">
+        ${r.size ? `Tamanho ${esc(r.size)}` : 'Sem tamanho'}
+        ${r.quantity > 1 ? ` · ×${r.quantity}` : ''}
+        · ${esc(REQUEST_REASON_LABEL[r.reason] || r.reason)}
+        ${r.created_at
+          ? ` · ${new Date(r.created_at).toLocaleDateString('pt-PT', { day: '2-digit', month: 'short' })}`
+          : ''}
+      </p>
+      ${nota ? `<p class="portal-req__note">${esc(nota)}</p>` : ''}
+      ${pendente
+        ? `<button class="btn btn--ghost btn--sm" data-cancel-req="${r.id}" type="button">Cancelar pedido</button>`
+        : ''}
+    </li>
   `;
 }
 
@@ -400,12 +485,132 @@ function cartaoHTML() {
 
 // --- Ligações -------------------------------------------------------------
 
+// --- Pedir equipamento ---------------------------------------------------
+//
+// É o MESMO pedido do ecrã de Equipamentos (mesma tabela, mesmos estados,
+// mesma decisão) — o formulário é que perde dois campos, porque a equipa e a
+// atleta já se sabem: é ela.
+//
+// **Pede-se mais do que um artigo de uma vez, e continua a ser um pedido por
+// artigo.** A regra "um pedido é UM artigo" existe para as decisões serem
+// independentes (aprovar as meias e recusar o blusão), e essa mantém-se: o
+// formulário cria uma LINHA POR ARTIGO. O que se poupa é o preenchimento —
+// quem chega em setembro sem nada precisa de quatro coisas, e quatro voltas
+// ao mesmo formulário no telemóvel é a maneira de a quarta nunca ser pedida.
+//
+// A seleção é o próprio TAMANHO, e não uma caixa a marcar antes: escolher um
+// tamanho já diz que precisa daquilo, e deixar em branco diz que não. Uma
+// caixa por artigo mais um tamanho por artigo eram dois gestos para dizer uma
+// coisa só. É também a forma do modal de tamanhos das Encomendas — o mesmo
+// gesto, o mesmo desenho.
+//
+// O tamanho não vem da ficha dela. No ecrã do treinador vem, porque ele não
+// tem de decorar que a Ana veste M; aqui quem preenche é quem veste a roupa,
+// e uma sugestão só serviria para ela aceitar sem pensar o número que já não
+// lhe serve — que é metade da razão por que os pedidos existem.
+function openRequestModal(me) {
+  const articles = requestableArticles();
+  if (!articles.length) return;
+
+  openModal({
+    title: 'Pedir equipamento',
+    submitLabel: 'Pedir',
+    fields: [
+      ...articles.map((a, i) => ({
+        name: `art__${a.key}`,
+        label: a.label,
+        // A instrução vai só no primeiro campo: repetida em cada artigo era
+        // a mesma frase cinco vezes num ecrã de telemóvel.
+        ...(i === 0
+          ? { hint: 'Escolhe o tamanho do que precisas. Deixa em branco o resto.' }
+          : {}),
+        ...(a.sizes.length
+          ? {
+              type: 'select',
+              placeholder: '— Não preciso —',
+              options: a.sizes.map((x) => ({ key: x, label: x })),
+            }
+          : {
+              type: 'text',
+              placeholder: 'Tamanho — vazio se não precisas',
+            }),
+      })),
+      // O motivo é do PEDIDO INTEIRO e não de cada artigo. Quem pede várias
+      // coisas de uma vez pede-as quase sempre pela mesma razão — chegou
+      // agora, ou perdeu o saco. Um motivo por artigo duplicava o formulário
+      // para o caso raro; quem precisar de motivos diferentes faz dois
+      // pedidos, que é o que já fazia para tudo.
+      {
+        name: 'reason', label: 'Porquê?', type: 'select', required: true,
+        options: REQUEST_REASONS.map((r) => ({ key: r.key, label: r.label })),
+        hint: 'É o que ajuda o clube a decidir. Vale para tudo o que pedires agora.',
+      },
+      {
+        name: 'notes', label: 'Queres explicar melhor?', type: 'textarea', full: true,
+        placeholder: 'Opcional…',
+      },
+    ],
+    onSubmit: async (v) => {
+      const pedidos = articles
+        .map((a) => ({ article: a.key, size: (v[`art__${a.key}`] || '').trim() }))
+        .filter((x) => x.size)
+        .map((x) => ({
+          player_id: me.id,
+          article: x.article,
+          size: x.size,
+          quantity: 1,
+          reason: v.reason || 'novo',
+          notes: v.notes?.trim() || null,
+        }));
+
+      // Sem nenhum tamanho escolhido não há pedido nenhum. A validação nativa
+      // não apanha isto (os campos são todos opcionais de propósito), por
+      // isso o erro aparece no formulário em vez de o submit "não fazer nada".
+      if (!pedidos.length) {
+        throw new Error('Escolhe o tamanho de pelo menos um artigo — é isso que diz o que precisas.');
+      }
+
+      try {
+        await createEquipmentRequests(pedidos);
+      } catch (err) {
+        throw new Error(dbErrorMessage(err));
+      }
+    },
+  });
+}
+
+// Cancelar só enquanto ninguém decidiu — é o que o RLS permite, e a lista só
+// desenha o botão nos pendentes. Repetido aqui porque o estado pode ter
+// mudado entre o desenho e o clique.
+async function cancelMyRequest(id) {
+  const req = state.equipmentRequests.find((r) => r.id === id);
+  if (!req || req.status !== 'pendente') {
+    toastError('Este pedido já foi decidido pelo clube.');
+    return;
+  }
+  const ok = await confirmDialog('Cancelar este pedido de equipamento?', {
+    confirmLabel: 'Cancelar pedido',
+  });
+  if (!ok) return;
+  try {
+    await deleteRow('equipment_requests', 'equipmentRequests', id);
+  } catch (err) {
+    toastError(dbErrorMessage(err));
+  }
+}
+
 function wire(container, me, team) {
   container.querySelectorAll('[data-portal-tab]').forEach((b) =>
     b.addEventListener('click', () => {
       portalTab = b.dataset.portalTab;
       renderPortal(container);
     })
+  );
+
+  container.querySelector('#portal-pedir')?.addEventListener('click', () => openRequestModal(me));
+
+  container.querySelectorAll('[data-cancel-req]').forEach((btn) =>
+    btn.addEventListener('click', () => cancelMyRequest(btn.dataset.cancelReq))
   );
 
   container.querySelector('[data-drills-toggle]')?.addEventListener('click', () => {

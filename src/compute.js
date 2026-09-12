@@ -65,6 +65,7 @@ export function equipmentArticles() {
       key: a.key,
       label: a.label || a.key,
       sizes: Array.isArray(a.sizes) ? a.sizes.filter(Boolean) : [],
+      requestable: a.requestable === true,
     }));
 }
 
@@ -79,8 +80,28 @@ export function allEquipmentArticles() {
       key: a.key,
       label: a.label || a.key,
       sizes: Array.isArray(a.sizes) ? a.sizes.filter(Boolean) : [],
+      requestable: a.requestable === true,
       active: a.active !== false,
     }));
+}
+
+// Artigos que a ATLETA pode pedir do portal. É um subconjunto dos ativos,
+// escolhido artigo a artigo nas Definições: as camisolas de treino sim, a
+// camisola de jogo com o número dela não — essa não se "pede", vem na
+// encomenda. Um artigo sem `requestable` declarado NÃO é pedível: a lista da
+// atleta abre fechada e o coordenador escolhe o que lá pôr, em vez de todo o
+// catálogo aparecer no portal no dia em que a migração correr.
+export function requestableArticles() {
+  if (!athleteRequestsEnabled()) return [];
+  return equipmentArticles().filter((a) => a.requestable === true);
+}
+
+// O clube liga/desliga os pedidos vindos do portal. Enquanto a migração
+// `pedidos-atleta.sql` não correr não há coluna nenhuma — e sem ela a
+// inserção era recusada pelo RLS, por isso trata-se como desligado.
+export function athleteRequestsEnabled() {
+  const s = state.settings || {};
+  return 'athlete_requests_enabled' in s ? s.athlete_requests_enabled !== false : false;
 }
 
 // Etiqueta de uma chave de artigo. Procura também nos desativados e na lista
