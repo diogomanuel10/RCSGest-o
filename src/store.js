@@ -1461,6 +1461,84 @@ export async function getDocumentSignedUrl(storagePath) {
   return data.signedUrl;
 }
 
+// --- Fotos dos artigos de equipamento ------------------------------------
+
+const ARTICLE_PHOTO_BUCKET = 'equipment-photos';
+// Lado maior da imagem guardada. Isto desenha-se como miniatura numa lista
+// no telemóvel de uma atleta — a foto de 4 MB que sai da câmara seriam 4 MB
+// a descarregar por artigo, com dados móveis, para um quadrado de 56px.
+const ARTICLE_PHOTO_MAX_PX = 600;
+
+// Reduz a imagem no browser antes de a enviar. Devolve um Blob JPEG.
+// Acontece no cliente e não numa função do servidor porque o que se quer
+// poupar é a SUBIDA: quem carrega a foto está muitas vezes no pavilhão,
+// com a mesma rede fraca do quiosque.
+async function shrinkImage(file) {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, ARTICLE_PHOTO_MAX_PX / Math.max(bitmap.width, bitmap.height));
+  const w = Math.max(1, Math.round(bitmap.width * scale));
+  const h = Math.max(1, Math.round(bitmap.height * scale));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  // Fundo branco: um PNG com transparência vira preto ao passar a JPEG, e
+  // uma camisola recortada ficava num quadrado escuro.
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(bitmap, 0, 0, w, h);
+  bitmap.close?.();
+
+  const blob = await new Promise((resolve) =>
+    canvas.toBlob(resolve, 'image/jpeg', 0.82)
+  );
+  if (!blob) throw new Error('Não foi possível preparar a imagem.');
+  return blob;
+}
+
+// Envia a foto de um artigo e devolve o CAMINHO no bucket (é isso que fica
+// em settings.equipment_articles[].photo, não o URL: o caminho é estável e o
+// endereço público constrói-se a partir dele).
+//
+// O nome leva um sufixo aleatório a cada gravação em vez de ser
+// `<chave>.jpg` fixo: o bucket é público e serve-se por CDN, por isso
+// substituir a foto num caminho já visitado continuava a mostrar a antiga
+// durante horas, e o coordenador ficava a pensar que a gravação falhou.
+export async function uploadArticlePhoto(articleKey, file) {
+  const orgId = state.org?.id || state.profile?.org_id;
+  if (!orgId) throw new Error('Clube por identificar.');
+
+  const blob = await shrinkImage(file);
+  const rand = Math.random().toString(36).slice(2, 10);
+  const path = `${orgId}/${articleKey}-${rand}.jpg`;
+
+  const { error } = await supabase.storage
+    .from(ARTICLE_PHOTO_BUCKET)
+    .upload(path, blob, { contentType: 'image/jpeg', upsert: true });
+  if (error) throw error;
+  return path;
+}
+
+// Apagar é um extra: a foto antiga que fique para trás é lixo no bucket, não
+// um erro para quem está a guardar o artigo. Por isso engole a falha.
+export async function deleteArticlePhoto(path) {
+  if (!path) return;
+  try {
+    await supabase.storage.from(ARTICLE_PHOTO_BUCKET).remove([path]);
+  } catch {
+    /* sem consequência para o utilizador */
+  }
+}
+
+// Endereço público da foto. O bucket é público, por isso não há nada a
+// assinar e o URL é estável — pode ir direto num <img> e ser cacheado.
+export function articlePhotoUrl(path) {
+  if (!path) return '';
+  const { data } = supabase.storage.from(ARTICLE_PHOTO_BUCKET).getPublicUrl(path);
+  return data?.publicUrl || '';
+}
+
 // --- Tamanhos de equipamento ---------------------------------------------
 
 // Um valor por coluna antiga: as que faltam vão a null, senão apagar um

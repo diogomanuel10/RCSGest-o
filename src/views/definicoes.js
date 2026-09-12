@@ -1,6 +1,6 @@
 // Vista: Definições. Época, meta, identidade do clube, estrutura e limiares.
 
-import { state, saveSettings, dbErrorMessage } from '../store.js';
+import { state, saveSettings, dbErrorMessage, uploadArticlePhoto, deleteArticlePhoto, articlePhotoUrl } from '../store.js';
 import { esc } from '../ui.js';
 import { toastOk } from '../toast.js';
 import { confirmDialog } from '../modal.js';
@@ -836,11 +836,16 @@ export function renderDefinicoes(container) {
       artListEl.innerHTML = artList
         .map((a, i) => `
           <li class="chip chip--rich${a.active ? '' : ' chip--off'}">
+            ${a.photo
+              ? `<img class="chip__photo" src="${esc(articlePhotoUrl(a.photo))}" alt=""
+                      loading="lazy" onerror="this.remove()" />`
+              : ''}
             <span class="chip__label">
               ${esc(a.label)}
               ${a.active ? '' : '<span class="badge badge--muted">Desativado</span>'}
               <small class="muted" style="display:block;font-weight:400">
                 ${a.sizes.length ? esc(a.sizes.join(' · ')) : 'Tamanho em texto livre'}
+                ${a.requestable ? ' · 🙋 as atletas podem pedir' : ''}
               </small>
             </span>
             <span class="chip__actions">
@@ -906,6 +911,7 @@ export function renderDefinicoes(container) {
         values: {
           label: editing?.label || '',
           sizes: (editing?.sizes || TEXT_SIZES).join(', '),
+          photo_action: 'manter',
         },
         fields: [
           {
@@ -920,8 +926,28 @@ export function renderDefinicoes(container) {
             placeholder: 'XS, S, M, L, XL, XXL',
             hint: 'Separados por vírgulas, pela ordem em que devem aparecer. Deixa vazio para pedir o tamanho em texto livre.',
           },
+          // A foto serve sobretudo o portal: "Casaco Fato de Treino" e
+          // "Blusão" são duas etiquetas que só distinguem o material a quem
+          // já o conhece, e quem escolhe lá é uma atleta que entrou em
+          // setembro. A imagem é reduzida no browser antes de subir.
+          {
+            name: 'photo_file', label: 'Foto', type: 'file', accept: 'image/*',
+            ...(editing?.photo ? { image: articlePhotoUrl(editing.photo) } : {}),
+            hint: editing?.photo
+              ? 'Escolhe um ficheiro para substituir a foto atual.'
+              : 'Opcional. Ajuda as atletas a reconhecer o artigo no portal.',
+          },
+          // Só aparece quando há foto: uma opção "remover" num artigo sem
+          // imagem é uma escolha sem efeito a ocupar uma linha do formulário.
+          ...(editing?.photo ? [{
+            name: 'photo_action', label: 'Foto atual', type: 'select',
+            options: [
+              { key: 'manter', label: 'Manter' },
+              { key: 'remover', label: 'Remover a foto' },
+            ],
+          }] : []),
         ],
-        onSubmit: (values) => {
+        onSubmit: async (values) => {
           const label = values.label.trim();
           // O nome é o cabeçalho de uma coluna da tabela das Encomendas — um
           // parágrafo ali dentro deita a tabela ao lado.
@@ -935,19 +961,44 @@ export function renderDefinicoes(container) {
             .filter(Boolean)
             // Um tamanho repetido dava duas opções iguais no select.
             .filter((x, i, arr) => arr.findIndex((y) => y.toLowerCase() === x.toLowerCase()) === i);
+
+          // A chave calcula-se UMA vez: serve para o nome do ficheiro e para
+          // o artigo novo. `articleKeyFrom` desempata contra a lista, por
+          // isso duas chamadas eram duas oportunidades de divergirem.
+          const key = editing ? editing.key : articleKeyFrom(label);
+
+          // A foto sobe AQUI e não no "Guardar artigos": assim a miniatura
+          // aparece logo na lista e confirma-se que a imagem certa foi
+          // escolhida antes de gravar tudo. Uma foto que fique no bucket
+          // porque o coordenador desistiu a seguir é lixo de 60 KB — uma
+          // gravação que só mostra o resultado no fim é pior.
+          let photo = editing?.photo || '';
+          const file = values.photo_file;
+          if (file && file.size) {
+            try {
+              photo = await uploadArticlePhoto(key, file);
+            } catch (err) {
+              throw new Error(dbErrorMessage(err) || 'Não foi possível guardar a foto.');
+            }
+            if (editing?.photo && editing.photo !== photo) deleteArticlePhoto(editing.photo);
+          } else if (values.photo_action === 'remover' && editing?.photo) {
+            deleteArticlePhoto(editing.photo);
+            photo = '';
+          }
+
           if (editing) {
-            artList[index] = { ...editing, label, sizes };
+            artList[index] = { ...editing, label, sizes, photo };
           } else {
             // Nasce NÃO pedível: pôr um artigo no catálogo do clube e abri-lo
-          // aos pedidos das atletas são duas decisões, e a segunda é a que
-          // custa dinheiro.
-          artList.push({ key: articleKeyFrom(label), label, sizes, active: true, requestable: false });
+            // aos pedidos das atletas são duas decisões, e a segunda é a que
+            // custa dinheiro.
+            artList.push({ key, label, sizes, photo, active: true, requestable: false });
           }
           artMsg.classList.add('hidden');
           drawArtList();
         },
       });
-  }
+    }
 
   drawArtList();
 
@@ -961,7 +1012,7 @@ export function renderDefinicoes(container) {
     );
     if (!ok) return;
     artList = DEFAULT_EQUIPMENT_ARTICLES.map((a) => ({
-      ...a, sizes: [...a.sizes], active: true, requestable: false,
+      ...a, sizes: [...a.sizes], photo: '', active: true, requestable: false,
     }));
     drawArtList();
   });
