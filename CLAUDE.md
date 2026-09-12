@@ -710,6 +710,18 @@ separador antes de navegar (usado pelos cartões do Painel).
       tem leitura no `player-docs` — abrir esse bucket para aqui caber a foto
       de um casaco punha as fotocópias do cartão de cidadão do lado errado da
       porta. A foto de um casaco de treino não é dado pessoal.
+    - **`public = true` NÃO dispensa as políticas de `storage.objects`**, e
+      esta foi aprendida à força: só abre o endereço de DESCARGA. Tudo o que
+      passe pela API autenticada — enviar, listar, substituir — continua
+      sujeito ao RLS, por isso o bucket tem as quatro políticas (leitura,
+      escrita, alteração, remoção) apesar de ser público. Sem a de leitura,
+      o envio falhava com um erro de RLS que a app mostrava como "Sem
+      permissão para esta operação", sem dizer porquê.
+    - **O envio vai com `upsert: false`**, porque o nome leva um sufixo
+      aleatório e o objeto é SEMPRE novo. Um upsert fazia o Storage exigir
+      também UPDATE e verificar primeiro se o ficheiro existia (o que pede
+      leitura), alargando as permissões necessárias para uma colisão que não
+      pode acontecer — era a outra metade do mesmo erro.
     - **O nome do ficheiro leva um sufixo aleatório** a cada gravação. O
       bucket serve-se por CDN: substituir a foto num caminho fixo continuava
       a mostrar a antiga durante horas, e o coordenador concluía que a
