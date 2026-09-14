@@ -622,11 +622,19 @@ separador antes de navegar (usado pelos cartões do Painel).
       diz que precisa daquilo, deixar em branco diz que não — uma caixa mais
       um tamanho eram dois gestos para dizer uma coisa só. É a forma do modal
       de tamanhos das Encomendas, que é o mesmo gesto.
-    - **O motivo é do pedido inteiro**, não de cada artigo: quem pede várias
-      coisas de uma vez pede-as quase sempre pela mesma razão (chegou agora,
-      perdeu o saco). Um motivo por artigo duplicava o formulário para o caso
-      raro — quem precisar de motivos diferentes faz dois pedidos. O motivo
-      escolhido é carimbado em todas as linhas.
+    - **Não se pergunta PORQUÊ.** O ecrã do treinador tem a lista de motivos
+      (danificado, tamanho, perdido…) porque é ELE que lança o pedido de
+      outra pessoa e o clube precisa de saber de onde veio. Aqui quem pede é
+      quem veste a roupa, e um seletor obrigatório entre cinco rótulos, antes
+      de deixar pedir, é uma pergunta a que quase toda a gente responde ao
+      calhas — um motivo escolhido ao calhas ajuda a decidir menos do que
+      nenhum. Fica um campo de **Notas**, opcional, do pedido inteiro (quem
+      pede várias coisas de uma vez pede-as quase sempre pela mesma razão), e
+      lá cabe a verdade toda em vez da gaveta mais parecida. A coluna `reason`
+      é `not null` e continua a existir para o ecrã do treinador: destes
+      pedidos vai `outro`, que diz exatamente o que se passa — carimbar
+      "Atleta sem o artigo" era pôr na boca da atleta uma razão que ela não
+      deu, e é sobre ela que o clube decide.
     - **O tamanho NÃO vem da ficha dela**, ao contrário do ecrã do treinador
       (que não tem de decorar que a Ana veste M). Aqui quem preenche é quem
       veste a roupa, e uma sugestão só serviria para ela aceitar sem pensar o
@@ -714,6 +722,14 @@ separador antes de navegar (usado pelos cartões do Painel).
       bucket serve-se por CDN: substituir a foto num caminho fixo continuava
       a mostrar a antiga durante horas, e o coordenador concluía que a
       gravação tinha falhado.
+    - **A miniatura abre por inteiro ao clique** (`openImageViewer` em
+      `modal.js`, ligado uma vez no documento por `initImageZoom` — há
+      miniaturas que nascem dentro de modais muito depois do primeiro
+      desenho): 56px de casaco preto não distinguem um blusão de uma sweat,
+      que é precisamente a pergunta que a foto veio responder. É um `<button>`
+      e não uma imagem solta, para quem navega por teclado lá chegar, e o
+      visualizador usa a moldura de todos os outros diálogos (`wireDialog`),
+      por cima do modal de onde saiu.
     - **Reduz-se no browser antes de subir** (`shrinkImage`, ~600px): o que
       se quer poupar é a subida — quem tira a foto está no pavilhão, com a
       mesma rede fraca do quiosque — e a descida, que é a atleta com dados
@@ -1063,6 +1079,13 @@ separador antes de navegar (usado pelos cartões do Painel).
   - O motivo de um "não vou" pede-se no `openModal` e não no `prompt()` do
     browser — e a gravação corre DENTRO do `onSubmit`, para o erro aparecer no
     formulário e para cancelar não deixar os botões presos à espera.
+  - **"Pedir equipamento" está no cabeçalho, ao lado do cumprimento**, e não
+    dentro da secção: quem precisa de uma camisola nova abre o portal para
+    isso, e o botão obrigava a trocar de separador e a descer as quotas todas
+    até ao fim. No canto direito do topo é onde a app põe as ações em todas as
+    outras secções, e é o único sítio onde ele fica visível seja qual for o
+    separador. O HISTÓRICO fica onde estava — pedir é a ação, ver em que ficou
+    é a consulta.
   - **"O meu material"** vive em «A época», ao lado das quotas: é a mesma
     conversa administrativa com o clube, e não uma pergunta que se faça todos
     os dias. Um quarto separador para uma ação que acontece duas vezes por

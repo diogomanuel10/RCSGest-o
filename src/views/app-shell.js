@@ -8,6 +8,7 @@ import { logoSrc, branding } from '../branding.js';
 import { signOut } from '../auth.js';
 import { state, subscribe, loadAll, loadProfile, orgAccess, redeemInvitation } from '../store.js';
 import { loadingHTML, errorHTML, esc, initTableLabels } from '../ui.js';
+import { initImageZoom } from '../modal.js';
 import { renderOfflineCard, clearOfflineCard } from '../offline-card.js';
 import {
   enablePush, clearPushOnLogout, isPushEnabled, iosNeedsInstall,
@@ -1061,6 +1062,10 @@ export async function renderAppShell(root, session) {
   // Etiqueta as células das tabelas com o cabeçalho da coluna, para elas
   // poderem empilhar-se em cartões no telemóvel (ver `.table--stack`).
   initTableLabels();
+  // Qualquer miniatura marcada com `data-zoom-src` abre por inteiro ao clique
+  // (a foto do artigo de equipamento). Ligado uma vez, no documento: há
+  // miniaturas que nascem dentro de modais muito depois do primeiro desenho.
+  initImageZoom();
   try {
     if (!state.loaded) await loadAll();
     // Respeita o endereço com que a página abriu (link partilhado, recarga,
