@@ -535,8 +535,14 @@ function openRequestModal(me) {
   openModal({
     title: 'Pedir equipamento',
     submitLabel: 'Pedir',
+    // Como se preenche isto é uma frase sobre o formulário INTEIRO, por isso
+    // vai no `intro` e não no `hint` do primeiro artigo — pendurada aí, lia-se
+    // como se fosse uma instrução sobre a camisola de treino.
+    intro: articles.some((x) => x.price != null)
+      ? 'Escolhe o tamanho do que precisas e deixa em branco o resto. Os valores são o que cada peça custa ao clube.'
+      : 'Escolhe o tamanho do que precisas. Deixa em branco o resto.',
     fields: [
-      ...articles.map((a, i) => ({
+      ...articles.map((a) => ({
         name: `art__${a.key}`,
         // O preço vai na ETIQUETA e não numa ajuda por baixo: tem de ser
         // lido ao mesmo tempo que o nome do artigo, no momento de escolher,
@@ -548,13 +554,6 @@ function openRequestModal(me) {
         // quem escolhe aqui entrou no clube em setembro. A foto responde à
         // pergunta que o nome não responde.
         ...(a.photo ? { image: articlePhotoUrl(a.photo) } : {}),
-        // A instrução vai só no primeiro campo: repetida em cada artigo era
-        // a mesma frase cinco vezes num ecrã de telemóvel.
-        ...(i === 0
-          ? { hint: articles.some((x) => x.price != null)
-                ? 'Escolhe o tamanho do que precisas e deixa em branco o resto. Os valores são o que cada peça custa ao clube.'
-                : 'Escolhe o tamanho do que precisas. Deixa em branco o resto.' }
-          : {}),
         ...(a.sizes.length
           ? {
               type: 'select',

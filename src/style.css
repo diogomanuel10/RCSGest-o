@@ -2500,16 +2500,19 @@ button.metric--nav:focus-visible {
 /* Miniatura de um artigo dentro de um campo de formulário. A grelha põe a
    imagem à esquerda e a etiqueta + controlo à direita: empilhada, cada
    artigo ocupava meio ecrã de telemóvel e a lista deixava de se percorrer. */
+/* A foto fica ao lado da ETIQUETA (é ela que a foto ilustra) e o controlo
+   passa POR BAIXO, a toda a largura do campo. Ao lado, o seletor de tamanho
+   ficava espremido numa coluna curta — e num telemóvel, com a foto a comer
+   56px, era o campo mais estreito do formulário. */
 .field--with-image {
   display: grid;
   grid-template-columns: 56px minmax(0, 1fr);
   column-gap: 0.7rem;
+  row-gap: 0.35rem;
   align-items: center;
 }
 .field__image {
-  /* Abrange as linhas todas do campo — com um `hint` por baixo são três, e
-     uma imagem presa às duas primeiras deixava um degrau por baixo dela. */
-  grid-row: 1 / -1;
+  grid-row: 1;
   grid-column: 1;
   align-self: center;
   width: 56px;
@@ -2527,15 +2530,14 @@ button.metric--nav:focus-visible {
   height: 100%;
   object-fit: cover;
 }
-/* Etiqueta, CONTROLO e ajuda ficam todos na coluna da direita.
-   O controlo também: sem esta linha caía na coluna da imagem (56px) e um
-   campo com foto ficava com uma caixa de texto do tamanho de um selo — que é
-   precisamente o campo onde se escreve o tamanho do artigo. */
-.field--with-image > label,
+/* A etiqueta ao lado da foto; o controlo e a ajuda por baixo, de ponta a
+   ponta. Sem isto o controlo caía na coluna da imagem (56px) e o campo onde
+   se escreve o tamanho ficava do tamanho de um selo. */
+.field--with-image > label { grid-column: 2; grid-row: 1; }
 .field--with-image > input,
 .field--with-image > select,
 .field--with-image > textarea,
-.field--with-image > .field__hint { grid-column: 2; }
+.field--with-image > .field__hint { grid-column: 1 / -1; }
 
 /* Orçamento da encomenda: o número que se leva à direção, por isso à
    cabeça do resumo e não no fim de uma lista de cartões. */
@@ -2639,6 +2641,12 @@ button.metric--nav:focus-visible {
 @keyframes overlayIn {
   from { opacity: 0; }
   to   { opacity: 1; }
+}
+/* Instrução sobre o formulário inteiro, antes do primeiro campo. */
+.modal__intro {
+  margin: 0 0 0.9rem;
+  font-size: 0.88rem;
+  line-height: 1.45;
 }
 .modal {
   width: min(560px, 96vw);
