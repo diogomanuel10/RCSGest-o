@@ -2510,16 +2510,31 @@ button.metric--nav:focus-visible {
   /* Abrange as linhas todas do campo — com um `hint` por baixo são três, e
      uma imagem presa às duas primeiras deixava um degrau por baixo dela. */
   grid-row: 1 / -1;
+  grid-column: 1;
   align-self: center;
   width: 56px;
   height: 56px;
-  object-fit: cover;
+  padding: 0;
+  overflow: hidden;
   border-radius: var(--radius-xs);
   border: 1px solid var(--border);
   background: var(--surface-2);
+  cursor: zoom-in;
 }
-/* Etiqueta, controlo e ajuda ficam todos na coluna da direita. */
+.field__image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* Etiqueta, CONTROLO e ajuda ficam todos na coluna da direita.
+   O controlo também: sem esta linha caía na coluna da imagem (56px) e um
+   campo com foto ficava com uma caixa de texto do tamanho de um selo — que é
+   precisamente o campo onde se escreve o tamanho do artigo. */
 .field--with-image > label,
+.field--with-image > input,
+.field--with-image > select,
+.field--with-image > textarea,
 .field--with-image > .field__hint { grid-column: 2; }
 
 /* Orçamento da encomenda: o número que se leva à direção, por isso à
@@ -5053,6 +5068,50 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 }
 
 /* =========================================================================
+   Ver uma imagem por inteiro (miniatura ampliada)
+   =========================================================================
+   Abre-se de dentro de um formulário — a foto do artigo que a atleta está a
+   escolher — por isso fica ACIMA do modal (100) e abaixo dos toasts (400). */
+.imgview { z-index: 350; }
+.imgview__box {
+  position: relative;
+  max-width: min(92vw, 720px);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+}
+.imgview__img {
+  max-width: 100%;
+  /* Deixa sempre sítio para a legenda e o botão de fechar. */
+  max-height: calc(88vh - 4rem);
+  object-fit: contain;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+.imgview__caption {
+  margin: 0;
+  color: #fff;
+  font-size: 0.9rem;
+  text-align: center;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+.imgview__close {
+  position: absolute;
+  top: -0.4rem;
+  right: -0.4rem;
+  z-index: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  box-shadow: var(--shadow-md);
+}
+
+/* =========================================================================
    Avisos efémeros (toasts) — confirmação das ações
    ========================================================================= */
 .toast-host {
@@ -6374,6 +6433,18 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
   font-size: var(--portal-note);
   color: var(--text-muted);
 }
+/* A coluna da direita do cabeçalho: a disponibilidade (quando não está tudo
+   bem) e o "Pedir equipamento". É o canto onde a app põe as ações em todas as
+   outras secções — e aqui é também o único sítio onde o botão fica visível
+   seja qual for o separador. */
+.portal-hero__side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.portal-hero__cta { flex: none; }
 /* A disponibilidade só aparece quando NÃO está tudo bem (ver portal.js) — por
    isso pode dar-se ao luxo de ser visível: quando está lá, é para ser lida. */
 .portal-hero__avail {
@@ -6735,6 +6806,7 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
    título e os botões de resposta ficavam espremidos em ecrãs estreitos. */
 @media (max-width: 560px) {
   .portal-hero__greet { font-size: 1.45rem; }
+  .portal-hero__side { align-items: flex-start; width: 100%; }
   .portal-hero__avail { align-items: flex-start; text-align: left; }
   .portal-event {
     flex-direction: column;

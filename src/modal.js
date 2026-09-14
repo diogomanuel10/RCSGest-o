@@ -66,9 +66,18 @@ function fieldHTML(field, value) {
   // já diz, e anunciá-la duas vezes a quem usa leitor de ecrã é ruído. Falha
   // em silêncio se o ficheiro não carregar — um campo sem foto continua a
   // ser um campo que se responde.
+  //
+  // É um BOTÃO e não uma imagem solta: 56px de casaco preto não distinguem
+  // um blusão de uma sweat, que é precisamente a pergunta que a foto veio
+  // responder. Clicar abre-a por inteiro (`openImageViewer`) — e sendo botão,
+  // quem navega por teclado chega lá e o leitor de ecrã anuncia o que faz.
   const image = field.image
-    ? `<img class="field__image" src="${esc(field.image)}" alt="" loading="lazy"
-           onerror="this.remove()" />`
+    ? `<button type="button" class="field__image" data-zoom-src="${esc(field.image)}"
+               data-zoom-label="${esc(field.label)}"
+               aria-label="Ver a foto: ${esc(field.label)}">
+         <img src="${esc(field.image)}" alt="" loading="lazy"
+              onerror="this.closest('.field__image').remove()" />
+       </button>`
     : '';
   // `hint` explica o campo por baixo do controlo (ligado por aria-describedby,
   // para os leitores de ecrã o anunciarem junto com a etiqueta).
@@ -323,5 +332,48 @@ export function confirmDialog(message, { confirmLabel = 'Remover', danger = true
     // Foco no «Cancelar»: numa ação destrutiva, o Enter reflexo não deve
     // confirmar. Quem quer mesmo remover carrega no botão ou faz Tab.
     overlay.querySelector('[data-no]').focus();
+  });
+}
+
+// --- Ver uma imagem por inteiro ------------------------------------------
+//
+// A miniatura de 56px ao lado de um campo (a foto do artigo de equipamento)
+// serve para reconhecer o que já se conhece; não serve para escolher entre
+// "Blusão" e "Casaco Fato de Treino", que é o que a atleta faz no portal.
+// Escolher o artigo errado gasta um pedido, uma decisão e uma entrega.
+//
+// Usa a mesma moldura de todos os outros diálogos (`wireDialog`): entra na
+// pilha, fecha no Escape, no X e no clique fora, e devolve o foco à miniatura
+// de onde saiu. Fica ACIMA do modal (z-index 350) e abaixo dos toasts — abre-se
+// de dentro de um formulário, e um visualizador por baixo do formulário não se
+// via.
+export function openImageViewer(src, label = '') {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay imgview';
+  overlay.innerHTML = `
+    <div class="imgview__box" role="dialog" aria-modal="true"
+         aria-label="${esc(label || 'Imagem')}">
+      <button class="modal__close imgview__close" aria-label="Fechar" type="button">&times;</button>
+      <img class="imgview__img" src="${esc(src)}" alt="${esc(label)}" />
+      ${label ? `<p class="imgview__caption">${esc(label)}</p>` : ''}
+    </div>
+  `;
+  return wireDialog(overlay, { initialFocus: '.imgview__close' });
+}
+
+// Uma miniatura é ampliável esteja onde estiver — num campo de formulário, numa
+// lista de pedidos, numa ficha. Ligar isto vista a vista era vinte sítios para
+// alguém se esquecer (e há miniaturas que nascem dentro de modais, muito depois
+// do primeiro desenho), por isso o clique é apanhado uma vez no documento, na
+// mesma lógica do `initTableLabels`.
+let zoomWired = false;
+export function initImageZoom() {
+  if (zoomWired) return;
+  zoomWired = true;
+  document.addEventListener('click', (e) => {
+    const el = e.target.closest?.('[data-zoom-src]');
+    if (!el) return;
+    e.preventDefault();
+    openImageViewer(el.dataset.zoomSrc, el.dataset.zoomLabel || '');
   });
 }

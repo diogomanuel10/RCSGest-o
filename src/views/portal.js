@@ -49,8 +49,6 @@ import {
   WEEKDAYS,
   TACTICAL_ROLE_LABEL,
   TACTICAL_ROLE_MATCH,
-  REQUEST_REASONS,
-  REQUEST_REASON_LABEL,
   REQUEST_STATUS_LABEL,
   REQUEST_STATUS_BADGE,
 } from '../constants.js';
@@ -199,13 +197,23 @@ function heroHTML(me, team, availability) {
        </div>`
     : '';
 
+  // O "Pedir equipamento" vive AQUI, ao lado do cumprimento, e não enterrado
+  // no fundo do separador "A época": quem precisa de uma camisola nova abre o
+  // portal para isso, e chegar ao botão obrigava a trocar de separador e a
+  // percorrer as quotas todas até ao fim. Está no cimo e está sempre — em
+  // qualquer separador — que é o mesmo lugar que o cartão QR tem no cimo do
+  // telemóvel de quem entra no pavilhão.
+  const pedir = requestableArticles().length
+    ? '<button class="btn btn--primary btn--sm portal-hero__cta" id="portal-pedir" type="button">Pedir equipamento</button>'
+    : '';
+
   return `
     <header class="portal-hero">
       <div class="portal-hero__id">
         <h1 class="portal-hero__greet">${esc(greet())}${first ? ', ' + esc(first) : ''}</h1>
         <p class="portal-hero__meta">${esc(meta)}</p>
       </div>
-      ${alerta}
+      ${alerta || pedir ? `<div class="portal-hero__side">${alerta}${pedir}</div>` : ''}
     </header>
   `;
 }
@@ -410,15 +418,13 @@ function materialHTML(pedidos) {
     <section class="card portal-section">
       <div class="portal-section__head">
         <h2 class="section-title portal-section__title">O meu material</h2>
-        ${articles.length
-          ? '<button class="btn btn--primary btn--sm" id="portal-pedir" type="button">Pedir equipamento</button>'
-          : ''}
       </div>
       ${pedidos.length
         ? `<ul class="portal-req-list">${pedidos.map(requestRow).join('')}</ul>`
         : `<p class="portal-section__note">
              Ainda não pediste nada. Se precisares de equipamento — porque se
-             estragou, se perdeu ou já não te serve — pede aqui e o clube
+             estragou, se perdeu ou já não te serve — usa o
+             <strong>Pedir equipamento</strong> lá em cima e o clube
              responde-te.
            </p>`}
     </section>
@@ -463,11 +469,13 @@ function requestRow(r) {
         ${r.size ? `Tamanho ${esc(r.size)}` : 'Sem tamanho'}
         ${r.quantity > 1 ? ` · ×${r.quantity}` : ''}
         ${(() => { const c = requestCost(r); return c != null ? ` · ${esc(euros(c))}` : ''; })()}
-        · ${esc(REQUEST_REASON_LABEL[r.reason] || r.reason)}
         ${r.created_at
           ? ` · ${new Date(r.created_at).toLocaleDateString('pt-PT', { day: '2-digit', month: 'short' })}`
           : ''}
       </p>
+      ${(r.notes || '').trim()
+        ? `<p class="portal-req__meta muted">${esc(r.notes.trim())}</p>`
+        : ''}
       ${nota ? `<p class="portal-req__note">${esc(nota)}</p>` : ''}
       ${pendente
         ? `<button class="btn btn--ghost btn--sm" data-cancel-req="${r.id}" type="button">Cancelar pedido</button>`
@@ -558,19 +566,18 @@ function openRequestModal(me) {
               placeholder: 'Tamanho — vazio se não precisas',
             }),
       })),
-      // O motivo é do PEDIDO INTEIRO e não de cada artigo. Quem pede várias
-      // coisas de uma vez pede-as quase sempre pela mesma razão — chegou
-      // agora, ou perdeu o saco. Um motivo por artigo duplicava o formulário
-      // para o caso raro; quem precisar de motivos diferentes faz dois
-      // pedidos, que é o que já fazia para tudo.
+      // **Não se pergunta PORQUÊ.** O ecrã do treinador tem a lista de motivos
+      // (danificado, tamanho, perdido…) porque é ELE que lança o pedido de
+      // outra pessoa e o clube precisa de saber de onde veio. Aqui quem pede é
+      // quem veste a roupa: um seletor obrigatório entre cinco rótulos, antes
+      // de deixar pedir, é uma pergunta a que quase toda a gente responde ao
+      // calhas — e um motivo escolhido ao calhas ajuda a decidir menos do que
+      // nenhum. Fica um campo de NOTAS, opcional, onde cabe a verdade toda
+      // ("rasguei as meias no sábado") em vez da gaveta mais parecida.
       {
-        name: 'reason', label: 'Porquê?', type: 'select', required: true,
-        options: REQUEST_REASONS.map((r) => ({ key: r.key, label: r.label })),
-        hint: 'É o que ajuda o clube a decidir. Vale para tudo o que pedires agora.',
-      },
-      {
-        name: 'notes', label: 'Queres explicar melhor?', type: 'textarea', full: true,
-        placeholder: 'Opcional…',
+        name: 'notes', label: 'Notas', type: 'textarea', full: true,
+        placeholder: 'Opcional — se quiseres dizer alguma coisa ao clube…',
+        hint: 'Vale para tudo o que pedires agora.',
       },
     ],
     onSubmit: async (v) => {
@@ -582,7 +589,12 @@ function openRequestModal(me) {
           article: x.article,
           size: x.size,
           quantity: 1,
-          reason: v.reason || 'novo',
+          // A coluna `reason` continua a existir (é `not null` e o ecrã do
+          // treinador usa-a), mas aqui ninguém a escolheu: `outro` diz
+          // exatamente isso — o motivo, se houver, está nas notas. Inventar
+          // "Atleta sem o artigo" seria pôr na boca da atleta uma razão que
+          // ela não deu, e é sobre ela que o clube vai decidir.
+          reason: 'outro',
           notes: v.notes?.trim() || null,
         }));
 
