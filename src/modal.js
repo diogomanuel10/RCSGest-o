@@ -181,8 +181,13 @@ export function wireDialog(overlay, { onClose, initialFocus } = {}) {
 
 // Abre um modal com um formulário. `onSubmit(values)` pode lançar erro
 // (mostrado no topo do formulário) ou devolver para fechar.
+// `intro` é uma frase sobre o FORMULÁRIO inteiro (como se preenche, o que é
+// que cada coisa significa), no topo e antes do primeiro campo. Existe porque
+// o `hint` é de um campo: a instrução do formulário de pedir equipamento
+// ("escolhe o tamanho do que precisas e deixa em branco o resto") estava
+// pendurada no primeiro artigo e lia-se como se fosse só sobre esse artigo.
 export function openModal({
-  title, fields, values = {}, submitLabel = 'Guardar', onSubmit, onFieldChange,
+  title, intro = '', fields, values = {}, submitLabel = 'Guardar', onSubmit, onFieldChange,
 }) {
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
@@ -194,6 +199,7 @@ export function openModal({
       </div>
       <form class="modal__form">
         <p class="modal__error hidden" role="alert"></p>
+        ${intro ? `<p class="modal__intro muted">${esc(intro)}</p>` : ''}
         <div class="field-grid">
           ${fields.map((f) => fieldHTML(f, values[f.name])).join('')}
         </div>

@@ -321,7 +321,11 @@ Cada `views/*.js` exporta `renderXxx(container)` que:
 1. Lê de `state` (e de `compute.js`) e escreve HTML em `container`.
 2. Liga os eventos (cliques, filtros) depois de inserir o HTML.
 3. Para criar/editar usa `openModal({ fields, onSubmit })` de `modal.js`;
-   para remover usa `confirmDialog(...)`. Cada campo aceita `hint` (texto de
+   para remover usa `confirmDialog(...)`. O modal aceita `intro` (uma frase
+   sobre o formulário inteiro, no topo e antes do primeiro campo): o `hint` é
+   de um CAMPO, e pendurar nele a instrução de como se preenche o formulário
+   — foi o que aconteceu ao pedido de equipamento do portal — lê-se como se
+   fosse uma nota sobre esse campo. Cada campo aceita `hint` (texto de
    ajuda por baixo, ligado por `aria-describedby`) e `reactive: true` — este
    avisa por `onFieldChange(nome, valores)` assim que muda, para a vista poder
    reconstruir o formulário (ex.: mudar o tipo de objetivo troca os campos
@@ -722,6 +726,10 @@ separador antes de navegar (usado pelos cartões do Painel).
       bucket serve-se por CDN: substituir a foto num caminho fixo continuava
       a mostrar a antiga durante horas, e o coordenador concluía que a
       gravação tinha falhado.
+    - **A foto fica ao lado da ETIQUETA e o controlo por baixo**, a toda a
+      largura: ao lado, o seletor de tamanho ficava espremido na coluna que
+      sobrava da miniatura — num telemóvel, o campo mais estreito do
+      formulário.
     - **A miniatura abre por inteiro ao clique** (`openImageViewer` em
       `modal.js`, ligado uma vez no documento por `initImageZoom` — há
       miniaturas que nascem dentro de modais muito depois do primeiro
