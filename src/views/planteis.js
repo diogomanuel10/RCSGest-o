@@ -9,6 +9,7 @@ import {
   escalaoColor, positionColor,
   playerAge, upcomingBirthdays, birthdayCalendar, playersWithoutBirthday, birthDateReady,
   whatsappReady,
+  kitVariantReady,
 } from '../compute.js';
 import { openModal, confirmDialog, wireDialog } from '../modal.js';
 import { toastError, toastOk } from '../toast.js';
@@ -480,6 +481,19 @@ function openTeamForm(id) {
         </p>
       </div>` : ''}
 
+      ${kitVariantReady() ? `
+      <div class="field field--full">
+        <label for="team-variant">Cor / modelo do equipamento</label>
+        <input id="team-variant" type="text" maxlength="40" placeholder="ex.: Azul"
+               value="${esc(existing?.kit_variant || '')}" aria-describedby="team-variant-hint" />
+        <p class="field__hint muted" id="team-variant-hint" style="margin:0.25rem 0 0;font-size:0.82rem">
+          Só quando esta equipa FOGE à regra do clube — os sub-21 de azul, por
+          exemplo. O resumo dos pedidos conta-a à parte, para a encomenda não
+          juntar duas peças diferentes no mesmo número. A cor de cada artigo
+          define-se nas Definições.
+        </p>
+      </div>` : ''}
+
       <div class="field field--full">
         <label for="team-principal">Treinador principal</label>
         <select id="team-principal">
@@ -569,6 +583,9 @@ function openTeamForm(id) {
     const payload = { escalao, gender, coach_id: principal };
     if (whatsappReady()) {
       payload.whatsapp_url = overlay.querySelector('#team-whatsapp')?.value.trim() || null;
+    }
+    if (kitVariantReady()) {
+      payload.kit_variant = overlay.querySelector('#team-variant')?.value.trim() || null;
     }
     const entries = [];
     if (principal) entries.push({ coach_id: principal, role: 'principal' });

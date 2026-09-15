@@ -848,6 +848,7 @@ export function renderDefinicoes(container) {
                 ${a.price != null ? ` · ${esc(euros(a.price))}` : ''}
                 ${a.requestable ? ' · 🙋 as atletas podem pedir' : ''}
                 ${a.requestable && a.multiple ? ' · com quantidade' : ''}
+                ${a.variant ? ` · ${esc(a.variant)}` : ''}
               </small>
             </span>
             <span class="chip__actions">
@@ -915,6 +916,7 @@ export function renderDefinicoes(container) {
           sizes: (editing?.sizes || TEXT_SIZES).join(', '),
           price: editing?.price ?? '',
           multiple: editing?.multiple === true ? 'sim' : 'nao',
+          variant: editing?.variant || '',
           photo_action: 'manter',
         },
         fields: [
@@ -951,6 +953,18 @@ export function renderDefinicoes(container) {
               { key: 'sim', label: 'Pode escolher quantas' },
             ],
             hint: 'Vale para os pedidos das atletas no portal.',
+          },
+          // A cor/modelo com que este artigo é usado POR OMISSÃO. Preenchida,
+          // o resumo dos pedidos passa a contar este artigo separado por
+          // variante — que é a pergunta que se leva ao fornecedor: a mesma
+          // camisola de treino é azul nos sub-21 e branca nos restantes, e um
+          // total que junte as duas não serve para encomendar nada. A exceção
+          // escreve-se na EQUIPA (Plantéis → editar equipa); aqui fica a
+          // regra. Vazio = artigo sem variantes, e aí não se separa nada.
+          {
+            name: 'variant', label: 'Cor / modelo por omissão', type: 'text',
+            placeholder: 'ex.: Branca',
+            hint: 'Opcional. Preenchido, o resumo dos pedidos conta este artigo separado por cor. As equipas que usam outra escrevem-na na ficha da equipa.',
           },
           {
             name: 'photo_file', label: 'Foto', type: 'file', accept: 'image/*',
@@ -991,6 +1005,7 @@ export function renderDefinicoes(container) {
           }
 
           const multiple = values.multiple === 'sim';
+          const variant = (values.variant || '').trim().slice(0, 40);
 
           const sizes = (values.sizes || '')
             .split(',')
@@ -1024,13 +1039,13 @@ export function renderDefinicoes(container) {
           }
 
           if (editing) {
-            artList[index] = { ...editing, label, sizes, photo, price, multiple };
+            artList[index] = { ...editing, label, sizes, photo, price, multiple, variant };
           } else {
             // Nasce NÃO pedível: pôr um artigo no catálogo do clube e abri-lo
             // aos pedidos das atletas são duas decisões, e a segunda é a que
             // custa dinheiro.
             artList.push({
-              key, label, sizes, photo, price, multiple,
+              key, label, sizes, photo, price, multiple, variant,
               active: true, requestable: false,
             });
           }
@@ -1052,7 +1067,7 @@ export function renderDefinicoes(container) {
     );
     if (!ok) return;
     artList = DEFAULT_EQUIPMENT_ARTICLES.map((a) => ({
-      ...a, sizes: [...a.sizes], photo: '', price: null, multiple: false,
+      ...a, sizes: [...a.sizes], photo: '', price: null, multiple: false, variant: '',
       active: true, requestable: false,
     }));
     drawArtList();

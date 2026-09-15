@@ -259,6 +259,7 @@ supabase/pedidos-equipamento.sql  Pedidos de equipamento (treinador -> clube) + 
 supabase/artigos-configuraveis.sql Artigos e tamanhos de equipamento definidos pelo clube
 supabase/pedidos-atleta.sql    A atleta pede equipamento do portal; decide o coordenador/direção
 supabase/fotos-artigos.sql     Bucket público com a foto de cada artigo de equipamento
+supabase/variante-equipamento.sql Cor/modelo do equipamento por escalão (resumo dos pedidos)
 supabase/aniversarios.sql      Data de nascimento do atleta (aniversários + quem falta)
 supabase/portal-atleta.sql     Portal: o atleta lê a sua própria disponibilidade
 supabase/comunicacao.sql       Respostas do atleta a eventos + avisos do clube
@@ -683,6 +684,27 @@ separador antes de navegar (usado pelos cartões do Painel).
       viajava por notificação para quem pediu; com a atleta do outro lado, a
       lista marca o pedido como sendo "(a própria)" para quem decide saber a
       quem está a responder.
+  - **O mesmo ecrã responde a DUAS perguntas e tem duas vistas** (seletor
+    "Ver"): a **Lista** é "o que decido a seguir", uma linha de cada vez; o
+    **Resumo para encomendar** é "quantas camisolas de treino M, ao todo" —
+    o número que se leva ao fornecedor. Somar quarenta linhas à mão numa folha
+    à parte é exatamente onde as encomendas se perdem. O resumo conta o que
+    estiver no FILTRO em cima (mudar para "Aprovados" dá o que já foi decidido
+    e há mesmo que comprar; "Por resolver" dá o cenário se tudo for aprovado)
+    — um âmbito próprio seria dois números a discordar no mesmo ecrã — e a
+    `quantity` de cada pedido conta. Reaproveita o desenho do resumo das
+    Encomendas (`enc-resumo-*`), que é a mesma leitura.
+  - **A mesma camisola não é a mesma peça em todos os escalões**
+    (`supabase/variante-equipamento.sql`, `articleVariant()`): os sub-21 usam-na
+    azul e os restantes branca, e um total que junte as duas não se pode
+    encomendar — o erro só aparece quando a caixa chega. A regra vive no
+    ARTIGO (`variant` nas Definições: "Branca") e a equipa só a contradiz
+    quando foge a ela (`teams.kit_variant`: "Azul"); ao contrário, era preciso
+    escrever a cor em todas as equipas para que a exceção de uma se lesse. É
+    **texto livre** — noutro clube isto é "modelo antigo" ou o nome do
+    patrocinador — e **um artigo sem variante declarada não se separa de
+    todo**: a mochila é a mesma para toda a gente, e uma contagem partida em
+    duas colunas iguais é ruído.
   - **Quem vê o quadro TODO são o coordenador e a direção.** Saíram o
     seccionista, o leitura, a fisio e o preparador: nenhum deles tem nada a
     fazer com um pedido de equipamento, e uma lista que toda a gente vê deixa
