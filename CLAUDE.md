@@ -1071,6 +1071,44 @@ separador antes de navegar (usado pelos cartões do Painel).
     chegar a tempo, que é a única coisa que um aniversário precisa de fazer. As
     **datas por preencher** ficam na lista, no degrau `depois` — isso É
     trabalho: sem a data não há aniversário nenhum.
+  - **Duas colunas no ecrã grande** (`.panel-grid`): `.content__inner` não tem
+    `max-width`, por isso tudo vivia numa coluna só esticada a 1800px — a linha
+    "18:30–20:30 · Cadetes F · Pavilhão…" tinha 1500px de vazio à direita e o
+    trabalho começava abaixo da dobra. O trabalho fica na coluna larga; a
+    agenda e os próximos eventos na estreita (360px). A **faixa de números fica
+    a toda a largura, fora da grelha**: espremida em 360px deixava de ser uma
+    faixa (virava um bloco de 2×3) e desequilibrava as colunas.
+    - A ordem continua a depender do dia, mas **só decide no telemóvel**, onde
+      as colunas empilham: num ecrã grande as duas veem-se ao mesmo tempo.
+      `--calm` manda a coluna lateral para cima abaixo do ponto de corte.
+  - **Só o degrau "Agora" nasce aberto.** "Esta semana" e "Quando puderes" são
+    `<details>` com a contagem no resumo — a convenção dos Utilizadores e dos
+    convites. Com os três abertos, este cartão era o bloco mais alto do ecrã e
+    empurrava para fora os números e os eventos de hoje. Fechado custa uma
+    linha e continua a dizer quantas coisas lá estão, que é a parte que não se
+    pode esconder.
+  - **O subtítulo de uma pendência só existe quando traz DADO.** Metade deles
+    dizia o procedimento — "Aprovar, entregar ou recusar — abrir Equipamentos"
+    — que quem lê o painel já sabe: era uma linha inteira por pendência a dizer
+    nada. Compare-se com "Erica Teixeira, Joana Rodrigues, …", que diz QUEM.
+    Sem subtítulo a pendência ocupa uma linha (`.alert-item--slim`).
+  - **Um evento não repete o nome do seu tipo.** O crachá dizia "Treino" e o
+    título ao lado dizia "Treino", em todas as linhas de todos os dias: o
+    título só entra quando é diferente do rótulo do tipo. E a linha é UMA —
+    hora, crachá e o resto por pontos (`.today-item--slim`); em duas, três
+    treinos custavam 250px para dizer três horas e três equipas. A mesma regra
+    vale nos "Próximos eventos".
+  - **O local comum sai das linhas para o cabeçalho** (`sharedLocation`): três
+    treinos seguidos no mesmo pavilhão repetiam "Pavilhão Escola Secundária da
+    Senhora da Hora" três vezes, e numa coluna estreita era esse nome que
+    empurrava a equipa para fora da linha ("Cadetes F · P…"). Só sai quando
+    TODOS os eventos têm local e é o mesmo — com um evento sem local, pôr o dos
+    outros no cabeçalho dizia dele uma coisa que não se sabe.
+  - **O cabeçalho não repete os cartões que vêm a seguir.** Dizia "3 coisas
+    precisam de ti agora · 3 eventos hoje" e logo abaixo vinham os 3 eventos e
+    as 3 coisas — cem píxeis de repetição, escritos na mesma alteração que foi
+    tirar a repetição do painel. No telemóvel a saudação ainda enchia duas
+    linhas em maiúsculas de 1.75rem; abaixo dos 700px encolhe.
   - **Os painéis de área (fisio e preparador) ganharam trabalho, não só
     corte.** Tinham três números e duas listas, e os números eram a CONTAGEM
     das listas desenhadas logo por baixo ("Próximos: 5" por cima da lista dos

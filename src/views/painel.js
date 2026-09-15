@@ -159,22 +159,22 @@ export function renderPainel(container) {
 
   const steps = firstSteps();
 
-  // --- A ordem depende do dia ---------------------------------------------
-  // Um painel fixo serve mal os dois dias que existem. No dia em que há um
-  // documento caducado e uma atleta a desistir, nove números antes disso são
-  // nove linhas entre o coordenador e o problema; no dia em que não há nada
-  // urgente, uma caixa vazia de "atenção" no topo é ruído. Por isso um só
-  // interruptor — há trabalho no degrau "Agora"? — decide o que vem primeiro.
+  // --- Duas colunas no ecrã grande ----------------------------------------
+  // O conteúdo estava numa coluna só, esticada à largura do ecrã: num
+  // portátil, a linha "18:30–20:30 · Cadetes F · Pavilhão…" tinha 1500px de
+  // vazio à direita, e o que interessava estava tudo abaixo da dobra. O
+  // trabalho fica na coluna larga; a agenda e os números na estreita.
+  //
+  // A ordem continua a depender do dia, mas só importa no TELEMÓVEL, onde as
+  // colunas empilham: num ecrã grande as duas veem-se ao mesmo tempo. Daí
+  // `--calm`, que abaixo do ponto de corte manda a coluna lateral para cima
+  // quando não há nada urgente.
   const urgente = actions.some((a) => a.urgency === 'agora');
-  const work = workCard(actions);
-  const strip = statStrip(stats);
-  const corpo = urgente ? [work, strip] : [strip, work];
 
   container.innerHTML = `
     <header class="page-head page-head--hero">
       <div>
         <h1 class="section-title">${esc(greeting())}${displayName() ? ', ' + esc(displayName()) : ''}</h1>
-        <p class="muted" style="margin:0;font-size:0.9rem">${heroLine(today, actions, urgente)}</p>
         ${birthdayLine()}
       </div>
       <div class="hero-actions">
@@ -189,17 +189,23 @@ export function renderPainel(container) {
 
     ${steps ? stepsCard(steps) : ''}
 
-    ${today.length && seeCalendar ? `<section class="card today-card">
-      <h2 class="section-title upcoming-card__title">Hoje</h2>
-      <ul class="today-list">${today.map(todayRow).join('')}</ul>
-    </section>` : ''}
+    ${urgente ? '' : statStrip(stats)}
 
-    ${corpo.join('')}
+    <div class="panel-grid${urgente ? '' : ' panel-grid--calm'}">
+      <div class="panel-grid__main">
+        ${workCard(actions)}
+      </div>
+      <aside class="panel-grid__side">
+        ${today.length && seeCalendar ? todayCard(today) : ''}
 
-    ${seeCalendar ? `<section class="card">
-      <h2 class="section-title upcoming-card__title">Próximos eventos</h2>
-      ${upcoming.length ? upcomingList(upcoming) : '<p class="muted" style="margin:0.3rem 0 0">Sem outros eventos agendados.</p>'}
-    </section>` : ''}
+        ${seeCalendar ? `<section class="card">
+          <h2 class="section-title upcoming-card__title">Próximos eventos</h2>
+          ${upcoming.length ? upcomingList(upcoming) : '<p class="muted" style="margin:0.3rem 0 0">Sem outros eventos agendados.</p>'}
+        </section>` : ''}
+      </aside>
+    </div>
+
+    ${urgente ? statStrip(stats) : ''}
   `;
 
   wireWorkCard(container, () => renderPainel(container));
@@ -378,24 +384,6 @@ function todayLine(today) {
   return `Tens ${n} evento${n === 1 ? '' : 's'} hoje${detalhe}.`;
 }
 
-// Primeira linha do cabeçalho. Muda com o dia: quando há trabalho no degrau
-// "Agora" é ISSO que se diz (e a lista sobe para cima dos números); quando não
-// há, volta a ser a agenda do dia. Uma frase fixa servia mal os dois dias.
-function heroLine(today, actions, urgente) {
-  const eventos = today.length
-    ? `${today.length} evento${today.length === 1 ? '' : 's'} hoje`
-    : '';
-  if (urgente) {
-    const n = actions.filter((a) => a.urgency === 'agora').length;
-    const cabeca = `${n} coisa${n === 1 ? '' : 's'} precisa${n === 1 ? '' : 'm'} de ti agora`;
-    return eventos ? `${cabeca} · ${eventos}.` : `${cabeca}.`;
-  }
-  if (today.length) return todayLine(today);
-  return actions.length
-    ? 'Nada urgente hoje — há coisas por fazer aqui em baixo.'
-    : 'Não há eventos hoje e não há nada pendente. Está tudo em dia.';
-}
-
 // Liga o "Ver tudo" da lista de trabalho (estado de UI da vista).
 function wireWorkCard(container, rerender) {
   container.querySelector('#work-more')?.addEventListener('click', () => {
@@ -516,27 +504,55 @@ function attendanceSub(att, trend) {
 }
 
 // Uma linha do resumo "Hoje".
-function todayRow(ev) {
+function todayRow(ev, { hideLocation = false } = {}) {
   const team = teamById(ev.team_id);
   const range = eventTimeRange(ev);
-  const meta = [
+  const tipo = EVENT_TYPE_LABEL[ev.type] || ev.type;
+  // O título só entra quando DIZ alguma coisa. Um treino sem título próprio
+  // chamava-se "Treino" — a mesma palavra que o crachá mesmo ao lado, em
+  // todas as linhas de todos os dias.
+  const titulo = (ev.title || '').trim();
+  const proprio = titulo && titulo.toLowerCase() !== tipo.toLowerCase() ? titulo : '';
+  // Tudo numa linha: hora, tipo, e o resto separado por pontos. Em duas
+  // linhas, três treinos custavam 250px para dizer três horas e três equipas.
+  const resto = [
+    proprio,
     team ? teamName(team) : '',
-    ev.opponent ? `vs ${esc(ev.opponent)}` : '',
-    ev.location ? esc(ev.location) : '',
+    ev.opponent ? `vs ${ev.opponent}` : '',
+    hideLocation ? '' : (ev.location || ''),
   ].filter(Boolean).join(' · ');
 
   return `
-    <li class="today-item">
+    <li class="today-item today-item--slim">
       <span class="today-item__time">${range ? esc(range) : '—'}</span>
-      <div class="today-item__body">
-        <span class="today-item__title">
-          <span class="badge badge--${EVENT_TYPE_BADGE[ev.type] || 'muted'}">${esc(EVENT_TYPE_LABEL[ev.type] || ev.type)}</span>
-          ${esc(ev.title || EVENT_TYPE_LABEL[ev.type] || 'Evento')}
-        </span>
-        ${meta ? `<span class="muted today-item__meta">${meta}</span>` : ''}
-      </div>
+      <span class="badge badge--${EVENT_TYPE_BADGE[ev.type] || 'muted'}">${esc(tipo)}</span>
+      <span class="today-item__line">${esc(resto || tipo)}</span>
     </li>
   `;
+}
+
+// Cartão "Hoje" do coordenador.
+function todayCard(today) {
+  const local = sharedLocation(today);
+  return `
+    <section class="card today-card">
+      <h2 class="section-title upcoming-card__title">Hoje</h2>
+      ${local ? `<p class="muted today-card__where">${esc(local)}</p>` : ''}
+      <ul class="today-list">${today.map((e) => todayRow(e, { hideLocation: !!local })).join('')}</ul>
+    </section>`;
+}
+
+// O local, quando é o MESMO em todos os eventos do dia, sai das linhas e vai
+// para o cabeçalho do cartão. Três treinos seguidos no mesmo pavilhão
+// repetiam "Pavilhão Escola Secundária da Senhora da Hora" três vezes — e numa
+// coluna estreita era precisamente esse nome que empurrava a equipa para fora
+// da linha e a deixava como "Cadetes F · P…".
+function sharedLocation(events) {
+  if (events.length < 2) return '';
+  const locais = events.map((e) => (e.location || '').trim());
+  // Só sai da linha se TODOS tiverem local e for o mesmo: com um evento sem
+  // local, pôr o dos outros no cabeçalho dizia dele uma coisa que não se sabe.
+  return locais.every((l) => l && l === locais[0]) ? locais[0] : '';
 }
 
 // Navega para uma secção, reaproveitando os botões da barra lateral.
@@ -676,9 +692,7 @@ function buildActions({ includePresencas = false } = {}) {
         variant: atrasados.length ? 'danger' : 'warn',
         route: 'presencas',
         title: `${pend.length} treino${pend.length === 1 ? '' : 's'} com presenças por marcar`,
-        sub: atrasados.length
-          ? `${atrasados.length} já passaram — sem registo, a comparência não diz a verdade.`
-          : 'Todos de hoje — abrir Presenças.',
+        sub: atrasados.length ? `${atrasados.length} já passaram sem registo` : '',
       });
     }
   }
@@ -700,10 +714,10 @@ function buildActions({ includePresencas = false } = {}) {
         route: 'planteis',
         title: `${row.docLabel} — ${row.player?.name || 'Atleta'}`,
         sub: row.status === 'expired'
-          ? `Expirou a ${date} — renovar.`
+          ? `Expirou a ${date}`
           : row.status === 'missing'
-            ? 'Sem data de validade — atualizar.'
-            : `Expira a ${date} (${row.daysLeft} dia${row.daysLeft === 1 ? '' : 's'}).`,
+            ? 'Sem data de validade'
+            : `Expira a ${date} (${row.daysLeft} dia${row.daysLeft === 1 ? '' : 's'})`,
       });
     });
   }
@@ -719,7 +733,6 @@ function buildActions({ includePresencas = false } = {}) {
         variant: 'warn',
         route: 'pedidos',
         title: `${n} pedido${n === 1 ? '' : 's'} de equipamento por decidir`,
-        sub: 'Aprovar, entregar ou recusar — abrir Equipamentos.',
       });
     }
   }
@@ -750,11 +763,9 @@ function buildActions({ includePresencas = false } = {}) {
   // para corrigir (esta semana).
   if (canAccess('objetivos') && alertOn('objetivos')) {
     objectivesNeedingAttention().slice(0, 6).forEach(({ obj, status, met, total }) => {
-      const sub = obj.scope === 'todas'
-        ? `${met} de ${total} equipas a cumprir — abrir Objetivos.`
-        : status === 'falhado'
-          ? 'O prazo passou sem se atingir — rever nos Objetivos.'
-          : 'Vai atrasado face ao prazo — abrir Objetivos.';
+      // Só o âmbito "todas" tem dado para o subtítulo (quantas equipas
+      // cumprem); nos outros o título já diz tudo o que há a dizer.
+      const sub = obj.scope === 'todas' ? `${met} de ${total} equipas a cumprir` : '';
       items.push({
         urgency: status === 'falhado' ? 'agora' : 'semana',
         variant: status === 'falhado' ? 'danger' : 'warn',
@@ -776,7 +787,7 @@ function buildActions({ includePresencas = false } = {}) {
         route: 'financeiro',
         finTab: 'quotas',
         title: `${qm.pendentes} quota${qm.pendentes === 1 ? '' : 's'} por cobrar este mês`,
-        sub: `${euros(qm.total)} por receber — abrir Quotas.`,
+        sub: `${euros(qm.total)} por receber`,
       });
     }
   }
@@ -805,7 +816,6 @@ function buildActions({ includePresencas = false } = {}) {
       variant: 'danger',
       route: 'equipamentos',
       title: `${n} equipamento${n === 1 ? '' : 's'} em mau estado`,
-      sub: 'Rever ou substituir — abrir Equipamentos.',
     });
   }
 
@@ -817,7 +827,6 @@ function buildActions({ includePresencas = false } = {}) {
         variant: 'ok',
         route: 'recrutamento',
         title: `${ready} prospeto${ready === 1 ? '' : 's'} pronto${ready === 1 ? '' : 's'} a inscrever`,
-        sub: 'Confirmados no recrutamento — inscrever no plantel.',
       });
     }
   }
@@ -831,7 +840,6 @@ function buildActions({ includePresencas = false } = {}) {
         route: 'planteis',
         plan: true,
         title: `${pend} avaliaç${pend === 1 ? 'ão' : 'ões'} de atleta por decidir`,
-        sub: 'Definir quem fica para a próxima época — planear nos Plantéis.',
       });
     }
   }
@@ -848,7 +856,6 @@ function buildActions({ includePresencas = false } = {}) {
         variant: 'info',
         route: 'planteis',
         title: `${semData.length} atleta${semData.length === 1 ? '' : 's'} sem data de nascimento`,
-        sub: 'Sem a data não há aniversário — preencher nos Plantéis, em "Aniversários".',
       });
     }
   }
@@ -856,45 +863,58 @@ function buildActions({ includePresencas = false } = {}) {
   return collapseFamilies(items);
 }
 
-// Mostrar a lista de trabalho por inteiro (estado de UI desta vista).
+// Mostrar o degrau "Agora" por inteiro (estado de UI desta vista).
 let workExpanded = false;
-// Quantos itens se mostram por degrau antes de "Ver tudo". "Agora" leva mais
-// porque é precisamente o que não se pode esconder.
-const WORK_PREVIEW = { agora: 6, semana: 4, depois: 2 };
+// Quantas pendências urgentes se mostram antes do "Ver tudo". Só o "Agora"
+// tem teto: os outros degraus nascem fechados, por isso a altura deles já é
+// zero.
+const WORK_PREVIEW_NOW = 6;
 
-// O cartão único de trabalho, em degraus. Substitui as três caixas que havia
-// ("A precisar da tua atenção", "Documentos a expirar", "Presenças por
-// marcar") — eram três títulos para a mesma pergunta.
+// O cartão único de trabalho. Substituiu as três caixas que havia ("A precisar
+// da tua atenção", "Documentos a expirar", "Presenças por marcar") — eram três
+// títulos para a mesma pergunta.
+//
+// Só o degrau **Agora** nasce aberto. "Esta semana" e "Quando puderes" são
+// `<details>` com a contagem no resumo, na convenção que o projeto já usa nos
+// Utilizadores e nos convites: com os três degraus abertos este cartão era o
+// bloco mais alto do ecrã e empurrava tudo o resto para fora, incluindo os
+// números e os eventos de hoje. Fechado, o degrau custa uma linha e continua
+// a dizer quantas coisas lá estão — que é a parte que não se pode esconder.
 function workCard(actions) {
   const steps = WORK_STEPS
     .map((s) => ({ ...s, list: actions.filter((a) => a.urgency === s.key) }))
     .filter((s) => s.list.length);
   if (!steps.length) return '';
 
-  const escondidos = workExpanded
-    ? 0
-    : steps.reduce((n, s) => n + Math.max(0, s.list.length - WORK_PREVIEW[s.key]), 0);
-  const urgente = steps[0]?.key === 'agora';
+  const agora = steps.find((s) => s.key === 'agora');
+  const visiveis = agora
+    ? (workExpanded ? agora.list : agora.list.slice(0, WORK_PREVIEW_NOW))
+    : [];
+  const escondidos = agora ? agora.list.length - visiveis.length : 0;
 
   return `
-    <section class="card alerts-card${urgente ? ' alerts-card--now' : ''}">
+    <section class="card alerts-card${agora ? ' alerts-card--now' : ''}">
       <h2 class="section-title upcoming-card__title">O que precisa de ti</h2>
-      ${steps.map((s) => {
-        const list = workExpanded ? s.list : s.list.slice(0, WORK_PREVIEW[s.key]);
-        return `
-          ${steps.length > 1 ? `<p class="pd-label work-step__label">${esc(s.label)}</p>` : ''}
-          <ul class="alerts-list">${list.map(actionItem).join('')}</ul>`;
-      }).join('')}
-      ${escondidos > 0
-        ? `<button class="btn btn--ghost btn--sm" id="work-more" type="button" style="margin-top:0.7rem">
-             Ver tudo (mais ${escondidos})
-           </button>`
-        : ''}
-      ${workExpanded
-        ? `<button class="btn btn--ghost btn--sm" id="work-less" type="button" style="margin-top:0.7rem">
-             Mostrar menos
-           </button>`
-        : ''}
+      ${agora ? `
+        <ul class="alerts-list">${visiveis.map(actionItem).join('')}</ul>
+        ${escondidos > 0
+          ? `<button class="btn btn--ghost btn--sm" id="work-more" type="button" style="margin-top:0.6rem">
+               Ver as restantes ${escondidos}
+             </button>`
+          : ''}
+        ${workExpanded && agora.list.length > WORK_PREVIEW_NOW
+          ? `<button class="btn btn--ghost btn--sm" id="work-less" type="button" style="margin-top:0.6rem">
+               Mostrar menos
+             </button>`
+          : ''}` : ''}
+      ${steps.filter((s) => s.key !== 'agora').map((s) => `
+        <details class="group work-step">
+          <summary class="group__head">
+            <span class="group__title">${esc(s.label)}</span>
+            <span class="group__count">${s.list.length}</span>
+          </summary>
+          <ul class="alerts-list">${s.list.map(actionItem).join('')}</ul>
+        </details>`).join('')}
     </section>`;
 }
 
@@ -976,7 +996,7 @@ function collapseFamilies(items) {
       finTab: lead.finTab,
       title: (FAMILY_SUMMARY[fam] || ((n) => `${n} itens`))(grupo.length),
       sub: nomes.length
-        ? `${nomes.slice(0, 4).join(', ')}${nomes.length > 4 ? ` e mais ${nomes.length - 4}` : ''}.`
+        ? `${nomes.slice(0, 4).join(', ')}${nomes.length > 4 ? ` e mais ${nomes.length - 4}` : ''}`
         : '',
     });
   });
@@ -992,15 +1012,20 @@ function actionItem({ variant, title, sub, route, plan, finTab, docAthlete, athl
     : athlete
       ? `data-work-athlete="${esc(athlete)}" data-work-tab="${esc(tab || 'geral')}"`
       : `data-nav="${esc(route)}"`;
+  // O subtítulo só existe quando traz DADO — nomes, datas, valores. Metade
+  // deles dizia o procedimento ("Aprovar, entregar ou recusar — abrir
+  // Equipamentos"), que quem lê o painel já sabe: era uma linha inteira por
+  // pendência a dizer nada, e eram essas linhas que empurravam o trabalho
+  // real para fora do ecrã. Sem subtítulo, a pendência ocupa UMA linha.
   return `
     <li>
-      <button class="alert-item alert-item--${variant} alert-item--nav" ${target}${
+      <button class="alert-item alert-item--${variant} alert-item--nav${sub ? '' : ' alert-item--slim'}" ${target}${
         plan ? ' data-plan="1"' : ''
       }${finTab ? ` data-fin-tab-open="${finTab}"` : ''} type="button">
         <span class="alert-item__dot" aria-hidden="true"></span>
         <span class="alert-item__text">
           <strong class="alert-item__title">${esc(title)}</strong>
-          <span class="muted alert-item__sub">${esc(sub)}</span>
+          ${sub ? `<span class="muted alert-item__sub">${esc(sub)}</span>` : ''}
         </span>
         <span class="alert-item__chevron" aria-hidden="true">›</span>
       </button>
@@ -1064,13 +1089,19 @@ function upcomingList(events) {
           const day = dt.toLocaleDateString('pt-PT', { day: '2-digit' });
           const mon = dt.toLocaleDateString('pt-PT', { month: 'short' }).replace('.', '');
           const time = ev.time ? ev.time.slice(0, 5) : '';
-          const meta = [
+          // Mesma regra do "Hoje": o nome só entra quando não é a palavra que
+          // o crachá ao lado já diz. "Jogo · Jogo · Seniores F" ocupava duas
+          // linhas para dizer uma.
+          const tipo = EVENT_TYPE_LABEL[ev.type] || ev.type;
+          const titulo = (ev.title || '').trim();
+          const nome = titulo && titulo.toLowerCase() !== tipo.toLowerCase() ? titulo : '';
+          // `esc()` sobre a linha inteira: o nome da equipa vinha por
+          // interpolação direta, ao contrário da convenção do projeto.
+          const meta = esc([
             team ? teamName(team) : '',
-            ev.opponent ? `vs ${esc(ev.opponent)}` : '',
-            time ? time : '',
-          ]
-            .filter(Boolean)
-            .join(' · ');
+            ev.opponent ? `vs ${ev.opponent}` : '',
+            time || '',
+          ].filter(Boolean).join(' · '));
           return `
             <li class="event-mini__item">
               <div class="event-mini__date-block">
@@ -1078,9 +1109,9 @@ function upcomingList(events) {
                 <span class="event-mini__mon">${mon}</span>
               </div>
               <div class="event-mini__body">
-                <span class="event-mini__name">${esc(ev.title || EVENT_TYPE_LABEL[ev.type] || 'Evento')}</span>
                 <span class="event-mini__meta">
-                  <span class="badge badge--${EVENT_TYPE_BADGE[ev.type] || 'muted'}">${esc(EVENT_TYPE_LABEL[ev.type] || ev.type)}</span>
+                  <span class="badge badge--${EVENT_TYPE_BADGE[ev.type] || 'muted'}">${esc(tipo)}</span>
+                  ${nome ? `<strong class="event-mini__name">${esc(nome)}</strong>` : ''}
                   ${meta ? `<span class="muted">${meta}</span>` : ''}
                 </span>
               </div>
@@ -1114,7 +1145,7 @@ function buildFisioActions() {
         urgency: 'agora', variant: 'warn', family: 'appt_abertos',
         name: nome(a.player_id), athlete: a.player_id, tab: 'fisioterapia',
         title: `Atendimento de ${nome(a.player_id)} por fechar`,
-        sub: `Marcado para ${dataCurta(a.date)} e ainda como "agendado" — realizado, faltou ou cancelado?`,
+        sub: `Marcado para ${dataCurta(a.date)}, ainda como "agendado"`,
       });
     });
 
@@ -1128,7 +1159,7 @@ function buildFisioActions() {
         urgency: 'agora', variant: 'danger', family: 'retorno_passado',
         name: nome(e.player_id), athlete: e.player_id, tab: 'fisioterapia',
         title: `${nome(e.player_id)} devia ter voltado a ${dataCurta(e.expected_return)}`,
-        sub: 'Sem alta dada — rever o episódio ou atualizar a previsão.',
+        sub: 'Sem alta dada',
       });
     });
 
@@ -1142,7 +1173,7 @@ function buildFisioActions() {
         urgency: 'semana', variant: 'warn', family: 'conflitos',
         name: nome(a.player_id), athlete: a.player_id, tab: 'fisioterapia',
         title: `Atendimento de ${nome(a.player_id)} choca com um treino`,
-        sub: `${dataCurta(a.date)} — a equipa dela tem evento à mesma hora.`,
+        sub: `${dataCurta(a.date)} — a equipa tem evento à mesma hora`,
       });
     });
 
@@ -1156,7 +1187,6 @@ function buildFisioActions() {
         urgency: 'semana', variant: 'info', family: 'sem_previsao',
         name: nome(e.player_id), athlete: e.player_id, tab: 'fisioterapia',
         title: `${nome(e.player_id)} sem previsão de retorno`,
-        sub: 'Sem data prevista o treinador não sabe com quem conta.',
       });
     });
 
@@ -1201,51 +1231,46 @@ function renderFisioPainel(container) {
 
   const actions = buildFisioActions();
   const urgente = actions.some((a) => a.urgency === 'agora');
-  const corpo = urgente ? [workCard(actions), statStrip(stats)] : [statStrip(stats), workCard(actions)];
 
   container.innerHTML = `
     <header class="page-head page-head--hero">
       <div>
         <h1 class="section-title">${esc(greeting())}${displayName() ? ', ' + esc(displayName()) : ''}</h1>
-        <p class="muted" style="margin:0;font-size:0.9rem">${esc(fisioLine(todayAppts, actions, urgente))}</p>
+        <p class="muted" style="margin:0;font-size:0.9rem">Departamento Médico.</p>
       </div>
     </header>
 
-    ${todayAppts.length ? `<section class="card today-card">
-      <h2 class="section-title upcoming-card__title">Hoje</h2>
-      <ul class="today-list">${todayAppts.map(apptRow).join('')}</ul>
-    </section>` : ''}
+    ${urgente ? '' : statStrip(stats)}
 
-    ${corpo.join('')}
+    <div class="panel-grid${urgente ? '' : ' panel-grid--calm'}">
+      <div class="panel-grid__main">
+        ${workCard(actions)}
 
-    <section class="card">
-      <h2 class="section-title upcoming-card__title">Atletas em tratamento</h2>
-      ${recovering.length ? `<ul class="today-list">${recovering.map(injuredRow).join('')}</ul>`
-        : '<p class="muted" style="margin:0.3rem 0 0">Nenhum atleta com episódio em curso.</p>'}
-    </section>
+        <section class="card">
+          <h2 class="section-title upcoming-card__title">Atletas em tratamento</h2>
+          ${recovering.length ? `<ul class="today-list">${recovering.map(injuredRow).join('')}</ul>`
+            : '<p class="muted" style="margin:0.3rem 0 0">Nenhum atleta com episódio em curso.</p>'}
+        </section>
+      </div>
+      <aside class="panel-grid__side">
+        ${todayAppts.length ? `<section class="card today-card">
+          <h2 class="section-title upcoming-card__title">Hoje</h2>
+          <ul class="today-list">${todayAppts.map(apptRow).join('')}</ul>
+        </section>` : ''}
 
-    <section class="card">
-      <h2 class="section-title upcoming-card__title">Próximos atendimentos</h2>
-      ${upcoming.length ? `<ul class="today-list">${upcoming.map(apptRow).join('')}</ul>`
-        : '<p class="muted" style="margin:0.3rem 0 0">Sem outros atendimentos agendados.</p>'}
-    </section>
+        <section class="card">
+          <h2 class="section-title upcoming-card__title">Próximos atendimentos</h2>
+          ${upcoming.length ? `<ul class="today-list">${upcoming.map(apptRow).join('')}</ul>`
+            : '<p class="muted" style="margin:0.3rem 0 0">Sem outros atendimentos agendados.</p>'}
+        </section>
+      </aside>
+    </div>
+
+    ${urgente ? statStrip(stats) : ''}
   `;
 
   wireWorkCard(container, () => renderFisioPainel(container));
   wireAreaPainel(container, 'fisioterapia');
-}
-
-// Primeira linha do cabeçalho do fisio — mesma regra do painel do
-// coordenador: com trabalho urgente é isso que se diz, senão é a agenda.
-function fisioLine(todayAppts, actions, urgente) {
-  if (urgente) {
-    const n = actions.filter((a) => a.urgency === 'agora').length;
-    return `${n} coisa${n === 1 ? '' : 's'} precisa${n === 1 ? '' : 'm'} de ti agora.`;
-  }
-  if (todayAppts.length) {
-    return `Tens ${todayAppts.length} atendimento${todayAppts.length === 1 ? '' : 's'} hoje.`;
-  }
-  return 'Nada agendado para hoje no Departamento Médico.';
 }
 
 // Data curta e legível (dd mmm) para os subtítulos das pendências.
@@ -1348,7 +1373,6 @@ function buildPrepActions() {
         urgency: 'semana', variant: 'warn', family: 'sem_perfil',
         name: p.name, athlete: p.id, tab: 'fisica',
         title: `${p.name} sem perfil físico`,
-        sub: 'Sem altura nem peso não há IMC nem comparação possível.',
       });
       return;
     }
@@ -1358,14 +1382,12 @@ function buildPrepActions() {
         urgency: 'semana', variant: 'info', family: 'sem_avaliacao',
         name: p.name, athlete: p.id, tab: 'fisica',
         title: `${p.name} nunca foi avaliada`,
-        sub: 'Sem uma primeira medição não há evolução para mostrar.',
       });
     } else if (data < limiteISO) {
       items.push({
         urgency: 'depois', variant: 'info', family: 'avaliacao_antiga',
         name: p.name, athlete: p.id, tab: 'fisica',
         title: `${p.name} sem avaliação desde ${dataCurta(data)}`,
-        sub: `Passaram mais de ${STALE_TEST_DAYS} dias — repetir para haver evolução.`,
       });
     }
   });
@@ -1410,36 +1432,35 @@ function renderPreparadorPainel(container) {
   ];
 
   const actions = buildPrepActions();
-  // Aqui NADA é "agora" de propósito: medir um atleta é trabalho de semanas,
-  // não de horas. Por isso a faixa vem sempre primeiro — inventar urgência
-  // onde não há é a forma mais rápida de o degrau "Agora" deixar de ser lido.
-  const corpo = [statStrip(stats), workCard(actions)];
 
   container.innerHTML = `
     <header class="page-head page-head--hero">
       <div>
         <h1 class="section-title">${esc(greeting())}${displayName() ? ', ' + esc(displayName()) : ''}</h1>
-        <p class="muted" style="margin:0;font-size:0.9rem">
-          ${esc(actions.length
-            ? 'Resumo da Preparação Física — há atletas por medir.'
-            : 'Resumo da Preparação Física — o plantel está todo medido.')}
-        </p>
+        <p class="muted" style="margin:0;font-size:0.9rem">Preparação Física.</p>
       </div>
     </header>
 
-    ${corpo.join('')}
+    ${statStrip(stats)}
 
-    <section class="card">
-      <h2 class="section-title upcoming-card__title">Próximos treinos de ginásio</h2>
-      ${upcomingGym.length ? `<ul class="today-list">${upcomingGym.map(gymRow).join('')}</ul>`
-        : '<p class="muted" style="margin:0.3rem 0 0">Sem treinos de ginásio agendados.</p>'}
-    </section>
+    <div class="panel-grid panel-grid--calm">
+      <div class="panel-grid__main">
+        ${workCard(actions)}
 
-    <section class="card">
-      <h2 class="section-title upcoming-card__title">Próximos jogos</h2>
-      ${upcomingGames.length ? upcomingList(upcomingGames)
-        : '<p class="muted" style="margin:0.3rem 0 0">Sem jogos agendados.</p>'}
-    </section>
+        <section class="card">
+          <h2 class="section-title upcoming-card__title">Próximos treinos de ginásio</h2>
+          ${upcomingGym.length ? `<ul class="today-list">${upcomingGym.map(gymRow).join('')}</ul>`
+            : '<p class="muted" style="margin:0.3rem 0 0">Sem treinos de ginásio agendados.</p>'}
+        </section>
+      </div>
+      <aside class="panel-grid__side">
+        <section class="card">
+          <h2 class="section-title upcoming-card__title">Próximos jogos</h2>
+          ${upcomingGames.length ? upcomingList(upcomingGames)
+            : '<p class="muted" style="margin:0.3rem 0 0">Sem jogos agendados.</p>'}
+        </section>
+      </aside>
+    </div>
   `;
 
   wireWorkCard(container, () => renderPreparadorPainel(container));
@@ -1548,41 +1569,48 @@ function renderTreinadorPainel(container) {
       </div>
     </header>
 
-    ${today.length ? `<section class="card today-card">
-      <h2 class="section-title upcoming-card__title">Hoje</h2>
-      <ul class="mark-list">${today.map(coachTodayRow).join('')}</ul>
-    </section>` : ''}
+    ${urgente ? '' : statStrip(stats)}
 
-    ${toMark.length ? markCard(toMark, atrasados, antigos) : ''}
+    <div class="panel-grid${urgente ? '' : ' panel-grid--calm'}">
+      <div class="panel-grid__main">
+        ${toMark.length ? markCard(toMark, atrasados, antigos) : ''}
 
-    ${urgente ? workCard(actions) : ''}
-    ${statStrip(stats)}
+        ${semPlano.length ? `<section class="card mark-card">
+          <h2 class="section-title upcoming-card__title">Treinos por preparar</h2>
+          <p class="muted" style="margin:0 0 0.5rem;font-size:0.85rem">
+            Próximos 7 dias, ainda sem exercícios no plano.
+          </p>
+          <ul class="mark-list">${semPlano.slice(0, 6).map(planRow).join('')}</ul>
+        </section>` : ''}
 
-    ${semPlano.length ? `<section class="card mark-card">
-      <h2 class="section-title upcoming-card__title">Treinos por preparar</h2>
-      <p class="muted" style="margin:0 0 0.5rem;font-size:0.85rem">
-        Próximos 7 dias, ainda sem exercícios no plano.
-      </p>
-      <ul class="mark-list">${semPlano.slice(0, 6).map(planRow).join('')}</ul>
-    </section>` : ''}
+        ${semResultado.length ? `<section class="card mark-card">
+          <h2 class="section-title upcoming-card__title">Jogos por registar</h2>
+          <ul class="mark-list">${semResultado.map(resultRow).join('')}</ul>
+        </section>` : ''}
 
-    ${semResultado.length ? `<section class="card mark-card">
-      <h2 class="section-title upcoming-card__title">Jogos por registar</h2>
-      <ul class="mark-list">${semResultado.map(resultRow).join('')}</ul>
-    </section>` : ''}
+        ${workCard(actions)}
+      </div>
+      <aside class="panel-grid__side">
+        ${today.length ? `<section class="card today-card">
+          <h2 class="section-title upcoming-card__title">Hoje</h2>
+          ${sharedLocation(today) ? `<p class="muted today-card__where">${esc(sharedLocation(today))}</p>` : ''}
+          <ul class="mark-list">${today.map((e) => coachTodayRow(e, !!sharedLocation(today))).join('')}</ul>
+        </section>` : ''}
 
-    ${urgente ? '' : workCard(actions)}
+        ${limitados.length ? `<section class="card">
+          <h2 class="section-title upcoming-card__title">Não estão a 100%</h2>
+          <ul class="today-list">${limitados.slice(0, 8).map(limitedRow).join('')}</ul>
+        </section>` : ''}
 
-    ${limitados.length ? `<section class="card">
-      <h2 class="section-title upcoming-card__title">Não estão a 100%</h2>
-      <ul class="today-list">${limitados.slice(0, 8).map(limitedRow).join('')}</ul>
-    </section>` : ''}
+        <section class="card">
+          <h2 class="section-title upcoming-card__title">Próximos eventos</h2>
+          ${upcoming.length ? upcomingList(upcoming)
+            : '<p class="muted" style="margin:0.3rem 0 0">Sem outros eventos agendados.</p>'}
+        </section>
+      </aside>
+    </div>
 
-    <section class="card">
-      <h2 class="section-title upcoming-card__title">Próximos eventos</h2>
-      ${upcoming.length ? upcomingList(upcoming)
-        : '<p class="muted" style="margin:0.3rem 0 0">Sem outros eventos agendados.</p>'}
-    </section>
+    ${urgente ? statStrip(stats) : ''}
   `;
 
   wireWorkCard(container, () => renderTreinadorPainel(container));
@@ -1630,7 +1658,7 @@ function markCard(toMark, atrasados, antigos) {
 }
 
 // Linha de "Hoje": mostra o evento e o que se pode fazer com ele agora.
-function coachTodayRow(ev) {
+function coachTodayRow(ev, hideLocation = false) {
   const team = teamById(ev.team_id);
   const range = eventTimeRange(ev);
   const isJogo = ev.type === 'jogo';
@@ -1644,7 +1672,7 @@ function coachTodayRow(ev) {
         <span class="mark-item__title">${esc(team ? teamName(team) : (ev.title || 'Evento'))}</span>
         <span class="muted mark-item__sub">${esc([
           ev.opponent ? 'vs ' + ev.opponent : '',
-          ev.location || '',
+          hideLocation ? '' : (ev.location || ''),
         ].filter(Boolean).join(' · ') || '—')}</span>
       </div>
       <div style="display:flex;gap:0.4rem;align-items:center;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
