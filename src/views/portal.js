@@ -538,9 +538,18 @@ function openRequestModal(me) {
     // Como se preenche isto é uma frase sobre o formulário INTEIRO, por isso
     // vai no `intro` e não no `hint` do primeiro artigo — pendurada aí, lia-se
     // como se fosse uma instrução sobre a camisola de treino.
-    intro: articles.some((x) => x.price != null)
-      ? 'Escolhe o tamanho do que precisas e deixa em branco o resto. A caixa ao lado é a quantidade, se precisares de mais do que uma. Os valores são o que cada peça custa ao clube.'
-      : 'Escolhe o tamanho do que precisas e deixa em branco o resto. A caixa ao lado é a quantidade, se precisares de mais do que uma.',
+    // A frase só fala da quantidade se ALGUM artigo a permitir: num clube em
+    // que tudo é uma unidade, explicar uma caixa que não existe é pior do que
+    // não explicar nada.
+    intro: [
+      'Escolhe o tamanho do que precisas e deixa em branco o resto.',
+      articles.some((x) => x.maxQty > 1)
+        ? 'Onde houver caixa ao lado, é a quantidade.'
+        : '',
+      articles.some((x) => x.price != null)
+        ? 'Os valores são o que cada peça custa ao clube.'
+        : '',
+    ].filter(Boolean).join(' '),
     fields: [
       ...articles.map((a) => ({
         name: `art__${a.key}`,
@@ -554,12 +563,15 @@ function openRequestModal(me) {
         // quem escolhe aqui entrou no clube em setembro. A foto responde à
         // pergunta que o nome não responde.
         ...(a.photo ? { image: articlePhotoUrl(a.photo) } : {}),
-        // Quantas. Três camisolas do mesmo tamanho é UM pedido de três, não
-        // três voltas ao formulário — e é assim que já funciona no ecrã do
-        // treinador (`quantity`, 1 a 50 na base de dados). Vai ao lado do
-        // tamanho e estreita: é quase sempre 1, e quem não lhe tocar pede
-        // uma, como antes.
-        qty: { name: `qtd__${a.key}`, max: 20, default: 1 },
+        // Quantas — só nos artigos em que o clube o permitiu (`max_qty` nas
+        // Definições). Três camisolas do mesmo tamanho é UM pedido de três,
+        // não três voltas ao formulário; três blusões é engano, e é por isso
+        // que a decisão é do clube e artigo a artigo. Com 1 não se desenha
+        // caixa nenhuma: um controlo que só pode dizer "uma" é um controlo a
+        // mais num formulário de telemóvel.
+        ...(a.maxQty > 1
+          ? { qty: { name: `qtd__${a.key}`, max: a.maxQty, default: 1 } }
+          : {}),
         ...(a.sizes.length
           ? {
               type: 'select',
@@ -590,10 +602,10 @@ function openRequestModal(me) {
         .map((a) => ({
           article: a.key,
           size: (v[`art__${a.key}`] || '').trim(),
-          // Limitado ao que a base de dados aceita (1 a 50) e ao que o campo
-          // oferece: um "200" escrito à mão não pode passar daqui para uma
-          // decisão de compra.
-          quantity: Math.min(Math.max(parseInt(v[`qtd__${a.key}`], 10) || 1, 1), 20),
+          // Limitado ao teto do próprio artigo: o `max` do input é uma
+          // sugestão do browser, e um "200" escrito à mão não pode passar
+          // daqui para uma decisão de compra.
+          quantity: Math.min(Math.max(parseInt(v[`qtd__${a.key}`], 10) || 1, 1), a.maxQty),
         }))
         .filter((x) => x.size)
         .map((x) => ({

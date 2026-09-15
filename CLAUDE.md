@@ -632,11 +632,22 @@ separador antes de navegar (usado pelos cartões do Painel).
       `openModal`): três camisolas do mesmo tamanho são UM pedido de três, e
       sem isto a única saída era pedir uma e voltar ao formulário — que num
       telemóvel é a maneira de a terceira nunca ser pedida. É a mesma coluna
-      `quantity` que o ecrã do treinador já preenchia (1 a 50 na base de
-      dados; o portal oferece até 20). Fica no MESMO campo do tamanho, e
-      estreita: que tamanho e quantas são duas respostas sobre a mesma peça, e
-      um campo à parte por artigo duplicava o formulário. Quem não lhe tocar
-      pede uma, como antes.
+      `quantity` que o ecrã do treinador já preenchia. Fica no MESMO campo do
+      tamanho, e estreita: que tamanho e quantas são duas respostas sobre a
+      mesma peça, e um campo à parte por artigo duplicava o formulário.
+    - **Quantas pode pedir de cada vez é do ARTIGO e decide-o o coordenador**
+      (`max_qty` em `settings.equipment_articles`, `articleMaxQty()`): três
+      pares de meias num pedido é normal, três blusões é engano — e o blusão
+      é o que custa 37 €. É a mesma lógica do `requestable`: o que trava o
+      volume não é um tudo-ou-nada, é a decisão artigo a artigo de quem paga.
+      **O valor de origem é 1, e 1 não é "por configurar" — é a resposta**:
+      nesse caso o portal nem desenha a caixa, porque um controlo que só pode
+      dizer "uma" é um controlo a mais num formulário de telemóvel, e a
+      instrução do topo só fala da quantidade se algum artigo a permitir. O
+      teto é 20, validado nas Definições E na gravação do pedido: o `max` do
+      input é uma sugestão do browser. O ecrã do TREINADOR não tem este
+      limite (1 a 50, o da base de dados) — quem lança lá é o clube a decidir
+      por si próprio, não a pedir.
     - **Não se pergunta PORQUÊ.** O ecrã do treinador tem a lista de motivos
       (danificado, tamanho, perdido…) porque é ELE que lança o pedido de
       outra pessoa e o clube precisa de saber de onde veio. Aqui quem pede é

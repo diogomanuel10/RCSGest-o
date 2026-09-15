@@ -847,6 +847,7 @@ export function renderDefinicoes(container) {
                 ${a.sizes.length ? esc(a.sizes.join(' · ')) : 'Tamanho em texto livre'}
                 ${a.price != null ? ` · ${esc(euros(a.price))}` : ''}
                 ${a.requestable ? ' · 🙋 as atletas podem pedir' : ''}
+                ${a.requestable && a.max_qty > 1 ? ` · até ${a.max_qty} de cada vez` : ''}
               </small>
             </span>
             <span class="chip__actions">
@@ -913,6 +914,7 @@ export function renderDefinicoes(container) {
           label: editing?.label || '',
           sizes: (editing?.sizes || TEXT_SIZES).join(', '),
           price: editing?.price ?? '',
+          max_qty: String(editing?.max_qty || 1),
           photo_action: 'manter',
         },
         fields: [
@@ -936,6 +938,15 @@ export function renderDefinicoes(container) {
             name: 'price', label: 'Preço unitário (€)', type: 'number',
             placeholder: 'ex.: 12.50',
             hint: 'Opcional. Serve para orçamentar a encomenda e para decidires um pedido sabendo quanto custa. Deixa vazio se ainda não sabes — zero quer dizer que o clube dá de graça.',
+          },
+          // Quantas de uma vez. É por ARTIGO porque a pergunta é do artigo:
+          // três pares de meias num pedido é normal, três blusões é engano —
+          // e o blusão é o que custa 37 €. Em 1 (o valor de origem) o portal
+          // nem mostra a caixa da quantidade: um controlo que só pode dizer
+          // "uma" é um controlo a mais num formulário de telemóvel.
+          {
+            name: 'max_qty', label: 'Quantas pode pedir de uma vez', type: 'number',
+            hint: 'Vale para os pedidos das atletas no portal. Em 1, não há quantidade a escolher — pedem uma. Máximo 20.',
           },
           {
             name: 'photo_file', label: 'Foto', type: 'file', accept: 'image/*',
@@ -975,6 +986,15 @@ export function renderDefinicoes(container) {
             price = Math.round(n * 100) / 100;
           }
 
+          // Um artigo tem de poder pedir-se pelo menos uma vez, e o teto é o
+          // da coluna `quantity`. Um valor esquisito escrito aqui viajava
+          // até ao formulário da atleta.
+          const rawQty = (values.max_qty ?? '').toString().trim();
+          const maxQty = rawQty === '' ? 1 : Number(rawQty);
+          if (!Number.isInteger(maxQty) || maxQty < 1 || maxQty > 20) {
+            throw new Error('A quantidade máxima tem de ser um número inteiro entre 1 e 20.');
+          }
+
           const sizes = (values.sizes || '')
             .split(',')
             .map((x) => x.trim())
@@ -1007,12 +1027,15 @@ export function renderDefinicoes(container) {
           }
 
           if (editing) {
-            artList[index] = { ...editing, label, sizes, photo, price };
+            artList[index] = { ...editing, label, sizes, photo, price, max_qty: maxQty };
           } else {
             // Nasce NÃO pedível: pôr um artigo no catálogo do clube e abri-lo
             // aos pedidos das atletas são duas decisões, e a segunda é a que
             // custa dinheiro.
-            artList.push({ key, label, sizes, photo, price, active: true, requestable: false });
+            artList.push({
+              key, label, sizes, photo, price, max_qty: maxQty,
+              active: true, requestable: false,
+            });
           }
           artMsg.classList.add('hidden');
           drawArtList();
@@ -1032,7 +1055,8 @@ export function renderDefinicoes(container) {
     );
     if (!ok) return;
     artList = DEFAULT_EQUIPMENT_ARTICLES.map((a) => ({
-      ...a, sizes: [...a.sizes], photo: '', price: null, active: true, requestable: false,
+      ...a, sizes: [...a.sizes], photo: '', price: null, max_qty: 1,
+      active: true, requestable: false,
     }));
     drawArtList();
   });
