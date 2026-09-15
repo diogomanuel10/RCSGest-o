@@ -16,7 +16,7 @@ import { canEdit, canDecideRequests, isClubWide } from '../permissions.js';
 import {
   teamName, myTeams, equipmentArticles, playerSizes,
   articleLabel as configuredArticleLabel,
-  allEquipmentArticles,
+  allEquipmentArticles, articleVariant, sortSizes,
 } from '../compute.js';
 import {
   REQUEST_REASONS,
@@ -30,6 +30,11 @@ import {
 let statusFilter = 'abertos'; // 'abertos' | chave de estado | 'todos'
 let teamFilter = '';
 let page = 1;
+// Lista (pedido a pedido, para decidir) ou Resumo (o total por artigo e
+// tamanho, para encomendar). São as duas perguntas que este ecrã responde e
+// nenhuma serve para a outra: aprovar é uma linha de cada vez, encomendar é
+// "quantas M no total". Estado de UI, como os filtros.
+let mode = 'lista';
 
 // Corpo do separador "Pedidos" (renderizado pelo orquestrador Equipamentos).
 export function renderPedidosBody(container) {
@@ -102,6 +107,13 @@ export function renderPedidosBody(container) {
             <option value="todos" ${statusFilter === 'todos' ? 'selected' : ''}>Todos</option>
           </select>
         </div>
+        <div>
+          <label for="req-mode">Ver</label>
+          <select id="req-mode">
+            <option value="lista" ${mode === 'lista' ? 'selected' : ''}>Lista de pedidos</option>
+            <option value="resumo" ${mode === 'resumo' ? 'selected' : ''}>Resumo para encomendar</option>
+          </select>
+        </div>
         ${canRequest ? '<button class="btn btn--accent" id="add-req" type="button" style="margin-left:auto">+ Pedido</button>' : ''}
       </div>
     </div>
@@ -129,7 +141,9 @@ export function renderPedidosBody(container) {
       </div>
     </section>
 
-    ${rows.length
+    ${mode === 'resumo' ? summaryHTML(rows, playerById) : ''}
+
+    ${mode === 'lista' && rows.length
       ? `<div class="card" style="padding:0;overflow-x:auto">
           <table class="data-table">
             <thead>
@@ -150,7 +164,7 @@ export function renderPedidosBody(container) {
           </table>
          </div>
          ${paginationHTML({ ...pg, id: 'req' })}`
-      : emptyHTML(
+      : mode === 'resumo' ? '' : emptyHTML(
           all.length
             ? 'Nenhum pedido neste filtro.'
             : 'Ainda não há pedidos de equipamento.',
@@ -164,6 +178,11 @@ export function renderPedidosBody(container) {
 
   container.querySelector('#req-team')?.addEventListener('change', (e) => {
     teamFilter = e.target.value;
+    page = 1;
+    renderPedidosBody(container);
+  });
+  container.querySelector('#req-mode')?.addEventListener('change', (e) => {
+    mode = e.target.value;
     page = 1;
     renderPedidosBody(container);
   });
@@ -187,6 +206,110 @@ export function renderPedidosBody(container) {
     page = np;
     renderPedidosBody(container);
   });
+}
+
+// --- Resumo para encomendar ----------------------------------------------
+//
+// A lista responde "o que decido a seguir", uma linha de cada vez. Não
+// responde à pergunta que se leva ao fornecedor — "quantas camisolas de
+// treino M, ao todo?" — e somar quarenta linhas à mão numa folha à parte é
+// onde as encomendas se perdem (foi por isso que as Encomendas existem).
+//
+// Conta EXATAMENTE o que está no filtro em cima: mudar o estado para
+// "Aprovados" dá o que já foi decidido e há mesmo que comprar; "Por resolver"
+// dá o cenário completo se tudo for aprovado. Um resumo com um âmbito próprio,
+// diferente do da lista ao lado, seria dois números a discordar no mesmo ecrã.
+//
+// A quantidade de cada pedido conta (`quantity`): três camisolas são três.
+function summaryGroups(rows, playerById) {
+  const groups = new Map();
+  rows.forEach((r) => {
+    const player = playerById[r.player_id];
+    const variant = articleVariant(r.article, player?.team_id);
+    const key = `${r.article}|${r.article_other || ''}|${variant}`;
+    if (!groups.has(key)) {
+      groups.set(key, {
+        article: r.article,
+        label: articleLabel(r),
+        variant,
+        sizes: {},
+        total: 0,
+        cost: 0,
+        missing: 0,
+      });
+    }
+    const g = groups.get(key);
+    const qty = r.quantity || 1;
+    // Um pedido sem tamanho continua a ser uma unidade a encomendar: dizer
+    // "—" é pior do que deixá-lo de fora da contagem e dar um total curto.
+    const size = (r.size || '').trim() || '—';
+    g.sizes[size] = (g.sizes[size] || 0) + qty;
+    g.total += qty;
+    const c = requestCost(r);
+    if (c == null) g.missing += qty;
+    else g.cost += c;
+  });
+  // Pelo artigo (ordem da lista do clube) e, dentro dele, pela variante.
+  const order = allEquipmentArticles().map((a) => a.key);
+  return [...groups.values()].sort((a, b) => {
+    const ia = order.indexOf(a.article);
+    const ib = order.indexOf(b.article);
+    if (ia !== ib) return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+    return a.variant.localeCompare(b.variant, 'pt');
+  });
+}
+
+function summaryHTML(rows, playerById) {
+  if (!rows.length) {
+    return emptyHTML('Nenhum pedido neste filtro para somar.', { icone: '🧮' });
+  }
+  const groups = summaryGroups(rows, playerById);
+  const units = groups.reduce((n, g) => n + g.total, 0);
+  const cost = groups.reduce((n, g) => n + g.cost, 0);
+  const missing = groups.reduce((n, g) => n + g.missing, 0);
+
+  return `
+    <div class="card enc-budget" style="margin-bottom:1rem">
+      <div>
+        <span class="enc-budget__label">A encomendar neste filtro</span>
+        <strong class="enc-budget__value">${units} unidade${units !== 1 ? 's' : ''}</strong>
+      </div>
+      <span class="muted enc-budget__note">
+        ${cost ? `${esc(euros(cost))} em artigos com preço` : 'Sem preços definidos'}
+        ${missing ? ` · <strong>${missing} por orçamentar</strong>` : ''}
+      </span>
+    </div>
+
+    <div class="enc-resumo-grid">
+      ${groups.map((g) => {
+        const article = allEquipmentArticles().find((a) => a.key === g.article);
+        const entries = sortSizes(Object.keys(g.sizes), article).map((k) => [k, g.sizes[k]]);
+        return `
+          <div class="card enc-resumo-card">
+            <h3 class="enc-resumo-title">
+              ${esc(g.label)}
+              ${g.variant ? `<span class="badge badge--muted">${esc(g.variant)}</span>` : ''}
+            </h3>
+            <ul class="enc-resumo-list">
+              ${entries.map(([size, count]) => `
+                <li class="enc-resumo-row">
+                  <span class="badge badge--info enc-resumo-size">${esc(size)}</span>
+                  <span class="enc-resumo-count">${count}×</span>
+                  <div class="enc-resumo-bar-wrap">
+                    <div class="enc-resumo-bar" style="width:${Math.round((count / g.total) * 100)}%"></div>
+                  </div>
+                </li>
+              `).join('')}
+            </ul>
+            <p class="muted enc-resumo-total">
+              Total: ${g.total} unidade${g.total !== 1 ? 's' : ''}
+              ${g.cost ? `· <strong>${esc(euros(g.cost))}</strong>` : ''}
+              ${g.missing ? `· <span class="enc-resumo-unit">${g.missing} sem preço</span>` : ''}
+            </p>
+          </div>`;
+      }).join('')}
+    </div>
+  `;
 }
 
 // Ordem: primeiro o que está por resolver (mais antigo à frente — é o que já

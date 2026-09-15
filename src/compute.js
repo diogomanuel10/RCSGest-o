@@ -67,6 +67,7 @@ export function equipmentArticles() {
       sizes: Array.isArray(a.sizes) ? a.sizes.filter(Boolean) : [],
       requestable: a.requestable === true,
       multiple: a.multiple === true,
+      variant: (a.variant || '').trim(),
       photo: a.photo || '',
       price: articlePrice(a),
     }));
@@ -85,6 +86,7 @@ export function allEquipmentArticles() {
       sizes: Array.isArray(a.sizes) ? a.sizes.filter(Boolean) : [],
       requestable: a.requestable === true,
       multiple: a.multiple === true,
+      variant: (a.variant || '').trim(),
       photo: a.photo || '',
       price: articlePrice(a),
       active: a.active !== false,
@@ -268,6 +270,32 @@ export function birthDateReady() {
 // agora.
 export function whatsappReady() {
   return !state.teams.length || 'whatsapp_url' in state.teams[0];
+}
+
+// A coluna `teams.kit_variant` chega por migração
+// (`supabase/variante-equipamento.sql`). Mesma regra do link do grupo.
+export function kitVariantReady() {
+  return !state.teams.length || 'kit_variant' in state.teams[0];
+}
+
+// A variante (cor/modelo) com que UMA equipa usa UM artigo.
+//
+// Existe porque a mesma camisola de treino não é a mesma peça em todos os
+// escalões — os sub-21 usam-na azul e os restantes branca — e uma contagem
+// que junte as duas dá um número que não se pode levar ao fornecedor.
+//
+// A regra do clube está no ARTIGO (`variant` nas Definições: "Branca") e a
+// equipa só a contradiz quando foge a ela (`teams.kit_variant`: "Azul"). Ao
+// contrário, seria preciso escrever a cor em todas as equipas para que a
+// exceção de uma se lesse. **Um artigo sem variante declarada não se separa
+// de todo**: a mochila é a mesma para toda a gente, e uma contagem partida
+// em duas colunas iguais é ruído.
+export function articleVariant(articleKey, teamId) {
+  const art = allEquipmentArticles().find((a) => a.key === articleKey);
+  const base = (art?.variant || '').trim();
+  if (!base) return '';
+  const own = (teamById(teamId)?.kit_variant || '').trim();
+  return own || base;
 }
 
 // Data de nascimento de um atleta como `Date` local (ou null). Constrói-se com

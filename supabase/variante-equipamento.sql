@@ -1,0 +1,25 @@
+-- Cor / modelo do equipamento por escalão (resumo dos pedidos)
+-- ------------------------------------------------------------------
+-- Correr no SQL Editor do Supabase (depois de `schema.sql` e de
+-- `artigos-configuraveis.sql`).
+--
+-- Contar os pedidos por artigo e tamanho responde "quantas camisolas de
+-- treino M é que tenho de encomendar?" — mas num clube a mesma camisola não
+-- é a mesma peça em todos os escalões: os sub-21 usam-na azul e os restantes
+-- branca. Uma contagem que junte as duas dá um número que não se pode levar
+-- ao fornecedor, e o erro só aparece quando a encomenda chega.
+--
+-- A cor vive na EQUIPA, como o link do grupo de WhatsApp: é do escalão, não
+-- do clube nem do atleta. É TEXTO LIVRE de propósito — hoje é uma cor, no
+-- clube do lado é "modelo antigo" ou o nome do patrocinador na frente, e uma
+-- lista fechada obrigaria a prever isso tudo.
+--
+-- Fica vazia em quase todas as equipas: a variante por omissão de cada artigo
+-- está nas Definições (`settings.equipment_articles[].variant`), e a equipa só
+-- preenche isto quando FOGE a essa regra. Sem variante no artigo, não há
+-- separação nenhuma — a contagem é uma só, como era.
+alter table teams add column if not exists kit_variant text;
+
+-- Sem política nova: `teams` já tem o RLS por papel do `schema.sql`, e isto é
+-- mais uma coluna da equipa. Sem CHECK, pela mesma razão do `whatsapp_url` —
+-- um CHECK a um campo opcional recusava a gravação da equipa inteira.
