@@ -847,6 +847,7 @@ export function renderDefinicoes(container) {
                 ${a.sizes.length ? esc(a.sizes.join(' · ')) : 'Tamanho em texto livre'}
                 ${a.price != null ? ` · ${esc(euros(a.price))}` : ''}
                 ${a.requestable ? ' · 🙋 as atletas podem pedir' : ''}
+                ${a.requestable && a.multiple ? ' · com quantidade' : ''}
               </small>
             </span>
             <span class="chip__actions">
@@ -913,6 +914,7 @@ export function renderDefinicoes(container) {
           label: editing?.label || '',
           sizes: (editing?.sizes || TEXT_SIZES).join(', '),
           price: editing?.price ?? '',
+          multiple: editing?.multiple === true ? 'sim' : 'nao',
           photo_action: 'manter',
         },
         fields: [
@@ -936,6 +938,19 @@ export function renderDefinicoes(container) {
             name: 'price', label: 'Preço unitário (€)', type: 'number',
             placeholder: 'ex.: 12.50',
             hint: 'Opcional. Serve para orçamentar a encomenda e para decidires um pedido sabendo quanto custa. Deixa vazio se ainda não sabes — zero quer dizer que o clube dá de graça.',
+          },
+          // Caixa da quantidade, sim ou não. É por ARTIGO porque a pergunta é
+          // do artigo: três pares de meias num pedido é normal, três blusões
+          // é engano — e o blusão é o que custa 37 €. Por omissão não há
+          // caixa: um controlo que só pode dizer "uma" é um controlo a mais
+          // num formulário de telemóvel.
+          {
+            name: 'multiple', label: 'Quantidade', type: 'select',
+            options: [
+              { key: 'nao', label: 'Uma de cada vez (sem caixa de quantidade)' },
+              { key: 'sim', label: 'Pode escolher quantas' },
+            ],
+            hint: 'Vale para os pedidos das atletas no portal.',
           },
           {
             name: 'photo_file', label: 'Foto', type: 'file', accept: 'image/*',
@@ -975,6 +990,8 @@ export function renderDefinicoes(container) {
             price = Math.round(n * 100) / 100;
           }
 
+          const multiple = values.multiple === 'sim';
+
           const sizes = (values.sizes || '')
             .split(',')
             .map((x) => x.trim())
@@ -1007,12 +1024,15 @@ export function renderDefinicoes(container) {
           }
 
           if (editing) {
-            artList[index] = { ...editing, label, sizes, photo, price };
+            artList[index] = { ...editing, label, sizes, photo, price, multiple };
           } else {
             // Nasce NÃO pedível: pôr um artigo no catálogo do clube e abri-lo
             // aos pedidos das atletas são duas decisões, e a segunda é a que
             // custa dinheiro.
-            artList.push({ key, label, sizes, photo, price, active: true, requestable: false });
+            artList.push({
+              key, label, sizes, photo, price, multiple,
+              active: true, requestable: false,
+            });
           }
           artMsg.classList.add('hidden');
           drawArtList();
@@ -1032,7 +1052,8 @@ export function renderDefinicoes(container) {
     );
     if (!ok) return;
     artList = DEFAULT_EQUIPMENT_ARTICLES.map((a) => ({
-      ...a, sizes: [...a.sizes], photo: '', price: null, active: true, requestable: false,
+      ...a, sizes: [...a.sizes], photo: '', price: null, multiple: false,
+      active: true, requestable: false,
     }));
     drawArtList();
   });

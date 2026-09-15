@@ -2744,7 +2744,24 @@ button.stat-strip__item--nav:hover {
 .field--with-image > input,
 .field--with-image > select,
 .field--with-image > textarea,
+.field--with-image > .field__controls,
 .field--with-image > .field__hint { grid-column: 1 / -1; }
+
+/* Controlo principal + quantidade, lado a lado no mesmo campo: que tamanho e
+   quantas são duas respostas sobre a mesma peça. A quantidade é estreita de
+   propósito — é quase sempre 1, e larga passava a parecer a pergunta
+   principal. */
+.field__controls {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.field__controls > :first-child { flex: 1 1 auto; min-width: 0; }
+.field__qty {
+  flex: 0 0 5rem;
+  width: 5rem;
+  text-align: center;
+}
 
 /* Orçamento da encomenda: o número que se leva à direção, por isso à
    cabeça do resumo e não no fim de uma lista de cartões. */

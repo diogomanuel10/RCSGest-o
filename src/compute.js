@@ -66,6 +66,7 @@ export function equipmentArticles() {
       label: a.label || a.key,
       sizes: Array.isArray(a.sizes) ? a.sizes.filter(Boolean) : [],
       requestable: a.requestable === true,
+      multiple: a.multiple === true,
       photo: a.photo || '',
       price: articlePrice(a),
     }));
@@ -83,11 +84,18 @@ export function allEquipmentArticles() {
       label: a.label || a.key,
       sizes: Array.isArray(a.sizes) ? a.sizes.filter(Boolean) : [],
       requestable: a.requestable === true,
+      multiple: a.multiple === true,
       photo: a.photo || '',
       price: articlePrice(a),
       active: a.active !== false,
     }));
 }
+
+// `multiple` diz se o artigo aparece no portal COM caixa de quantidade. É por
+// artigo e é decisão do clube: três pares de meias num pedido é normal, três
+// blusões é engano — e o blusão é o que custa 37 €. Por omissão é não, e não
+// por estar "por configurar": um controlo que só pode dizer "uma" é um
+// controlo a mais num formulário de telemóvel.
 
 // Artigos que a ATLETA pode pedir do portal. É um subconjunto dos ativos,
 // escolhido artigo a artigo nas Definições: as camisolas de treino sim, a

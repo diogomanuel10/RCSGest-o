@@ -372,7 +372,9 @@ Cada `views/*.js` exporta `renderXxx(container)` que:
    de um CAMPO, e pendurar nele a instrução de como se preenche o formulário
    — foi o que aconteceu ao pedido de equipamento do portal — lê-se como se
    fosse uma nota sobre esse campo. Cada campo aceita `hint` (texto de
-   ajuda por baixo, ligado por `aria-describedby`) e `reactive: true` — este
+   ajuda por baixo, ligado por `aria-describedby`), `qty` (uma quantidade
+   estreita ao lado do controlo principal, quando é a mesma pergunta sobre a
+   mesma coisa — que tamanho e quantas) e `reactive: true` — este
    avisa por `onFieldChange(nome, valores)` assim que muda, para a vista poder
    reconstruir o formulário (ex.: mudar o tipo de objetivo troca os campos
    seguintes). Reconstruir na gravação não serve: os campos obrigatórios ainda
@@ -672,6 +674,26 @@ separador antes de navegar (usado pelos cartões do Painel).
       diz que precisa daquilo, deixar em branco diz que não — uma caixa mais
       um tamanho eram dois gestos para dizer uma coisa só. É a forma do modal
       de tamanhos das Encomendas, que é o mesmo gesto.
+    - **A quantidade vai ao lado do tamanho** (`qty` no campo do
+      `openModal`): três camisolas do mesmo tamanho são UM pedido de três, e
+      sem isto a única saída era pedir uma e voltar ao formulário — que num
+      telemóvel é a maneira de a terceira nunca ser pedida. É a mesma coluna
+      `quantity` que o ecrã do treinador já preenchia. Fica no MESMO campo do
+      tamanho, e estreita: que tamanho e quantas são duas respostas sobre a
+      mesma peça, e um campo à parte por artigo duplicava o formulário.
+    - **A caixa da quantidade aparece nos artigos que o clube escolher**
+      (`multiple` em `settings.equipment_articles`, no formulário do artigo
+      nas Definições): três pares de meias num pedido é normal, três blusões
+      é engano — e o blusão é o que custa 37 €. É a mesma lógica do
+      `requestable`: o que trava o volume não é um tudo-ou-nada, é a decisão
+      artigo a artigo de quem paga. **Por omissão não há caixa**, e não por
+      estar "por configurar" — um controlo que só pode dizer "uma" é um
+      controlo a mais num formulário de telemóvel; sem ela grava-se 1, e a
+      instrução do topo do formulário só fala de quantidades se algum artigo
+      as tiver. Com caixa, o valor é limitado a 20 na gravação: o `max` do
+      input é uma sugestão do browser. O ecrã do TREINADOR não tem esta
+      configuração (1 a 50, o limite da base de dados) — quem lança lá é o
+      clube a decidir por si próprio, não a pedir.
     - **Não se pergunta PORQUÊ.** O ecrã do treinador tem a lista de motivos
       (danificado, tamanho, perdido…) porque é ELE que lança o pedido de
       outra pessoa e o clube precisa de saber de onde veio. Aqui quem pede é

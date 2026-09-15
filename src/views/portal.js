@@ -538,9 +538,18 @@ function openRequestModal(me) {
     // Como se preenche isto é uma frase sobre o formulário INTEIRO, por isso
     // vai no `intro` e não no `hint` do primeiro artigo — pendurada aí, lia-se
     // como se fosse uma instrução sobre a camisola de treino.
-    intro: articles.some((x) => x.price != null)
-      ? 'Escolhe o tamanho do que precisas e deixa em branco o resto. Os valores são o que cada peça custa ao clube.'
-      : 'Escolhe o tamanho do que precisas. Deixa em branco o resto.',
+    // A frase só fala da quantidade se ALGUM artigo a permitir: num clube em
+    // que tudo é uma unidade, explicar uma caixa que não existe é pior do que
+    // não explicar nada.
+    intro: [
+      'Escolhe o tamanho do que precisas e deixa em branco o resto.',
+      articles.some((x) => x.multiple)
+        ? 'Onde houver caixa ao lado, é a quantidade.'
+        : '',
+      articles.some((x) => x.price != null)
+        ? 'Os valores são o que cada peça custa ao clube.'
+        : '',
+    ].filter(Boolean).join(' '),
     fields: [
       ...articles.map((a) => ({
         name: `art__${a.key}`,
@@ -554,6 +563,12 @@ function openRequestModal(me) {
         // quem escolhe aqui entrou no clube em setembro. A foto responde à
         // pergunta que o nome não responde.
         ...(a.photo ? { image: articlePhotoUrl(a.photo) } : {}),
+        // Quantas — só nos artigos em que o clube ligou a quantidade
+        // (`multiple` nas Definições). Três camisolas do mesmo tamanho é UM
+        // pedido de três, não três voltas ao formulário; três blusões é
+        // engano, e é por isso que a decisão é do clube e artigo a artigo.
+        // Sem ela não se desenha caixa nenhuma.
+        ...(a.multiple ? { qty: { name: `qtd__${a.key}`, max: 20, default: 1 } } : {}),
         ...(a.sizes.length
           ? {
               type: 'select',
@@ -581,13 +596,22 @@ function openRequestModal(me) {
     ],
     onSubmit: async (v) => {
       const pedidos = articles
-        .map((a) => ({ article: a.key, size: (v[`art__${a.key}`] || '').trim() }))
+        .map((a) => ({
+          article: a.key,
+          size: (v[`art__${a.key}`] || '').trim(),
+          // Sem caixa, é sempre uma. Com caixa, limitado a 20: o `max` do
+          // input é uma sugestão do browser, e um "200" escrito à mão não
+          // pode passar daqui para uma decisão de compra.
+          quantity: a.multiple
+            ? Math.min(Math.max(parseInt(v[`qtd__${a.key}`], 10) || 1, 1), 20)
+            : 1,
+        }))
         .filter((x) => x.size)
         .map((x) => ({
           player_id: me.id,
           article: x.article,
           size: x.size,
-          quantity: 1,
+          quantity: x.quantity,
           // A coluna `reason` continua a existir (é `not null` e o ecrã do
           // treinador usa-a), mas aqui ninguém a escolheu: `outro` diz
           // exatamente isso — o motivo, se houver, está nas notas. Inventar

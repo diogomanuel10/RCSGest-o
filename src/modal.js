@@ -85,12 +85,28 @@ function fieldHTML(field, value) {
     ? `<p class="field__hint muted" id="${id}-hint">${esc(field.hint)}</p>`
     : '';
   const described = field.hint ? ` aria-describedby="${id}-hint"` : '';
+  const main = described ? control.replace(/^(<\w+)/, `$1${described}`) : control;
+
+  // `qty` põe uma quantidade pequena ao lado do controlo principal, no mesmo
+  // campo: são duas respostas sobre a MESMA coisa (que tamanho, quantas), e
+  // um campo à parte por artigo duplicava o formulário do portal. Vale por si
+  // no FormData — é um `input` com nome próprio.
+  const qty = field.qty
+    ? `<div class="field__controls">
+         ${main}
+         <input type="number" class="field__qty" name="${esc(field.qty.name)}"
+                min="1" max="${field.qty.max || 50}" step="1"
+                value="${esc(field.qty.default ?? 1)}"
+                aria-label="Quantidade — ${esc(field.label)}" />
+       </div>`
+    : main;
+
   return `<div class="field${span}${field.image ? ' field--with-image' : ''}" data-field="${field.name}">
     ${image}
     <label for="${id}">${esc(field.label)}${
       field.required ? ' <span class="field__req" title="Obrigatório">*</span>' : ''
     }</label>
-    ${described ? control.replace(/^(<\w+)/, `$1${described}`) : control}
+    ${qty}
     ${hint}
   </div>`;
 }
