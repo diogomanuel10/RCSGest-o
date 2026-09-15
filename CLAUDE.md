@@ -1031,6 +1031,52 @@ separador antes de navegar (usado pelos cartões do Painel).
     próximos 7 dias **sem exercícios no plano** (uma linha de plano vazia é um
     plano por fazer), **jogos por registar** resultado, e quem **não está a
     100%** (disponibilidade, sem detalhe clínico).
+- **O Painel diz o que fazer, não tudo o que existe.** Tinha nove cartões de
+  números e três caixas separadas a responder à mesma pergunta ("A precisar da
+  tua atenção", "Documentos a expirar", "Presenças por marcar") — e o trabalho
+  ficava DEPOIS dos números, que é ao contrário da razão por que se abre um
+  painel. Havia ainda repetições a sério: "Angariado" aparecia no cartão e
+  outra vez no cartão "Meta de patrocínios"; o equipamento em mau estado
+  contava-se no cartão e no aviso; e o treino das 19h aparecia em "Hoje" e
+  três blocos abaixo em "Próximos eventos", porque `upcomingEvents()` filtra
+  por `>= agora` e não exclui hoje.
+  - **Cada pendência declara um DEGRAU** (`urgency`: `agora` · `semana` ·
+    `depois`) e uma **família** (`family`). Uma lista onde "a Rita deixou de
+    aparecer aos treinos" pesa o mesmo que "faltam 3 datas de nascimento" não
+    ordena nada — e uma é uma atleta a desistir do clube. As três caixas
+    fundiram-se numa (`workCard`), com os degraus como subtítulos.
+  - **Uma família com 3 ou mais itens colapsa numa linha** com os nomes no
+    subtítulo (`collapseFamilies`): três objetivos + três gaps + três quedas +
+    cinco aniversários davam DEZANOVE linhas, e uma lista de dezanove atenções
+    não é uma lista de atenção. O painel é o ponteiro; a secção é o detalhe. O
+    degrau do grupo é o do item mais urgente — um documento caducado no meio
+    de quatro a expirar não pode descer para "esta semana".
+  - **A ordem depende do dia.** Um só interruptor — há alguma coisa no degrau
+    `agora`? — decide se a lista de trabalho vem ANTES ou DEPOIS dos números, e
+    muda a frase do cabeçalho (`heroLine`). Um painel fixo serve mal os dois
+    dias que existem: no dia do documento caducado, nove números à frente são
+    nove linhas entre o coordenador e o problema; no dia calmo, uma caixa de
+    "atenção" no topo é ruído.
+  - **Os números são uma FAIXA e não cartões** (`statStrip`, `.stat-strip`):
+    nove cartões com ícone de 42px e duas linhas de texto enchiam o ecrã de um
+    telemóvel antes de se chegar ao que há para fazer. A pergunta "como vai o
+    clube?" lê-se de relance. Saíram `treinadores` e `em_contacto` (números
+    estáticos meses a fio — o argumento que já tinha matado o cartão "Equipas")
+    e `equipamentos` (repetia no subtítulo o aviso que já está na lista). O
+    cartão "Meta de patrocínios" desapareceu: a percentagem passou para o
+    subtítulo do "Angariado", que era a única coisa que a barra dizia a mais.
+  - **Os aniversários saíram da lista de trabalho para o cabeçalho**
+    (`birthdayLine`): dar os parabéns não é uma pendência, e cinco linhas de
+    bolos empurravam para fora do ecrã o atleta que está a desistir. Continua a
+    chegar a tempo, que é a única coisa que um aniversário precisa de fazer. As
+    **datas por preencher** ficam na lista, no degrau `depois` — isso É
+    trabalho: sem a data não há aniversário nenhum.
+  - **No painel do treinador**, o cartão "Por marcar" da faixa saiu: o número
+    estava por cima do cartão que lista, linha a linha, exatamente os mesmos
+    treinos. Pela mesma razão, `buildActions({ includePresencas })` só dá a
+    linha-resumo das presenças ao **coordenador** — para quem isto é supervisão
+    e o que interessa é se está a acumular. O treinador mantém o cartão inteiro,
+    que é o centro do ecrã dele.
 - **Painel personalizável** (`supabase/painel-avisos.sql`): dois catálogos em
   `painel.js` — `METRIC_CATALOG` (os cartões de números) e `ALERT_CATALOG` (a
   lista "A precisar da tua atenção"). Cada entrada declara quem a **pode** ver
