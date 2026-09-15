@@ -720,6 +720,33 @@ export async function updateProfilePermissions(id, permissions) {
   return data;
 }
 
+// Elimina a conta de um utilizador do clube (RPC `delete_org_member`).
+//
+// É IRREVERSÍVEL: apaga a própria conta de login, não só o vínculo ao clube.
+// A FICHA sobrevive — `coaches.user_id`/`players.user_id` são `on delete set
+// null`, por isso o histórico do treinador e as presenças, quotas e cartão QR
+// da atleta ficam intactos; o que se perde é o acesso. O servidor recusa a
+// própria conta, a dona do clube e os admins da plataforma.
+//
+// Não passa por `deleteRow`: não há cache de `auth.users` para atualizar, e o
+// que muda aqui espalha-se por três coleções (perfis, treinadores, atletas).
+export async function deleteOrgMember(id) {
+  const { data, error } = await supabase.rpc('delete_org_member', { p_user: id });
+  if (error) throw error;
+  state.profiles = state.profiles.filter((p) => p.id !== id);
+  // A FK já pôs os `user_id` a nulo no servidor; a cache local tem de
+  // acompanhar, senão o seletor de vínculo continuava a mostrar a ficha como
+  // ligada a uma conta que já não existe.
+  state.coaches.forEach((c) => { if (c.user_id === id) c.user_id = null; });
+  state.players.forEach((p) => { if (p.user_id === id) p.user_id = null; });
+  // Convites por usar dirigidos a esta conta foram apagados pelo servidor.
+  state.invitations = (state.invitations || []).filter(
+    (i) => !(!i.used_at && i.used_by === id)
+  );
+  notify();
+  return data || {};
+}
+
 // --- Operações genéricas (CRUD) ------------------------------------------
 // Cada operação atualiza o Supabase e, em caso de sucesso, a cache local,
 // avisando depois as vistas. `collection` é a chave em `state` (ex.: 'coaches').
