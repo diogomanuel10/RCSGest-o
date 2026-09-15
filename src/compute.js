@@ -66,7 +66,7 @@ export function equipmentArticles() {
       label: a.label || a.key,
       sizes: Array.isArray(a.sizes) ? a.sizes.filter(Boolean) : [],
       requestable: a.requestable === true,
-      maxQty: articleMaxQty(a),
+      multiple: a.multiple === true,
       photo: a.photo || '',
       price: articlePrice(a),
     }));
@@ -84,12 +84,18 @@ export function allEquipmentArticles() {
       label: a.label || a.key,
       sizes: Array.isArray(a.sizes) ? a.sizes.filter(Boolean) : [],
       requestable: a.requestable === true,
-      maxQty: articleMaxQty(a),
+      multiple: a.multiple === true,
       photo: a.photo || '',
       price: articlePrice(a),
       active: a.active !== false,
     }));
 }
+
+// `multiple` diz se o artigo aparece no portal COM caixa de quantidade. É por
+// artigo e é decisão do clube: três pares de meias num pedido é normal, três
+// blusões é engano — e o blusão é o que custa 37 €. Por omissão é não, e não
+// por estar "por configurar": um controlo que só pode dizer "uma" é um
+// controlo a mais num formulário de telemóvel.
 
 // Artigos que a ATLETA pode pedir do portal. É um subconjunto dos ativos,
 // escolhido artigo a artigo nas Definições: as camisolas de treino sim, a
@@ -121,17 +127,6 @@ export function articlePrice(a) {
   if (a?.price === null || a?.price === undefined || a?.price === '') return null;
   const n = Number(a.price);
   return Number.isFinite(n) && n >= 0 ? n : null;
-}
-
-// Quantas unidades deste artigo uma atleta pode pedir de uma vez (o teto é o
-// da coluna `quantity`). O valor de origem é 1 — e 1 não é "sem limite
-// configurado", é a resposta: três pares de meias num pedido é normal, três
-// blusões é engano, e é o clube que sabe a diferença. Com 1, o portal nem
-// desenha a caixa da quantidade.
-export function articleMaxQty(a) {
-  const n = Number(a?.max_qty);
-  if (!Number.isFinite(n)) return 1;
-  return Math.min(Math.max(Math.trunc(n), 1), 20);
 }
 
 // Etiqueta de uma chave de artigo. Procura também nos desativados e na lista

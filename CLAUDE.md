@@ -635,19 +635,19 @@ separador antes de navegar (usado pelos cartões do Painel).
       `quantity` que o ecrã do treinador já preenchia. Fica no MESMO campo do
       tamanho, e estreita: que tamanho e quantas são duas respostas sobre a
       mesma peça, e um campo à parte por artigo duplicava o formulário.
-    - **Quantas pode pedir de cada vez é do ARTIGO e decide-o o coordenador**
-      (`max_qty` em `settings.equipment_articles`, `articleMaxQty()`): três
-      pares de meias num pedido é normal, três blusões é engano — e o blusão
-      é o que custa 37 €. É a mesma lógica do `requestable`: o que trava o
-      volume não é um tudo-ou-nada, é a decisão artigo a artigo de quem paga.
-      **O valor de origem é 1, e 1 não é "por configurar" — é a resposta**:
-      nesse caso o portal nem desenha a caixa, porque um controlo que só pode
-      dizer "uma" é um controlo a mais num formulário de telemóvel, e a
-      instrução do topo só fala da quantidade se algum artigo a permitir. O
-      teto é 20, validado nas Definições E na gravação do pedido: o `max` do
-      input é uma sugestão do browser. O ecrã do TREINADOR não tem este
-      limite (1 a 50, o da base de dados) — quem lança lá é o clube a decidir
-      por si próprio, não a pedir.
+    - **A caixa da quantidade aparece nos artigos que o clube escolher**
+      (`multiple` em `settings.equipment_articles`, no formulário do artigo
+      nas Definições): três pares de meias num pedido é normal, três blusões
+      é engano — e o blusão é o que custa 37 €. É a mesma lógica do
+      `requestable`: o que trava o volume não é um tudo-ou-nada, é a decisão
+      artigo a artigo de quem paga. **Por omissão não há caixa**, e não por
+      estar "por configurar" — um controlo que só pode dizer "uma" é um
+      controlo a mais num formulário de telemóvel; sem ela grava-se 1, e a
+      instrução do topo do formulário só fala de quantidades se algum artigo
+      as tiver. Com caixa, o valor é limitado a 20 na gravação: o `max` do
+      input é uma sugestão do browser. O ecrã do TREINADOR não tem esta
+      configuração (1 a 50, o limite da base de dados) — quem lança lá é o
+      clube a decidir por si próprio, não a pedir.
     - **Não se pergunta PORQUÊ.** O ecrã do treinador tem a lista de motivos
       (danificado, tamanho, perdido…) porque é ELE que lança o pedido de
       outra pessoa e o clube precisa de saber de onde veio. Aqui quem pede é
