@@ -704,7 +704,11 @@ separador antes de navegar (usado pelos cartões do Painel).
     **texto livre** — noutro clube isto é "modelo antigo" ou o nome do
     patrocinador — e **um artigo sem variante declarada não se separa de
     todo**: a mochila é a mesma para toda a gente, e uma contagem partida em
-    duas colunas iguais é ruído.
+    duas colunas iguais é ruído. Enquanto NENHUM artigo tiver variante, o
+    resumo diz onde se configura: um total a dizer "Camisola de Treino: 15"
+    não mostra que ali estão duas cores por separar, nem que a app o sabe
+    fazer. A dica sai assim que o clube o fizer, e só aparece a quem pode ir
+    às Definições.
   - **Quem vê o quadro TODO são o coordenador e a direção.** Saíram o
     seccionista, o leitura, a fisio e o preparador: nenhum deles tem nada a
     fazer com um pedido de equipamento, e uma lista que toda a gente vê deixa
