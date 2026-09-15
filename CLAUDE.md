@@ -1076,11 +1076,17 @@ separador antes de navegar (usado pelos cartões do Painel).
     "18:30–20:30 · Cadetes F · Pavilhão…" tinha 1500px de vazio à direita e o
     trabalho começava abaixo da dobra. O trabalho fica na coluna larga; a
     agenda e os próximos eventos na estreita (360px). A **faixa de números fica
-    a toda a largura, fora da grelha**: espremida em 360px deixava de ser uma
+    a toda a largura, ACIMA da grelha**: espremida em 360px deixava de ser uma
     faixa (virava um bloco de 2×3) e desequilibrava as colunas.
-    - A ordem continua a depender do dia, mas **só decide no telemóvel**, onde
-      as colunas empilham: num ecrã grande as duas veem-se ao mesmo tempo.
-      `--calm` manda a coluna lateral para cima abaixo do ponto de corte.
+    - **A faixa vem sempre primeiro.** Chegou a descer para o fim nos dias com
+      trabalho urgente, pela regra de que a lista vem à frente de tudo — mas
+      com duas colunas a lista JÁ está no topo, à esquerda: o que a faixa lá
+      em baixo fazia era obrigar a deslizar a página inteira para ver seis
+      números que cabem numa linha. A regra continua a valer; o que mudou foi
+      que as colunas a satisfazem sem empurrar mais nada para baixo.
+    - O que ainda depende do dia é **só o telemóvel**, onde as colunas
+      empilham: `--calm` manda a coluna lateral (a agenda) para cima da lista
+      quando não há nada urgente.
   - **Só o degrau "Agora" nasce aberto.** "Esta semana" e "Quando puderes" são
     `<details>` com a contagem no resumo — a convenção dos Utilizadores e dos
     convites. Com os três abertos, este cartão era o bloco mais alto do ecrã e

@@ -165,10 +165,15 @@ export function renderPainel(container) {
   // vazio à direita, e o que interessava estava tudo abaixo da dobra. O
   // trabalho fica na coluna larga; a agenda e os números na estreita.
   //
-  // A ordem continua a depender do dia, mas só importa no TELEMÓVEL, onde as
-  // colunas empilham: num ecrã grande as duas veem-se ao mesmo tempo. Daí
-  // `--calm`, que abaixo do ponto de corte manda a coluna lateral para cima
-  // quando não há nada urgente.
+  // A **faixa de números vem sempre primeiro**. Chegou a descer para o fim nos
+  // dias com trabalho urgente — pela ideia de que a lista tem de vir à frente
+  // de tudo —, mas com as duas colunas a lista já está no topo à esquerda: o
+  // que a faixa lá em baixo fazia era obrigar a deslizar a página inteira para
+  // ver seis números que cabem numa linha.
+  //
+  // O que ainda depende do dia é só o TELEMÓVEL, onde as colunas empilham (num
+  // ecrã grande as duas veem-se ao mesmo tempo): `--calm` manda a coluna
+  // lateral — a agenda — para cima da lista quando não há nada urgente.
   const urgente = actions.some((a) => a.urgency === 'agora');
 
   container.innerHTML = `
@@ -189,7 +194,7 @@ export function renderPainel(container) {
 
     ${steps ? stepsCard(steps) : ''}
 
-    ${urgente ? '' : statStrip(stats)}
+    ${statStrip(stats)}
 
     <div class="panel-grid${urgente ? '' : ' panel-grid--calm'}">
       <div class="panel-grid__main">
@@ -204,8 +209,6 @@ export function renderPainel(container) {
         </section>` : ''}
       </aside>
     </div>
-
-    ${urgente ? statStrip(stats) : ''}
   `;
 
   wireWorkCard(container, () => renderPainel(container));
@@ -1240,7 +1243,7 @@ function renderFisioPainel(container) {
       </div>
     </header>
 
-    ${urgente ? '' : statStrip(stats)}
+    ${statStrip(stats)}
 
     <div class="panel-grid${urgente ? '' : ' panel-grid--calm'}">
       <div class="panel-grid__main">
@@ -1265,8 +1268,6 @@ function renderFisioPainel(container) {
         </section>
       </aside>
     </div>
-
-    ${urgente ? statStrip(stats) : ''}
   `;
 
   wireWorkCard(container, () => renderFisioPainel(container));
@@ -1569,7 +1570,7 @@ function renderTreinadorPainel(container) {
       </div>
     </header>
 
-    ${urgente ? '' : statStrip(stats)}
+    ${statStrip(stats)}
 
     <div class="panel-grid${urgente ? '' : ' panel-grid--calm'}">
       <div class="panel-grid__main">
@@ -1609,8 +1610,6 @@ function renderTreinadorPainel(container) {
         </section>
       </aside>
     </div>
-
-    ${urgente ? statStrip(stats) : ''}
   `;
 
   wireWorkCard(container, () => renderTreinadorPainel(container));
