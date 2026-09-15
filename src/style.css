@@ -1158,6 +1158,106 @@ button.metric--nav:focus-visible {
 }
 
 /* =========================================================================
+   Painel: duas colunas no ecrã grande
+   =========================================================================
+   O conteúdo vivia numa coluna só, esticada à largura do ecrã (`.content__inner`
+   não tem `max-width`): num portátil de 1800px, a linha "18:30–20:30 · Cadetes
+   F · Pavilhão…" tinha 1500px de vazio à direita, e não se via um único item
+   de trabalho sem deslizar. O trabalho fica na coluna larga; a agenda, os
+   números e os próximos eventos na estreita. */
+.panel-grid {
+  display: grid;
+  gap: 1.2rem;
+  align-items: start;
+}
+/* Cada coluna empilha com um gap SEU e zera as margens dos filhos: os cartões
+   do painel trazem `margin-bottom` de quando eram irmãos diretos, e somado ao
+   gap da grelha dava espaço a dobrar entre blocos. */
+.panel-grid__main,
+.panel-grid__side {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+  min-width: 0;
+}
+.panel-grid__main > *,
+.panel-grid__side > * {
+  margin-bottom: 0;
+}
+@media (min-width: 1100px) {
+  .panel-grid {
+    /* `minmax(0, …)` nas duas pistas: com `1fr` a coluna não encolhe abaixo
+       do conteúdo e um nome de pavilhão comprido alargava a página. */
+    grid-template-columns: minmax(0, 1fr) minmax(0, 360px);
+  }
+}
+/* Ordem no TELEMÓVEL, onde as colunas empilham (num ecrã grande as duas veem-se
+   ao mesmo tempo e a ordem não decide nada): sem trabalho urgente, a agenda e
+   os números sobem para cima da lista. */
+@media (max-width: 1099px) {
+  .panel-grid--calm .panel-grid__side { order: -1; }
+}
+
+/* No telemóvel a saudação enchia duas linhas em maiúsculas de 1.75rem — cem
+   píxeis, no ecrã mais apertado, para dizer o nome de quem já sabe quem é.
+   O cabeçalho aperta e os botões de ação ficam compactos. */
+@media (max-width: 700px) {
+  .page-head--hero {
+    margin-bottom: 1rem;
+    gap: 0.5rem;
+  }
+  .page-head--hero h1 {
+    font-size: 1.25rem;
+    letter-spacing: 0.04em;
+  }
+  .page-head--hero .hero-actions {
+    gap: 0.4rem;
+  }
+}
+
+/* Degraus fechados da lista de trabalho ("Esta semana", "Quando puderes") */
+.work-step {
+  margin-top: 0.7rem;
+}
+
+/* Local comum a todos os eventos do dia, dito uma vez no cabeçalho */
+.today-card__where {
+  margin: -0.2rem 0 0.5rem;
+  font-size: 0.8rem;
+}
+/* O nome do evento passou para dentro da linha do crachá (era um bloco por
+   cima que, num evento sem título próprio, repetia a palavra do crachá). */
+.event-mini__body .event-mini__name {
+  font-size: 0.9rem;
+}
+
+/* Pendência sem subtítulo: uma linha, e a altura acompanha */
+.alert-item--slim {
+  align-items: center;
+}
+.alert-item--slim .alert-item__dot {
+  margin-top: 0;
+}
+
+/* Linha de "Hoje" compacta: hora, crachá e o resto numa linha só */
+.today-item--slim {
+  align-items: center;
+  gap: 0.6rem;
+}
+.today-item--slim .today-item__time {
+  width: auto;
+  min-width: 92px;
+}
+.today-item__line {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.88rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* =========================================================================
    Faixa de números do Painel
    =========================================================================
    Substituiu nove cartões com ícone de 42px, dois de altura cada. Num
@@ -1263,6 +1363,12 @@ button.stat-strip__item--nav:hover {
   align-items: flex-start;
   gap: 0.8rem;
   flex-wrap: wrap;
+}
+/* O hero dizia "3 coisas precisam de ti agora · 3 eventos hoje" e logo abaixo
+   vinham os 3 eventos e as 3 coisas: cem píxeis a repetir os dois cartões
+   seguintes. Sem essa linha, o cabeçalho encolhe para o que é. */
+.page-head--hero .section-title {
+  margin-bottom: 0;
 }
 .hero-actions {
   display: flex;
