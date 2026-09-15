@@ -183,6 +183,51 @@ conforme o `role` + RLS. Ver `supabase/multitenant.sql` (corre DEPOIS de
 - **Convites (UI)**: em `utilizadores.js` o coordenador cria convites (papel +
   acessos), copia o link `?invite=<token>` e revoga-os. A lista vem de
   `state.invitations`.
+- **Eliminar utilizadores do clube** (`supabase/remover-utilizadores.sql`, RPC
+  `delete_org_member`): a lista de Utilizadores só CRESCIA. O treinador que
+  saiu em dezembro, a conta de teste de um convite colado duas vezes, a atleta
+  que mudou de clube — ficavam lá todos, com papel e acessos, a ocupar lugares
+  do limite do plano e a poluir os seletores de vínculo. Baixar o papel para
+  "Leitura" não resolve: continua a ser uma conta com entrada no clube.
+  - **É irreversível e apaga a CONTA** (`auth.users`), não só o vínculo. Não é
+    o arquivar (`archived_at`) das entidades do clube.
+  - **A FICHA não morre com a conta**: `coaches.user_id` e `players.user_id`
+    são `on delete set null`, por isso o histórico do treinador e as presenças,
+    quotas e cartão QR da atleta ficam intactos — o que se perde é o acesso.
+    Apagar a conta de uma atleta não pode apagar a atleta, e o diálogo diz-lhe
+    isso pelo nome antes de confirmar.
+  - **Três contas que o servidor recusa sempre**, porque cada uma é uma forma
+    de o clube ficar sem ninguém a poder repor o engano: a própria, a **dona
+    do clube** (`organizations.owner_id`) e um admin da plataforma. A UI
+    explica-as em vez de esconder o botão — um botão em falta lê-se como uma
+    avaria.
+  - **Confirma-se escrevendo o email**, não com um `confirmDialog`: a lista são
+    emails parecidos lado a lado e um clique não os distingue. É a mesma
+    decisão do `admin_delete_org`.
+  - **Fica registo** em `platform_deletions` (leitura só do admin da
+    plataforma), com o papel e quantas fichas ficaram sem conta. O `insert` vai
+    dentro de um bloco de exceção: o histórico é desejável, não pode ser o que
+    faz falhar a eliminação.
+  - O RPC é `security definer`, por isso **filtra `org_id` à mão** — a mesma
+    regra do `check_in_by_qr`.
+- **Filtrar Utilizadores e Arquivados**: as duas listas que só crescem. Num
+  clube com 120 atletas o agrupamento por papel resolve metade do problema (o
+  grupo "Atleta" é o plantel inteiro) e o arquivo acumula uma viragem de época
+  de cada vez. Ambas ganharam a `.filter-bar` das outras vistas, com o
+  contador "X de Y" sempre visível: um filtro que esconde 118 linhas sem o
+  dizer parece um ecrã vazio, e conclui-se que se perderam as contas.
+  - **A pesquisa procura pelo NOME da ficha vinculada**, e não só pelo email:
+    `profiles` não guarda nome, e ninguém reconhece a Maria num
+    `familia.costa@sapo.pt`. A ficha é o único sítio onde o nome existe.
+  - **Filtrar abre os grupos todos**: quem pesquisou já disse o que procura, e
+    ter de abrir à mão o `<details>` onde o resultado caiu é repetir o
+    trabalho.
+  - **O filtro "Por vincular"** encontra o caso que dá erro sem dar sinal: um
+    perfil de atleta sem ficha não vê nada no portal. Um perfil de leitura sem
+    ficha está certo, por isso não conta.
+  - Nos Arquivados cada tipo mostra os 25 mais recentes com "Mostrar os
+    restantes N": a lista vem ordenada por data de arquivo, e um grupo de 200
+    atletas aberto por inteiro empurrava os outros cinco para fora do ecrã.
 - **Trabalhos com chave de serviço**: o `attendance-reminder` (Edge Function e
   versão pg_cron) e o `send_weekly_digest` correm sem `auth.uid()`, por isso
   **não passam pelo RLS**: cada um define o `org_id` à mão a partir da linha de
@@ -260,6 +305,7 @@ supabase/artigos-configuraveis.sql Artigos e tamanhos de equipamento definidos p
 supabase/pedidos-atleta.sql    A atleta pede equipamento do portal; decide o coordenador/direção
 supabase/fotos-artigos.sql     Bucket público com a foto de cada artigo de equipamento
 supabase/aniversarios.sql      Data de nascimento do atleta (aniversários + quem falta)
+supabase/remover-utilizadores.sql Eliminar contas do clube (RPC delete_org_member)
 supabase/portal-atleta.sql     Portal: o atleta lê a sua própria disponibilidade
 supabase/comunicacao.sql       Respostas do atleta a eventos + avisos do clube
 supabase/notificacoes-atleta.sql Notificações para o atleta (agenda + convocatória)

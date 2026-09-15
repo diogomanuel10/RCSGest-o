@@ -11,12 +11,54 @@ import {
   linkPlayerToUser,
   createInvitation,
   revokeInvitation,
+  deleteOrgMember,
   dbErrorMessage,
 } from '../store.js';
 import { esc, emptyHTML } from '../ui.js';
-import { wireDialog } from '../modal.js';
+import { wireDialog, openModal } from '../modal.js';
 import { ROLES, ROLE_LABEL, SECTIONS, DEFAULT_TRAINER_SECTIONS, DEFAULT_FISIO_SECTIONS, DEFAULT_PREP_SECTIONS, DEFAULT_SECCIONISTA_SECTIONS, isCoordenador } from '../permissions.js';
 import { planLimit, planLimitReached, currentPlan } from '../plans.js';
+
+// --- Filtros (estado de UI, só nesta vista) --------------------------------
+// Um clube com 120 atletas tem 120 perfis, e a lista agrupada por papel só
+// resolve metade do problema: o grupo "Atleta" é o plantel inteiro. Procurar
+// uma pessoa era abrir o grupo e ler 120 linhas de email — e `profiles` NÃO
+// guarda nome, por isso ler emails é o pior caso possível (ninguém reconhece
+// a Maria num `familia.costa@sapo.pt`).
+//
+// Daí a pesquisa procurar também no NOME da ficha vinculada: é o único sítio
+// onde o nome da pessoa existe, e é por ele que o coordenador a procura.
+// Vivem em variáveis do módulo, como os filtros das outras vistas — é estado
+// de UI e não vai à base de dados.
+let userSearch = '';
+let userRoleFilter = '';
+let userLinkFilter = '';   // '' | 'sem' | 'com'
+let inviteSearch = '';
+
+// Situação do vínculo de um perfil: a ficha ligada (treinador ou atleta) e se
+// o papel dele sequer PEDE uma. Um perfil de leitura sem ficha está certo; um
+// atleta sem ficha não vê nada no portal, e é isso que o filtro "Por vincular"
+// serve para encontrar.
+function linkInfo(p) {
+  if (p.role === 'coordenador' || p.role === 'treinador') {
+    return { needs: true, row: state.coaches.find((c) => c.user_id === p.id) || null };
+  }
+  if (p.role === 'atleta') {
+    return { needs: true, row: state.players.find((pl) => pl.user_id === p.id) || null };
+  }
+  return { needs: false, row: null };
+}
+
+// Um perfil passa o filtro? A pesquisa cobre email e nome da ficha vinculada.
+function profileMatches(p) {
+  if (userRoleFilter && p.role !== userRoleFilter) return false;
+  const { needs, row } = linkInfo(p);
+  if (userLinkFilter === 'sem' && (!needs || row)) return false;
+  if (userLinkFilter === 'com' && !row) return false;
+  const q = userSearch.trim().toLowerCase();
+  if (!q) return true;
+  return `${p.email || ''} ${row?.name || ''}`.toLowerCase().includes(q);
+}
 
 // Acessos por omissão sugeridos ao convidar, por papel.
 const DEFAULT_SECTIONS_BY_ROLE = {
@@ -56,6 +98,8 @@ export function renderUtilizadores(container) {
   const profiles = [...state.profiles].sort((a, b) =>
     (a.email || '').localeCompare(b.email || '')
   );
+  const shown = profiles.filter(profileMatches);
+  const filtering = Boolean(userSearch.trim() || userRoleFilter || userLinkFilter);
 
   container.innerHTML = `
     <header class="page-head">
@@ -78,10 +122,13 @@ export function renderUtilizadores(container) {
         ).join('')}
       </div>
 
+      ${profiles.length ? usersFilterHTML(profiles.length, shown.length) : ''}
       ${
-        profiles.length
-          ? usersGroupedHTML(profiles)
-          : emptyHTML('Ainda não há outros utilizadores registados.')
+        !profiles.length
+          ? emptyHTML('Ainda não há outros utilizadores registados.')
+          : shown.length
+            ? usersGroupedHTML(shown, filtering)
+            : emptyHTML('Nenhum utilizador corresponde ao filtro.')
       }
       <p class="settings-msg hidden" id="roles-msg"></p>
     </section>
@@ -96,6 +143,7 @@ export function renderUtilizadores(container) {
         link, cria conta e entra automaticamente neste clube, com o papel que
         escolheres. Os dados ficam sempre isolados dos outros clubes.
       </p>
+      ${invitesFilterHTML()}
       <div id="invites-list">${invitesListHTML()}</div>
       <p class="settings-msg hidden" id="invites-msg"></p>
     </section>
@@ -106,6 +154,49 @@ export function renderUtilizadores(container) {
     msg.textContent = text;
     msg.className = `settings-msg settings-msg--${kind}`;
   }
+
+  // Filtros. A pesquisa redesenha a vista e devolve o foco ao campo (mesma
+  // solução dos Plantéis): sem isso, escrever a segunda letra já era noutro
+  // sítio. O truque do valor limpo e reposto põe o cursor no fim.
+  const searchEl = container.querySelector('#us-search');
+  searchEl?.addEventListener('input', (e) => {
+    userSearch = e.target.value;
+    renderUtilizadores(container);
+    const el = container.querySelector('#us-search');
+    if (el) { el.focus(); const v = el.value; el.value = ''; el.value = v; }
+  });
+  container.querySelector('#us-role')?.addEventListener('change', (e) => {
+    userRoleFilter = e.target.value;
+    renderUtilizadores(container);
+  });
+  container.querySelector('#us-link')?.addEventListener('change', (e) => {
+    userLinkFilter = e.target.value;
+    renderUtilizadores(container);
+  });
+  container.querySelector('#us-clear')?.addEventListener('click', () => {
+    userSearch = '';
+    userRoleFilter = '';
+    userLinkFilter = '';
+    renderUtilizadores(container);
+  });
+
+  const invSearchEl = container.querySelector('#inv-search');
+  invSearchEl?.addEventListener('input', (e) => {
+    inviteSearch = e.target.value;
+    renderUtilizadores(container);
+    const el = container.querySelector('#inv-search');
+    if (el) { el.focus(); const v = el.value; el.value = ''; el.value = v; }
+  });
+
+  // Eliminar uma conta. Irreversível — por isso o diálogo pede o email
+  // escrito à mão (a mesma decisão do painel da plataforma: numa lista de
+  // emails parecidos, lado a lado, um clique não distingue nomes).
+  container.querySelectorAll('[data-del-user]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const p = state.profiles.find((x) => x.id === btn.dataset.delUser);
+      if (p) askDeleteUser(p, container);
+    });
+  });
 
   container.querySelectorAll('.role-select').forEach((sel) => {
     sel.addEventListener('change', async (e) => {
@@ -269,7 +360,64 @@ export function renderUtilizadores(container) {
 // telemóvel a tabela de cada grupo empilha-se em cartões (`.table--stack`).
 const GROUP_OPEN_LIMIT = 12;
 
-function usersGroupedHTML(profiles) {
+// Barra de filtros da lista de utilizadores. Mostra sempre quantos estão à
+// vista de quantos há: um filtro que esconde 118 linhas sem o dizer parece um
+// ecrã vazio, e o coordenador conclui que perdeu as contas todas.
+function usersFilterHTML(total, shown) {
+  const filtering = Boolean(userSearch.trim() || userRoleFilter || userLinkFilter);
+  return `
+    <div class="filter-bar">
+      <div class="field field--grow">
+        <label for="us-search">Pesquisar</label>
+        <input type="search" id="us-search" placeholder="Email ou nome da ficha…" value="${esc(userSearch)}" />
+      </div>
+      <div class="field">
+        <label for="us-role">Papel</label>
+        <select id="us-role">
+          <option value="">Todos os papéis</option>
+          ${ROLES.map((r) => `<option value="${r.key}" ${userRoleFilter === r.key ? 'selected' : ''}>${ROLE_LABEL[r.key]}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field">
+        <label for="us-link">Vínculo</label>
+        <select id="us-link">
+          <option value="">Todos</option>
+          <option value="sem" ${userLinkFilter === 'sem' ? 'selected' : ''}>Por vincular</option>
+          <option value="com" ${userLinkFilter === 'com' ? 'selected' : ''}>Vinculados</option>
+        </select>
+      </div>
+      ${filtering
+        ? `<div class="field"><button class="btn btn--ghost btn--sm" id="us-clear" type="button">Limpar filtros</button></div>`
+        : ''}
+      <span class="filters__count muted">${shown} de ${total}</span>
+    </div>`;
+}
+
+// Filtro dos convites: a lista cresce com cada convite ao portal — um escalão
+// convidado em lote são vinte linhas de uma vez, e uma época são centenas.
+// Procura pelo email do convite ou pelo nome do atleta a que está ligado.
+function invitesFilterHTML() {
+  if ((state.invitations || []).length < 8) return '';
+  return `
+    <div class="filter-bar">
+      <div class="field field--grow">
+        <label for="inv-search">Pesquisar convite</label>
+        <input type="search" id="inv-search" placeholder="Email ou nome do atleta…" value="${esc(inviteSearch)}" />
+      </div>
+    </div>`;
+}
+
+// Um convite passa o filtro? (email do convite ou nome do atleta ligado)
+function inviteMatches(inv) {
+  const q = inviteSearch.trim().toLowerCase();
+  if (!q) return true;
+  const player = inv.player_id ? state.players.find((p) => p.id === inv.player_id) : null;
+  return `${inv.email || ''} ${player?.name || ''}`.toLowerCase().includes(q);
+}
+
+// `filtering` abre TODOS os grupos: quem pesquisou já disse o que procura, e
+// ter de abrir à mão o grupo onde o resultado caiu é repetir o mesmo trabalho.
+function usersGroupedHTML(profiles, filtering = false) {
   // A ordem dos grupos é a de ROLES (do mais poderoso ao mais restrito) e não
   // a alfabética: é assim que se lê uma estrutura de clube.
   const groups = ROLES
@@ -283,13 +431,13 @@ function usersGroupedHTML(profiles) {
   if (orfaos.length) groups.push({ role: { key: '', label: 'Outros' }, list: orfaos });
 
   return groups.map((g) => `
-    <details class="group" ${g.list.length <= GROUP_OPEN_LIMIT ? 'open' : ''}>
+    <details class="group" ${filtering || g.list.length <= GROUP_OPEN_LIMIT ? 'open' : ''}>
       <summary class="group__head">
         <span class="group__title">${esc(g.role.label)}</span>
         <span class="group__count">${g.list.length}</span>
       </summary>
       <div class="table-wrap"><table class="users-table">
-        <thead><tr><th>Email</th><th>Papel</th><th>Vínculo</th><th>Acessos</th></tr></thead>
+        <thead><tr><th>Email</th><th>Papel</th><th>Vínculo</th><th>Acessos</th><th>Conta</th></tr></thead>
         <tbody>${g.list.map(userRow).join('')}</tbody>
       </table></div>
     </details>
@@ -312,8 +460,76 @@ function userRow(p) {
       </td>
       <td><div data-link-wrap="${p.id}">${linkControl(p)}</div></td>
       <td><div data-acc-wrap="${p.id}">${accessControl(p)}</div></td>
+      <td>${deleteControl(p)}</td>
     </tr>
   `;
+}
+
+// Botão de eliminar a conta — ou a razão por que não há botão nenhum.
+//
+// Duas contas não se eliminam daqui, e dizer PORQUÊ vale mais do que uma
+// célula vazia (um botão em falta lê-se como uma avaria): a própria, e a
+// dona do clube. É a mesma lista de salvaguardas que o servidor impõe em
+// `delete_org_member` — aqui só se explica, lá é que se garante.
+function deleteControl(p) {
+  if (p.id === state.profile?.id) {
+    return '<span class="muted" style="font-size:0.8rem">A tua conta</span>';
+  }
+  if (state.org?.owner_id && p.id === state.org.owner_id) {
+    return '<span class="muted" style="font-size:0.8rem">Dona do clube</span>';
+  }
+  return `<button class="btn btn--danger btn--sm" data-del-user="${p.id}" type="button">Eliminar</button>`;
+}
+
+// Eliminar uma conta: pede o email escrito à mão e diz o que fica para trás.
+//
+// A gravação corre DENTRO do onSubmit para o erro do servidor ("esta conta é
+// a dona do clube", "não podes eliminar a tua própria conta") aparecer no
+// próprio formulário, e não num toast que desaparece.
+function askDeleteUser(profile, container) {
+  const { row } = linkInfo(profile);
+  const email = profile.email || '';
+  const fichaNote = row
+    ? `A ficha de ${row.name} NÃO é apagada — perde apenas o acesso à app `
+      + '(e, se for atleta, o portal e o cartão QR deixam de funcionar até nova conta).'
+    : 'Esta conta não está vinculada a nenhuma ficha.';
+  openModal({
+    title: 'Eliminar conta',
+    submitLabel: 'Eliminar definitivamente',
+    intro: `Apaga para sempre a conta de ${email || 'este utilizador'}: o login, os acessos `
+         + 'e as notificações dela. Não há forma de repor — para a pessoa voltar, é preciso '
+         + 'novo convite e nova conta.',
+    fields: [
+      {
+        name: 'confirm',
+        label: 'Escreve o email para confirmar',
+        required: true,
+        placeholder: email,
+        hint: fichaNote,
+      },
+    ],
+    async onSubmit(values) {
+      if ((values.confirm || '').trim().toLowerCase() !== email.toLowerCase()) {
+        throw new Error('O email não coincide com o desta conta.');
+      }
+      let res;
+      try {
+        res = await deleteOrgMember(profile.id);
+      } catch (err) {
+        // As recusas do servidor ("esta conta é a dona do clube") vêm em PT;
+        // dbErrorMessage trata as restantes (rede, permissões).
+        throw new Error(dbErrorMessage(err));
+      }
+      renderUtilizadores(container);
+      const m = container.querySelector('#roles-msg');
+      if (m) {
+        const soltas = (res?.unlinked_coaches || 0) + (res?.unlinked_players || 0);
+        m.textContent = `Conta ${email} eliminada.`
+          + (soltas ? ` ${soltas} ficha${soltas > 1 ? 's ficaram' : ' ficou'} sem conta ligada.` : '');
+        m.className = 'settings-msg settings-msg--ok';
+      }
+    },
+  });
 }
 
 // Seletor de vínculo: coordenador/treinador → registo de treinador (o
@@ -438,15 +654,19 @@ const INVITE_GROUPS = [
 ];
 
 function invitesListHTML() {
-  const invites = state.invitations || [];
-  if (!invites.length) {
+  const all = state.invitations || [];
+  if (!all.length) {
     return '<p class="muted" style="font-size:0.85rem;margin:0.4rem 0 0">Ainda não há convites.</p>';
+  }
+  const invites = all.filter(inviteMatches);
+  if (!invites.length) {
+    return '<p class="muted" style="font-size:0.85rem;margin:0.4rem 0 0">Nenhum convite corresponde à pesquisa.</p>';
   }
   return INVITE_GROUPS.map((g) => {
     const list = invites.filter((inv) => inviteState(inv).key === g.key);
     if (!list.length) return '';
     return `
-      <details class="group" ${g.open ? 'open' : ''}>
+      <details class="group" ${g.open || inviteSearch.trim() ? 'open' : ''}>
         <summary class="group__head">
           <span class="group__title">${g.label}</span>
           <span class="group__count">${list.length}</span>
