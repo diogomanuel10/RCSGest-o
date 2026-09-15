@@ -539,8 +539,8 @@ function openRequestModal(me) {
     // vai no `intro` e não no `hint` do primeiro artigo — pendurada aí, lia-se
     // como se fosse uma instrução sobre a camisola de treino.
     intro: articles.some((x) => x.price != null)
-      ? 'Escolhe o tamanho do que precisas e deixa em branco o resto. Os valores são o que cada peça custa ao clube.'
-      : 'Escolhe o tamanho do que precisas. Deixa em branco o resto.',
+      ? 'Escolhe o tamanho do que precisas e deixa em branco o resto. A caixa ao lado é a quantidade, se precisares de mais do que uma. Os valores são o que cada peça custa ao clube.'
+      : 'Escolhe o tamanho do que precisas e deixa em branco o resto. A caixa ao lado é a quantidade, se precisares de mais do que uma.',
     fields: [
       ...articles.map((a) => ({
         name: `art__${a.key}`,
@@ -554,6 +554,12 @@ function openRequestModal(me) {
         // quem escolhe aqui entrou no clube em setembro. A foto responde à
         // pergunta que o nome não responde.
         ...(a.photo ? { image: articlePhotoUrl(a.photo) } : {}),
+        // Quantas. Três camisolas do mesmo tamanho é UM pedido de três, não
+        // três voltas ao formulário — e é assim que já funciona no ecrã do
+        // treinador (`quantity`, 1 a 50 na base de dados). Vai ao lado do
+        // tamanho e estreita: é quase sempre 1, e quem não lhe tocar pede
+        // uma, como antes.
+        qty: { name: `qtd__${a.key}`, max: 20, default: 1 },
         ...(a.sizes.length
           ? {
               type: 'select',
@@ -581,13 +587,20 @@ function openRequestModal(me) {
     ],
     onSubmit: async (v) => {
       const pedidos = articles
-        .map((a) => ({ article: a.key, size: (v[`art__${a.key}`] || '').trim() }))
+        .map((a) => ({
+          article: a.key,
+          size: (v[`art__${a.key}`] || '').trim(),
+          // Limitado ao que a base de dados aceita (1 a 50) e ao que o campo
+          // oferece: um "200" escrito à mão não pode passar daqui para uma
+          // decisão de compra.
+          quantity: Math.min(Math.max(parseInt(v[`qtd__${a.key}`], 10) || 1, 1), 20),
+        }))
         .filter((x) => x.size)
         .map((x) => ({
           player_id: me.id,
           article: x.article,
           size: x.size,
-          quantity: 1,
+          quantity: x.quantity,
           // A coluna `reason` continua a existir (é `not null` e o ecrã do
           // treinador usa-a), mas aqui ninguém a escolheu: `outro` diz
           // exatamente isso — o motivo, se houver, está nas notas. Inventar

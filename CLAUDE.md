@@ -326,7 +326,9 @@ Cada `views/*.js` exporta `renderXxx(container)` que:
    de um CAMPO, e pendurar nele a instrução de como se preenche o formulário
    — foi o que aconteceu ao pedido de equipamento do portal — lê-se como se
    fosse uma nota sobre esse campo. Cada campo aceita `hint` (texto de
-   ajuda por baixo, ligado por `aria-describedby`) e `reactive: true` — este
+   ajuda por baixo, ligado por `aria-describedby`), `qty` (uma quantidade
+   estreita ao lado do controlo principal, quando é a mesma pergunta sobre a
+   mesma coisa — que tamanho e quantas) e `reactive: true` — este
    avisa por `onFieldChange(nome, valores)` assim que muda, para a vista poder
    reconstruir o formulário (ex.: mudar o tipo de objetivo troca os campos
    seguintes). Reconstruir na gravação não serve: os campos obrigatórios ainda
@@ -626,6 +628,15 @@ separador antes de navegar (usado pelos cartões do Painel).
       diz que precisa daquilo, deixar em branco diz que não — uma caixa mais
       um tamanho eram dois gestos para dizer uma coisa só. É a forma do modal
       de tamanhos das Encomendas, que é o mesmo gesto.
+    - **A quantidade vai ao lado do tamanho** (`qty` no campo do
+      `openModal`): três camisolas do mesmo tamanho são UM pedido de três, e
+      sem isto a única saída era pedir uma e voltar ao formulário — que num
+      telemóvel é a maneira de a terceira nunca ser pedida. É a mesma coluna
+      `quantity` que o ecrã do treinador já preenchia (1 a 50 na base de
+      dados; o portal oferece até 20). Fica no MESMO campo do tamanho, e
+      estreita: que tamanho e quantas são duas respostas sobre a mesma peça, e
+      um campo à parte por artigo duplicava o formulário. Quem não lhe tocar
+      pede uma, como antes.
     - **Não se pergunta PORQUÊ.** O ecrã do treinador tem a lista de motivos
       (danificado, tamanho, perdido…) porque é ELE que lança o pedido de
       outra pessoa e o clube precisa de saber de onde veio. Aqui quem pede é
