@@ -12,11 +12,11 @@
 import { state, createEquipmentRequest, decideEquipmentRequest, updateRow, deleteRow, dbErrorMessage } from '../store.js';
 import { esc, emptyHTML, euros, paginate, paginationHTML, wirePagination, wireEmptyAction, PAGE_SIZE } from '../ui.js';
 import { openModal, confirmDialog } from '../modal.js';
-import { canEdit, canDecideRequests, isClubWide } from '../permissions.js';
+import { canEdit, canDecideRequests, isClubWide, canManageSettings } from '../permissions.js';
 import {
   teamName, myTeams, equipmentArticles, playerSizes,
   articleLabel as configuredArticleLabel,
-  allEquipmentArticles, articleVariant, sortSizes,
+  allEquipmentArticles, articleVariant, sortSizes, kitVariantReady,
 } from '../compute.js';
 import {
   REQUEST_REASONS,
@@ -268,6 +268,13 @@ function summaryHTML(rows, playerById) {
   const cost = groups.reduce((n, g) => n + g.cost, 0);
   const missing = groups.reduce((n, g) => n + g.missing, 0);
 
+  // Sem NENHUMA variante configurada, um total é só um total — e quem olha
+  // para "Camisola de Treino: 15" não tem como saber que faltam ali duas
+  // cores, nem que a app as sabe separar. A dica aparece exatamente nesse
+  // caso, e só a quem pode ir configurá-lo: passa a ser ruído a partir do
+  // momento em que o clube o fez.
+  const semVariantes = canManageSettings() && groups.every((g) => !g.variant);
+
   return `
     <div class="card enc-budget" style="margin-bottom:1rem">
       <div>
@@ -279,6 +286,16 @@ function summaryHTML(rows, playerById) {
         ${missing ? ` · <strong>${missing} por orçamentar</strong>` : ''}
       </span>
     </div>
+
+    ${semVariantes ? `
+      <p class="muted" style="margin:-0.4rem 0 1rem;font-size:0.85rem">
+        Estas contagens juntam todas as equipas. Se um artigo for de cores
+        diferentes conforme o escalão — a camisola de treino azul nos sub-21 e
+        branca nos restantes —, escreve a cor de origem do artigo em
+        <strong>Definições → Estrutura</strong> e a da equipa que foge à regra
+        na ficha da equipa, nos Plantéis${kitVariantReady() ? '' : ' (falta correr <code>supabase/variante-equipamento.sql</code>)'}.
+        O resumo passa a contá-las em separado.
+      </p>` : ''}
 
     <div class="enc-resumo-grid">
       ${groups.map((g) => {
