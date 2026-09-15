@@ -1157,6 +1157,107 @@ button.metric--nav:focus-visible {
   align-self: center;
 }
 
+/* =========================================================================
+   Faixa de números do Painel
+   =========================================================================
+   Substituiu nove cartões com ícone de 42px, dois de altura cada. Num
+   telemóvel enchiam o ecrã inteiro antes de se chegar ao que há para fazer —
+   e a pergunta que a faixa responde ("como vai o clube?") lê-se de relance,
+   não se estuda. Aqui o número é o que se vê primeiro e o rótulo vem por
+   baixo, ao contrário do cartão, onde a etiqueta em maiúsculas vinha à frente
+   do dado. */
+.stat-strip {
+  display: grid;
+  /* `auto-fit` com um mínimo REAL (não `minmax(0,…)`, que colapsaria tudo
+     numa coluna só por não haver medida de onde tirar o número de pistas):
+     seis números cabem numa linha no portátil e em duas no telemóvel. */
+  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  margin-bottom: 1.3rem;
+}
+.stat-strip__item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.85rem 0.9rem;
+  background: var(--surface);
+  min-width: 0;
+}
+.stat-strip__value {
+  font-family: var(--font-title);
+  font-size: 1.65rem;
+  line-height: 1.15;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--navy);
+}
+/* O tom é SINAL e não decoração: só o levam os números que dizem que algo
+   está bem ou mal (dívida a zero, comparência a cair). "Atletas" não tem
+   tom nenhum — não há um número bom de atletas. */
+.stat-strip__value--ok { color: var(--ok-ink); }
+.stat-strip__value--warn { color: var(--warn-ink); }
+.stat-strip__label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+.stat-strip__sub {
+  font-size: 0.76rem;
+  overflow-wrap: anywhere;
+}
+button.stat-strip__item--nav {
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  appearance: none;
+  border: 0;
+  cursor: pointer;
+  transition: background 0.13s ease;
+}
+button.stat-strip__item--nav:hover {
+  background: var(--navy-100);
+}
+
+/* Degraus da lista de trabalho ("Agora" / "Esta semana" / "Quando puderes") */
+.work-step__label {
+  margin: 0.9rem 0 0.1rem;
+}
+.work-step__label:first-of-type {
+  margin-top: 0.4rem;
+}
+/* Com trabalho urgente o cartão sobe para cima dos números e muda de cor:
+   a borda âmbar de "há coisas a tratar" não distingue o dia em que há um
+   documento caducado do dia em que faltam três datas de nascimento. */
+.alerts-card--now {
+  border-left-color: var(--danger);
+}
+
+/* Aniversários no cabeçalho (saíram da lista de trabalho) */
+.hero-birthdays {
+  display: inline-block;
+  margin-top: 0.45rem;
+  padding: 0.2rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  font: inherit;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  max-width: 100%;
+  text-align: left;
+}
+.hero-birthdays:hover {
+  background: var(--navy-100);
+  border-color: var(--navy-300);
+}
+
 /* Hero do Painel (saudação + criação rápida) */
 .page-head--hero {
   align-items: flex-start;
