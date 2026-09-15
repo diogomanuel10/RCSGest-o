@@ -23,7 +23,10 @@ import {
   injuredCount,
   upcomingAppointments,
   apptDateTime,
+  appointmentConflicts,
   activeEpisode,
+  episodeReturnDays,
+  injuryStats,
   expiringDocuments,
   objectivesNeedingAttention,
   trainingVsPlayingGaps,
@@ -69,21 +72,15 @@ import { DEFAULT_BRANDING } from '../branding.js';
 
 
 
-const ICON_CHART = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>`;
-
-const ICON_USERS = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`;
-
-
-const ICON_CHECK = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`;
 
 
 
 
-const ICON_PULSE = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>`;
 
-const ICON_CALENDAR = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`;
 
-const ICON_DUMBBELL = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1"/><path d="m3 3 1 1"/><path d="m18 22 4-4"/><path d="m2 6 4-4"/><path d="m3 10 7-7"/><path d="m14 21 7-7"/></svg>`;
+
+
+
 
 export function renderPainel(container) {
   // Painéis próprios para fisioterapeuta e preparador físico (resumo da sua área).
@@ -639,8 +636,20 @@ const FAMILY_SUMMARY = {
   gap:        (n) => `${n} atletas treinam muito e jogam pouco`,
   queda:      (n) => `${n} atletas deixaram de aparecer aos treinos`,
   documentos: (n) => `${n} documentos por renovar`,
+  // Fisioterapia
+  appt_abertos:    (n) => `${n} atendimentos por fechar`,
+  retorno_passado: (n) => `${n} atletas passaram a data prevista de retorno`,
+  conflitos:       (n) => `${n} atendimentos chocam com treinos`,
+  sem_previsao:    (n) => `${n} episódios sem previsão de retorno`,
+  // Preparação física
+  sem_perfil:        (n) => `${n} atletas sem perfil físico`,
+  sem_avaliacao:     (n) => `${n} atletas nunca avaliados`,
+  avaliacao_antiga:  (n) => `${n} atletas sem avaliação há mais de ${STALE_TEST_DAYS} dias`,
 };
 const FAMILY_COLLAPSE_AT = 3;
+
+// Ao fim de quantos dias uma avaliação física deixa de servir de referência.
+const STALE_TEST_DAYS = 120;
 
 // Degraus, por ordem de apresentação. O rótulo diz quando, não o que.
 export const WORK_STEPS = [
@@ -958,6 +967,8 @@ function collapseFamilies(items) {
     const urgency = WORK_STEPS.find((s) => grupo.some((i) => i.urgency === s.key))?.key || 'semana';
     const lead = grupo.find((i) => i.urgency === urgency) || grupo[0];
     const nomes = grupo.map((i) => i.name).filter(Boolean);
+    // O resumo perde o `athlete`: uma linha que fala de sete atletas não pode
+    // abrir a ficha de um deles. Vai para a secção, que é onde estão os sete.
     out.push({
       urgency,
       variant: lead.variant,
@@ -972,13 +983,15 @@ function collapseFamilies(items) {
   return out;
 }
 
-function actionItem({ variant, title, sub, route, plan, finTab, docAthlete }) {
+function actionItem({ variant, title, sub, route, plan, finTab, docAthlete, athlete, tab }) {
   // Um documento leva à FICHA do atleta e não à secção: o que se vai fazer
   // ali é renovar aquele documento, e a lista de Plantéis é mais um clique
   // pelo meio.
   const target = docAthlete
     ? `data-doc-athlete="${esc(docAthlete)}"`
-    : `data-nav="${esc(route)}"`;
+    : athlete
+      ? `data-work-athlete="${esc(athlete)}" data-work-tab="${esc(tab || 'geral')}"`
+      : `data-nav="${esc(route)}"`;
   return `
     <li>
       <button class="alert-item alert-item--${variant} alert-item--nav" ${target}${
@@ -1041,23 +1054,6 @@ function markRow({ event, total, marked, isToday }, { canClose = false, showAge 
   `;
 }
 
-// `route` opcional: quando presente, o cartão fica clicável e navega para essa
-// secção (data-nav, ligado em renderPainel). Sem rota, é só informativo.
-// `finTab` abre o Financeiro já no separador certo (patrocínios/quotas).
-function metricCard(icon, label, value, sub, variant = '', route = '', finTab = '') {
-  const cls = `card metric ${variant ? 'metric--' + variant : ''}${route ? ' metric--nav' : ''}`;
-  const inner = `
-      <div class="metric__icon-wrap">${icon}</div>
-      <span class="metric__label">${esc(label)}</span>
-      <strong class="metric__value">${String(value)}</strong>
-      <span class="metric__sub muted">${esc(sub)}</span>`;
-  return route
-    ? `<button class="${cls}" type="button" data-nav="${esc(route)}"${
-        finTab ? ` data-fin-tab-open="${esc(finTab)}"` : ''
-      } title="Abrir ${esc(label)}">${inner}</button>`
-    : `<div class="${cls}">${inner}</div>`;
-}
-
 function upcomingList(events) {
   return `
     <ul class="event-mini">
@@ -1098,13 +1094,84 @@ function upcomingList(events) {
 // =========================================================================
 // Painel do Fisioterapeuta — resumo do Departamento Médico.
 // =========================================================================
+// Pendências do fisioterapeuta. O painel dele tinha três números e duas
+// listas e não dizia UMA coisa que estivesse por fazer — o que está por fazer
+// num departamento clínico é precisamente o que não se vê: o atendimento que
+// ninguém fechou, a previsão de retorno que passou, o episódio sem previsão
+// nenhuma. Tudo isto já estava na base de dados; faltava alguém perguntar.
+function buildFisioActions() {
+  const items = [];
+  const hoje = localToday();
+  const nome = (id) => state.players.find((p) => p.id === id)?.name || 'Atleta';
+
+  // Atendimentos que já passaram e continuam "agendado": ninguém disse se se
+  // realizou ou se o atleta faltou. É o equivalente clínico das presenças por
+  // marcar — e, tal como lá, o que se perde não é a linha, é a estatística.
+  state.appointments
+    .filter((a) => a.status === 'agendado' && a.date && a.date < hoje)
+    .forEach((a) => {
+      items.push({
+        urgency: 'agora', variant: 'warn', family: 'appt_abertos',
+        name: nome(a.player_id), athlete: a.player_id, tab: 'fisioterapia',
+        title: `Atendimento de ${nome(a.player_id)} por fechar`,
+        sub: `Marcado para ${dataCurta(a.date)} e ainda como "agendado" — realizado, faltou ou cancelado?`,
+      });
+    });
+
+  // Previsão de retorno já passada sem alta dada. Ou o atleta voltou e
+  // ninguém fechou o episódio, ou não voltou e a previsão está errada — as
+  // duas hipóteses pedem a mesma coisa: alguém olhar.
+  state.clinicalEpisodes
+    .filter((e) => e.status !== 'alta' && e.expected_return && e.expected_return < hoje)
+    .forEach((e) => {
+      items.push({
+        urgency: 'agora', variant: 'danger', family: 'retorno_passado',
+        name: nome(e.player_id), athlete: e.player_id, tab: 'fisioterapia',
+        title: `${nome(e.player_id)} devia ter voltado a ${dataCurta(e.expected_return)}`,
+        sub: 'Sem alta dada — rever o episódio ou atualizar a previsão.',
+      });
+    });
+
+  // Atendimentos que chocam com treino ou jogo da equipa do atleta. O aviso
+  // já existia, mas só aparecia a quem ESTIVESSE a marcar o atendimento: um
+  // conflito criado na segunda só se descobria na quinta, no balneário.
+  upcomingAppointments(30)
+    .filter((a) => appointmentConflicts(a.player_id, a.date, a.time, a.end_time).length)
+    .forEach((a) => {
+      items.push({
+        urgency: 'semana', variant: 'warn', family: 'conflitos',
+        name: nome(a.player_id), athlete: a.player_id, tab: 'fisioterapia',
+        title: `Atendimento de ${nome(a.player_id)} choca com um treino`,
+        sub: `${dataCurta(a.date)} — a equipa dela tem evento à mesma hora.`,
+      });
+    });
+
+  // Episódio em curso sem previsão de retorno. Sem data prevista, o treinador
+  // não sabe com quem conta e o episódio não tem fim à vista — nem para
+  // medir, nem para cobrar a si próprio.
+  state.clinicalEpisodes
+    .filter((e) => e.status !== 'alta' && !e.expected_return)
+    .forEach((e) => {
+      items.push({
+        urgency: 'semana', variant: 'info', family: 'sem_previsao',
+        name: nome(e.player_id), athlete: e.player_id, tab: 'fisioterapia',
+        title: `${nome(e.player_id)} sem previsão de retorno`,
+        sub: 'Sem data prevista o treinador não sabe com quem conta.',
+      });
+    });
+
+  return collapseFamilies(items);
+}
+
 function renderFisioPainel(container) {
   const injured = injuredCount();
-  const upcoming = upcomingAppointments(8);
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const todayAppts = state.appointments.filter(
-    (a) => a.status === 'agendado' && a.date === todayStr
-  ).length;
+  const hoje = localToday();
+  const todayAppts = state.appointments
+    .filter((a) => a.status === 'agendado' && a.date === hoje)
+    .sort((a, b) => apptDateTime(a) - apptDateTime(b));
+  // "Próximos" deixa de repetir os de HOJE, que já estão no cartão de cima —
+  // é a mesma correção do "Hoje" vs "Próximos eventos" dos outros painéis.
+  const upcoming = upcomingAppointments(30).filter((a) => a.date !== hoje).slice(0, 8);
 
   // Atletas com episódio em curso (ativo ou em recuperação), para a lista.
   const recovering = state.players
@@ -1112,40 +1179,110 @@ function renderFisioPainel(container) {
     .filter((x) => x.episode)
     .sort((a, b) => (a.episode.status === 'ativo' ? 0 : 1) - (b.episode.status === 'ativo' ? 0 : 1));
 
-  const metrics = [
-    metricCard(ICON_PULSE, 'Em tratamento', injured, injured === 1 ? 'atleta com episódio ativo' : 'atletas com episódio ativo', injured > 0 ? 'accent' : 'green'),
-    metricCard(ICON_CALENDAR, 'Atendimentos hoje', todayAppts, todayAppts ? 'agendados para hoje' : 'nada agendado hoje', todayAppts ? 'blue' : 'purple'),
-    metricCard(ICON_CHECK, 'Próximos', upcoming.length, 'atendimentos por realizar', 'green'),
+  // Tempo médio até à alta e recidivas: os dois números que respondem às
+  // perguntas que ninguém conseguia responder ficha a ficha. Substituem
+  // "Atendimentos hoje" e "Próximos", que eram a contagem das duas listas
+  // desenhadas logo por baixo — o mesmo dado duas vezes no mesmo ecrã.
+  const dias = state.clinicalEpisodes.map(episodeReturnDays).filter((d) => d != null);
+  const media = dias.length ? Math.round(dias.reduce((s, d) => s + d, 0) / dias.length) : null;
+  const recidivas = injuryStats().reduce((n, z) => n + z.recidivas, 0);
+
+  const stats = [
+    { label: 'Em tratamento', value: injured,
+      sub: injured ? `atleta${injured === 1 ? '' : 's'} com episódio em curso` : 'sem episódios em curso',
+      tone: injured > 0 ? 'warn' : 'ok', route: 'saude' },
+    { label: 'Alta média', value: media == null ? '—' : `${media} d`,
+      sub: dias.length ? `em ${dias.length} episódio${dias.length === 1 ? '' : 's'} com alta` : 'ainda sem altas registadas',
+      route: 'saude' },
+    { label: 'Recidivas', value: recidivas,
+      sub: recidivas ? 'voltaram a lesionar a mesma zona' : 'nenhuma zona repetida',
+      tone: recidivas > 0 ? 'warn' : 'ok', route: 'saude' },
   ];
+
+  const actions = buildFisioActions();
+  const urgente = actions.some((a) => a.urgency === 'agora');
+  const corpo = urgente ? [workCard(actions), statStrip(stats)] : [statStrip(stats), workCard(actions)];
 
   container.innerHTML = `
     <header class="page-head page-head--hero">
       <div>
         <h1 class="section-title">${esc(greeting())}${displayName() ? ', ' + esc(displayName()) : ''}</h1>
-        <p class="muted" style="margin:0;font-size:0.9rem">Resumo do Departamento Médico.</p>
+        <p class="muted" style="margin:0;font-size:0.9rem">${esc(fisioLine(todayAppts, actions, urgente))}</p>
       </div>
     </header>
 
-    <section class="cards-grid">${metrics.join('')}</section>
+    ${todayAppts.length ? `<section class="card today-card">
+      <h2 class="section-title upcoming-card__title">Hoje</h2>
+      <ul class="today-list">${todayAppts.map(apptRow).join('')}</ul>
+    </section>` : ''}
 
-    <section class="card">
-      <h2 class="section-title upcoming-card__title">Próximos atendimentos</h2>
-      ${upcoming.length ? `<ul class="today-list">${upcoming.map(apptRow).join('')}</ul>`
-        : '<p class="muted" style="margin:0.3rem 0 0">Sem atendimentos agendados.</p>'}
-    </section>
+    ${corpo.join('')}
 
     <section class="card">
       <h2 class="section-title upcoming-card__title">Atletas em tratamento</h2>
       ${recovering.length ? `<ul class="today-list">${recovering.map(injuredRow).join('')}</ul>`
         : '<p class="muted" style="margin:0.3rem 0 0">Nenhum atleta com episódio em curso.</p>'}
     </section>
+
+    <section class="card">
+      <h2 class="section-title upcoming-card__title">Próximos atendimentos</h2>
+      ${upcoming.length ? `<ul class="today-list">${upcoming.map(apptRow).join('')}</ul>`
+        : '<p class="muted" style="margin:0.3rem 0 0">Sem outros atendimentos agendados.</p>'}
+    </section>
   `;
 
+  wireWorkCard(container, () => renderFisioPainel(container));
+  wireAreaPainel(container, 'fisioterapia');
+}
+
+// Primeira linha do cabeçalho do fisio — mesma regra do painel do
+// coordenador: com trabalho urgente é isso que se diz, senão é a agenda.
+function fisioLine(todayAppts, actions, urgente) {
+  if (urgente) {
+    const n = actions.filter((a) => a.urgency === 'agora').length;
+    return `${n} coisa${n === 1 ? '' : 's'} precisa${n === 1 ? '' : 'm'} de ti agora.`;
+  }
+  if (todayAppts.length) {
+    return `Tens ${todayAppts.length} atendimento${todayAppts.length === 1 ? '' : 's'} hoje.`;
+  }
+  return 'Nada agendado para hoje no Departamento Médico.';
+}
+
+// Data curta e legível (dd mmm) para os subtítulos das pendências.
+function dataCurta(iso) {
+  if (!iso) return '';
+  return new Date(iso + 'T00:00:00').toLocaleDateString('pt-PT', { day: '2-digit', month: 'short' });
+}
+
+// Hoje em ISO local (e não `toISOString`, que devolve UTC e às 23h de verão
+// dá o dia seguinte — um atendimento de hoje passava a "atrasado").
+function localToday() {
+  const d = new Date();
+  const mes = String(d.getMonth() + 1).padStart(2, '0');
+  const dia = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${mes}-${dia}`;
+}
+
+// Ligações comuns aos painéis de área (fisio e preparador): abrir a ficha do
+// atleta no separador da área, navegar a partir das pendências e configurar.
+function wireAreaPainel(container, tab) {
   container.querySelectorAll('[data-open-athlete]').forEach((el) => {
-    const open = () => { if (el.dataset.openAthlete) openAthleteProfile(el.dataset.openAthlete, { tab: 'fisioterapia' }); };
+    const open = () => {
+      if (el.dataset.openAthlete) openAthleteProfile(el.dataset.openAthlete, { tab });
+    };
     el.addEventListener('click', open);
-    el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
+    });
   });
+  container.querySelectorAll('[data-work-athlete]').forEach((el) =>
+    el.addEventListener('click', () =>
+      openAthleteProfile(el.dataset.workAthlete, { tab: el.dataset.workTab || tab })
+    )
+  );
+  container.querySelectorAll('[data-nav]').forEach((el) =>
+    el.addEventListener('click', () => navTo(el.dataset.nav))
+  );
 }
 
 function apptRow(a) {
@@ -1182,34 +1319,115 @@ function injuredRow({ player, episode }) {
 // =========================================================================
 // Painel do Preparador Físico — resumo da Preparação Física.
 // =========================================================================
+// Pendências do preparador físico. O painel dele dizia "247 avaliações
+// registadas no total" — o exemplo perfeito de um número que nunca pede nada:
+// só sobe, nunca desce, e não distingue o clube que mede toda a gente do que
+// mediu vinte atletas há três épocas. O que interessa é o inverso: QUEM falta
+// medir, que é o trabalho do preparador.
+function buildPrepActions() {
+  const items = [];
+  const comPerfil = new Set(
+    state.physicalProfiles.filter((p) => p.height_cm || p.weight_kg).map((p) => p.player_id)
+  );
+  // Data da última avaliação de cada atleta.
+  const ultima = new Map();
+  for (const t of state.physicalTests) {
+    if (!t.date) continue;
+    const atual = ultima.get(t.player_id);
+    if (!atual || t.date > atual) ultima.set(t.player_id, t.date);
+  }
+  const limite = new Date();
+  limite.setDate(limite.getDate() - STALE_TEST_DAYS);
+  const limiteISO = limite.toISOString().slice(0, 10);
+
+  state.players.forEach((p) => {
+    // Sem altura nem peso não há IMC, não há nada — é o primeiro registo de
+    // toda a ficha física e sem ele o resto não se calcula.
+    if (!comPerfil.has(p.id)) {
+      items.push({
+        urgency: 'semana', variant: 'warn', family: 'sem_perfil',
+        name: p.name, athlete: p.id, tab: 'fisica',
+        title: `${p.name} sem perfil físico`,
+        sub: 'Sem altura nem peso não há IMC nem comparação possível.',
+      });
+      return;
+    }
+    const data = ultima.get(p.id);
+    if (!data) {
+      items.push({
+        urgency: 'semana', variant: 'info', family: 'sem_avaliacao',
+        name: p.name, athlete: p.id, tab: 'fisica',
+        title: `${p.name} nunca foi avaliada`,
+        sub: 'Sem uma primeira medição não há evolução para mostrar.',
+      });
+    } else if (data < limiteISO) {
+      items.push({
+        urgency: 'depois', variant: 'info', family: 'avaliacao_antiga',
+        name: p.name, athlete: p.id, tab: 'fisica',
+        title: `${p.name} sem avaliação desde ${dataCurta(data)}`,
+        sub: `Passaram mais de ${STALE_TEST_DAYS} dias — repetir para haver evolução.`,
+      });
+    }
+  });
+
+  return collapseFamilies(items);
+}
+
 function renderPreparadorPainel(container) {
   const now = new Date();
+  const hoje = localToday();
   const athletes = state.players.length;
   const upcomingGames = state.events
     .filter((e) => e.type === 'jogo' && eventDateTime(e) >= now)
     .sort((a, b) => eventDateTime(a) - eventDateTime(b))
     .slice(0, 8);
   const upcomingGym = state.gymSessions
-    .filter((s) => new Date(s.date + 'T00:00:00') >= new Date(now.toISOString().slice(0, 10)))
+    .filter((se) => (se.date || '') >= hoje)
     .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
     .slice(0, 8);
-  const testsCount = state.physicalTests.length;
 
-  const metrics = [
-    metricCard(ICON_USERS, 'Atletas', athletes, `em ${state.teams.length} equipa${state.teams.length === 1 ? '' : 's'}`, 'green'),
-    metricCard(ICON_DUMBBELL, 'Treinos de ginásio', upcomingGym.length, upcomingGym.length ? 'agendados a seguir' : 'nada agendado', 'blue'),
-    metricCard(ICON_CHART, 'Avaliações físicas', testsCount, 'registadas no total', 'purple'),
+  // Quantos atletas têm alguma avaliação, e há quanto tempo foi a última do
+  // clube. Substituem "Treinos de ginásio" (que era a contagem da lista logo
+  // por baixo) e "Avaliações físicas no total" (que só sabia crescer).
+  const avaliados = new Set(state.physicalTests.map((t) => t.player_id)).size;
+  const ultimaData = state.physicalTests
+    .map((t) => t.date).filter(Boolean).sort().pop() || null;
+  const diasDesde = ultimaData
+    ? Math.round((new Date(hoje) - new Date(ultimaData)) / 86400000)
+    : null;
+
+  const stats = [
+    { label: 'Atletas', value: athletes,
+      sub: `em ${state.teams.length} equipa${state.teams.length === 1 ? '' : 's'}`, route: 'planteis' },
+    { label: 'Avaliados', value: athletes ? `${avaliados}/${athletes}` : '—',
+      sub: athletes ? `${Math.round((avaliados / athletes) * 100)}% do clube com medições` : 'ainda sem atletas',
+      tone: athletes && avaliados === athletes ? 'ok' : avaliados < athletes / 2 ? 'warn' : '',
+      route: 'saude' },
+    { label: 'Última avaliação', value: diasDesde == null ? '—' : diasDesde === 0 ? 'hoje' : `${diasDesde} d`,
+      sub: ultimaData ? `registada a ${dataCurta(ultimaData)}` : 'ainda sem avaliações',
+      tone: diasDesde != null && diasDesde > STALE_TEST_DAYS ? 'warn' : '',
+      route: 'saude' },
   ];
+
+  const actions = buildPrepActions();
+  // Aqui NADA é "agora" de propósito: medir um atleta é trabalho de semanas,
+  // não de horas. Por isso a faixa vem sempre primeiro — inventar urgência
+  // onde não há é a forma mais rápida de o degrau "Agora" deixar de ser lido.
+  const corpo = [statStrip(stats), workCard(actions)];
 
   container.innerHTML = `
     <header class="page-head page-head--hero">
       <div>
         <h1 class="section-title">${esc(greeting())}${displayName() ? ', ' + esc(displayName()) : ''}</h1>
-        <p class="muted" style="margin:0;font-size:0.9rem">Resumo da Preparação Física.</p>
+        <p class="muted" style="margin:0;font-size:0.9rem">
+          ${esc(actions.length
+            ? 'Resumo da Preparação Física — há atletas por medir.'
+            : 'Resumo da Preparação Física — o plantel está todo medido.')}
+        </p>
       </div>
     </header>
 
-    <section class="cards-grid">${metrics.join('')}</section>
+    ${corpo.join('')}
 
     <section class="card">
       <h2 class="section-title upcoming-card__title">Próximos treinos de ginásio</h2>
@@ -1223,6 +1441,9 @@ function renderPreparadorPainel(container) {
         : '<p class="muted" style="margin:0.3rem 0 0">Sem jogos agendados.</p>'}
     </section>
   `;
+
+  wireWorkCard(container, () => renderPreparadorPainel(container));
+  wireAreaPainel(container, 'fisica');
 }
 
 function gymRow(s) {

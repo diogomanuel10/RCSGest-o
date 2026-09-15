@@ -1071,6 +1071,31 @@ separador antes de navegar (usado pelos cartões do Painel).
     chegar a tempo, que é a única coisa que um aniversário precisa de fazer. As
     **datas por preencher** ficam na lista, no degrau `depois` — isso É
     trabalho: sem a data não há aniversário nenhum.
+  - **Os painéis de área (fisio e preparador) ganharam trabalho, não só
+    corte.** Tinham três números e duas listas, e os números eram a CONTAGEM
+    das listas desenhadas logo por baixo ("Próximos: 5" por cima da lista dos
+    5) ou pura vaidade ("247 avaliações registadas no total" — só sobe, nunca
+    desce, e não distingue o clube que mede toda a gente do que mediu vinte
+    atletas há três épocas). Nenhum dos dois dizia UMA coisa que estivesse por
+    fazer, e tudo o que agora dizem já estava na base de dados:
+    - **Fisioterapia** (`buildFisioActions`): atendimento que já passou e
+      continua "agendado" (o equivalente clínico das presenças por marcar — o
+      que se perde não é a linha, é a estatística), previsão de retorno já
+      passada sem alta dada, episódio em curso sem previsão nenhuma, e o
+      **conflito com treino/jogo** — que `appointmentConflicts()` já sabia
+      calcular mas só mostrava a quem ESTIVESSE a marcar o atendimento: um
+      conflito criado na segunda descobria-se na quinta, no balneário. Os
+      números passaram a ser o tempo médio até à alta e as recidivas, que são
+      o que se pergunta a um departamento clínico.
+    - **Preparação física** (`buildPrepActions`): atletas sem perfil (sem
+      altura nem peso não há IMC nem nada), nunca avaliados, e sem avaliação
+      há mais de `STALE_TEST_DAYS`. O indicador passou de "quantas medições
+      existem" para **"quantos atletas estão medidos"** (`avaliados/total`),
+      que é a mesma informação virada para o lado do trabalho.
+    - **Nada no preparador é "agora"**, de propósito: medir um atleta é
+      trabalho de semanas e não de horas, por isso a faixa vem sempre à frente
+      nesse painel. Inventar urgência onde não há é a forma mais rápida de o
+      degrau "Agora" deixar de ser lido.
   - **No painel do treinador**, o cartão "Por marcar" da faixa saiu: o número
     estava por cima do cartão que lista, linha a linha, exatamente os mesmos
     treinos. Pela mesma razão, `buildActions({ includePresencas })` só dá a
