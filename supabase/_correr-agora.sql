@@ -3,7 +3,7 @@
 -- =====================================================================
 -- Cola isto INTEIRO no SQL Editor do Supabase e corre uma vez.
 --
--- São cinco migrações, nesta ordem (a ordem importa: cada uma depende das
+-- São seis migrações, nesta ordem (a ordem importa: cada uma depende das
 -- colunas e do vocabulário que as anteriores criam):
 --
 --   1. artigos-configuraveis.sql  o clube define os seus artigos e tamanhos
@@ -11,6 +11,7 @@
 --   3. fotos-artigos.sql          bucket com a foto de cada artigo
 --   4. variante-equipamento.sql   a cor/modelo do equipamento por escalão
 --   5. circuito-pedidos.sql       as paragens de um pedido + o que está por pagar
+--   6. confirmacao-tamanhos.sql   a família confirma os dados da encomenda
 --
 -- Todas são seguras de re-executar: se já correste alguma, correr outra vez
 -- não desfaz nada nem duplica seja o que for.
@@ -705,10 +706,84 @@ create trigger trg_notify_equipment_request_decided
   for each row execute function notify_equipment_request_decided();
 
 
+
+-- ####################################################################
+-- ##  confirmacao-tamanhos.sql
+-- ####################################################################
+
+-- =====================================================================
+-- Rumia — A família confirma os dados da encomenda
+-- =====================================================================
+-- Corre DEPOIS de schema.sql, multitenant.sql e artigos-configuraveis.sql.
+-- Pode ser corrido várias vezes sem problema.
+--
+-- Porquê: a tabela das Encomendas é a lista que vai ao fornecedor, e o que
+-- lá está não foi confirmado por ninguém. O número, o nome a estampar na
+-- camisola e os tamanhos foram escritos pelo treinador de memória, ou saíram
+-- de uma medição de setembro do ano passado — e o erro só aparece quando a
+-- caixa chega: uma camisola com "MARIA" em vez de "MARIANA", um M que devia
+-- ser S. Uma camisola estampada não se troca.
+--
+-- A confirmação já se fazia — por WhatsApp, atleta a atleta, e ficava no
+-- histórico da conversa. O que faltava era saber, olhando para a lista,
+-- QUEM já respondeu: sem isso, à vigésima família ninguém sabe em qual ia.
+--
+-- O que cria:
+--   1. `player_sizes.confirmed_at` / `confirmed_by` — quem já respondeu
+--   2. Nada mais: o RLS de `player_sizes` já decide quem escreve aqui
+-- =====================================================================
+
+-- ---------------------------------------------------------------------
+-- 1. A marca de confirmado
+-- ---------------------------------------------------------------------
+-- É uma MARCA na linha e não uma tabela de respostas: a resposta em si
+-- chega por WhatsApp ou por email, fora da app, e guardá-la aqui seria um
+-- segundo sítio para a mesma conversa. O que a app precisa de saber é uma
+-- coisa só — esta linha já foi confirmada por quem a veste?
+--
+-- `confirmed_by` é quem CARIMBOU (o coordenador), não quem confirmou: quem
+-- confirma é a família, do outro lado da mensagem, e essa não tem
+-- necessariamente conta na app. Serve para saber a quem perguntar.
+alter table player_sizes add column if not exists confirmed_at timestamptz;
+alter table player_sizes add column if not exists confirmed_by uuid references auth.users(id) on delete set null;
+
+-- ---------------------------------------------------------------------
+-- 2. Uma confirmação é sobre VALORES concretos
+-- ---------------------------------------------------------------------
+-- Mudar o tamanho ou o nome a estampar depois de confirmado deixa a linha a
+-- dizer "confirmado" sobre dados que ninguém viu — que é pior do que não
+-- ter marca nenhuma, porque ninguém volta a perguntar. A app limpa a marca
+-- a cada gravação de tamanhos (ver `upsertPlayerSizes` no store), e o
+-- trigger fecha a porta a quem escreva por fora da app.
+--
+-- Só olha para o que foi CONFIRMADO: o `updated_at` muda a cada gravação,
+-- incluindo a que carimba a própria confirmação.
+create or replace function public.clear_sizes_confirmation()
+returns trigger
+language plpgsql
+as $$
+begin
+  if NEW.confirmed_at is not distinct from OLD.confirmed_at
+     and (NEW.sizes            is distinct from OLD.sizes
+       or NEW.nome_camisola    is distinct from OLD.nome_camisola
+       or NEW.nome_camisola_alt is distinct from OLD.nome_camisola_alt)
+  then
+    NEW.confirmed_at := null;
+    NEW.confirmed_by := null;
+  end if;
+  return NEW;
+end;
+$$;
+
+drop trigger if exists trg_clear_sizes_confirmation on player_sizes;
+create trigger trg_clear_sizes_confirmation before update on player_sizes
+  for each row execute function public.clear_sizes_confirmation();
+
+
 -- =====================================================================
 -- VERIFICAÇÃO — corre isto a seguir, numa consulta à parte
 -- =====================================================================
--- Devem sair sete linhas, todas com ok = true. Qualquer false diz
+-- Devem sair oito linhas, todas com ok = true. Qualquer false diz
 -- exatamente o que ficou por aplicar.
 --
 -- select 'settings.equipment_articles' as o_que,
@@ -733,6 +808,10 @@ create trigger trg_notify_equipment_request_decided
 -- select 'equipment_requests.paid_at',
 --        exists (select 1 from information_schema.columns
 --                 where table_name='equipment_requests' and column_name='paid_at')
+-- union all
+-- select 'player_sizes.confirmed_at',
+--        exists (select 1 from information_schema.columns
+--                 where table_name='player_sizes' and column_name='confirmed_at')
 -- union all
 -- select 'tamanhos antigos copiados',
 --        not exists (select 1 from player_sizes

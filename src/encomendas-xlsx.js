@@ -42,8 +42,12 @@ export async function exportEncomendaXLSX({ teamLabel, players, sizesById, artic
   const XLSX = await loadXLSX();
 
   // --- Folha "Atletas": detalhe por atleta ---
+  // A coluna "Confirmado" vai à FRENTE dos tamanhos de propósito: numa folha
+  // que se leva ao fornecedor, saber que a linha ainda não foi validada pela
+  // família importa mais do que qualquer tamanho dela — uma camisola
+  // estampada não se troca.
   const detailHeader = [
-    'Nº', 'Atleta', 'Nome Camisola', 'Nome Camisola Alt.',
+    'Nº', 'Atleta', 'Confirmado', 'Nome Camisola', 'Nome Camisola Alt.',
     ...articles.map((a) => a.label),
   ];
   const detailRows = players.map((p) => {
@@ -51,6 +55,7 @@ export async function exportEncomendaXLSX({ teamLabel, players, sizesById, artic
     return [
       p.number || '',
       p.name || '',
+      s.confirmed_at ? new Date(s.confirmed_at).toLocaleDateString('pt-PT') : 'Não',
       s.nome_camisola || '',
       s.nome_camisola_alt || '',
       ...articles.map((a) => s.sizes?.[a.key] || ''),
@@ -58,7 +63,7 @@ export async function exportEncomendaXLSX({ teamLabel, players, sizesById, artic
   });
   const wsDetail = XLSX.utils.aoa_to_sheet([detailHeader, ...detailRows]);
   wsDetail['!cols'] = [
-    { wch: 5 }, { wch: 24 }, { wch: 18 }, { wch: 18 },
+    { wch: 5 }, { wch: 24 }, { wch: 12 }, { wch: 18 }, { wch: 18 },
     ...articles.map(() => ({ wch: 16 })),
   ];
 

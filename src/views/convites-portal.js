@@ -21,6 +21,7 @@ import { toastOk, toastError } from '../toast.js';
 import { teamName } from '../compute.js';
 import { joinMessage, rosterInviteMessage } from '../join-guide.js';
 import { openJoinGuide } from './guia-entrada.js';
+import { contactChannel } from '../sizes-message.js';
 
 // Link de convite a partir do token (mesma origem/caminho da app).
 export function inviteLink(token) {
@@ -37,21 +38,6 @@ function pendingInvite(playerId) {
 
 const fmtDate = (d) =>
   d ? new Date(d).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
-
-// O contacto do encarregado é texto livre (a ficha aceita "telefone ou email").
-// Adivinha-se o canal para dar o botão certo — e não se adivinha mais nada:
-// sem contacto reconhecível, a linha fica só com o link para copiar.
-function contactChannel(raw) {
-  const v = (raw || '').trim();
-  if (!v) return null;
-  if (v.includes('@')) return { kind: 'email', value: v.toLowerCase() };
-  const digits = v.replace(/\D/g, '');
-  if (digits.length < 9) return null;
-  // O wa.me exige indicativo. Nove dígitos sem indicativo é um número
-  // português; qualquer coisa maior já o traz.
-  const intl = v.trim().startsWith('+') ? digits : digits.length === 9 ? `351${digits}` : digits;
-  return { kind: 'phone', value: intl };
-}
 
 // Texto que segue com o link. Escrito para o encarregado de educação, que é
 // quem recebe a mensagem na formação.
