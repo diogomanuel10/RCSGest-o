@@ -848,6 +848,7 @@ export function renderDefinicoes(container) {
                 ${a.price != null ? ` · ${esc(euros(a.price))}` : ''}
                 ${a.requestable ? ' · 🙋 as atletas podem pedir' : ''}
                 ${a.requestable && a.multiple ? ' · com quantidade' : ''}
+                ${a.no_confirm ? ' · ✉ fora da mensagem de confirmação' : ''}
                 ${a.variant ? ` · ${esc(a.variant)}` : ''}
               </small>
             </span>
@@ -859,6 +860,10 @@ export function renderDefinicoes(container) {
                       aria-pressed="${a.requestable ? 'true' : 'false'}"
                       aria-label="${a.requestable ? 'Deixar de permitir' : 'Permitir'} que as atletas peçam ${esc(a.label)}"
                       title="As atletas podem pedir este artigo">🙋</button>
+              <button type="button" data-anoconf="${i}" class="${a.no_confirm ? '' : 'chip__on'}"
+                      aria-pressed="${a.no_confirm ? 'false' : 'true'}"
+                      aria-label="${a.no_confirm ? 'Passar a incluir' : 'Deixar de incluir'} ${esc(a.label)} na mensagem de confirmação às famílias"
+                      title="Entra na mensagem que pede à família para confirmar os dados da encomenda">✉</button>
               <button type="button" data-atoggle="${i}"
                       aria-label="${a.active ? 'Desativar' : 'Reativar'} ${esc(a.label)}">${a.active ? '⏻' : '↺'}</button>
             </span>
@@ -878,6 +883,18 @@ export function renderDefinicoes(container) {
         b.addEventListener('click', () => {
           const i = Number(b.dataset.areq);
           artList[i] = { ...artList[i], requestable: !artList[i].requestable };
+          drawArtList();
+        })
+      );
+      // Um artigo pode existir na encomenda e NÃO entrar na mensagem que se
+      // manda à família: há peças que o clube trata sozinho e sobre as quais
+      // não faz pergunta nenhuma. É por artigo e não uma lista de nomes no
+      // código — os artigos são do clube, e a app não sabe o que é uma sweat.
+      // Por omissão entra: o que se está a confirmar é a encomenda toda.
+      artListEl.querySelectorAll('[data-anoconf]').forEach((b) =>
+        b.addEventListener('click', () => {
+          const i = Number(b.dataset.anoconf);
+          artList[i] = { ...artList[i], no_confirm: !artList[i].no_confirm };
           drawArtList();
         })
       );

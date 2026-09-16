@@ -950,8 +950,23 @@ separador antes de navegar (usado pelos cartões do Painel).
   - **Mostra o que já está preenchido e pede que confirmem ou corrijam.** Uma
     mensagem que só pergunta ("que tamanho vestes?") obriga cada família a
     pensar do zero, e responde-se muito menos do que a uma que diz "temos
-    isto, está certo?". Os artigos por preencher dizem-se — são precisamente
-    aqueles sobre os quais se está a escrever.
+    isto, está certo?".
+  - **Leva SÓ o que está preenchido.** As linhas em branco chegaram a ir com
+    um "(por preencher)" ao lado, para que quem lê dissesse o que falta — e o
+    que saía era uma lista de buracos: oito linhas, seis vazias, e as duas que
+    havia mesmo para verificar perdidas no meio. Uma mensagem assim lê-se como
+    um formulário por preencher e responde-se como a um formulário: não se
+    responde. O que falta continua a ver-se onde é trabalho de quem o
+    preenche — na tabela, com o contador e o "—" em cada célula. Com a ficha
+    INTEIRA em branco a mensagem muda de forma e pergunta (é a única altura em
+    que o faz): confirmar sobre o vazio não é confirmar nada.
+  - **Nem todos os artigos entram na mensagem** (`no_confirm`, o ✉ na lista de
+    artigos das Definições): há peças que o clube trata sozinho e sobre as
+    quais não faz pergunta nenhuma à família. Continuam na encomenda, no
+    resumo e no `.xlsx` — o que sai é só a pergunta. É por artigo e não uma
+    lista de nomes no código: os artigos são do clube, e a app não sabe o que
+    é uma sweat. Por omissão entra, que o que se está a confirmar é a
+    encomenda toda.
   - **O nome a estampar NÃO cai para o nome do atleta** na mensagem. É isso
     que se está a perguntar, e apresentar um palpite como se fosse dado é uma
     confirmação que confirma o engano. (No formulário de edição o nome do
