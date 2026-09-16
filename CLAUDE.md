@@ -797,7 +797,14 @@ separador antes de navegar (usado pelos cartões do Painel).
       atleta com ela à frente. O valor é o do artigo ao preço de hoje
       (`requestCost`, o mesmo do resto do ecrã); os artigos sem preço
       contam-se à parte em vez de entrarem como zero, e a quitação dá-se aqui
-      linha a linha ou toda de uma vez.
+      linha a linha, por atleta ou pela equipa toda.
+      **Agrupa-se por EQUIPA** (`<details class="group">`, a forma das listas
+      longas): sessenta cartões de atleta em coluna eram um scroll sem fim, e
+      a entrega nunca é do clube inteiro — é do escalão que está no pavilhão
+      naquela tarde. Os grupos nascem fechados com o que interessa já no
+      cabeçalho (quantas atletas, quanto há a cobrar), para a primeira coisa
+      que se vê ser a escolha do escalão; com uma equipa só — do clube ou do
+      filtro — abre, que não há nada para escolher.
 
     As três contam o que estiver no FILTRO em cima ("Por pagar" dá quem tem
     contas em aberto, "Por resolver" dá o cenário se tudo for aprovado) — um âmbito próprio seria dois números
