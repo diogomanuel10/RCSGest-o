@@ -303,6 +303,7 @@ supabase/grupo-whatsapp.sql    Link do grupo de WhatsApp da equipa (guia de entr
 supabase/pedidos-equipamento.sql  Pedidos de equipamento (treinador -> clube) + notificações
 supabase/artigos-configuraveis.sql Artigos e tamanhos de equipamento definidos pelo clube
 supabase/pedidos-atleta.sql    A atleta pede equipamento do portal; decide o coordenador/direção
+supabase/circuito-pedidos.sql  Paragens de um pedido (encomendado/pronto) + o que está por pagar
 supabase/fotos-artigos.sql     Bucket público com a foto de cada artigo de equipamento
 supabase/variante-equipamento.sql Cor/modelo do equipamento por escalão (resumo dos pedidos)
 supabase/aniversarios.sql      Data de nascimento do atleta (aniversários + quem falta)
@@ -651,10 +652,58 @@ separador antes de navegar (usado pelos cartões do Painel).
   - **Não há coluna `team_id`**: a equipa lê-se do atleta. Guardá-la aqui seria
     um segundo dono do mesmo dado, e um atleta que muda de escalão ficava com o
     pedido preso à equipa antiga.
-  - **Quatro estados e não mais** (`pendente|aprovado|entregue|recusado`): o que
-    se quer saber é se está por decidir, se foi aprovado, se chegou às mãos do
-    atleta ou se foi recusado. Um estado a mais ("em conferência") é mais um
-    sítio onde um pedido fica parado sem ninguém reparar.
+  - **O pedido percorre o circuito real do material**
+    (`supabase/circuito-pedidos.sql`, `REQUEST_STATUSES` e `REQUEST_NEXT_STEPS`
+    em `constants.js`): `pendente` → `aprovado` ("Confirmado") →
+    `encomendado` → `pronto` (a levantar) → `entregue`, com `recusado` como o
+    fim da linha do outro lado. Eram quatro estados, e entre "aprovado" e
+    "entregue" passavam-se semanas em que a app dizia sempre a mesma coisa:
+    já foi encomendado? já posso ir buscar? A pergunta saía da app para o
+    telemóvel, que é exatamente o que este módulo veio resolver.
+    - **A regra antiga não caiu, mudou de caso.** "Um estado a mais ('em
+      conferência') é mais um sítio onde um pedido fica parado sem ninguém
+      reparar" continua a valer: o que faz uma paragem ganhar lugar é haver
+      alguém do outro lado cuja ação muda. `pronto` é a única que pede alguma
+      coisa ao ATLETA (ir buscar) e `encomendado` é a única que responde à
+      pergunta da espera. Nenhuma das duas é uma gaveta administrativa.
+    - **A chave `aprovado` fica; só a etiqueta passou a "Confirmado"** — a
+      mesma regra dos artigos de equipamento (a chave é imutável, a etiqueta é
+      que se lê), e está guardada em todos os pedidos já feitos.
+    - **Mostra-se o passo SEGUINTE e mais nenhum**: um seletor com os estados
+      todos é a forma de um pedido saltar de "confirmado" para "entregue" sem
+      nunca ter passado pelo fornecedor. De "Confirmado" há DOIS caminhos, e
+      só dois, porque há dois casos reais: o artigo que está em armazém passa
+      direto a "pronto a levantar" e o que é preciso comprar vai ao
+      fornecedor — obrigar o material que já está na prateleira a passar por
+      "encomendado" era escrever na app uma encomenda que ninguém fez.
+    - **Cada paragem avisa quem pediu.** Um circuito de cinco paragens que só
+      avisa em duas é o silêncio de antes com mais ecrãs — e a que mais
+      importa é a `pronto`: material que fica no gabinete à espera de quem não
+      sabe que já chegou é o mesmo que não ter chegado. No portal, essa é a
+      única do circuito que sobe ACIMA dos separadores, ao lado do próximo
+      compromisso (`pickupHTML`), pela regra da disponibilidade: só aparece
+      quando há mesmo alguma coisa a fazer.
+    - **A app só oferece as paragens novas depois da migração**
+      (`state.requestFlowReady`, sondado com um `select id,paid_at` de uma
+      linha no `loadAll`): sem ela o `check` da tabela recusa `encomendado` e
+      a coluna `paid_at` não existe. É a mesma linha do `birthDateReady()` —
+      um botão que dá erro é pior do que um botão que não existe. Não se
+      adivinha pelos dados: uma lista vazia não diz nada sobre as colunas que
+      tem.
+  - **O que está por pagar é uma MARCA no pedido** (`paid_at`/`paid_by`), e
+    não uma tabela de pagamentos nem um lançamento no Financeiro. O material
+    aprovado é quase sempre cobrado à família, e isso vivia numa folha de
+    cálculo que ninguém cruzava com os pedidos — daí saía o material entregue
+    sem ninguém cobrar e o cobrado duas vezes. Quem dá a quitação é quem
+    decide (o `guard_request_decision` fecha o `paid_at` como já fechava o
+    `status`: sem isso, a política de UPDATE deixava uma atleta marcar como
+    pago o que não pagou).
+    - **Entregar não é receber**: um pedido entregue continua a contar como
+      por cobrar. Foi por confundir as duas coisas que houve material
+      entregue que ninguém cobrou.
+    - **É a mesma estimativa ao preço de HOJE** dos restantes números do
+      módulo (o preço do artigo nas Definições), e não um registo de despesa.
+      Ligar isto ao livro-razão é uma decisão à parte.
   - **A recusa pede motivo** e viaja de volta por notificação: uma recusa sem
     explicação volta como o mesmo pedido na semana seguinte. Pelo mesmo motivo
     há notificação nos dois sentidos — pedido novo para quem decide, decisão
@@ -665,7 +714,7 @@ separador antes de navegar (usado pelos cartões do Painel).
     escalões com conta ligada essa pessoa já está na app. O caminho "digo ao
     treinador, o treinador lança" é uma mensagem de telemóvel a mais no meio,
     com a mesma perda que o módulo veio resolver.
-    - **É o MESMO pedido**: mesma tabela, mesmos quatro estados, mesma
+    - **É o MESMO pedido**: mesma tabela, mesmo circuito, mesma
       decisão. O formulário é que perde dois campos — a equipa e a atleta já
       se sabem.
     - **Pede vários artigos de uma vez.** Quem chega em setembro sem nada
@@ -1303,6 +1352,21 @@ separador antes de navegar (usado pelos cartões do Painel).
     outras secções, e é o único sítio onde ele fica visível seja qual for o
     separador. O HISTÓRICO fica onde estava — pedir é a ação, ver em que ficou
     é a consulta.
+  - **"A minha encomenda"** (`playerOrder` em `compute.js`) junta numa conta
+    só as linhas que o clube já confirmou, ainda não entregou e ainda não
+    cobrou, com o total à cabeça. São duas condições e não uma porque são
+    duas coisas diferentes: um artigo já pago continua a fazer falta até
+    chegar às mãos dela (mas não se paga outra vez) e um artigo entregue já
+    não é uma encomenda, é histórico. Pedido a pedido, com o preço ao lado de
+    cada linha, a pergunta que a família faz mesmo — "quanto tenho de levar
+    ao clube?" — respondia-se somando sete linhas de cabeça, e o valor
+    acabava numa mensagem de telemóvel dias depois.
+    - **As linhas da encomenda saem da lista de baixo**: desenhá-las duas
+      vezes na mesma secção, uma na conta e outra na lista, era dizer-lhe que
+      tinha pedido o dobro.
+    - **Os artigos sem preço dizem-se pelo nome** em vez de contarem como
+      zero — a mesma regra do resumo das encomendas, e aqui é uma família a
+      preparar o dinheiro.
   - **"O meu material"** vive em «A época», ao lado das quotas: é a mesma
     conversa administrativa com o clube, e não uma pergunta que se faça todos
     os dias. Um quarto separador para uma ação que acontece duas vezes por
