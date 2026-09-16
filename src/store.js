@@ -1716,6 +1716,29 @@ export async function setRequestPaid(id, paid) {
   });
 }
 
+// Vários de uma vez (o que uma atleta entrega tudo junto no dia da entrega):
+// uma escrita por linha, mas um só toast e um só re-desenho — a mesma lógica
+// do `closeAttendanceSessions`. Marcar sete pedidos com sete avisos a passar
+// no ecrã é ruído sobre uma operação que é conceptualmente uma só.
+export async function setRequestsPaid(ids, paid) {
+  if (!ids.length) return 0;
+  const stamp = paid ? new Date().toISOString() : null;
+  const by = paid ? (state.profile?.id || null) : null;
+  const { error } = await supabase
+    .from('equipment_requests')
+    .update({ paid_at: stamp, paid_by: by })
+    .in('id', ids);
+  if (error) throw error;
+  state.equipmentRequests.forEach((r) => {
+    if (ids.includes(r.id)) Object.assign(r, { paid_at: stamp, paid_by: by });
+  });
+  toastOk(paid
+    ? `${ids.length} pedido${ids.length === 1 ? '' : 's'} marcado${ids.length === 1 ? '' : 's'} como pago${ids.length === 1 ? '' : 's'}.`
+    : 'Pagamento anulado.');
+  notify();
+  return ids.length;
+}
+
 // --- Convocatórias -------------------------------------------------------
 
 // Garante que existe uma convocatória para o evento e devolve-a.

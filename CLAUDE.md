@@ -706,6 +706,10 @@ separador antes de navegar (usado pelos cartões do Painel).
     - **É a mesma estimativa ao preço de HOJE** dos restantes números do
       módulo (o preço do artigo nas Definições), e não um registo de despesa.
       Ligar isto ao livro-razão é uma decisão à parte.
+    - **Marca-se tudo de uma vez por atleta** (`setRequestsPaid`, uma escrita
+      por linha mas um só toast e um só re-desenho, na lógica do
+      `closeAttendanceSessions`), no cartão da vista «Por atleta»: ao balcão
+      ninguém paga as meias e depois o blusão.
   - **A recusa pede motivo** e viaja de volta por notificação: uma recusa sem
     explicação volta como o mesmo pedido na semana seguinte. Pelo mesmo motivo
     há notificação nos dois sentidos — pedido novo para quem decide, decisão
@@ -781,16 +785,25 @@ separador antes de navegar (usado pelos cartões do Painel).
       viajava por notificação para quem pediu; com a atleta do outro lado, a
       lista marca o pedido como sendo "(a própria)" para quem decide saber a
       quem está a responder.
-  - **O mesmo ecrã responde a DUAS perguntas e tem duas vistas** (seletor
-    "Ver"): a **Lista** é "o que decido a seguir", uma linha de cada vez; o
-    **Resumo para encomendar** é "quantas camisolas de treino M, ao todo" —
-    o número que se leva ao fornecedor. Somar quarenta linhas à mão numa folha
-    à parte é exatamente onde as encomendas se perdem. O resumo conta o que
-    estiver no FILTRO em cima (mudar para "Aprovados" dá o que já foi decidido
-    e há mesmo que comprar; "Por resolver" dá o cenário se tudo for aprovado)
-    — um âmbito próprio seria dois números a discordar no mesmo ecrã — e a
-    `quantity` de cada pedido conta. Reaproveita o desenho do resumo das
-    Encomendas (`enc-resumo-*`), que é a mesma leitura.
+  - **O mesmo ecrã tem TRÊS leituras dos mesmos pedidos** (seletor "Ver"),
+    porque são três momentos do mesmo trabalho e nenhuma serve para o outro:
+    - **Lista** — "o que decido a seguir", pedido a pedido.
+    - **Resumo para encomendar** — "quantas camisolas de treino M, ao todo",
+      o número que se leva ao fornecedor. Somar quarenta linhas à mão numa
+      folha à parte é exatamente onde as encomendas se perdem.
+    - **Por atleta** — chegou a caixa: o que leva cada uma, o que já pagou e
+      o que fica a dever. Na lista, os pedidos da Ana estão espalhados por
+      três páginas entre os das outras vinte, e a entrega faz-se atleta a
+      atleta com ela à frente. O valor é o do artigo ao preço de hoje
+      (`requestCost`, o mesmo do resto do ecrã); os artigos sem preço
+      contam-se à parte em vez de entrarem como zero, e a quitação dá-se aqui
+      linha a linha ou toda de uma vez.
+
+    As três contam o que estiver no FILTRO em cima ("Por pagar" dá quem tem
+    contas em aberto, "Por resolver" dá o cenário se tudo for aprovado) — um âmbito próprio seria dois números
+    a discordar no mesmo ecrã — e a `quantity` de cada pedido conta.
+    Reaproveitam o desenho do resumo das Encomendas (`enc-resumo-*`) e a lista
+    de pedidos do portal (`portal-req-*`).
   - **A mesma camisola não é a mesma peça em todos os escalões**
     (`supabase/variante-equipamento.sql`, `articleVariant()`): os sub-21 usam-na
     azul e os restantes branca, e um total que junte as duas não se pode

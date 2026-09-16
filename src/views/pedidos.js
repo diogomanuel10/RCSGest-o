@@ -15,7 +15,10 @@
 // passo SEGUINTE (`REQUEST_NEXT_STEPS`), e não uma lista de estados por onde
 // escolher.
 
-import { state, createEquipmentRequest, decideEquipmentRequest, setRequestPaid, updateRow, deleteRow, dbErrorMessage } from '../store.js';
+import {
+  state, createEquipmentRequest, decideEquipmentRequest, setRequestPaid, setRequestsPaid,
+  updateRow, deleteRow, dbErrorMessage,
+} from '../store.js';
 import { esc, emptyHTML, euros, paginate, paginationHTML, wirePagination, wireEmptyAction, PAGE_SIZE } from '../ui.js';
 import { openModal, confirmDialog } from '../modal.js';
 import { canEdit, canDecideRequests, isClubWide, canManageSettings } from '../permissions.js';
@@ -39,10 +42,10 @@ import {
 let statusFilter = 'abertos'; // 'abertos' | chave de estado | 'todos'
 let teamFilter = '';
 let page = 1;
-// Lista (pedido a pedido, para decidir) ou Resumo (o total por artigo e
-// tamanho, para encomendar). São as duas perguntas que este ecrã responde e
-// nenhuma serve para a outra: aprovar é uma linha de cada vez, encomendar é
-// "quantas M no total". Estado de UI, como os filtros.
+// Três leituras dos MESMOS pedidos, porque são três momentos do mesmo
+// trabalho e nenhuma serve para o outro: decidir (Lista, pedido a pedido),
+// comprar (Resumo, "quantas M no total") e ENTREGAR (Por atleta, "o que é que
+// eu dou à Ana e quanto é que ela paga"). Estado de UI, como os filtros.
 let mode = 'lista';
 
 // Corpo do separador "Pedidos" (renderizado pelo orquestrador Equipamentos).
@@ -141,6 +144,7 @@ export function renderPedidosBody(container) {
           <select id="req-mode">
             <option value="lista" ${mode === 'lista' ? 'selected' : ''}>Lista de pedidos</option>
             <option value="resumo" ${mode === 'resumo' ? 'selected' : ''}>Resumo para encomendar</option>
+            <option value="atleta" ${mode === 'atleta' ? 'selected' : ''}>Por atleta (entregas)</option>
           </select>
         </div>
         ${canRequest ? '<button class="btn btn--accent" id="add-req" type="button" style="margin-left:auto">+ Pedido</button>' : ''}
@@ -187,6 +191,7 @@ export function renderPedidosBody(container) {
     </section>
 
     ${mode === 'resumo' ? summaryHTML(rows, playerById) : ''}
+    ${mode === 'atleta' ? byPlayerHTML(rows, playerById) : ''}
 
     ${mode === 'lista' && rows.length
       ? `<div class="card" style="padding:0;overflow-x:auto">
@@ -209,7 +214,7 @@ export function renderPedidosBody(container) {
           </table>
          </div>
          ${paginationHTML({ ...pg, id: 'req' })}`
-      : mode === 'resumo' ? '' : emptyHTML(
+      : mode !== 'lista' ? '' : emptyHTML(
           all.length
             ? 'Nenhum pedido neste filtro.'
             : 'Ainda não há pedidos de equipamento.',
@@ -246,6 +251,9 @@ export function renderPedidosBody(container) {
   );
   container.querySelectorAll('[data-decide]').forEach((b) =>
     b.addEventListener('click', () => decide(b.dataset.decide, b.dataset.status))
+  );
+  container.querySelectorAll('[data-pay-player]').forEach((b) =>
+    b.addEventListener('click', () => payAllOf(b.dataset.payPlayer.split(',')))
   );
   container.querySelectorAll('[data-paid]').forEach((b) =>
     b.addEventListener('click', () => markPaid(b.dataset.paid, !!b.dataset.paidTo))
@@ -388,6 +396,118 @@ function summaryHTML(rows, playerById) {
             </p>
           </div>`;
       }).join('')}
+    </div>
+  `;
+}
+
+// --- Por atleta (entregas) -----------------------------------------------
+//
+// O resumo diz o que se COMPRA; esta vista diz o que se ENTREGA, que é o
+// momento a seguir e uma pergunta diferente: chegou a caixa, e agora é preciso
+// saber o que leva cada uma e quanto é que fica a dever. Na lista, os pedidos
+// da Ana estão espalhados por três páginas entre os das outras vinte — e a
+// entrega faz-se atleta a atleta, com ela à frente.
+//
+// O valor é o do artigo ao preço de HOJE (`requestCost`, o mesmo do resto do
+// ecrã); os artigos sem preço contam-se à parte, nunca como zero.
+function byPlayerHTML(rows, playerById) {
+  if (!rows.length) {
+    return emptyHTML('Nenhum pedido neste filtro.', { icone: '🎽' });
+  }
+
+  const groups = new Map();
+  rows.forEach((r) => {
+    const player = playerById[r.player_id];
+    const key = r.player_id || 'sem-atleta';
+    if (!groups.has(key)) {
+      groups.set(key, {
+        name: player?.name || 'Atleta removido',
+        team: player ? teamName(state.teams.find((t) => t.id === player.team_id)) : '',
+        items: [],
+        units: 0,
+        owed: 0,   // ainda por cobrar
+        paid: 0,   // já entregue em dinheiro
+        missing: 0,
+        unpaidIds: [],
+      });
+    }
+    const g = groups.get(key);
+    const c = requestCost(r);
+    g.items.push({ req: r, cost: c });
+    g.units += r.quantity || 1;
+    if (c == null) g.missing += r.quantity || 1;
+    else if (r.paid_at) g.paid += c;
+    else g.owed += c;
+    // Só entra no "marcar tudo como pago" o que já é cobrável (`isBillable`):
+    // um pedido que ainda pode ser recusado não se cobra.
+    if (isBillable(r)) g.unpaidIds.push(r.id);
+  });
+
+  // Pela equipa e depois pelo nome: entrega-se um escalão de cada vez.
+  const list = [...groups.values()].sort((a, b) =>
+    a.team.localeCompare(b.team, 'pt') || a.name.localeCompare(b.name, 'pt'));
+  const owed = list.reduce((n, g) => n + g.owed, 0);
+  const paid = list.reduce((n, g) => n + g.paid, 0);
+  const canPay = canDecideRequests() && state.requestFlowReady;
+
+  return `
+    <div class="card enc-budget" style="margin-bottom:1rem">
+      <div>
+        <span class="enc-budget__label">Por cobrar neste filtro</span>
+        <strong class="enc-budget__value">${owed ? esc(euros(owed)) : '—'}</strong>
+      </div>
+      <span class="muted enc-budget__note">
+        ${list.length} atleta${list.length !== 1 ? 's' : ''}
+        ${paid ? ` · ${esc(euros(paid))} já pagos` : ''}
+      </span>
+    </div>
+
+    <div class="enc-resumo-grid enc-resumo-grid--wide">
+      ${list.map((g) => `
+        <div class="card enc-resumo-card">
+          <h3 class="enc-resumo-title" style="text-transform:none;letter-spacing:0">
+            ${esc(g.name)}
+            ${g.team ? `<span class="muted" style="display:block;font-weight:400;font-size:0.8rem">${esc(g.team)}</span>` : ''}
+          </h3>
+          <ul class="portal-req-list">
+            ${g.items.map(({ req, cost }) => `
+              <li class="portal-req">
+                <div class="portal-req__main">
+                  <span class="portal-req__art">
+                    ${esc(articleLabel(req))}
+                    ${(() => {
+                      const v = articleVariant(req.article, playerById[req.player_id]?.team_id);
+                      return v ? `<span class="badge badge--muted">${esc(v)}</span>` : '';
+                    })()}
+                  </span>
+                  <span class="badge badge--${REQUEST_STATUS_BADGE[req.status] || 'muted'}">
+                    ${esc(REQUEST_STATUS_LABEL[req.status] || req.status)}
+                  </span>
+                </div>
+                <p class="portal-req__meta muted">
+                  ${req.size ? `Tamanho ${esc(req.size)}` : 'Sem tamanho'}
+                  ${req.quantity > 1 ? ` · ×${req.quantity}` : ''}
+                  ${cost != null ? ` · ${esc(euros(cost))}` : ' · sem preço'}
+                  ${req.paid_at ? ' · <strong>pago</strong>' : ''}
+                </p>
+                ${canPay && isBillable(req) ? `
+                  <button class="btn btn--ghost btn--sm" data-paid="${req.id}" data-paid-to="1" type="button">Marcar pago</button>` : ''}
+              </li>
+            `).join('')}
+          </ul>
+          <p class="muted enc-resumo-total">
+            ${g.units} artigo${g.units !== 1 ? 's' : ''}
+            ${g.owed
+              ? `· <strong>${esc(euros(g.owed))}</strong> a pagar`
+              : (g.paid ? '· <strong>tudo pago</strong>' : '')}
+            ${g.paid && g.owed ? `· ${esc(euros(g.paid))} já pagos` : ''}
+            ${g.missing ? `· <span class="enc-resumo-unit">${g.missing} sem preço</span>` : ''}
+          </p>
+          ${canPay && g.unpaidIds.length > 1 ? `
+            <button class="btn btn--ghost btn--sm" data-pay-player="${esc(g.unpaidIds.join(','))}" type="button">
+              Marcar tudo como pago (${g.unpaidIds.length})
+            </button>` : ''}
+        </div>`).join('')}
     </div>
   `;
 }
@@ -549,6 +669,18 @@ async function decide(id, status) {
 // Dar (ou tirar) a quitação. Não pede confirmação: é reversível no botão ao
 // lado, e um diálogo por linha numa lista de quarenta é o que faz ninguém
 // marcar nada.
+// Tudo o que uma atleta tem por pagar, de uma vez: é assim que o dinheiro
+// muda de mãos ao balcão — ela não paga as meias e depois o blusão. Uma
+// escrita por linha, um só toast e um só re-desenho, na lógica do
+// `closeAttendanceSessions`.
+async function payAllOf(ids) {
+  try {
+    await setRequestsPaid(ids.filter(Boolean), true);
+  } catch (err) {
+    alert(dbErrorMessage(err));
+  }
+}
+
 async function markPaid(id, paid) {
   try {
     await setRequestPaid(id, paid);
