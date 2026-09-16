@@ -680,9 +680,9 @@ separador antes de navegar (usado pelos cartões do Painel).
       avisa em duas é o silêncio de antes com mais ecrãs — e a que mais
       importa é a `pronto`: material que fica no gabinete à espera de quem não
       sabe que já chegou é o mesmo que não ter chegado. No portal, essa é a
-      única do circuito que sobe ACIMA dos separadores, ao lado do próximo
-      compromisso (`pickupHTML`), pela regra da disponibilidade: só aparece
-      quando há mesmo alguma coisa a fazer.
+      única que sai da lista da encomenda para uma linha própria no topo do
+      cartão: é a única coisa ali que lhe pede uma ação, e entre quatro
+      crachás parecidos lia-se como mais um estado.
     - **A app só oferece as paragens novas depois da migração**
       (`state.requestFlowReady`, sondado com um `select id,paid_at` de uma
       linha no `loadAll`): sem ela o `check` da tabela recusa `encomendado` e
@@ -1352,28 +1352,39 @@ separador antes de navegar (usado pelos cartões do Painel).
     outras secções, e é o único sítio onde ele fica visível seja qual for o
     separador. O HISTÓRICO fica onde estava — pedir é a ação, ver em que ficou
     é a consulta.
-  - **"A minha encomenda"** (`playerOrder` em `compute.js`) junta numa conta
-    só as linhas que o clube já confirmou, ainda não entregou e ainda não
-    cobrou, com o total à cabeça. São duas condições e não uma porque são
-    duas coisas diferentes: um artigo já pago continua a fazer falta até
-    chegar às mãos dela (mas não se paga outra vez) e um artigo entregue já
-    não é uma encomenda, é histórico. Pedido a pedido, com o preço ao lado de
-    cada linha, a pergunta que a família faz mesmo — "quanto tenho de levar
-    ao clube?" — respondia-se somando sete linhas de cabeça, e o valor
-    acabava numa mensagem de telemóvel dias depois.
-    - **As linhas da encomenda saem da lista de baixo**: desenhá-las duas
-      vezes na mesma secção, uma na conta e outra na lista, era dizer-lhe que
-      tinha pedido o dobro.
+  - **"A minha encomenda"** (`playerOrder` em `compute.js`) é secção própria,
+    ACIMA dos separadores e logo a seguir ao próximo treino. Esteve dentro de
+    "O meu material", em «A época», e isso punha-a a três gestos de distância
+    (trocar de separador, passar as presenças, passar as quotas) — e sem total
+    nenhum, que é precisamente a pergunta que a família faz: "quanto é que
+    tenho de levar ao clube?". Somar quatro linhas de cabeça num telemóvel é a
+    maneira de o valor acabar numa mensagem dias depois.
+    - **O corte é pelo FIM do circuito, não pelo princípio.** Sai o que foi
+      entregue (já está com ela), o que foi recusado (não vem) e o que já foi
+      pago (não se paga outra vez); tudo o resto é encomenda em curso, **o que
+      está por decidir incluído**. Restringi-la ao que o clube já tinha
+      confirmado fazia-a desaparecer exatamente no caso mais comum — a atleta
+      que acabou de pedir quatro artigos e quer saber quanto vai custar.
+    - **O total é condicional e diz-se**: `porDecidir` conta as linhas que o
+      clube ainda não confirmou. Um total apresentado como fechado, quando
+      metade ainda pode ser recusada, é um número que a família prepara e que
+      não corresponde a nada.
     - **Os artigos sem preço dizem-se pelo nome** em vez de contarem como
       zero — a mesma regra do resumo das encomendas, e aqui é uma família a
       preparar o dinheiro.
-  - **"O meu material"** vive em «A época», ao lado das quotas: é a mesma
-    conversa administrativa com o clube, e não uma pergunta que se faça todos
-    os dias. Um quarto separador para uma ação que acontece duas vezes por
-    época dava-lhe o peso do "o que tenho a seguir", que é a razão real das
-    visitas. A secção só aparece se o clube tiver aberto algum artigo aos
-    pedidos — ou se ela já tiver pedidos feitos, senão o histórico (e uma
-    decisão pendente) desaparecia no dia em que o coordenador fechasse a lista.
+    - **É UMA lista e não duas**: a pergunta é "o que pedi e em que está", e a
+      resposta é o crachá de cada linha. A exceção é o que está **pronto a
+      levantar**, que sai para uma linha própria no topo do cartão: é a única
+      coisa ali que lhe pede uma AÇÃO, e no meio de quatro crachás parecidos
+      lia-se como mais um estado — com o material a ficar no gabinete.
+  - **"O meu material"** é o HISTÓRICO e vive em «A época», ao lado das
+    quotas: o que já foi entregue, recusado ou pago. É consulta e não ação —
+    a mesma conversa administrativa com o clube, e não uma pergunta que se
+    faça todos os dias. O que está em curso não se repete aqui: desenhar as
+    mesmas linhas no cartão da encomenda e outra vez na lista era dizer-lhe
+    que tinha pedido o dobro. A secção só aparece se o clube tiver aberto
+    algum artigo aos pedidos — ou se ela já tiver pedidos feitos, senão o
+    histórico desaparecia no dia em que o coordenador fechasse a lista.
   - **Moldura de quem só tem uma secção** (`.app--solo` no `app-shell`): sem
     sítios para onde ir não há navegação a mostrar. O atleta tem UMA rota
     permitida e ficava com barra lateral, hambúrguer e uma pesquisa que —

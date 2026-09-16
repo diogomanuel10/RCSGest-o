@@ -6807,16 +6807,15 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
   color: var(--text);
 }
 
-/* A encomenda da atleta: o que o clube já confirmou, ainda não entregou e
-   ainda não cobrou, com o total à cabeça. O valor é o que se lê primeiro —
-   é a pergunta que a família faz ("quanto tenho de levar?") — e por isso
-   vive no cabeçalho do bloco e não no fim de uma lista de linhas. */
+/* A encomenda da atleta: o que pediu e ainda não tem, com o total. Vive
+   acima dos separadores, logo a seguir ao próximo compromisso — é `.card`
+   como o bloco "A seguir", e não um bloco dentro de uma secção, porque é uma
+   pergunta própria e não um detalhe de "O meu material".
+
+   O total é o que se lê primeiro: é a pergunta da família ("quanto tenho de
+   levar?"), por isso está no cabeçalho e não no fim de uma lista de linhas. */
 .portal-order {
-  border: 1px solid var(--warn);
-  border-radius: var(--radius-sm);
-  background: var(--warn-bg);
-  padding: 0.75rem 0.85rem;
-  margin-bottom: 0.9rem;
+  border-left: 4px solid var(--warn);
 }
 .portal-order__head {
   display: flex;
@@ -6826,31 +6825,37 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
   flex-wrap: wrap;
 }
 .portal-order__label {
-  font-weight: 600;
-  font-size: 0.82rem;
+  font-weight: 700;
+  font-size: 0.78rem;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--warn-ink);
+  letter-spacing: 0.05em;
+  color: var(--muted);
 }
 .portal-order__total {
-  font-size: 1.45rem;
+  font-size: 1.5rem;
   line-height: 1.1;
-  color: var(--warn-ink);
+  font-variant-numeric: tabular-nums;
 }
 .portal-order__list {
   list-style: none;
-  margin: 0.6rem 0 0;
+  margin: 0.7rem 0 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.5rem;
 }
 .portal-order__row {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.45rem;
   flex-wrap: wrap;
   min-width: 0;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.portal-order__row:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
 }
 .portal-order__art {
   display: flex;
@@ -6858,9 +6863,9 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
   gap: 0.4rem;
   flex-wrap: wrap;
   font-weight: 600;
-  font-size: 0.92rem;
+  font-size: 0.94rem;
   min-width: 0;
-  flex: 1 1 auto;
+  flex: 1 1 8rem;
 }
 .portal-order__qty {
   font-weight: 500;
@@ -6871,41 +6876,29 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
   font-weight: 600;
   margin-left: auto;
 }
+.portal-order__cancel {
+  flex-basis: 100%;
+  align-self: flex-start;
+}
 .portal-order__note {
-  margin: 0.6rem 0 0;
+  margin: 0.7rem 0 0;
   font-size: 0.82rem;
 }
-.portal-order__hist {
-  font-size: 0.86rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--muted);
-  margin: 0 0 0.5rem;
-}
 
-/* "Podes levantar": a única paragem do circuito de um pedido que pede alguma
-   coisa à atleta. Vive com o próximo compromisso, acima dos separadores. */
-.portal-pickup {
-  border-left: 4px solid var(--gold);
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
+/* O que já está no clube à espera dela é a única linha que lhe pede uma
+   AÇÃO. Sai da lista para o topo do cartão: no meio de quatro crachás
+   parecidos, "Pronto a levantar" lê-se como mais um estado. */
+.portal-order__pickup {
+  margin: 0 0 0.75rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--radius-sm);
+  background: var(--warn-bg);
+  border: 1px solid var(--gold);
+  font-size: 0.94rem;
 }
-.portal-pickup__label {
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-weight: 700;
-  color: var(--gold-ink);
-}
-.portal-pickup__items {
-  margin: 0;
-  font-weight: 600;
-  font-size: 1.02rem;
-}
-.portal-pickup__note {
-  margin: 0;
-  font-size: 0.85rem;
+.portal-order__pickup-note {
+  display: block;
+  font-size: 0.82rem;
   color: var(--muted);
 }
 
