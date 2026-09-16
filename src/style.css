@@ -4805,6 +4805,19 @@ button.stat-strip__item--nav:hover {
   flex-wrap: wrap;
 }
 .enc-card-edit { margin-left: auto; flex: none; }
+/* Os botões da linha (enviar a mensagem à família, copiá-la, carimbar a
+   resposta). No cartão do telemóvel ficam numa linha à parte, por baixo dos
+   tamanhos: ao lado do nome, três botões não cabem sem espremer o nome. */
+.enc-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.7rem;
+}
+/* O pisco de "a família já confirmou". Fica ao lado do NOME e não numa
+   coluna própria: a tabela já tem uma coluna por artigo, e a pergunta
+   ("quem falta responder?") lê-se a percorrer os nomes. */
+.enc-confirm { margin-left: 0.4rem; vertical-align: middle; }
 .enc-card-dl {
   display: grid;
   grid-template-columns: 1fr 1fr;

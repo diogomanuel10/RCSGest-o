@@ -257,6 +257,7 @@ src/
   players-qr.js         Folha de cartões QR imprimíveis (A4, tamanho cartão)
   invite-slips.js       Talões de convite ao portal imprimíveis (A4, QR do link)
   join-guide.js         Guia de entrada no portal: passos comuns + mensagem do escalão
+  sizes-message.js      Mensagem à família para confirmar os dados da encomenda
   join-poster.js        Cartaz A4 do guia de entrada (QR da app + QR do grupo)
   offline-card.js       Cartão QR guardado no dispositivo (ecrã de recurso sem rede)
   tactical-court.js     Campo em SVG + exercício de decisão (todas as posições)
@@ -304,6 +305,7 @@ supabase/pedidos-equipamento.sql  Pedidos de equipamento (treinador -> clube) + 
 supabase/artigos-configuraveis.sql Artigos e tamanhos de equipamento definidos pelo clube
 supabase/pedidos-atleta.sql    A atleta pede equipamento do portal; decide o coordenador/direção
 supabase/circuito-pedidos.sql  Paragens de um pedido (encomendado/pronto) + o que está por pagar
+supabase/confirmacao-tamanhos.sql A família confirma número, nomes de camisola e tamanhos
 supabase/fotos-artigos.sql     Bucket público com a foto de cada artigo de equipamento
 supabase/variante-equipamento.sql Cor/modelo do equipamento por escalão (resumo dos pedidos)
 supabase/aniversarios.sql      Data de nascimento do atleta (aniversários + quem falta)
@@ -931,6 +933,52 @@ separador antes de navegar (usado pelos cartões do Painel).
     antigas — é a mesma linha do `birthDateReady()`. As colunas antigas ficam
     na base de dados de propósito: uma migração que apaga a origem no mesmo
     passo em que copia não tem volta se a cópia correr mal.
+
+- **A família confirma os dados da encomenda**
+  (`supabase/confirmacao-tamanhos.sql`, `src/sizes-message.js`,
+  `views/encomendas.js`): a tabela das Encomendas é a lista que vai ao
+  fornecedor, e o que lá está não foi confirmado por ninguém. O número, o nome
+  a estampar e os tamanhos foram escritos de memória pelo treinador ou saíram
+  de uma medição da época passada — e o erro só aparece quando a caixa chega:
+  "MARIA" em vez de "MARIANA", um M que devia ser S. Uma camisola estampada
+  não se troca.
+  - **Uma mensagem por ATLETA**, com os dados dela lá dentro, pronta a abrir
+    no WhatsApp ou no email da ficha (`guardian_contact`, o mesmo canal dos
+    convites ao portal — `contactChannel` vive agora num sítio só). Uma
+    mensagem do escalão com vinte fichas lá dentro não recebe vinte
+    respostas, recebe duas.
+  - **Mostra o que já está preenchido e pede que confirmem ou corrijam.** Uma
+    mensagem que só pergunta ("que tamanho vestes?") obriga cada família a
+    pensar do zero, e responde-se muito menos do que a uma que diz "temos
+    isto, está certo?". Os artigos por preencher dizem-se — são precisamente
+    aqueles sobre os quais se está a escrever.
+  - **O nome a estampar NÃO cai para o nome do atleta** na mensagem. É isso
+    que se está a perguntar, e apresentar um palpite como se fosse dado é uma
+    confirmação que confirma o engano. (No formulário de edição o nome do
+    atleta continua a ser a sugestão: aí quem escreve é o coordenador, e vê
+    o que está a gravar.)
+  - **Nada é enviado pelas costas de ninguém**: o botão abre a app do canal
+    com o texto escrito, e quem carrega vê a mensagem antes de a mandar. Sem
+    contacto reconhecível na ficha fica só o "Copiar msg.".
+  - **O pisco vive na linha** (`player_sizes.confirmed_at`/`confirmed_by`).
+    A confirmação já se fazia por WhatsApp; o que faltava era saber, olhando
+    para a lista, em qual das vinte famílias é que se ia. É uma MARCA e não
+    um registo da conversa: a resposta chega fora da app, e guardá-la aqui
+    seria um segundo sítio para a mesma coisa. `confirmed_by` é quem
+    CARIMBOU, não quem confirmou — quem confirma é a família, que muitas
+    vezes nem tem conta.
+  - **Uma confirmação é sobre VALORES concretos**: mudar um tamanho ou um
+    nome a estampar depois de carimbado limpa a marca (trigger
+    `clear_sizes_confirmation`). Uma linha a dizer "confirmado" sobre dados
+    que ninguém viu é pior do que marca nenhuma — ninguém volta a perguntar.
+  - **"Preenchido" e "confirmado" são duas perguntas diferentes**, e a
+    segunda é a que decide se se pode encomendar: uma tabela cheia de
+    tamanhos que ninguém validou parece pronta e não está. Por isso são dois
+    contadores no topo, e no `.xlsx` a coluna "Confirmado" vai à FRENTE dos
+    tamanhos.
+  - Sem a migração o pisco não aparece de todo (`state.sizesConfirmReady`,
+    sondado no `loadAll`): uma marca que não grava é pior do que marca
+    nenhuma. A mensagem funciona à mesma — não depende de coluna nova.
 
 - **Importar atletas (.xlsx)**: nos Plantéis, cada equipa tem "Importar (xlsx)".
   `players-xlsx.js` lê o ficheiro com SheetJS (carregado dinamicamente) e mapeia

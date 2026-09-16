@@ -2,13 +2,24 @@
 // Dois separadores:
 //   1. Tamanhos por atleta — tabela por equipa, editável pelo coordenador.
 //   2. Resumo para encomenda — agrega os tamanhos de cada artigo da equipa.
+//
+// O que está nesta tabela não foi confirmado por ninguém: o número, o nome a
+// estampar e os tamanhos foram escritos de memória ou saíram de uma medição
+// da época passada, e o erro só aparece quando a caixa chega — uma camisola
+// estampada não se troca. Por isso cada linha tem a mensagem pronta a enviar
+// à família (`sizes-message.js`) e o pisco de "confirmado" para quem
+// respondeu: a confirmação já se fazia por WhatsApp, o que faltava era saber,
+// olhando para a lista, em qual das vinte famílias é que se ia.
 
-import { state, upsertPlayerSizes, dbErrorMessage } from '../store.js';
+import { state, upsertPlayerSizes, setSizesConfirmed, dbErrorMessage } from '../store.js';
 import { esc, emptyHTML, euros } from '../ui.js';
 import { teamName, equipmentArticles, playerSizes, sortSizes } from '../compute.js';
 import { openModal } from '../modal.js';
+import { toastOk, toastError } from '../toast.js';
 import { canEdit } from '../permissions.js';
 import { exportEncomendaXLSX } from '../encomendas-xlsx.js';
+import { branding } from '../branding.js';
+import { sizesMessage, contactChannel, sendVia } from '../sizes-message.js';
 
 let selectedTeam = '';
 let tab = 'tamanhos'; // 'tamanhos' | 'resumo'
@@ -77,6 +88,64 @@ export function renderEncomendasBody(container) {
   container.querySelectorAll('[data-edit-sizes]').forEach((btn) => {
     btn.addEventListener('click', () => openSizesModal(btn.dataset.editSizes, container));
   });
+  container.querySelectorAll('[data-send-sizes]').forEach((btn) => {
+    btn.addEventListener('click', () => sendSizesMessage(btn.dataset.sendSizes, team));
+  });
+  container.querySelectorAll('[data-copy-sizes]').forEach((btn) => {
+    btn.addEventListener('click', () => copySizesMessage(btn.dataset.copySizes, team));
+  });
+  container.querySelectorAll('[data-confirm-sizes]').forEach((btn) => {
+    btn.addEventListener('click', () => confirmSizes(btn.dataset.confirmSizes, !!btn.dataset.to));
+  });
+}
+
+// ---------------------------------------------------------------------------
+// A mensagem de confirmação, atleta a atleta
+// ---------------------------------------------------------------------------
+
+function messageFor(playerId, team) {
+  const player = state.players.find((p) => p.id === playerId);
+  if (!player) return null;
+  const row = sizesRow(playerId);
+  return sizesMessage({
+    player,
+    team: team ? teamName(team) : '',
+    // `playerSizes()` já resolve o formato antigo (uma coluna por artigo) e o
+    // novo (`sizes` jsonb): a mensagem não pode depender de a migração dos
+    // artigos ter corrido.
+    row: { ...row, sizes: playerSizes(playerId) },
+    articles: equipmentArticles(),
+    clubName: branding().club_name || '',
+  });
+}
+
+function sendSizesMessage(playerId, team) {
+  const player = state.players.find((p) => p.id === playerId);
+  const ch = contactChannel(player?.guardian_contact);
+  const text = messageFor(playerId, team);
+  if (!ch || !text) return;
+  sendVia(ch, { subject: `Equipamento — confirmar dados de ${player.name}`, text });
+}
+
+function copySizesMessage(playerId, team) {
+  const text = messageFor(playerId, team);
+  if (!text) return;
+  navigator.clipboard?.writeText(text).then(
+    () => toastOk('Mensagem copiada.'),
+    () => toastError('O browser não deixou copiar. Abre a ficha e copia à mão.')
+  );
+}
+
+// Carimbar a resposta da família. Não pede confirmação: é reversível no botão
+// ao lado, e um diálogo por linha numa lista de vinte é o que faz ninguém
+// marcar nada.
+async function confirmSizes(playerId, confirmed) {
+  try {
+    await setSizesConfirmed(playerId, confirmed);
+    toastOk(confirmed ? 'Dados confirmados.' : 'Confirmação retirada.');
+  } catch (err) {
+    toastError(dbErrorMessage(err));
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -95,6 +164,10 @@ function renderTamanhos(players, team, editable) {
 
   const filled = players.filter((p) => Object.keys(playerSizes(p.id)).length).length;
   const pct = Math.round((filled / players.length) * 100);
+  // "Preenchido" e "confirmado" são duas perguntas diferentes, e a segunda é
+  // a que decide se se pode encomendar: uma tabela cheia de tamanhos que
+  // ninguém validou parece pronta e não está.
+  const confirmed = players.filter((p) => sizesRow(p.id).confirmed_at).length;
 
   return `
     <div class="card" style="margin-bottom:0.8rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
@@ -105,6 +178,10 @@ function renderTamanhos(players, team, editable) {
         <div class="enc-progress__bar" style="width:${pct}%"></div>
       </div>
       <span class="muted" style="font-size:0.88rem">${pct}%</span>
+      ${state.sizesConfirmReady ? `
+        <span class="badge badge--${confirmed === players.length ? 'ok' : 'warn'}" style="margin-left:auto">
+          ${confirmed} de ${players.length} confirmado${confirmed === 1 ? '' : 's'} pela família
+        </span>` : ''}
     </div>
 
     <!-- Tabela (desktop) -->
@@ -115,7 +192,7 @@ function renderTamanhos(players, team, editable) {
             <th class="enc-col-num">Nº</th>
             <th class="enc-col-player">Atleta</th>
             ${articles.map((a) => `<th class="enc-col-art">${esc(a.label)}</th>`).join('')}
-            ${editable ? '<th></th>' : ''}
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -128,6 +205,7 @@ function renderTamanhos(players, team, editable) {
                 <td class="enc-col-num">${p.number ? `<span class="badge badge--num">${esc(p.number)}</span>` : '<span class="muted">—</span>'}</td>
                 <td class="enc-col-player">
                   <span class="enc-player-name">${esc(p.name)}</span>
+                  ${confirmBadgeHTML(row)}
                   ${jerseyNameHTML(row)}
                 </td>
                 ${articles.map((a) => `
@@ -137,13 +215,7 @@ function renderTamanhos(players, team, editable) {
                       : '<span class="muted enc-empty">—</span>'}
                   </td>
                 `).join('')}
-                ${editable ? `
-                  <td class="row-actions">
-                    <button class="btn btn--ghost btn--sm" data-edit-sizes="${p.id}" type="button">
-                      ${hasAny ? 'Editar' : 'Preencher'}
-                    </button>
-                  </td>
-                ` : ''}
+                <td class="row-actions cell-actions">${rowActionsHTML(p, row, editable)}</td>
               </tr>
             `;
           }).join('')}
@@ -162,9 +234,10 @@ function renderTamanhos(players, team, editable) {
             <div class="enc-card-head">
               ${p.number ? `<span class="badge badge--num">${esc(p.number)}</span>` : ''}
               <span class="enc-player-name">${esc(p.name)}</span>
-              ${editable ? `<button class="btn btn--ghost btn--sm enc-card-edit" data-edit-sizes="${p.id}" type="button">${hasAny ? 'Editar' : 'Preencher'}</button>` : ''}
+              ${confirmBadgeHTML(row)}
             </div>
             ${jerseyNameHTML(row)}
+            <div class="enc-card-actions">${rowActionsHTML(p, row, editable)}</div>
             <dl class="enc-card-dl">
               ${articles.map((a) => `
                 <div class="enc-card-dl-row">
@@ -177,6 +250,44 @@ function renderTamanhos(players, team, editable) {
         `;
       }).join('')}
     </div>
+  `;
+}
+
+// A linha de `player_sizes` de um atleta (ou um objeto vazio). É onde vivem
+// os nomes a estampar e a marca de confirmação — `playerSizes()` só devolve
+// os TAMANHOS.
+function sizesRow(playerId) {
+  return state.playerSizes.find((s) => s.player_id === playerId) || {};
+}
+
+// O pisco. Sem a migração não se mostra nada: uma marca que não grava é pior
+// do que marca nenhuma — é a mesma linha do `birthDateReady()`.
+function confirmBadgeHTML(row) {
+  if (!state.sizesConfirmReady) return '';
+  return row.confirmed_at
+    ? `<span class="badge badge--ok enc-confirm" title="Confirmado a ${esc(fmtDate(row.confirmed_at))}">✓ Confirmado</span>`
+    : '<span class="badge badge--warn enc-confirm">Por confirmar</span>';
+}
+
+const fmtDate = (d) =>
+  d ? new Date(d).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+
+// Botões da linha: enviar a mensagem à família, copiá-la e carimbar a
+// resposta. O envio abre o WhatsApp/email com o texto escrito — nada sai
+// pelas costas de ninguém, e quem carrega vê a mensagem antes de a mandar.
+function rowActionsHTML(player, row, editable) {
+  const ch = contactChannel(player.guardian_contact);
+  return `
+    ${editable ? `<button class="btn btn--ghost btn--sm" data-edit-sizes="${player.id}" type="button">${
+      Object.keys(playerSizes(player.id)).length ? 'Editar' : 'Preencher'}</button>` : ''}
+    ${ch
+      ? `<button class="btn btn--ghost btn--sm" data-send-sizes="${player.id}" type="button">${
+          ch.kind === 'email' ? '✉ Enviar' : '💬 Enviar'}</button>`
+      : `<button class="btn btn--ghost btn--sm" data-copy-sizes="${player.id}" type="button" title="Esta ficha não tem contacto do encarregado">Copiar msg.</button>`}
+    ${editable && state.sizesConfirmReady ? `
+      <button class="btn btn--ghost btn--sm" data-confirm-sizes="${player.id}" data-to="${row.confirmed_at ? '' : '1'}" type="button">
+        ${row.confirmed_at ? 'Desmarcar' : '✓ Confirmar'}
+      </button>` : ''}
   `;
 }
 
@@ -332,6 +443,7 @@ async function handleExport(btn, team, players) {
       sizesById[p.id] = {
         nome_camisola: row.nome_camisola,
         nome_camisola_alt: row.nome_camisola_alt,
+        confirmed_at: row.confirmed_at,
         sizes: playerSizes(p.id),
       };
     });

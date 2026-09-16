@@ -95,6 +95,10 @@ export const state = {
   // como pago dava erro de coluna inexistente — a app oferece antes o que o
   // servidor aceita, que é a mesma linha do `birthDateReady()`.
   requestFlowReady: true,
+  // E a `confirmacao-tamanhos.sql`? Dá a marca de "a família confirmou" na
+  // linha da encomenda. Sem ela, carimbar dava erro de coluna inexistente —
+  // a app oferece antes o que o servidor aceita.
+  sizesConfirmReady: true,
   playerDocuments: [],    // documentos (exame médico, seguro, CC)
   squads: [],             // convocatórias (1:1 com evento jogo)
   squadPlayers: [],       // atletas em cada convocatória
@@ -153,6 +157,7 @@ export function resetState() {
   state.equipmentRequests = [];
   state.equipmentRequestsReady = true;
   state.requestFlowReady = true;
+  state.sizesConfirmReady = true;
   state.playerDocuments = [];
   state.squads = [];
   state.squadPlayers = [];
@@ -384,7 +389,7 @@ export async function loadAll() {
          trainingPlans, trainingPlanItems, trainingEvaluations, trainingPlayerEvals,
          playerDocuments, playerSizes, squads, squadPlayers, financialEntries, gamePlans, objectives,
          eventResponses, gameResults, gameSets, tacticalScenarios, tacticalAnswers, exercises,
-         equipmentRequests, requestFlowProbe] =
+         equipmentRequests, requestFlowProbe, sizesConfirmProbe] =
     await Promise.all([
       // Multi-tenant: o RLS limita as definições ao clube do utilizador, por
       // isso não filtramos por id — devolve a (única) linha do clube atual.
@@ -452,6 +457,9 @@ export async function loadAll() {
       // se lê — não se pode adivinhar pelos dados, que uma lista vazia não
       // diz nada sobre as colunas que tem.
       supabase.from('equipment_requests').select('id,paid_at').limit(1),
+      // Idem para `confirmacao-tamanhos.sql`. Uma tabela vazia não diz nada
+      // sobre as colunas que tem, por isso pergunta-se pela coluna.
+      supabase.from('player_sizes').select('player_id,confirmed_at').limit(1),
     ]);
 
   for (const res of [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects, episodes, sessions, appointments,
@@ -516,6 +524,7 @@ export async function loadAll() {
   state.equipmentRequests = equipmentRequests.error ? [] : (equipmentRequests.data || []);
   state.equipmentRequestsReady = !equipmentRequests.error;
   state.requestFlowReady = !equipmentRequests.error && !requestFlowProbe.error;
+  state.sizesConfirmReady = !sizesConfirmProbe.error;
 
   // Coerência da cache: com pais arquivados (ex.: uma equipa), os filhos que os
   // referenciam não devem aparecer nos ecrãs ativos.
@@ -1608,6 +1617,38 @@ export async function upsertPlayerSizes(playerId, { sizes, ...values }) {
     .from('player_sizes')
     .upsert(
       { player_id: playerId, ...payload, updated_at: new Date().toISOString() },
+      { onConflict: 'player_id' }
+    )
+    .select()
+    .single();
+  if (error) throw error;
+  const i = state.playerSizes.findIndex((s) => s.player_id === playerId);
+  if (i !== -1) state.playerSizes[i] = data;
+  else state.playerSizes.push(data);
+  notify();
+  return data;
+}
+
+// Carimba (ou tira) a confirmação da família na linha da encomenda.
+//
+// Quem confirma é a família, do outro lado de uma mensagem que sai da app e
+// volta pelo WhatsApp; quem carimba é o clube. `confirmed_by` diz a quem
+// perguntar, não quem respondeu — e é por isso que isto é uma marca na linha
+// e não um registo da conversa.
+//
+// Uma confirmação é sobre VALORES concretos: mudar um tamanho depois disto
+// limpa a marca (trigger `clear_sizes_confirmation`), senão a linha ficava a
+// dizer "confirmado" sobre dados que ninguém viu.
+export async function setSizesConfirmed(playerId, confirmed) {
+  const { data, error } = await supabase
+    .from('player_sizes')
+    .upsert(
+      {
+        player_id: playerId,
+        confirmed_at: confirmed ? new Date().toISOString() : null,
+        confirmed_by: confirmed ? (state.profile?.id || null) : null,
+        updated_at: new Date().toISOString(),
+      },
       { onConflict: 'player_id' }
     )
     .select()
