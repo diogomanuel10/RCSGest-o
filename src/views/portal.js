@@ -34,7 +34,8 @@ import {
   playerUpcomingSquads,
   requestableArticles,
   articleLabel,
-  allEquipmentArticles,
+  requestCost,
+  playerOrder,
 } from '../compute.js';
 import {
   EVENT_TYPE_LABEL,
@@ -148,6 +149,7 @@ export function renderPortal(container) {
   container.innerHTML = `
     <div class="portal">
     ${heroHTML(me, team, availability)}
+    ${pickupHTML(me)}
     ${nextUpHTML(next, me)}
 
     <div class="cal-toggle section-tabs portal-tabs" role="tablist" aria-label="Áreas da minha página">
@@ -215,6 +217,29 @@ function heroHTML(me, team, availability) {
       </div>
       ${alerta || pedir ? `<div class="portal-hero__side">${alerta}${pedir}</div>` : ''}
     </header>
+  `;
+}
+
+// Material que já chegou ao clube e está à espera dela. Vive ACIMA dos
+// separadores, com o próximo compromisso, e não dentro de "A época": é a
+// única paragem do circuito do pedido que pede alguma coisa à ATLETA, e um
+// blusão que fica no gabinete porque ninguém sabe que chegou é o mesmo que
+// não ter chegado. Só aparece quando há alguma coisa para levantar — a regra
+// da disponibilidade, que não diz "Apto" a quem está apto.
+function pickupHTML(me) {
+  const prontos = state.equipmentRequests.filter(
+    (r) => r.player_id === me.id && r.status === 'pronto'
+  );
+  if (!prontos.length) return '';
+  const nomes = prontos.map((r) => (r.article === 'outro'
+    ? (r.article_other || '').trim() || 'Outro artigo'
+    : articleLabel(r.article)));
+  return `
+    <section class="card portal-pickup">
+      <span class="portal-pickup__label">Podes levantar</span>
+      <p class="portal-pickup__items">${esc(nomes.join(' · '))}</p>
+      <p class="portal-pickup__note">Está à tua espera no clube.</p>
+    </section>
   `;
 }
 
@@ -396,7 +421,7 @@ function epocaHTML(me) {
         : '<p class="portal-section__note">Sem quotas registadas.</p>'}
     </section>
 
-    ${materialHTML(pedidos)}
+    ${materialHTML(pedidos, me)}
   `;
 }
 
@@ -410,24 +435,93 @@ function epocaHTML(me) {
 // Só aparece quando o clube abriu ALGUM artigo aos pedidos — ou quando ela
 // já tem pedidos feitos (senão o histórico desaparecia no dia em que o
 // coordenador fechasse a lista, e uma decisão pendente sumia com ele).
-function materialHTML(pedidos) {
+function materialHTML(pedidos, me) {
   const articles = requestableArticles();
   if (!articles.length && !pedidos.length) return '';
+
+  const order = playerOrder(me.id);
+  const orderIds = new Set(order.list.map((r) => r.id));
+  // O histórico é o que já não está na encomenda. Desenhar as mesmas linhas
+  // duas vezes na mesma secção — uma na conta, outra na lista — era dizer à
+  // atleta que tinha pedido o dobro.
+  const historico = pedidos.filter((r) => !orderIds.has(r.id));
 
   return `
     <section class="card portal-section">
       <div class="portal-section__head">
         <h2 class="section-title portal-section__title">O meu material</h2>
       </div>
-      ${pedidos.length
-        ? `<ul class="portal-req-list">${pedidos.map(requestRow).join('')}</ul>`
-        : `<p class="portal-section__note">
+
+      ${order.list.length ? orderHTML(order) : ''}
+
+      ${historico.length
+        ? `${order.list.length
+             ? '<h3 class="portal-order__hist">Outros pedidos</h3>'
+             : ''}
+           <ul class="portal-req-list">${historico.map(requestRow).join('')}</ul>`
+        : order.list.length ? '' : `<p class="portal-section__note">
              Ainda não pediste nada. Se precisares de equipamento — porque se
              estragou, se perdeu ou já não te serve — usa o
              <strong>Pedir equipamento</strong> lá em cima e o clube
              responde-te.
            </p>`}
     </section>
+  `;
+}
+
+// --- A minha encomenda ----------------------------------------------------
+//
+// Tudo o que o clube já confirmou, ainda não entregou e ainda não cobrou,
+// numa conta só. Pedido a pedido, com o preço ao lado de cada linha, a
+// pergunta que a atleta (e sobretudo quem lhe paga as coisas) faz mesmo —
+// "quanto é que tenho de levar ao clube?" — respondia-se somando sete linhas
+// de cabeça, e era por isso que o valor aparecia numa mensagem de telemóvel
+// dias depois.
+//
+// Os artigos SEM preço definido dizem-se pelo nome em vez de contarem como
+// zero: um total que engole em silêncio o que ninguém orçamentou é um número
+// errado apresentado como certo — e aqui é uma família a preparar o dinheiro.
+function orderHTML(order) {
+  return `
+    <div class="portal-order">
+      <div class="portal-order__head">
+        <span class="portal-order__label">A minha encomenda</span>
+        <strong class="portal-order__total">
+          ${order.total ? esc(euros(order.total)) : '—'}
+        </strong>
+      </div>
+      <ul class="portal-order__list">
+        ${order.list.map(orderLine).join('')}
+      </ul>
+      <p class="portal-order__note muted">
+        ${order.unidades} artigo${order.unidades === 1 ? '' : 's'} por pagar
+        ${order.semPreco
+          ? ` · <strong>${order.semPreco} ainda sem preço</strong> (não entra${order.semPreco === 1 ? '' : 'm'} no total)`
+          : ''}
+        · fala com o clube para acertares contas.
+      </p>
+    </div>
+  `;
+}
+
+function orderLine(r) {
+  const custo = requestCost(r);
+  return `
+    <li class="portal-order__row">
+      <span class="portal-order__art">
+        ${esc(r.article === 'outro'
+          ? (r.article_other || '').trim() || 'Outro artigo'
+          : articleLabel(r.article))}
+        ${r.size ? `<span class="badge badge--info">${esc(r.size)}</span>` : ''}
+        ${r.quantity > 1 ? `<span class="portal-order__qty">×${r.quantity}</span>` : ''}
+      </span>
+      <span class="badge badge--${REQUEST_STATUS_BADGE[r.status] || 'muted'}">
+        ${esc(REQUEST_STATUS_LABEL[r.status] || r.status)}
+      </span>
+      <span class="portal-order__price">
+        ${custo != null ? esc(euros(custo)) : '<span class="muted">sem preço</span>'}
+      </span>
+    </li>
   `;
 }
 
@@ -438,16 +532,6 @@ function myRequests(playerId) {
   return state.equipmentRequests
     .filter((r) => r.player_id === playerId)
     .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
-}
-
-// Custo de um pedido ao preço de hoje. Procura nos artigos TODOS, incluindo
-// os desativados: um pedido antigo de um artigo já retirado continua a valer
-// o que valia.
-function requestCost(r) {
-  if (r.article === 'outro') return null;
-  const a = allEquipmentArticles().find((x) => x.key === r.article);
-  if (!a || a.price == null) return null;
-  return a.price * (r.quantity || 1);
 }
 
 function requestRow(r) {

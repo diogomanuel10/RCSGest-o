@@ -3149,6 +3149,11 @@ button.stat-strip__item--nav:hover {
 .metric--info {
   border-top: 3px solid var(--info);
 }
+/* "Pronto a levantar" — a paragem do circuito de pedidos que pede alguma
+   coisa ao atleta. Tem cor própria porque é a única que não é espera. */
+.metric--gold {
+  border-top: 3px solid var(--gold);
+}
 
 .presenca-picker {
   margin-bottom: 1.2rem;
@@ -6800,6 +6805,108 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
   border-left: 3px solid var(--border);
   padding-left: 0.6rem;
   color: var(--text);
+}
+
+/* A encomenda da atleta: o que o clube já confirmou, ainda não entregou e
+   ainda não cobrou, com o total à cabeça. O valor é o que se lê primeiro —
+   é a pergunta que a família faz ("quanto tenho de levar?") — e por isso
+   vive no cabeçalho do bloco e não no fim de uma lista de linhas. */
+.portal-order {
+  border: 1px solid var(--warn);
+  border-radius: var(--radius-sm);
+  background: var(--warn-bg);
+  padding: 0.75rem 0.85rem;
+  margin-bottom: 0.9rem;
+}
+.portal-order__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.portal-order__label {
+  font-weight: 600;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--warn-ink);
+}
+.portal-order__total {
+  font-size: 1.45rem;
+  line-height: 1.1;
+  color: var(--warn-ink);
+}
+.portal-order__list {
+  list-style: none;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.portal-order__row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.portal-order__art {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  font-weight: 600;
+  font-size: 0.92rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.portal-order__qty {
+  font-weight: 500;
+  color: var(--muted);
+}
+.portal-order__price {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  margin-left: auto;
+}
+.portal-order__note {
+  margin: 0.6rem 0 0;
+  font-size: 0.82rem;
+}
+.portal-order__hist {
+  font-size: 0.86rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin: 0 0 0.5rem;
+}
+
+/* "Podes levantar": a única paragem do circuito de um pedido que pede alguma
+   coisa à atleta. Vive com o próximo compromisso, acima dos separadores. */
+.portal-pickup {
+  border-left: 4px solid var(--gold);
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.portal-pickup__label {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  color: var(--gold-ink);
+}
+.portal-pickup__items {
+  margin: 0;
+  font-weight: 600;
+  font-size: 1.02rem;
+}
+.portal-pickup__note {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
 }
 
 .portal-quota-list {

@@ -89,6 +89,12 @@ export const state = {
   // avisa quem pode resolver em vez de mostrar uma lista vazia e falhar só na
   // gravação — um ecrã vazio parece "ainda não há pedidos", que é mentira.
   equipmentRequestsReady: true,
+  // E a `circuito-pedidos.sql`? Dá as paragens novas do circuito
+  // (encomendado, pronto a levantar) e a marca de pago. Sem ela, mover um
+  // pedido para "encomendado" era recusado pelo `check` da tabela e marcar
+  // como pago dava erro de coluna inexistente — a app oferece antes o que o
+  // servidor aceita, que é a mesma linha do `birthDateReady()`.
+  requestFlowReady: true,
   playerDocuments: [],    // documentos (exame médico, seguro, CC)
   squads: [],             // convocatórias (1:1 com evento jogo)
   squadPlayers: [],       // atletas em cada convocatória
@@ -146,6 +152,7 @@ export function resetState() {
   state.playerSizes = [];
   state.equipmentRequests = [];
   state.equipmentRequestsReady = true;
+  state.requestFlowReady = true;
   state.playerDocuments = [];
   state.squads = [];
   state.squadPlayers = [];
@@ -377,7 +384,7 @@ export async function loadAll() {
          trainingPlans, trainingPlanItems, trainingEvaluations, trainingPlayerEvals,
          playerDocuments, playerSizes, squads, squadPlayers, financialEntries, gamePlans, objectives,
          eventResponses, gameResults, gameSets, tacticalScenarios, tacticalAnswers, exercises,
-         equipmentRequests] =
+         equipmentRequests, requestFlowProbe] =
     await Promise.all([
       // Multi-tenant: o RLS limita as definições ao clube do utilizador, por
       // isso não filtramos por id — devolve a (única) linha do clube atual.
@@ -440,6 +447,11 @@ export async function loadAll() {
       supabase.from('exercises').select('*').order('name'),
       // Pedidos de equipamento. Tolerante à migração em falta (ver abaixo).
       supabase.from('equipment_requests').select('*').order('created_at', { ascending: false }),
+      // Sonda de UMA linha só para saber se `circuito-pedidos.sql` já correu.
+      // Uma coluna que não existe faz a consulta falhar inteira, e é isso que
+      // se lê — não se pode adivinhar pelos dados, que uma lista vazia não
+      // diz nada sobre as colunas que tem.
+      supabase.from('equipment_requests').select('id,paid_at').limit(1),
     ]);
 
   for (const res of [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects, episodes, sessions, appointments,
@@ -503,6 +515,7 @@ export async function loadAll() {
   // migração, em vez de impedir a app de arrancar.
   state.equipmentRequests = equipmentRequests.error ? [] : (equipmentRequests.data || []);
   state.equipmentRequestsReady = !equipmentRequests.error;
+  state.requestFlowReady = !equipmentRequests.error && !requestFlowProbe.error;
 
   // Coerência da cache: com pais arquivados (ex.: uma equipa), os filhos que os
   // referenciam não devem aparecer nos ecrãs ativos.
@@ -1632,17 +1645,33 @@ export async function createEquipmentRequests(list) {
     list.map((v) => ({ ...v, requested_by: state.profile?.id || null })));
 }
 
-// Decide um pedido (aprovar / entregar / recusar). Guarda quem decidiu e
+// Move um pedido para a paragem seguinte do circuito (confirmar, encomendar,
+// dar como pronto a levantar, entregar, recusar). Guarda quem o moveu e
 // quando — um pedido que muda de estado sozinho, sem dono nem data, não
 // responde à única pergunta que se lhe faz um mês depois: "quem disse que
-// sim?". O servidor recusa esta escrita a quem não é coordenador/seccionista
+// sim?". O servidor recusa esta escrita a quem não é coordenador/direção
 // (trigger `guard_request_decision`).
+//
+// A `decision_note` só se escreve quando vem alguma: mover um pedido pelo
+// circuito não pode apagar o motivo escrito noutra paragem.
 export async function decideEquipmentRequest(id, status, note = null) {
-  return updateRow('equipment_requests', 'equipmentRequests', id, {
+  const payload = {
     status,
-    decision_note: note?.trim() || null,
     decided_by: state.profile?.id || null,
     decided_at: new Date().toISOString(),
+  };
+  if (note != null) payload.decision_note = note.trim() || null;
+  return updateRow('equipment_requests', 'equipmentRequests', id, payload);
+}
+
+// Marca (ou desmarca) o pedido como pago. É uma quitação e não um lançamento
+// no Financeiro: o que isto responde é "esta família ainda deve este
+// artigo?", que é a pergunta que a atleta faz no portal e a que o clube
+// andava a responder numa folha de cálculo à parte.
+export async function setRequestPaid(id, paid) {
+  return updateRow('equipment_requests', 'equipmentRequests', id, {
+    paid_at: paid ? new Date().toISOString() : null,
+    paid_by: paid ? (state.profile?.id || null) : null,
   });
 }
 

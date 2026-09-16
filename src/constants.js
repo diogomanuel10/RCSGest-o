@@ -416,17 +416,62 @@ export const REQUEST_REASONS = [
 ];
 export const REQUEST_REASON_LABEL = Object.fromEntries(REQUEST_REASONS.map((r) => [r.key, r.label]));
 
-// Percurso de um pedido. São quatro estados e não mais: o que interessa saber
-// é se ainda está por decidir, se foi aprovado, se já chegou às mãos do atleta
-// ou se foi recusado. Um estado a mais ("em encomenda", "em conferência") é
-// mais um sítio onde um pedido fica parado sem ninguém reparar.
+// Percurso de um pedido. São as paragens do circuito real do material, e
+// cada uma existe porque muda o que a atleta (ou o clube) tem de fazer a
+// seguir:
+//
+//   pendente    — o clube ainda não decidiu
+//   aprovado    — confirmado pelo clube ("Confirmado" é o que se lê)
+//   encomendado — pedido ao fornecedor
+//   pronto      — chegou ao clube, está à espera de quem o pediu
+//   entregue    — está com o atleta
+//   recusado    — o fim da linha do outro lado
+//
+// A regra de sempre não caiu — "um estado a mais é mais um sítio onde um
+// pedido fica parado sem ninguém reparar" — mudou de caso: entre "confirmado"
+// e "entregue" passavam-se semanas em que a app dizia sempre a mesma coisa, e
+// a pergunta ("já foi encomendado? já posso ir buscar?") saía da app para o
+// telemóvel, que é o que este módulo veio resolver. `pronto` é a única
+// paragem que pede alguma coisa ao ATLETA; `encomendado` é a que responde à
+// pergunta da espera. Nenhuma das duas é uma gaveta administrativa.
+//
+// A chave `aprovado` mantém-se (está guardada em todos os pedidos já feitos);
+// só a etiqueta passou a "Confirmado". É a regra dos artigos de equipamento:
+// a chave é imutável, a etiqueta é que se lê.
 export const REQUEST_STATUSES = [
-  { key: 'pendente', label: 'Por decidir', badge: 'warn' },
-  { key: 'aprovado', label: 'Aprovado',    badge: 'info' },
-  { key: 'entregue', label: 'Entregue',    badge: 'ok' },
-  { key: 'recusado', label: 'Recusado',    badge: 'danger' },
+  { key: 'pendente',    label: 'Por decidir',       badge: 'warn' },
+  { key: 'aprovado',    label: 'Confirmado',        badge: 'info' },
+  { key: 'encomendado', label: 'Encomendado',       badge: 'info' },
+  { key: 'pronto',      label: 'Pronto a levantar', badge: 'gold' },
+  { key: 'entregue',    label: 'Entregue',          badge: 'ok' },
+  { key: 'recusado',    label: 'Recusado',          badge: 'danger' },
 ];
 export const REQUEST_STATUS_LABEL = Object.fromEntries(REQUEST_STATUSES.map((s) => [s.key, s.label]));
+
+// O passo seguinte de cada paragem, e o rótulo do botão que o dá. Está aqui
+// e não na vista porque é a definição do circuito: quem o lê num sítio só vê
+// o percurso inteiro de uma vez.
+//
+// Há DOIS caminhos a partir de "Confirmado" porque há dois casos reais: o
+// artigo que o clube tem em armazém passa direto a "pronto a levantar", e o
+// que é preciso comprar vai ao fornecedor. Obrigar o material que já está na
+// prateleira a passar por "encomendado" seria escrever na app uma encomenda
+// que ninguém fez.
+export const REQUEST_NEXT_STEPS = {
+  pendente:    [{ status: 'aprovado',    label: 'Confirmar' }],
+  aprovado:    [
+    { status: 'encomendado', label: 'Encomendei ao fornecedor' },
+    { status: 'pronto',      label: 'Já está no clube' },
+  ],
+  encomendado: [{ status: 'pronto',   label: 'Chegou ao clube' }],
+  pronto:      [{ status: 'entregue', label: 'Entregue ao atleta' }],
+};
+
+// As paragens em que o pedido ainda está vivo: decidido, a caminho, mas ainda
+// não nas mãos de quem o pediu. É o que faz a encomenda do atleta no portal e
+// o que o clube ainda tem em cima da mesa.
+export const REQUEST_IN_FLIGHT = ['aprovado', 'encomendado', 'pronto'];
+
 export const REQUEST_STATUS_BADGE = Object.fromEntries(REQUEST_STATUSES.map((s) => [s.key, s.badge]));
 
 // --- Convocatórias ---

@@ -7,7 +7,7 @@ import {
   DEFAULT_SPORT, SPORT_POSITIONS, DEFAULT_POSITIONS, DOC_TYPE_LABEL, DOCUMENT_TYPES,
   PHYSICAL_TEST_LABEL, PHYSICAL_TEST_UNIT, PHYSICAL_TEST_BETTER,
   RESPONSE_LEAD_HOURS, DEFAULT_RESPONSE_LEAD_HOURS,
-  DEFAULT_EQUIPMENT_ARTICLES,
+  DEFAULT_EQUIPMENT_ARTICLES, REQUEST_IN_FLIGHT,
 } from './constants.js';
 
 // Tipos de documento que deviam ter data de validade (exame médico, seguro…).
@@ -296,6 +296,54 @@ export function articleVariant(articleKey, teamId) {
   if (!base) return '';
   const own = (teamById(teamId)?.kit_variant || '').trim();
   return own || base;
+}
+
+// --- Pedidos de equipamento: quanto custa e o que está por pagar ---------
+
+// Quanto custa um pedido, ao preço de HOJE. `null` (e não zero) quando o
+// artigo não tem preço definido ou é um "outro artigo" escrito à mão: zero é
+// "o clube dá de graça" e soma; a ausência é "ainda não sei quanto custa" e
+// não pode entrar num total que alguém leva à direção a pensar que está
+// fechado.
+//
+// Procura nos artigos TODOS, incluindo os desativados: um pedido de dezembro
+// de um artigo já retirado continua a ter custado o que custava.
+export function requestCost(req) {
+  if (!req || req.article === 'outro') return null;
+  const a = allEquipmentArticles().find((x) => x.key === req.article);
+  if (!a || a.price == null) return null;
+  return a.price * (req.quantity || 1);
+}
+
+// A encomenda de um atleta: as linhas que o clube já confirmou, ainda não
+// entregou e ainda não cobrou, mais o total.
+//
+// São duas condições e não uma porque são duas coisas diferentes: um artigo
+// já pago continua a fazer falta até chegar às mãos dela (mas não se paga
+// outra vez), e um artigo entregue já não é uma encomenda — é histórico. O
+// que a atleta precisa de ver num sítio só é o que ainda tem de pagar ao
+// clube, e não uma linha de cada vez com o preço ao lado: sete artigos
+// pequenos são uma conta que ninguém fez.
+//
+// `semPreco` conta as linhas sem preço definido, e essas DIZEM-SE: um total
+// que engole em silêncio dois artigos por orçamentar é um número errado
+// apresentado como certo.
+export function playerOrder(playerId) {
+  const list = state.equipmentRequests
+    .filter((r) => r.player_id === playerId
+      && REQUEST_IN_FLIGHT.includes(r.status)
+      && !r.paid_at)
+    .sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''));
+
+  let total = 0;
+  let semPreco = 0;
+  list.forEach((r) => {
+    const c = requestCost(r);
+    if (c == null) semPreco++;
+    else total += c;
+  });
+  const unidades = list.reduce((n, r) => n + (r.quantity || 1), 0);
+  return { list, total, semPreco, unidades };
 }
 
 // Data de nascimento de um atleta como `Date` local (ou null). Constrói-se com
