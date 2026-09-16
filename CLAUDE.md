@@ -260,6 +260,7 @@ supabase/artigos-configuraveis.sql Artigos e tamanhos de equipamento definidos p
 supabase/pedidos-atleta.sql    A atleta pede equipamento do portal; decide o coordenador/direção
 supabase/fotos-artigos.sql     Bucket público com a foto de cada artigo de equipamento
 supabase/variante-equipamento.sql Cor/modelo do equipamento por escalão (resumo dos pedidos)
+supabase/pedidos-pagamento.sql Marcar um pedido de equipamento como pago (paid_at)
 supabase/aniversarios.sql      Data de nascimento do atleta (aniversários + quem falta)
 supabase/portal-atleta.sql     Portal: o atleta lê a sua própria disponibilidade
 supabase/comunicacao.sql       Respostas do atleta a eventos + avisos do clube
@@ -694,9 +695,8 @@ separador antes de navegar (usado pelos cartões do Painel).
       lista, os pedidos da Ana estão espalhados por três páginas entre os das
       outras vinte, e a entrega faz-se atleta a atleta com ela à frente. O
       valor é o do artigo ao preço de hoje (`requestCost`, o mesmo do resto do
-      ecrã) e é uma conta **a cobrar**, não um registo de pagamento — a app
-      não sabe quem já pagou, e há material que o clube dá; os artigos sem
-      preço contam-se à parte em vez de entrarem como zero.
+      ecrã); os artigos sem preço contam-se à parte em vez de entrarem como
+      zero.
 
     As três contam o que estiver no FILTRO em cima (mudar para "Aprovados" dá
     o que já foi decidido e há mesmo que comprar ou entregar; "Por resolver"
@@ -704,6 +704,33 @@ separador antes de navegar (usado pelos cartões do Painel).
     a discordar no mesmo ecrã — e a `quantity` de cada pedido conta.
     Reaproveitam o desenho do resumo das Encomendas (`enc-resumo-*`) e a lista
     de pedidos do portal (`portal-req-*`).
+  - **Quem recebe o dinheiro marca o pedido como PAGO**
+    (`supabase/pedidos-pagamento.sql`: `paid_at` + `paid_by`). O ecrã já dizia
+    quanto cada atleta tinha a pagar, mas não quem já tinha pago — e isso
+    ficava num caderno ou na cabeça de quem está ao balcão no dia da entrega.
+    Um número "a pagar" que nunca fecha deixa de ser lido ao fim de duas
+    semanas.
+    - **É uma MARCA, não um livro de contas.** O registo da receita é do
+      Financeiro e nada disto escreve lá — ligar as duas coisas é uma decisão
+      à parte, como já acontece com o orçamento das Encomendas. Também não há
+      notificação: receber o dinheiro à frente da pessoa não precisa de um
+      aviso a dizer-lhe que o entregou.
+    - **Só se paga o que já foi decidido** (`aprovado` ou `entregue`): um
+      pendente ainda pode ser recusado, e receber dinheiro por uma coisa que
+      se vai recusar é o pior dos dois mundos.
+    - **Quem marca é quem decide** (coordenador e direção), e isso é fechado
+      no MESMO trigger do `status` (`guard_request_decision`) e não num
+      segundo: a política de UPDATE deixa o treinador e a atleta corrigirem o
+      seu pedido enquanto está pendente, e isso, sozinho, deixava-os
+      dar-se por pagos a si próprios. Uma segunda guarda ficava a divergir
+      desta à primeira correção.
+    - **Desmarcar existe**: a entrega faz-se ao balcão, com fila, e um clique
+      errado sem volta obrigava a mexer na base de dados.
+    - **Marca-se tudo de uma vez por atleta** (`setRequestsPaid`, uma escrita
+      por linha e um só toast, na lógica do `closeAttendanceSessions`): ela
+      não paga as meias e depois o blusão.
+    - **O filtro ganha "Por pagar"**, que não é um estado da coluna `status`
+      mas a pergunta de quem está ao balcão — já decidido E ainda não pago.
   - **A mesma camisola não é a mesma peça em todos os escalões**
     (`supabase/variante-equipamento.sql`, `articleVariant()`): os sub-21 usam-na
     azul e os restantes branca, e um total que junte as duas não se pode
