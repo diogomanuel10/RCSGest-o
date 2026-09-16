@@ -408,6 +408,15 @@ function summaryHTML(rows, playerById) {
 // da Ana estão espalhados por três páginas entre os das outras vinte — e a
 // entrega faz-se atleta a atleta, com ela à frente.
 //
+// **Agrupa-se por EQUIPA e cada equipa abre-se** (`<details class="group">`, a
+// mesma forma dos utilizadores e dos convites): sessenta cartões de atleta em
+// coluna eram um scroll sem fim, e a entrega nunca é do clube inteiro — é do
+// escalão que está no pavilhão naquela tarde. Os grupos nascem FECHADOS, com o
+// que interessa já no cabeçalho (quantas atletas, quanto há a cobrar), para a
+// primeira coisa que se vê ser a escolha do escalão e não o conteúdo de todos.
+// Com uma equipa só — porque o clube só tem uma, ou porque o filtro em cima já
+// escolheu — abre, que não há nada para escolher.
+//
 // O valor é o do artigo ao preço de HOJE (`requestCost`, o mesmo do resto do
 // ecrã); os artigos sem preço contam-se à parte, nunca como zero.
 function byPlayerHTML(rows, playerById) {
@@ -415,14 +424,16 @@ function byPlayerHTML(rows, playerById) {
     return emptyHTML('Nenhum pedido neste filtro.', { icone: '🎽' });
   }
 
-  const groups = new Map();
+  const byPlayer = new Map();
   rows.forEach((r) => {
     const player = playerById[r.player_id];
     const key = r.player_id || 'sem-atleta';
-    if (!groups.has(key)) {
-      groups.set(key, {
+    if (!byPlayer.has(key)) {
+      byPlayer.set(key, {
         name: player?.name || 'Atleta removido',
-        team: player ? teamName(state.teams.find((t) => t.id === player.team_id)) : '',
+        number: player?.number || null,
+        teamId: player?.team_id || '',
+        team: player ? teamName(state.teams.find((t) => t.id === player.team_id)) : 'Sem equipa',
         items: [],
         units: 0,
         owed: 0,   // ainda por cobrar
@@ -431,7 +442,7 @@ function byPlayerHTML(rows, playerById) {
         unpaidIds: [],
       });
     }
-    const g = groups.get(key);
+    const g = byPlayer.get(key);
     const c = requestCost(r);
     g.items.push({ req: r, cost: c });
     g.units += r.quantity || 1;
@@ -443,11 +454,18 @@ function byPlayerHTML(rows, playerById) {
     if (isBillable(r)) g.unpaidIds.push(r.id);
   });
 
-  // Pela equipa e depois pelo nome: entrega-se um escalão de cada vez.
-  const list = [...groups.values()].sort((a, b) =>
-    a.team.localeCompare(b.team, 'pt') || a.name.localeCompare(b.name, 'pt'));
-  const owed = list.reduce((n, g) => n + g.owed, 0);
-  const paid = list.reduce((n, g) => n + g.paid, 0);
+  // Equipas por nome; dentro de cada uma, as atletas por nome.
+  const teams = new Map();
+  [...byPlayer.values()]
+    .sort((a, b) => a.name.localeCompare(b.name, 'pt'))
+    .forEach((p) => {
+      if (!teams.has(p.teamId)) teams.set(p.teamId, { label: p.team, players: [] });
+      teams.get(p.teamId).players.push(p);
+    });
+  const teamList = [...teams.values()].sort((a, b) => a.label.localeCompare(b.label, 'pt'));
+
+  const owed = [...byPlayer.values()].reduce((n, g) => n + g.owed, 0);
+  const paid = [...byPlayer.values()].reduce((n, g) => n + g.paid, 0);
   const canPay = canDecideRequests() && state.requestFlowReady;
 
   return `
@@ -457,59 +475,85 @@ function byPlayerHTML(rows, playerById) {
         <strong class="enc-budget__value">${owed ? esc(euros(owed)) : '—'}</strong>
       </div>
       <span class="muted enc-budget__note">
-        ${list.length} atleta${list.length !== 1 ? 's' : ''}
+        ${byPlayer.size} atleta${byPlayer.size !== 1 ? 's' : ''}
+        em ${teamList.length} equipa${teamList.length !== 1 ? 's' : ''}
         ${paid ? ` · ${esc(euros(paid))} já pagos` : ''}
       </span>
     </div>
 
-    <div class="enc-resumo-grid enc-resumo-grid--wide">
-      ${list.map((g) => `
-        <div class="card enc-resumo-card">
-          <h3 class="enc-resumo-title" style="text-transform:none;letter-spacing:0">
-            ${esc(g.name)}
-            ${g.team ? `<span class="muted" style="display:block;font-weight:400;font-size:0.8rem">${esc(g.team)}</span>` : ''}
-          </h3>
-          <ul class="portal-req-list">
-            ${g.items.map(({ req, cost }) => `
-              <li class="portal-req">
-                <div class="portal-req__main">
-                  <span class="portal-req__art">
-                    ${esc(articleLabel(req))}
-                    ${(() => {
-                      const v = articleVariant(req.article, playerById[req.player_id]?.team_id);
-                      return v ? `<span class="badge badge--muted">${esc(v)}</span>` : '';
-                    })()}
-                  </span>
-                  <span class="badge badge--${REQUEST_STATUS_BADGE[req.status] || 'muted'}">
-                    ${esc(REQUEST_STATUS_LABEL[req.status] || req.status)}
-                  </span>
-                </div>
-                <p class="portal-req__meta muted">
-                  ${req.size ? `Tamanho ${esc(req.size)}` : 'Sem tamanho'}
-                  ${req.quantity > 1 ? ` · ×${req.quantity}` : ''}
-                  ${cost != null ? ` · ${esc(euros(cost))}` : ' · sem preço'}
-                  ${req.paid_at ? ' · <strong>pago</strong>' : ''}
-                </p>
-                ${canPay && isBillable(req) ? `
-                  <button class="btn btn--ghost btn--sm" data-paid="${req.id}" data-paid-to="1" type="button">Marcar pago</button>` : ''}
-              </li>
-            `).join('')}
-          </ul>
-          <p class="muted enc-resumo-total">
-            ${g.units} artigo${g.units !== 1 ? 's' : ''}
-            ${g.owed
-              ? `· <strong>${esc(euros(g.owed))}</strong> a pagar`
-              : (g.paid ? '· <strong>tudo pago</strong>' : '')}
-            ${g.paid && g.owed ? `· ${esc(euros(g.paid))} já pagos` : ''}
-            ${g.missing ? `· <span class="enc-resumo-unit">${g.missing} sem preço</span>` : ''}
-          </p>
-          ${canPay && g.unpaidIds.length > 1 ? `
-            <button class="btn btn--ghost btn--sm" data-pay-player="${esc(g.unpaidIds.join(','))}" type="button">
-              Marcar tudo como pago (${g.unpaidIds.length})
-            </button>` : ''}
-        </div>`).join('')}
-    </div>
+    ${teamList.map((t) => {
+      const tOwed = t.players.reduce((n, p) => n + p.owed, 0);
+      const tIds = t.players.flatMap((p) => p.unpaidIds);
+      return `
+        <details class="group" ${teamList.length === 1 ? 'open' : ''}>
+          <summary class="group__head">
+            <span class="group__title">${esc(t.label)}</span>
+            <span class="group__count">${t.players.length}</span>
+            <span class="muted" style="margin-left:auto;font-size:0.85rem">
+              ${tOwed ? `${esc(euros(tOwed))} por cobrar` : 'tudo pago'}
+            </span>
+          </summary>
+          <div style="padding:0.9rem">
+            ${canPay && tIds.length > 1 ? `
+              <button class="btn btn--ghost btn--sm" data-pay-player="${esc(tIds.join(','))}" type="button"
+                      style="margin-bottom:0.8rem">
+                Marcar a equipa toda como paga (${tIds.length})
+              </button>` : ''}
+            <div class="enc-resumo-grid enc-resumo-grid--wide">
+              ${t.players.map((g) => playerCardHTML(g, playerById, canPay)).join('')}
+            </div>
+          </div>
+        </details>`;
+    }).join('')}
   `;
+}
+
+// O cartão de UMA atleta: o que leva, o que já pagou e o que fica a dever.
+function playerCardHTML(g, playerById, canPay) {
+  return `
+    <div class="card enc-resumo-card">
+      <h3 class="enc-resumo-title" style="text-transform:none;letter-spacing:0">
+        ${g.number ? `<span class="muted">${esc(String(g.number))}</span> ` : ''}${esc(g.name)}
+      </h3>
+      <ul class="portal-req-list">
+        ${g.items.map(({ req, cost }) => `
+          <li class="portal-req">
+            <div class="portal-req__main">
+              <span class="portal-req__art">
+                ${esc(articleLabel(req))}
+                ${(() => {
+                  const v = articleVariant(req.article, playerById[req.player_id]?.team_id);
+                  return v ? `<span class="badge badge--muted">${esc(v)}</span>` : '';
+                })()}
+              </span>
+              <span class="badge badge--${REQUEST_STATUS_BADGE[req.status] || 'muted'}">
+                ${esc(REQUEST_STATUS_LABEL[req.status] || req.status)}
+              </span>
+            </div>
+            <p class="portal-req__meta muted">
+              ${req.size ? `Tamanho ${esc(req.size)}` : 'Sem tamanho'}
+              ${req.quantity > 1 ? ` · ×${req.quantity}` : ''}
+              ${cost != null ? ` · ${esc(euros(cost))}` : ' · sem preço'}
+              ${req.paid_at ? ' · <strong>pago</strong>' : ''}
+            </p>
+            ${canPay && isBillable(req) ? `
+              <button class="btn btn--ghost btn--sm" data-paid="${req.id}" data-paid-to="1" type="button">Marcar pago</button>` : ''}
+          </li>
+        `).join('')}
+      </ul>
+      <p class="muted enc-resumo-total">
+        ${g.units} artigo${g.units !== 1 ? 's' : ''}
+        ${g.owed
+          ? `· <strong>${esc(euros(g.owed))}</strong> a pagar`
+          : (g.paid ? '· <strong>tudo pago</strong>' : '')}
+        ${g.paid && g.owed ? `· ${esc(euros(g.paid))} já pagos` : ''}
+        ${g.missing ? `· <span class="enc-resumo-unit">${g.missing} sem preço</span>` : ''}
+      </p>
+      ${canPay && g.unpaidIds.length > 1 ? `
+        <button class="btn btn--ghost btn--sm" data-pay-player="${esc(g.unpaidIds.join(','))}" type="button">
+          Marcar tudo como pago (${g.unpaidIds.length})
+        </button>` : ''}
+    </div>`;
 }
 
 // Ordem: primeiro o que está por resolver (mais antigo à frente — é o que já
