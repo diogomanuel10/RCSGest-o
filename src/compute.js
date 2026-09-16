@@ -7,7 +7,7 @@ import {
   DEFAULT_SPORT, SPORT_POSITIONS, DEFAULT_POSITIONS, DOC_TYPE_LABEL, DOCUMENT_TYPES,
   PHYSICAL_TEST_LABEL, PHYSICAL_TEST_UNIT, PHYSICAL_TEST_BETTER,
   RESPONSE_LEAD_HOURS, DEFAULT_RESPONSE_LEAD_HOURS,
-  DEFAULT_EQUIPMENT_ARTICLES, REQUEST_IN_FLIGHT,
+  DEFAULT_EQUIPMENT_ARTICLES,
 } from './constants.js';
 
 // Tipos de documento que deviam ter data de validade (exame médico, seguro…).
@@ -315,23 +315,28 @@ export function requestCost(req) {
   return a.price * (req.quantity || 1);
 }
 
-// A encomenda de um atleta: as linhas que o clube já confirmou, ainda não
-// entregou e ainda não cobrou, mais o total.
+// A encomenda de um atleta: tudo o que pediu e ainda não tem — do que está
+// por decidir ao que já está no clube à espera dela — mais o total.
 //
-// São duas condições e não uma porque são duas coisas diferentes: um artigo
-// já pago continua a fazer falta até chegar às mãos dela (mas não se paga
-// outra vez), e um artigo entregue já não é uma encomenda — é histórico. O
-// que a atleta precisa de ver num sítio só é o que ainda tem de pagar ao
-// clube, e não uma linha de cada vez com o preço ao lado: sete artigos
-// pequenos são uma conta que ninguém fez.
+// É UMA lista e não duas porque é uma pergunta só: "o que é que eu pedi e em
+// que é que está?". O corte é pelo FIM do circuito: sai o que foi entregue
+// (já está com ela, é histórico), o que foi recusado (não vem) e o que já foi
+// pago (não se paga outra vez). Tudo o resto é encomenda em curso, seja qual
+// for a paragem.
+//
+// O total é o que ela vai ter de levar ao clube SE tudo for aprovado — por
+// isso `porDecidir` conta as linhas que o clube ainda não confirmou: um total
+// apresentado como fechado, quando metade ainda pode ser recusada, é um
+// número que a família prepara e não corresponde a nada.
 //
 // `semPreco` conta as linhas sem preço definido, e essas DIZEM-SE: um total
-// que engole em silêncio dois artigos por orçamentar é um número errado
+// que engole em silêncio o que ninguém orçamentou é um número errado
 // apresentado como certo.
 export function playerOrder(playerId) {
   const list = state.equipmentRequests
     .filter((r) => r.player_id === playerId
-      && REQUEST_IN_FLIGHT.includes(r.status)
+      && r.status !== 'entregue'
+      && r.status !== 'recusado'
       && !r.paid_at)
     .sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''));
 
@@ -342,8 +347,14 @@ export function playerOrder(playerId) {
     if (c == null) semPreco++;
     else total += c;
   });
-  const unidades = list.reduce((n, r) => n + (r.quantity || 1), 0);
-  return { list, total, semPreco, unidades };
+  return {
+    list,
+    total,
+    semPreco,
+    unidades: list.reduce((n, r) => n + (r.quantity || 1), 0),
+    porDecidir: list.filter((r) => r.status === 'pendente').length,
+    prontos: list.filter((r) => r.status === 'pronto'),
+  };
 }
 
 // Data de nascimento de um atleta como `Date` local (ou null). Constrói-se com

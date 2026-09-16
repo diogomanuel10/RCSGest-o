@@ -149,8 +149,8 @@ export function renderPortal(container) {
   container.innerHTML = `
     <div class="portal">
     ${heroHTML(me, team, availability)}
-    ${pickupHTML(me)}
     ${nextUpHTML(next, me)}
+    ${orderHTML(playerOrder(me.id))}
 
     <div class="cal-toggle section-tabs portal-tabs" role="tablist" aria-label="Áreas da minha página">
       ${tabs.map((t) => `
@@ -217,29 +217,6 @@ function heroHTML(me, team, availability) {
       </div>
       ${alerta || pedir ? `<div class="portal-hero__side">${alerta}${pedir}</div>` : ''}
     </header>
-  `;
-}
-
-// Material que já chegou ao clube e está à espera dela. Vive ACIMA dos
-// separadores, com o próximo compromisso, e não dentro de "A época": é a
-// única paragem do circuito do pedido que pede alguma coisa à ATLETA, e um
-// blusão que fica no gabinete porque ninguém sabe que chegou é o mesmo que
-// não ter chegado. Só aparece quando há alguma coisa para levantar — a regra
-// da disponibilidade, que não diz "Apto" a quem está apto.
-function pickupHTML(me) {
-  const prontos = state.equipmentRequests.filter(
-    (r) => r.player_id === me.id && r.status === 'pronto'
-  );
-  if (!prontos.length) return '';
-  const nomes = prontos.map((r) => (r.article === 'outro'
-    ? (r.article_other || '').trim() || 'Outro artigo'
-    : articleLabel(r.article)));
-  return `
-    <section class="card portal-pickup">
-      <span class="portal-pickup__label">Podes levantar</span>
-      <p class="portal-pickup__items">${esc(nomes.join(' · '))}</p>
-      <p class="portal-pickup__note">Está à tua espera no clube.</p>
-    </section>
   `;
 }
 
@@ -425,41 +402,34 @@ function epocaHTML(me) {
   `;
 }
 
-// --- O meu material ------------------------------------------------------
+// --- O meu material (o histórico) ----------------------------------------
 //
-// Vive em "A época", ao lado das quotas: é a mesma conversa administrativa
-// com o clube, e não uma pergunta que se faça todos os dias. Um quarto
-// separador para uma ação que acontece duas vezes por época seria dar-lhe o
-// peso do "o que tenho a seguir", que é a razão real das visitas.
+// O que JÁ está resolvido: entregue, recusado, ou pago e à espera. A
+// encomenda em curso vive lá em cima, fora dos separadores — aqui fica o
+// registo, que é consulta e não ação, e por isso pode estar ao lado das
+// quotas: é a mesma conversa administrativa com o clube.
 //
 // Só aparece quando o clube abriu ALGUM artigo aos pedidos — ou quando ela
 // já tem pedidos feitos (senão o histórico desaparecia no dia em que o
-// coordenador fechasse a lista, e uma decisão pendente sumia com ele).
+// coordenador fechasse a lista).
 function materialHTML(pedidos, me) {
   const articles = requestableArticles();
   if (!articles.length && !pedidos.length) return '';
 
-  const order = playerOrder(me.id);
-  const orderIds = new Set(order.list.map((r) => r.id));
-  // O histórico é o que já não está na encomenda. Desenhar as mesmas linhas
-  // duas vezes na mesma secção — uma na conta, outra na lista — era dizer à
-  // atleta que tinha pedido o dobro.
-  const historico = pedidos.filter((r) => !orderIds.has(r.id));
+  // O que está na encomenda não se repete aqui: desenhar as mesmas linhas
+  // duas vezes era dizer-lhe que tinha pedido o dobro.
+  const emCurso = new Set(playerOrder(me.id).list.map((r) => r.id));
+  const historico = pedidos.filter((r) => !emCurso.has(r.id));
+  if (!historico.length && emCurso.size) return '';
 
   return `
     <section class="card portal-section">
       <div class="portal-section__head">
         <h2 class="section-title portal-section__title">O meu material</h2>
       </div>
-
-      ${order.list.length ? orderHTML(order) : ''}
-
       ${historico.length
-        ? `${order.list.length
-             ? '<h3 class="portal-order__hist">Outros pedidos</h3>'
-             : ''}
-           <ul class="portal-req-list">${historico.map(requestRow).join('')}</ul>`
-        : order.list.length ? '' : `<p class="portal-section__note">
+        ? `<ul class="portal-req-list">${historico.map(requestRow).join('')}</ul>`
+        : `<p class="portal-section__note">
              Ainda não pediste nada. Se precisares de equipamento — porque se
              estragou, se perdeu ou já não te serve — usa o
              <strong>Pedir equipamento</strong> lá em cima e o clube
@@ -471,19 +441,32 @@ function materialHTML(pedidos, me) {
 
 // --- A minha encomenda ----------------------------------------------------
 //
-// Tudo o que o clube já confirmou, ainda não entregou e ainda não cobrou,
-// numa conta só. Pedido a pedido, com o preço ao lado de cada linha, a
-// pergunta que a atleta (e sobretudo quem lhe paga as coisas) faz mesmo —
-// "quanto é que tenho de levar ao clube?" — respondia-se somando sete linhas
-// de cabeça, e era por isso que o valor aparecia numa mensagem de telemóvel
-// dias depois.
+// Tudo o que pediu e ainda não tem, com o total. Vive ACIMA dos separadores,
+// logo a seguir ao próximo treino, e não dentro de "A época": estava a três
+// gestos de distância (trocar de separador, passar as presenças, passar as
+// quotas) e sem total nenhum — que é precisamente a pergunta que a família
+// faz, "quanto é que tenho de levar ao clube?". Somar quatro linhas de cabeça
+// num telemóvel é a maneira de o valor acabar numa mensagem dias depois.
 //
-// Os artigos SEM preço definido dizem-se pelo nome em vez de contarem como
-// zero: um total que engole em silêncio o que ninguém orçamentou é um número
-// errado apresentado como certo — e aqui é uma família a preparar o dinheiro.
+// É UMA lista e não duas: a pergunta é "o que pedi e em que está", e a
+// resposta é o crachá de cada linha. O que já foi entregue, recusado ou pago
+// sai daqui para o histórico, em "A época".
 function orderHTML(order) {
+  if (!order.list.length) return '';
+
+  // O que já está no clube à espera dela é a única coisa nesta lista que lhe
+  // pede uma AÇÃO — ir buscar. Por isso sai da lista para uma linha própria,
+  // no topo: no meio de quatro crachás parecidos, "Pronto a levantar" lê-se
+  // como mais um estado e o material fica no gabinete.
+  const prontos = order.prontos.map(articleName);
+
   return `
-    <div class="portal-order">
+    <section class="card portal-order">
+      ${prontos.length ? `
+        <p class="portal-order__pickup">
+          <strong>Podes levantar:</strong> ${esc(prontos.join(' · '))}
+          <span class="portal-order__pickup-note">Está à tua espera no clube.</span>
+        </p>` : ''}
       <div class="portal-order__head">
         <span class="portal-order__label">A minha encomenda</span>
         <strong class="portal-order__total">
@@ -494,14 +477,22 @@ function orderHTML(order) {
         ${order.list.map(orderLine).join('')}
       </ul>
       <p class="portal-order__note muted">
-        ${order.unidades} artigo${order.unidades === 1 ? '' : 's'} por pagar
-        ${order.semPreco
-          ? ` · <strong>${order.semPreco} ainda sem preço</strong> (não entra${order.semPreco === 1 ? '' : 'm'} no total)`
+        ${order.unidades} artigo${order.unidades === 1 ? '' : 's'}
+        ${order.porDecidir
+          ? ` · <strong>${order.porDecidir}</strong> ainda por decidir pelo clube`
           : ''}
-        · fala com o clube para acertares contas.
+        ${order.semPreco
+          ? ` · <strong>${order.semPreco} sem preço</strong> (não entra${order.semPreco === 1 ? '' : 'm'} no total)`
+          : ''}
       </p>
-    </div>
+    </section>
   `;
+}
+
+function articleName(r) {
+  return r.article === 'outro'
+    ? (r.article_other || '').trim() || 'Outro artigo'
+    : articleLabel(r.article);
 }
 
 function orderLine(r) {
@@ -509,9 +500,7 @@ function orderLine(r) {
   return `
     <li class="portal-order__row">
       <span class="portal-order__art">
-        ${esc(r.article === 'outro'
-          ? (r.article_other || '').trim() || 'Outro artigo'
-          : articleLabel(r.article))}
+        ${esc(articleName(r))}
         ${r.size ? `<span class="badge badge--info">${esc(r.size)}</span>` : ''}
         ${r.quantity > 1 ? `<span class="portal-order__qty">×${r.quantity}</span>` : ''}
       </span>
@@ -521,6 +510,9 @@ function orderLine(r) {
       <span class="portal-order__price">
         ${custo != null ? esc(euros(custo)) : '<span class="muted">sem preço</span>'}
       </span>
+      ${r.status === 'pendente'
+        ? `<button class="btn btn--ghost btn--xs portal-order__cancel" data-cancel-req="${r.id}" type="button">Cancelar</button>`
+        : ''}
     </li>
   `;
 }
