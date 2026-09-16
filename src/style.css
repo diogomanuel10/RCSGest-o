@@ -4631,6 +4631,9 @@ button.metric--nav:focus-visible {
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 0.9rem;
 }
+/* Cartões com uma LISTA lá dentro (o que cada atleta tem a levantar) pedem
+   mais largura do que uma coluna de tamanhos. */
+.enc-resumo-grid--wide { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
 .enc-resumo-card { padding: 1rem 1.1rem; }
 .enc-resumo-title {
   font-size: 0.85rem;

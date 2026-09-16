@@ -30,10 +30,10 @@ import {
 let statusFilter = 'abertos'; // 'abertos' | chave de estado | 'todos'
 let teamFilter = '';
 let page = 1;
-// Lista (pedido a pedido, para decidir) ou Resumo (o total por artigo e
-// tamanho, para encomendar). São as duas perguntas que este ecrã responde e
-// nenhuma serve para a outra: aprovar é uma linha de cada vez, encomendar é
-// "quantas M no total". Estado de UI, como os filtros.
+// Três leituras dos MESMOS pedidos, porque são três momentos do mesmo
+// trabalho e nenhuma serve para o outro: decidir (Lista, pedido a pedido),
+// comprar (Resumo, "quantas M no total") e ENTREGAR (Por atleta, "o que é
+// que eu dou à Ana e quanto é que ela paga"). Estado de UI, como os filtros.
 let mode = 'lista';
 
 // Corpo do separador "Pedidos" (renderizado pelo orquestrador Equipamentos).
@@ -112,6 +112,7 @@ export function renderPedidosBody(container) {
           <select id="req-mode">
             <option value="lista" ${mode === 'lista' ? 'selected' : ''}>Lista de pedidos</option>
             <option value="resumo" ${mode === 'resumo' ? 'selected' : ''}>Resumo para encomendar</option>
+            <option value="atleta" ${mode === 'atleta' ? 'selected' : ''}>Por atleta (entregas)</option>
           </select>
         </div>
         ${canRequest ? '<button class="btn btn--accent" id="add-req" type="button" style="margin-left:auto">+ Pedido</button>' : ''}
@@ -142,6 +143,7 @@ export function renderPedidosBody(container) {
     </section>
 
     ${mode === 'resumo' ? summaryHTML(rows, playerById) : ''}
+    ${mode === 'atleta' ? byPlayerHTML(rows, playerById) : ''}
 
     ${mode === 'lista' && rows.length
       ? `<div class="card" style="padding:0;overflow-x:auto">
@@ -164,7 +166,7 @@ export function renderPedidosBody(container) {
           </table>
          </div>
          ${paginationHTML({ ...pg, id: 'req' })}`
-      : mode === 'resumo' ? '' : emptyHTML(
+      : mode !== 'lista' ? '' : emptyHTML(
           all.length
             ? 'Nenhum pedido neste filtro.'
             : 'Ainda não há pedidos de equipamento.',
@@ -325,6 +327,103 @@ function summaryHTML(rows, playerById) {
             </p>
           </div>`;
       }).join('')}
+    </div>
+  `;
+}
+
+// --- Por atleta (entregas) -----------------------------------------------
+//
+// O resumo diz o que se compra; esta vista diz o que se ENTREGA, que é o
+// momento a seguir e uma pergunta diferente: chegou a caixa, e agora é preciso
+// saber o que leva cada uma e quanto é que paga. Na lista, os pedidos da Ana
+// estão espalhados por três páginas entre os das outras vinte — e a entrega
+// faz-se atleta a atleta, com ela à frente.
+//
+// **O custo é o do artigo, ao preço de HOJE** (`requestCost`, o mesmo do resto
+// do ecrã), e é uma conta para cobrar — não um registo de pagamento: a app não
+// sabe quem já pagou. Quem paga o quê é decisão do clube (há material que o
+// clube dá), por isso diz-se "a pagar" e não "em dívida", e os artigos sem
+// preço contam-se à parte em vez de entrarem como zero.
+function byPlayerHTML(rows, playerById) {
+  if (!rows.length) {
+    return emptyHTML('Nenhum pedido neste filtro.', { icone: '🎽' });
+  }
+
+  const groups = new Map();
+  rows.forEach((r) => {
+    const player = playerById[r.player_id];
+    const key = r.player_id || 'sem-atleta';
+    if (!groups.has(key)) {
+      groups.set(key, {
+        name: player?.name || 'Atleta removido',
+        team: player ? teamName(state.teams.find((t) => t.id === player.team_id)) : '',
+        teamId: player?.team_id || '',
+        items: [],
+        units: 0,
+        cost: 0,
+        missing: 0,
+      });
+    }
+    const g = groups.get(key);
+    const c = requestCost(r);
+    g.items.push({ req: r, cost: c });
+    g.units += r.quantity || 1;
+    if (c == null) g.missing += r.quantity || 1;
+    else g.cost += c;
+  });
+
+  // Pela equipa e depois pelo nome: entrega-se um escalão de cada vez.
+  const list = [...groups.values()].sort((a, b) =>
+    a.team.localeCompare(b.team, 'pt') || a.name.localeCompare(b.name, 'pt'));
+  const total = list.reduce((n, g) => n + g.cost, 0);
+
+  return `
+    <div class="card enc-budget" style="margin-bottom:1rem">
+      <div>
+        <span class="enc-budget__label">A entregar neste filtro</span>
+        <strong class="enc-budget__value">${list.length} atleta${list.length !== 1 ? 's' : ''}</strong>
+      </div>
+      <span class="muted enc-budget__note">
+        ${total ? `${esc(euros(total))} a cobrar ao todo` : 'Sem preços definidos'}
+      </span>
+    </div>
+
+    <div class="enc-resumo-grid enc-resumo-grid--wide">
+      ${list.map((g) => `
+        <div class="card enc-resumo-card">
+          <h3 class="enc-resumo-title" style="text-transform:none;letter-spacing:0">
+            ${esc(g.name)}
+            ${g.team ? `<span class="muted" style="display:block;font-weight:400;font-size:0.8rem;text-transform:none">${esc(g.team)}</span>` : ''}
+          </h3>
+          <ul class="portal-req-list">
+            ${g.items.map(({ req, cost }) => `
+              <li class="portal-req">
+                <div class="portal-req__main">
+                  <span class="portal-req__art">
+                    ${esc(articleLabel(req))}
+                    ${(() => {
+                      const v = articleVariant(req.article, playerById[req.player_id]?.team_id);
+                      return v ? `<span class="badge badge--muted">${esc(v)}</span>` : '';
+                    })()}
+                  </span>
+                  <span class="badge badge--${REQUEST_STATUS_BADGE[req.status] || 'muted'}">
+                    ${esc(REQUEST_STATUS_LABEL[req.status] || req.status)}
+                  </span>
+                </div>
+                <p class="portal-req__meta muted">
+                  ${req.size ? `Tamanho ${esc(req.size)}` : 'Sem tamanho'}
+                  ${req.quantity > 1 ? ` · ×${req.quantity}` : ''}
+                  ${cost != null ? ` · ${esc(euros(cost))}` : ' · <span>sem preço</span>'}
+                </p>
+              </li>
+            `).join('')}
+          </ul>
+          <p class="muted enc-resumo-total">
+            ${g.units} artigo${g.units !== 1 ? 's' : ''}
+            ${g.cost ? `· <strong>${esc(euros(g.cost))}</strong> a pagar` : ''}
+            ${g.missing ? `· <span class="enc-resumo-unit">${g.missing} sem preço</span>` : ''}
+          </p>
+        </div>`).join('')}
     </div>
   `;
 }
