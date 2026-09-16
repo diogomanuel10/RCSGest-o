@@ -183,6 +183,51 @@ conforme o `role` + RLS. Ver `supabase/multitenant.sql` (corre DEPOIS de
 - **Convites (UI)**: em `utilizadores.js` o coordenador cria convites (papel +
   acessos), copia o link `?invite=<token>` e revoga-os. A lista vem de
   `state.invitations`.
+- **Eliminar utilizadores do clube** (`supabase/remover-utilizadores.sql`, RPC
+  `delete_org_member`): a lista de Utilizadores só CRESCIA. O treinador que
+  saiu em dezembro, a conta de teste de um convite colado duas vezes, a atleta
+  que mudou de clube — ficavam lá todos, com papel e acessos, a ocupar lugares
+  do limite do plano e a poluir os seletores de vínculo. Baixar o papel para
+  "Leitura" não resolve: continua a ser uma conta com entrada no clube.
+  - **É irreversível e apaga a CONTA** (`auth.users`), não só o vínculo. Não é
+    o arquivar (`archived_at`) das entidades do clube.
+  - **A FICHA não morre com a conta**: `coaches.user_id` e `players.user_id`
+    são `on delete set null`, por isso o histórico do treinador e as presenças,
+    quotas e cartão QR da atleta ficam intactos — o que se perde é o acesso.
+    Apagar a conta de uma atleta não pode apagar a atleta, e o diálogo diz-lhe
+    isso pelo nome antes de confirmar.
+  - **Três contas que o servidor recusa sempre**, porque cada uma é uma forma
+    de o clube ficar sem ninguém a poder repor o engano: a própria, a **dona
+    do clube** (`organizations.owner_id`) e um admin da plataforma. A UI
+    explica-as em vez de esconder o botão — um botão em falta lê-se como uma
+    avaria.
+  - **Confirma-se escrevendo o email**, não com um `confirmDialog`: a lista são
+    emails parecidos lado a lado e um clique não os distingue. É a mesma
+    decisão do `admin_delete_org`.
+  - **Fica registo** em `platform_deletions` (leitura só do admin da
+    plataforma), com o papel e quantas fichas ficaram sem conta. O `insert` vai
+    dentro de um bloco de exceção: o histórico é desejável, não pode ser o que
+    faz falhar a eliminação.
+  - O RPC é `security definer`, por isso **filtra `org_id` à mão** — a mesma
+    regra do `check_in_by_qr`.
+- **Filtrar Utilizadores e Arquivados**: as duas listas que só crescem. Num
+  clube com 120 atletas o agrupamento por papel resolve metade do problema (o
+  grupo "Atleta" é o plantel inteiro) e o arquivo acumula uma viragem de época
+  de cada vez. Ambas ganharam a `.filter-bar` das outras vistas, com o
+  contador "X de Y" sempre visível: um filtro que esconde 118 linhas sem o
+  dizer parece um ecrã vazio, e conclui-se que se perderam as contas.
+  - **A pesquisa procura pelo NOME da ficha vinculada**, e não só pelo email:
+    `profiles` não guarda nome, e ninguém reconhece a Maria num
+    `familia.costa@sapo.pt`. A ficha é o único sítio onde o nome existe.
+  - **Filtrar abre os grupos todos**: quem pesquisou já disse o que procura, e
+    ter de abrir à mão o `<details>` onde o resultado caiu é repetir o
+    trabalho.
+  - **O filtro "Por vincular"** encontra o caso que dá erro sem dar sinal: um
+    perfil de atleta sem ficha não vê nada no portal. Um perfil de leitura sem
+    ficha está certo, por isso não conta.
+  - Nos Arquivados cada tipo mostra os 25 mais recentes com "Mostrar os
+    restantes N": a lista vem ordenada por data de arquivo, e um grupo de 200
+    atletas aberto por inteiro empurrava os outros cinco para fora do ecrã.
 - **Trabalhos com chave de serviço**: o `attendance-reminder` (Edge Function e
   versão pg_cron) e o `send_weekly_digest` correm sem `auth.uid()`, por isso
   **não passam pelo RLS**: cada um define o `org_id` à mão a partir da linha de
@@ -212,6 +257,7 @@ src/
   players-qr.js         Folha de cartões QR imprimíveis (A4, tamanho cartão)
   invite-slips.js       Talões de convite ao portal imprimíveis (A4, QR do link)
   join-guide.js         Guia de entrada no portal: passos comuns + mensagem do escalão
+  sizes-message.js      Mensagem à família para confirmar os dados da encomenda
   join-poster.js        Cartaz A4 do guia de entrada (QR da app + QR do grupo)
   offline-card.js       Cartão QR guardado no dispositivo (ecrã de recurso sem rede)
   tactical-court.js     Campo em SVG + exercício de decisão (todas as posições)
@@ -258,10 +304,12 @@ supabase/grupo-whatsapp.sql    Link do grupo de WhatsApp da equipa (guia de entr
 supabase/pedidos-equipamento.sql  Pedidos de equipamento (treinador -> clube) + notificações
 supabase/artigos-configuraveis.sql Artigos e tamanhos de equipamento definidos pelo clube
 supabase/pedidos-atleta.sql    A atleta pede equipamento do portal; decide o coordenador/direção
+supabase/circuito-pedidos.sql  Paragens de um pedido (encomendado/pronto) + o que está por pagar
+supabase/confirmacao-tamanhos.sql A família confirma número, nomes de camisola e tamanhos
 supabase/fotos-artigos.sql     Bucket público com a foto de cada artigo de equipamento
 supabase/variante-equipamento.sql Cor/modelo do equipamento por escalão (resumo dos pedidos)
-supabase/pedidos-pagamento.sql Marcar um pedido de equipamento como pago (paid_at)
 supabase/aniversarios.sql      Data de nascimento do atleta (aniversários + quem falta)
+supabase/remover-utilizadores.sql Eliminar contas do clube (RPC delete_org_member)
 supabase/portal-atleta.sql     Portal: o atleta lê a sua própria disponibilidade
 supabase/comunicacao.sql       Respostas do atleta a eventos + avisos do clube
 supabase/notificacoes-atleta.sql Notificações para o atleta (agenda + convocatória)
@@ -606,10 +654,62 @@ separador antes de navegar (usado pelos cartões do Painel).
   - **Não há coluna `team_id`**: a equipa lê-se do atleta. Guardá-la aqui seria
     um segundo dono do mesmo dado, e um atleta que muda de escalão ficava com o
     pedido preso à equipa antiga.
-  - **Quatro estados e não mais** (`pendente|aprovado|entregue|recusado`): o que
-    se quer saber é se está por decidir, se foi aprovado, se chegou às mãos do
-    atleta ou se foi recusado. Um estado a mais ("em conferência") é mais um
-    sítio onde um pedido fica parado sem ninguém reparar.
+  - **O pedido percorre o circuito real do material**
+    (`supabase/circuito-pedidos.sql`, `REQUEST_STATUSES` e `REQUEST_NEXT_STEPS`
+    em `constants.js`): `pendente` → `aprovado` ("Confirmado") →
+    `encomendado` → `pronto` (a levantar) → `entregue`, com `recusado` como o
+    fim da linha do outro lado. Eram quatro estados, e entre "aprovado" e
+    "entregue" passavam-se semanas em que a app dizia sempre a mesma coisa:
+    já foi encomendado? já posso ir buscar? A pergunta saía da app para o
+    telemóvel, que é exatamente o que este módulo veio resolver.
+    - **A regra antiga não caiu, mudou de caso.** "Um estado a mais ('em
+      conferência') é mais um sítio onde um pedido fica parado sem ninguém
+      reparar" continua a valer: o que faz uma paragem ganhar lugar é haver
+      alguém do outro lado cuja ação muda. `pronto` é a única que pede alguma
+      coisa ao ATLETA (ir buscar) e `encomendado` é a única que responde à
+      pergunta da espera. Nenhuma das duas é uma gaveta administrativa.
+    - **A chave `aprovado` fica; só a etiqueta passou a "Confirmado"** — a
+      mesma regra dos artigos de equipamento (a chave é imutável, a etiqueta é
+      que se lê), e está guardada em todos os pedidos já feitos.
+    - **Mostra-se o passo SEGUINTE e mais nenhum**: um seletor com os estados
+      todos é a forma de um pedido saltar de "confirmado" para "entregue" sem
+      nunca ter passado pelo fornecedor. De "Confirmado" há DOIS caminhos, e
+      só dois, porque há dois casos reais: o artigo que está em armazém passa
+      direto a "pronto a levantar" e o que é preciso comprar vai ao
+      fornecedor — obrigar o material que já está na prateleira a passar por
+      "encomendado" era escrever na app uma encomenda que ninguém fez.
+    - **Cada paragem avisa quem pediu.** Um circuito de cinco paragens que só
+      avisa em duas é o silêncio de antes com mais ecrãs — e a que mais
+      importa é a `pronto`: material que fica no gabinete à espera de quem não
+      sabe que já chegou é o mesmo que não ter chegado. No portal, essa é a
+      única que sai da lista da encomenda para uma linha própria no topo do
+      cartão: é a única coisa ali que lhe pede uma ação, e entre quatro
+      crachás parecidos lia-se como mais um estado.
+    - **A app só oferece as paragens novas depois da migração**
+      (`state.requestFlowReady`, sondado com um `select id,paid_at` de uma
+      linha no `loadAll`): sem ela o `check` da tabela recusa `encomendado` e
+      a coluna `paid_at` não existe. É a mesma linha do `birthDateReady()` —
+      um botão que dá erro é pior do que um botão que não existe. Não se
+      adivinha pelos dados: uma lista vazia não diz nada sobre as colunas que
+      tem.
+  - **O que está por pagar é uma MARCA no pedido** (`paid_at`/`paid_by`), e
+    não uma tabela de pagamentos nem um lançamento no Financeiro. O material
+    aprovado é quase sempre cobrado à família, e isso vivia numa folha de
+    cálculo que ninguém cruzava com os pedidos — daí saía o material entregue
+    sem ninguém cobrar e o cobrado duas vezes. Quem dá a quitação é quem
+    decide (o `guard_request_decision` fecha o `paid_at` como já fechava o
+    `status`: sem isso, a política de UPDATE deixava uma atleta marcar como
+    pago o que não pagou).
+    - **Entregar não é receber**: um pedido entregue continua a contar como
+      por cobrar. Foi por confundir as duas coisas que houve material
+      entregue que ninguém cobrou.
+    - **É a mesma estimativa ao preço de HOJE** dos restantes números do
+      módulo (o preço do artigo nas Definições), e não um registo de despesa.
+      Ligar isto ao livro-razão é uma decisão à parte.
+    - **Marca-se tudo de uma vez por atleta** (`setRequestsPaid`, uma escrita
+      por linha mas um só toast e um só re-desenho, na lógica do
+      `closeAttendanceSessions`), no cartão da vista «Por atleta»: ao balcão
+      ninguém paga as meias e depois o blusão.
   - **A recusa pede motivo** e viaja de volta por notificação: uma recusa sem
     explicação volta como o mesmo pedido na semana seguinte. Pelo mesmo motivo
     há notificação nos dois sentidos — pedido novo para quem decide, decisão
@@ -620,7 +720,7 @@ separador antes de navegar (usado pelos cartões do Painel).
     escalões com conta ligada essa pessoa já está na app. O caminho "digo ao
     treinador, o treinador lança" é uma mensagem de telemóvel a mais no meio,
     com a mesma perda que o módulo veio resolver.
-    - **É o MESMO pedido**: mesma tabela, mesmos quatro estados, mesma
+    - **É o MESMO pedido**: mesma tabela, mesmo circuito, mesma
       decisão. O formulário é que perde dois campos — a equipa e a atleta já
       se sabem.
     - **Pede vários artigos de uma vez.** Quem chega em setembro sem nada
@@ -691,46 +791,19 @@ separador antes de navegar (usado pelos cartões do Painel).
     - **Resumo para encomendar** — "quantas camisolas de treino M, ao todo",
       o número que se leva ao fornecedor. Somar quarenta linhas à mão numa
       folha à parte é exatamente onde as encomendas se perdem.
-    - **Por atleta** — chegou a caixa: o que leva cada uma e quanto paga. Na
-      lista, os pedidos da Ana estão espalhados por três páginas entre os das
-      outras vinte, e a entrega faz-se atleta a atleta com ela à frente. O
-      valor é o do artigo ao preço de hoje (`requestCost`, o mesmo do resto do
-      ecrã); os artigos sem preço contam-se à parte em vez de entrarem como
-      zero.
+    - **Por atleta** — chegou a caixa: o que leva cada uma, o que já pagou e
+      o que fica a dever. Na lista, os pedidos da Ana estão espalhados por
+      três páginas entre os das outras vinte, e a entrega faz-se atleta a
+      atleta com ela à frente. O valor é o do artigo ao preço de hoje
+      (`requestCost`, o mesmo do resto do ecrã); os artigos sem preço
+      contam-se à parte em vez de entrarem como zero, e a quitação dá-se aqui
+      linha a linha ou toda de uma vez.
 
-    As três contam o que estiver no FILTRO em cima (mudar para "Aprovados" dá
-    o que já foi decidido e há mesmo que comprar ou entregar; "Por resolver"
-    dá o cenário se tudo for aprovado) — um âmbito próprio seria dois números
+    As três contam o que estiver no FILTRO em cima ("Por pagar" dá quem tem
+    contas em aberto, "Por resolver" dá o cenário se tudo for aprovado) — um âmbito próprio seria dois números
     a discordar no mesmo ecrã — e a `quantity` de cada pedido conta.
     Reaproveitam o desenho do resumo das Encomendas (`enc-resumo-*`) e a lista
     de pedidos do portal (`portal-req-*`).
-  - **Quem recebe o dinheiro marca o pedido como PAGO**
-    (`supabase/pedidos-pagamento.sql`: `paid_at` + `paid_by`). O ecrã já dizia
-    quanto cada atleta tinha a pagar, mas não quem já tinha pago — e isso
-    ficava num caderno ou na cabeça de quem está ao balcão no dia da entrega.
-    Um número "a pagar" que nunca fecha deixa de ser lido ao fim de duas
-    semanas.
-    - **É uma MARCA, não um livro de contas.** O registo da receita é do
-      Financeiro e nada disto escreve lá — ligar as duas coisas é uma decisão
-      à parte, como já acontece com o orçamento das Encomendas. Também não há
-      notificação: receber o dinheiro à frente da pessoa não precisa de um
-      aviso a dizer-lhe que o entregou.
-    - **Só se paga o que já foi decidido** (`aprovado` ou `entregue`): um
-      pendente ainda pode ser recusado, e receber dinheiro por uma coisa que
-      se vai recusar é o pior dos dois mundos.
-    - **Quem marca é quem decide** (coordenador e direção), e isso é fechado
-      no MESMO trigger do `status` (`guard_request_decision`) e não num
-      segundo: a política de UPDATE deixa o treinador e a atleta corrigirem o
-      seu pedido enquanto está pendente, e isso, sozinho, deixava-os
-      dar-se por pagos a si próprios. Uma segunda guarda ficava a divergir
-      desta à primeira correção.
-    - **Desmarcar existe**: a entrega faz-se ao balcão, com fila, e um clique
-      errado sem volta obrigava a mexer na base de dados.
-    - **Marca-se tudo de uma vez por atleta** (`setRequestsPaid`, uma escrita
-      por linha e um só toast, na lógica do `closeAttendanceSessions`): ela
-      não paga as meias e depois o blusão.
-    - **O filtro ganha "Por pagar"**, que não é um estado da coluna `status`
-      mas a pergunta de quem está ao balcão — já decidido E ainda não pago.
   - **A mesma camisola não é a mesma peça em todos os escalões**
     (`supabase/variante-equipamento.sql`, `articleVariant()`): os sub-21 usam-na
     azul e os restantes branca, e um total que junte as duas não se pode
@@ -873,6 +946,67 @@ separador antes de navegar (usado pelos cartões do Painel).
     antigas — é a mesma linha do `birthDateReady()`. As colunas antigas ficam
     na base de dados de propósito: uma migração que apaga a origem no mesmo
     passo em que copia não tem volta se a cópia correr mal.
+
+- **A família confirma os dados da encomenda**
+  (`supabase/confirmacao-tamanhos.sql`, `src/sizes-message.js`,
+  `views/encomendas.js`): a tabela das Encomendas é a lista que vai ao
+  fornecedor, e o que lá está não foi confirmado por ninguém. O número, o nome
+  a estampar e os tamanhos foram escritos de memória pelo treinador ou saíram
+  de uma medição da época passada — e o erro só aparece quando a caixa chega:
+  "MARIA" em vez de "MARIANA", um M que devia ser S. Uma camisola estampada
+  não se troca.
+  - **Uma mensagem por ATLETA**, com os dados dela lá dentro, pronta a abrir
+    no WhatsApp ou no email da ficha (`guardian_contact`, o mesmo canal dos
+    convites ao portal — `contactChannel` vive agora num sítio só). Uma
+    mensagem do escalão com vinte fichas lá dentro não recebe vinte
+    respostas, recebe duas.
+  - **Mostra o que já está preenchido e pede que confirmem ou corrijam.** Uma
+    mensagem que só pergunta ("que tamanho vestes?") obriga cada família a
+    pensar do zero, e responde-se muito menos do que a uma que diz "temos
+    isto, está certo?".
+  - **Leva SÓ o que está preenchido.** As linhas em branco chegaram a ir com
+    um "(por preencher)" ao lado, para que quem lê dissesse o que falta — e o
+    que saía era uma lista de buracos: oito linhas, seis vazias, e as duas que
+    havia mesmo para verificar perdidas no meio. Uma mensagem assim lê-se como
+    um formulário por preencher e responde-se como a um formulário: não se
+    responde. O que falta continua a ver-se onde é trabalho de quem o
+    preenche — na tabela, com o contador e o "—" em cada célula. Com a ficha
+    INTEIRA em branco a mensagem muda de forma e pergunta (é a única altura em
+    que o faz): confirmar sobre o vazio não é confirmar nada.
+  - **Nem todos os artigos entram na mensagem** (`no_confirm`, o ✉ na lista de
+    artigos das Definições): há peças que o clube trata sozinho e sobre as
+    quais não faz pergunta nenhuma à família. Continuam na encomenda, no
+    resumo e no `.xlsx` — o que sai é só a pergunta. É por artigo e não uma
+    lista de nomes no código: os artigos são do clube, e a app não sabe o que
+    é uma sweat. Por omissão entra, que o que se está a confirmar é a
+    encomenda toda.
+  - **O nome a estampar NÃO cai para o nome do atleta** na mensagem. É isso
+    que se está a perguntar, e apresentar um palpite como se fosse dado é uma
+    confirmação que confirma o engano. (No formulário de edição o nome do
+    atleta continua a ser a sugestão: aí quem escreve é o coordenador, e vê
+    o que está a gravar.)
+  - **Nada é enviado pelas costas de ninguém**: o botão abre a app do canal
+    com o texto escrito, e quem carrega vê a mensagem antes de a mandar. Sem
+    contacto reconhecível na ficha fica só o "Copiar msg.".
+  - **O pisco vive na linha** (`player_sizes.confirmed_at`/`confirmed_by`).
+    A confirmação já se fazia por WhatsApp; o que faltava era saber, olhando
+    para a lista, em qual das vinte famílias é que se ia. É uma MARCA e não
+    um registo da conversa: a resposta chega fora da app, e guardá-la aqui
+    seria um segundo sítio para a mesma coisa. `confirmed_by` é quem
+    CARIMBOU, não quem confirmou — quem confirma é a família, que muitas
+    vezes nem tem conta.
+  - **Uma confirmação é sobre VALORES concretos**: mudar um tamanho ou um
+    nome a estampar depois de carimbado limpa a marca (trigger
+    `clear_sizes_confirmation`). Uma linha a dizer "confirmado" sobre dados
+    que ninguém viu é pior do que marca nenhuma — ninguém volta a perguntar.
+  - **"Preenchido" e "confirmado" são duas perguntas diferentes**, e a
+    segunda é a que decide se se pode encomendar: uma tabela cheia de
+    tamanhos que ninguém validou parece pronta e não está. Por isso são dois
+    contadores no topo, e no `.xlsx` a coluna "Confirmado" vai à FRENTE dos
+    tamanhos.
+  - Sem a migração o pisco não aparece de todo (`state.sizesConfirmReady`,
+    sondado no `loadAll`): uma marca que não grava é pior do que marca
+    nenhuma. A mensagem funciona à mesma — não depende de coluna nova.
 
 - **Importar atletas (.xlsx)**: nos Plantéis, cada equipa tem "Importar (xlsx)".
   `players-xlsx.js` lê o ficheiro com SheetJS (carregado dinamicamente) e mapeia
@@ -1070,6 +1204,121 @@ separador antes de navegar (usado pelos cartões do Painel).
     próximos 7 dias **sem exercícios no plano** (uma linha de plano vazia é um
     plano por fazer), **jogos por registar** resultado, e quem **não está a
     100%** (disponibilidade, sem detalhe clínico).
+- **O Painel diz o que fazer, não tudo o que existe.** Tinha nove cartões de
+  números e três caixas separadas a responder à mesma pergunta ("A precisar da
+  tua atenção", "Documentos a expirar", "Presenças por marcar") — e o trabalho
+  ficava DEPOIS dos números, que é ao contrário da razão por que se abre um
+  painel. Havia ainda repetições a sério: "Angariado" aparecia no cartão e
+  outra vez no cartão "Meta de patrocínios"; o equipamento em mau estado
+  contava-se no cartão e no aviso; e o treino das 19h aparecia em "Hoje" e
+  três blocos abaixo em "Próximos eventos", porque `upcomingEvents()` filtra
+  por `>= agora` e não exclui hoje.
+  - **Cada pendência declara um DEGRAU** (`urgency`: `agora` · `semana` ·
+    `depois`) e uma **família** (`family`). Uma lista onde "a Rita deixou de
+    aparecer aos treinos" pesa o mesmo que "faltam 3 datas de nascimento" não
+    ordena nada — e uma é uma atleta a desistir do clube. As três caixas
+    fundiram-se numa (`workCard`), com os degraus como subtítulos.
+  - **Uma família com 3 ou mais itens colapsa numa linha** com os nomes no
+    subtítulo (`collapseFamilies`): três objetivos + três gaps + três quedas +
+    cinco aniversários davam DEZANOVE linhas, e uma lista de dezanove atenções
+    não é uma lista de atenção. O painel é o ponteiro; a secção é o detalhe. O
+    degrau do grupo é o do item mais urgente — um documento caducado no meio
+    de quatro a expirar não pode descer para "esta semana".
+  - **A ordem depende do dia.** Um só interruptor — há alguma coisa no degrau
+    `agora`? — decide se a lista de trabalho vem ANTES ou DEPOIS dos números, e
+    muda a frase do cabeçalho (`heroLine`). Um painel fixo serve mal os dois
+    dias que existem: no dia do documento caducado, nove números à frente são
+    nove linhas entre o coordenador e o problema; no dia calmo, uma caixa de
+    "atenção" no topo é ruído.
+  - **Os números são uma FAIXA e não cartões** (`statStrip`, `.stat-strip`):
+    nove cartões com ícone de 42px e duas linhas de texto enchiam o ecrã de um
+    telemóvel antes de se chegar ao que há para fazer. A pergunta "como vai o
+    clube?" lê-se de relance. Saíram `treinadores` e `em_contacto` (números
+    estáticos meses a fio — o argumento que já tinha matado o cartão "Equipas")
+    e `equipamentos` (repetia no subtítulo o aviso que já está na lista). O
+    cartão "Meta de patrocínios" desapareceu: a percentagem passou para o
+    subtítulo do "Angariado", que era a única coisa que a barra dizia a mais.
+  - **Os aniversários saíram da lista de trabalho para o cabeçalho**
+    (`birthdayLine`): dar os parabéns não é uma pendência, e cinco linhas de
+    bolos empurravam para fora do ecrã o atleta que está a desistir. Continua a
+    chegar a tempo, que é a única coisa que um aniversário precisa de fazer. As
+    **datas por preencher** ficam na lista, no degrau `depois` — isso É
+    trabalho: sem a data não há aniversário nenhum.
+  - **Duas colunas no ecrã grande** (`.panel-grid`): `.content__inner` não tem
+    `max-width`, por isso tudo vivia numa coluna só esticada a 1800px — a linha
+    "18:30–20:30 · Cadetes F · Pavilhão…" tinha 1500px de vazio à direita e o
+    trabalho começava abaixo da dobra. O trabalho fica na coluna larga; a
+    agenda e os próximos eventos na estreita (360px). A **faixa de números fica
+    a toda a largura, ACIMA da grelha**: espremida em 360px deixava de ser uma
+    faixa (virava um bloco de 2×3) e desequilibrava as colunas.
+    - **A faixa vem sempre primeiro.** Chegou a descer para o fim nos dias com
+      trabalho urgente, pela regra de que a lista vem à frente de tudo — mas
+      com duas colunas a lista JÁ está no topo, à esquerda: o que a faixa lá
+      em baixo fazia era obrigar a deslizar a página inteira para ver seis
+      números que cabem numa linha. A regra continua a valer; o que mudou foi
+      que as colunas a satisfazem sem empurrar mais nada para baixo.
+    - O que ainda depende do dia é **só o telemóvel**, onde as colunas
+      empilham: `--calm` manda a coluna lateral (a agenda) para cima da lista
+      quando não há nada urgente.
+  - **Só o degrau "Agora" nasce aberto.** "Esta semana" e "Quando puderes" são
+    `<details>` com a contagem no resumo — a convenção dos Utilizadores e dos
+    convites. Com os três abertos, este cartão era o bloco mais alto do ecrã e
+    empurrava para fora os números e os eventos de hoje. Fechado custa uma
+    linha e continua a dizer quantas coisas lá estão, que é a parte que não se
+    pode esconder.
+  - **O subtítulo de uma pendência só existe quando traz DADO.** Metade deles
+    dizia o procedimento — "Aprovar, entregar ou recusar — abrir Equipamentos"
+    — que quem lê o painel já sabe: era uma linha inteira por pendência a dizer
+    nada. Compare-se com "Erica Teixeira, Joana Rodrigues, …", que diz QUEM.
+    Sem subtítulo a pendência ocupa uma linha (`.alert-item--slim`).
+  - **Um evento não repete o nome do seu tipo.** O crachá dizia "Treino" e o
+    título ao lado dizia "Treino", em todas as linhas de todos os dias: o
+    título só entra quando é diferente do rótulo do tipo. E a linha é UMA —
+    hora, crachá e o resto por pontos (`.today-item--slim`); em duas, três
+    treinos custavam 250px para dizer três horas e três equipas. A mesma regra
+    vale nos "Próximos eventos".
+  - **O local comum sai das linhas para o cabeçalho** (`sharedLocation`): três
+    treinos seguidos no mesmo pavilhão repetiam "Pavilhão Escola Secundária da
+    Senhora da Hora" três vezes, e numa coluna estreita era esse nome que
+    empurrava a equipa para fora da linha ("Cadetes F · P…"). Só sai quando
+    TODOS os eventos têm local e é o mesmo — com um evento sem local, pôr o dos
+    outros no cabeçalho dizia dele uma coisa que não se sabe.
+  - **O cabeçalho não repete os cartões que vêm a seguir.** Dizia "3 coisas
+    precisam de ti agora · 3 eventos hoje" e logo abaixo vinham os 3 eventos e
+    as 3 coisas — cem píxeis de repetição, escritos na mesma alteração que foi
+    tirar a repetição do painel. No telemóvel a saudação ainda enchia duas
+    linhas em maiúsculas de 1.75rem; abaixo dos 700px encolhe.
+  - **Os painéis de área (fisio e preparador) ganharam trabalho, não só
+    corte.** Tinham três números e duas listas, e os números eram a CONTAGEM
+    das listas desenhadas logo por baixo ("Próximos: 5" por cima da lista dos
+    5) ou pura vaidade ("247 avaliações registadas no total" — só sobe, nunca
+    desce, e não distingue o clube que mede toda a gente do que mediu vinte
+    atletas há três épocas). Nenhum dos dois dizia UMA coisa que estivesse por
+    fazer, e tudo o que agora dizem já estava na base de dados:
+    - **Fisioterapia** (`buildFisioActions`): atendimento que já passou e
+      continua "agendado" (o equivalente clínico das presenças por marcar — o
+      que se perde não é a linha, é a estatística), previsão de retorno já
+      passada sem alta dada, episódio em curso sem previsão nenhuma, e o
+      **conflito com treino/jogo** — que `appointmentConflicts()` já sabia
+      calcular mas só mostrava a quem ESTIVESSE a marcar o atendimento: um
+      conflito criado na segunda descobria-se na quinta, no balneário. Os
+      números passaram a ser o tempo médio até à alta e as recidivas, que são
+      o que se pergunta a um departamento clínico.
+    - **Preparação física** (`buildPrepActions`): atletas sem perfil (sem
+      altura nem peso não há IMC nem nada), nunca avaliados, e sem avaliação
+      há mais de `STALE_TEST_DAYS`. O indicador passou de "quantas medições
+      existem" para **"quantos atletas estão medidos"** (`avaliados/total`),
+      que é a mesma informação virada para o lado do trabalho.
+    - **Nada no preparador é "agora"**, de propósito: medir um atleta é
+      trabalho de semanas e não de horas, por isso a faixa vem sempre à frente
+      nesse painel. Inventar urgência onde não há é a forma mais rápida de o
+      degrau "Agora" deixar de ser lido.
+  - **No painel do treinador**, o cartão "Por marcar" da faixa saiu: o número
+    estava por cima do cartão que lista, linha a linha, exatamente os mesmos
+    treinos. Pela mesma razão, `buildActions({ includePresencas })` só dá a
+    linha-resumo das presenças ao **coordenador** — para quem isto é supervisão
+    e o que interessa é se está a acumular. O treinador mantém o cartão inteiro,
+    que é o centro do ecrã dele.
 - **Painel personalizável** (`supabase/painel-avisos.sql`): dois catálogos em
   `painel.js` — `METRIC_CATALOG` (os cartões de números) e `ALERT_CATALOG` (a
   lista "A precisar da tua atenção"). Cada entrada declara quem a **pode** ver
@@ -1179,13 +1428,39 @@ separador antes de navegar (usado pelos cartões do Painel).
     outras secções, e é o único sítio onde ele fica visível seja qual for o
     separador. O HISTÓRICO fica onde estava — pedir é a ação, ver em que ficou
     é a consulta.
-  - **"O meu material"** vive em «A época», ao lado das quotas: é a mesma
-    conversa administrativa com o clube, e não uma pergunta que se faça todos
-    os dias. Um quarto separador para uma ação que acontece duas vezes por
-    época dava-lhe o peso do "o que tenho a seguir", que é a razão real das
-    visitas. A secção só aparece se o clube tiver aberto algum artigo aos
-    pedidos — ou se ela já tiver pedidos feitos, senão o histórico (e uma
-    decisão pendente) desaparecia no dia em que o coordenador fechasse a lista.
+  - **"A minha encomenda"** (`playerOrder` em `compute.js`) é secção própria,
+    ACIMA dos separadores e logo a seguir ao próximo treino. Esteve dentro de
+    "O meu material", em «A época», e isso punha-a a três gestos de distância
+    (trocar de separador, passar as presenças, passar as quotas) — e sem total
+    nenhum, que é precisamente a pergunta que a família faz: "quanto é que
+    tenho de levar ao clube?". Somar quatro linhas de cabeça num telemóvel é a
+    maneira de o valor acabar numa mensagem dias depois.
+    - **O corte é pelo FIM do circuito, não pelo princípio.** Sai o que foi
+      entregue (já está com ela), o que foi recusado (não vem) e o que já foi
+      pago (não se paga outra vez); tudo o resto é encomenda em curso, **o que
+      está por decidir incluído**. Restringi-la ao que o clube já tinha
+      confirmado fazia-a desaparecer exatamente no caso mais comum — a atleta
+      que acabou de pedir quatro artigos e quer saber quanto vai custar.
+    - **O total é condicional e diz-se**: `porDecidir` conta as linhas que o
+      clube ainda não confirmou. Um total apresentado como fechado, quando
+      metade ainda pode ser recusada, é um número que a família prepara e que
+      não corresponde a nada.
+    - **Os artigos sem preço dizem-se pelo nome** em vez de contarem como
+      zero — a mesma regra do resumo das encomendas, e aqui é uma família a
+      preparar o dinheiro.
+    - **É UMA lista e não duas**: a pergunta é "o que pedi e em que está", e a
+      resposta é o crachá de cada linha. A exceção é o que está **pronto a
+      levantar**, que sai para uma linha própria no topo do cartão: é a única
+      coisa ali que lhe pede uma AÇÃO, e no meio de quatro crachás parecidos
+      lia-se como mais um estado — com o material a ficar no gabinete.
+  - **"O meu material"** é o HISTÓRICO e vive em «A época», ao lado das
+    quotas: o que já foi entregue, recusado ou pago. É consulta e não ação —
+    a mesma conversa administrativa com o clube, e não uma pergunta que se
+    faça todos os dias. O que está em curso não se repete aqui: desenhar as
+    mesmas linhas no cartão da encomenda e outra vez na lista era dizer-lhe
+    que tinha pedido o dobro. A secção só aparece se o clube tiver aberto
+    algum artigo aos pedidos — ou se ela já tiver pedidos feitos, senão o
+    histórico desaparecia no dia em que o coordenador fechasse a lista.
   - **Moldura de quem só tem uma secção** (`.app--solo` no `app-shell`): sem
     sítios para onde ir não há navegação a mostrar. O atleta tem UMA rota
     permitida e ficava com barra lateral, hambúrguer e uma pesquisa que —

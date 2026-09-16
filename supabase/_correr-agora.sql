@@ -1,14 +1,17 @@
 -- =====================================================================
--- Rumia — TUDO O QUE FALTA CORRER (gerado a 2026-09-12)
+-- Rumia — TUDO O QUE FALTA CORRER (gerado a 2026-09-16)
 -- =====================================================================
 -- Cola isto INTEIRO no SQL Editor do Supabase e corre uma vez.
 --
--- São três migrações, nesta ordem (a ordem importa: a segunda e a terceira
--- dependem das colunas e do vocabulário que a primeira cria):
+-- São seis migrações, nesta ordem (a ordem importa: cada uma depende das
+-- colunas e do vocabulário que as anteriores criam):
 --
 --   1. artigos-configuraveis.sql  o clube define os seus artigos e tamanhos
 --   2. pedidos-atleta.sql         a atleta pede do portal; decide coord./direção
 --   3. fotos-artigos.sql          bucket com a foto de cada artigo
+--   4. variante-equipamento.sql   a cor/modelo do equipamento por escalão
+--   5. circuito-pedidos.sql       as paragens de um pedido + o que está por pagar
+--   6. confirmacao-tamanhos.sql   a família confirma os dados da encomenda
 --
 -- Todas são seguras de re-executar: se já correste alguma, correr outra vez
 -- não desfaz nada nem duplica seja o que for.
@@ -504,10 +507,283 @@ create policy "equip_photos_delete" on storage.objects for delete to authenticat
   );
 
 
+
+-- ####################################################################
+-- ##  variante-equipamento.sql
+-- ####################################################################
+
+-- Cor / modelo do equipamento por escalão (resumo dos pedidos)
+-- ------------------------------------------------------------------
+-- Correr no SQL Editor do Supabase (depois de `schema.sql` e de
+-- `artigos-configuraveis.sql`).
+--
+-- Contar os pedidos por artigo e tamanho responde "quantas camisolas de
+-- treino M é que tenho de encomendar?" — mas num clube a mesma camisola não
+-- é a mesma peça em todos os escalões: os sub-21 usam-na azul e os restantes
+-- branca. Uma contagem que junte as duas dá um número que não se pode levar
+-- ao fornecedor, e o erro só aparece quando a encomenda chega.
+--
+-- A cor vive na EQUIPA, como o link do grupo de WhatsApp: é do escalão, não
+-- do clube nem do atleta. É TEXTO LIVRE de propósito — hoje é uma cor, no
+-- clube do lado é "modelo antigo" ou o nome do patrocinador na frente, e uma
+-- lista fechada obrigaria a prever isso tudo.
+--
+-- Fica vazia em quase todas as equipas: a variante por omissão de cada artigo
+-- está nas Definições (`settings.equipment_articles[].variant`), e a equipa só
+-- preenche isto quando FOGE a essa regra. Sem variante no artigo, não há
+-- separação nenhuma — a contagem é uma só, como era.
+alter table teams add column if not exists kit_variant text;
+
+-- Sem política nova: `teams` já tem o RLS por papel do `schema.sql`, e isto é
+-- mais uma coluna da equipa. Sem CHECK, pela mesma razão do `whatsapp_url` —
+-- um CHECK a um campo opcional recusava a gravação da equipa inteira.
+
+
+
+-- ####################################################################
+-- ##  circuito-pedidos.sql
+-- ####################################################################
+
+-- =====================================================================
+-- Rumia — O circuito de um pedido de equipamento (e o que há a pagar)
+-- =====================================================================
+-- Corre DEPOIS de pedidos-equipamento.sql e pedidos-atleta.sql.
+-- Pode ser corrido várias vezes sem problema.
+--
+-- Porquê: o pedido tinha quatro estados — por decidir, aprovado, entregue,
+-- recusado — e entre "aprovado" e "entregue" passavam-se semanas em que
+-- ninguém sabia dizer o que estava a acontecer. A camisola estava por
+-- encomendar? Já tinha chegado e estava à espera dela no gabinete? A atleta
+-- perguntava ao treinador, o treinador perguntava ao clube, e a resposta era
+-- a mesma que a app já dava: "aprovado". Um estado que dura semanas e não
+-- distingue nada não é um estado, é uma sala de espera.
+--
+-- O circuito real do material tem quatro paragens e cada uma muda o que a
+-- atleta tem de fazer:
+--   pendente     — o clube ainda não decidiu           (ela espera)
+--   aprovado     — confirmado pelo clube               (ela espera)
+--   encomendado  — pedido ao fornecedor                (ela espera, mas sabe porquê)
+--   pronto       — chegou, está no clube               (ela vai levantar)
+--   entregue     — está com ela                        (acabou)
+-- (`recusado` continua a ser o fim da linha do outro lado.)
+--
+-- A regra do módulo — "um estado a mais é mais um sítio onde um pedido fica
+-- parado sem ninguém reparar" — continua a valer: o que faz um estado ganhar
+-- lugar é haver alguém do outro lado cuja ação muda. `pronto` é o único
+-- estado do circuito que pede alguma coisa à ATLETA (ir buscar), e
+-- `encomendado` é o que responde à única pergunta que se faz durante a
+-- espera. Nenhum dos dois é uma gaveta administrativa.
+--
+-- O que cria:
+--   1. Dois estados novos no `check` de `equipment_requests.status`
+--   2. `paid_at` / `paid_by` — o que está por cobrar a cada atleta
+--   3. O trigger de decisão passa a guardar também o pagamento
+--   4. Notificações para "encomendado" e "pronto a levantar"
+-- =====================================================================
+
+-- ---------------------------------------------------------------------
+-- 1. Estados novos
+-- ---------------------------------------------------------------------
+-- A chave `aprovado` fica como está — é a que está guardada nos pedidos
+-- todos e o que muda é só a etiqueta ("Confirmado"), a mesma regra dos
+-- artigos: a chave é imutável, a etiqueta é que se lê.
+alter table equipment_requests drop constraint if exists equipment_requests_status_check;
+alter table equipment_requests add constraint equipment_requests_status_check
+  check (status in ('pendente','aprovado','encomendado','pronto','entregue','recusado'));
+
+-- ---------------------------------------------------------------------
+-- 2. O que está por pagar
+-- ---------------------------------------------------------------------
+-- O material aprovado é quase sempre cobrado à família, e isso vivia fora da
+-- app: uma folha de cálculo com os nomes e os valores, que ninguém cruzava
+-- com os pedidos. O resultado era o material entregue sem ninguém cobrar, ou
+-- cobrado duas vezes.
+--
+-- Não é uma tabela de pagamentos nem entra no Financeiro: é uma MARCA no
+-- pedido — está pago ou está por pagar. Ligar isto ao livro-razão é uma
+-- decisão à parte, como já acontece com o preço dos artigos (uma estimativa
+-- ao preço de hoje, e não um registo de despesa).
+alter table equipment_requests add column if not exists paid_at timestamptz;
+alter table equipment_requests add column if not exists paid_by uuid references auth.users(id) on delete set null;
+
+create index if not exists idx_eqreq_unpaid on equipment_requests (paid_at)
+  where paid_at is null;
+
+-- ---------------------------------------------------------------------
+-- 3. Quem decide e quem cobra
+-- ---------------------------------------------------------------------
+-- A política de UPDATE deixa quem pediu corrigir o SEU pedido enquanto está
+-- pendente — e isso, sozinho, deixava-o escrever `status='aprovado'`. O mesmo
+-- valeria agora para o `paid_at`: uma atleta a marcar como pago o que não
+-- pagou. Quem decide e quem dá a quitação é quem responde pela verba.
+create or replace function public.guard_request_decision()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if (new.status is distinct from old.status)
+     and coalesce(app_role(), '') not in ('coordenador','direcao') then
+    raise exception 'Só o coordenador ou a direção podem mover um pedido de equipamento.';
+  end if;
+  if (new.paid_at is distinct from old.paid_at)
+     and coalesce(app_role(), '') not in ('coordenador','direcao') then
+    raise exception 'Só o coordenador ou a direção podem marcar um pedido como pago.';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_guard_request_decision on equipment_requests;
+create trigger trg_guard_request_decision before update on equipment_requests
+  for each row execute function public.guard_request_decision();
+
+-- ---------------------------------------------------------------------
+-- 4. Avisar em cada paragem
+-- ---------------------------------------------------------------------
+-- Um circuito com cinco paragens que só avisa em duas é o mesmo silêncio de
+-- antes com mais ecrãs. A paragem que MAIS importa é a `pronto`: é a única
+-- que pede alguma coisa à atleta, e um material que fica no gabinete à espera
+-- de quem não sabe que já chegou é o mesmo que não ter chegado.
+create or replace function notify_equipment_request_decided()
+returns trigger language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_player text;
+  v_label  text;
+  v_title  text;
+  v_role   text;
+begin
+  if NEW.status is not distinct from OLD.status then return NEW; end if;
+  if NEW.requested_by is null then return NEW; end if;
+  -- Quem moveu o seu próprio pedido já sabe o que fez.
+  if NEW.requested_by = NEW.decided_by then return NEW; end if;
+
+  select name into v_player from players where id = NEW.player_id;
+  select role into v_role  from profiles where id = NEW.requested_by;
+  v_label := equipment_article_label(NEW.article, NEW.article_other, NEW.org_id);
+
+  v_title := case NEW.status
+    when 'aprovado'    then case when v_role = 'atleta'
+                                then 'O clube confirmou o teu pedido'
+                                else 'Pedido de equipamento confirmado' end
+    when 'encomendado' then case when v_role = 'atleta'
+                                then 'O teu material já foi encomendado'
+                                else 'Equipamento encomendado ao fornecedor' end
+    when 'pronto'      then case when v_role = 'atleta'
+                                then 'Já podes levantar o teu material'
+                                else 'Equipamento pronto a levantar' end
+    when 'entregue'    then case when v_role = 'atleta'
+                                then 'Material entregue'
+                                else 'Equipamento entregue' end
+    when 'recusado'    then case when v_role = 'atleta'
+                                then 'O clube respondeu ao teu pedido'
+                                else 'Pedido de equipamento recusado' end
+    else 'Pedido de equipamento reaberto'
+  end;
+
+  insert into notifications (type, title, body, data, target_user_id, org_id)
+  values (
+    'equipment_request_decided',
+    v_title,
+    -- À atleta não se repete o nome dela: ela sabe de quem é o pedido.
+    case when v_role = 'atleta' then '' else coalesce(v_player, 'Atleta') || ' — ' end
+      || v_label
+      || coalesce('. ' || nullif(trim(NEW.decision_note), ''), '.'),
+    jsonb_build_object('request_id', NEW.id, 'player_id', NEW.player_id, 'status', NEW.status),
+    NEW.requested_by,
+    NEW.org_id
+  );
+  return NEW;
+end;
+$$;
+
+drop trigger if exists trg_notify_equipment_request_decided on equipment_requests;
+create trigger trg_notify_equipment_request_decided
+  after update on equipment_requests
+  for each row execute function notify_equipment_request_decided();
+
+
+
+-- ####################################################################
+-- ##  confirmacao-tamanhos.sql
+-- ####################################################################
+
+-- =====================================================================
+-- Rumia — A família confirma os dados da encomenda
+-- =====================================================================
+-- Corre DEPOIS de schema.sql, multitenant.sql e artigos-configuraveis.sql.
+-- Pode ser corrido várias vezes sem problema.
+--
+-- Porquê: a tabela das Encomendas é a lista que vai ao fornecedor, e o que
+-- lá está não foi confirmado por ninguém. O número, o nome a estampar na
+-- camisola e os tamanhos foram escritos pelo treinador de memória, ou saíram
+-- de uma medição de setembro do ano passado — e o erro só aparece quando a
+-- caixa chega: uma camisola com "MARIA" em vez de "MARIANA", um M que devia
+-- ser S. Uma camisola estampada não se troca.
+--
+-- A confirmação já se fazia — por WhatsApp, atleta a atleta, e ficava no
+-- histórico da conversa. O que faltava era saber, olhando para a lista,
+-- QUEM já respondeu: sem isso, à vigésima família ninguém sabe em qual ia.
+--
+-- O que cria:
+--   1. `player_sizes.confirmed_at` / `confirmed_by` — quem já respondeu
+--   2. Nada mais: o RLS de `player_sizes` já decide quem escreve aqui
+-- =====================================================================
+
+-- ---------------------------------------------------------------------
+-- 1. A marca de confirmado
+-- ---------------------------------------------------------------------
+-- É uma MARCA na linha e não uma tabela de respostas: a resposta em si
+-- chega por WhatsApp ou por email, fora da app, e guardá-la aqui seria um
+-- segundo sítio para a mesma conversa. O que a app precisa de saber é uma
+-- coisa só — esta linha já foi confirmada por quem a veste?
+--
+-- `confirmed_by` é quem CARIMBOU (o coordenador), não quem confirmou: quem
+-- confirma é a família, do outro lado da mensagem, e essa não tem
+-- necessariamente conta na app. Serve para saber a quem perguntar.
+alter table player_sizes add column if not exists confirmed_at timestamptz;
+alter table player_sizes add column if not exists confirmed_by uuid references auth.users(id) on delete set null;
+
+-- ---------------------------------------------------------------------
+-- 2. Uma confirmação é sobre VALORES concretos
+-- ---------------------------------------------------------------------
+-- Mudar o tamanho ou o nome a estampar depois de confirmado deixa a linha a
+-- dizer "confirmado" sobre dados que ninguém viu — que é pior do que não
+-- ter marca nenhuma, porque ninguém volta a perguntar. A app limpa a marca
+-- a cada gravação de tamanhos (ver `upsertPlayerSizes` no store), e o
+-- trigger fecha a porta a quem escreva por fora da app.
+--
+-- Só olha para o que foi CONFIRMADO: o `updated_at` muda a cada gravação,
+-- incluindo a que carimba a própria confirmação.
+create or replace function public.clear_sizes_confirmation()
+returns trigger
+language plpgsql
+as $$
+begin
+  if NEW.confirmed_at is not distinct from OLD.confirmed_at
+     and (NEW.sizes            is distinct from OLD.sizes
+       or NEW.nome_camisola    is distinct from OLD.nome_camisola
+       or NEW.nome_camisola_alt is distinct from OLD.nome_camisola_alt)
+  then
+    NEW.confirmed_at := null;
+    NEW.confirmed_by := null;
+  end if;
+  return NEW;
+end;
+$$;
+
+drop trigger if exists trg_clear_sizes_confirmation on player_sizes;
+create trigger trg_clear_sizes_confirmation before update on player_sizes
+  for each row execute function public.clear_sizes_confirmation();
+
+
 -- =====================================================================
 -- VERIFICAÇÃO — corre isto a seguir, numa consulta à parte
 -- =====================================================================
--- Devem sair cinco linhas, todas com ok = true. Qualquer false diz
+-- Devem sair oito linhas, todas com ok = true. Qualquer false diz
 -- exatamente o que ficou por aplicar.
 --
 -- select 'settings.equipment_articles' as o_que,
@@ -524,6 +800,18 @@ create policy "equip_photos_delete" on storage.objects for delete to authenticat
 -- union all
 -- select 'bucket equipment-photos',
 --        exists (select 1 from storage.buckets where id='equipment-photos')
+-- union all
+-- select 'teams.kit_variant',
+--        exists (select 1 from information_schema.columns
+--                 where table_name='teams' and column_name='kit_variant')
+-- union all
+-- select 'equipment_requests.paid_at',
+--        exists (select 1 from information_schema.columns
+--                 where table_name='equipment_requests' and column_name='paid_at')
+-- union all
+-- select 'player_sizes.confirmed_at',
+--        exists (select 1 from information_schema.columns
+--                 where table_name='player_sizes' and column_name='confirmed_at')
 -- union all
 -- select 'tamanhos antigos copiados',
 --        not exists (select 1 from player_sizes

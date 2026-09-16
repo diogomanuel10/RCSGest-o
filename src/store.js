@@ -89,6 +89,16 @@ export const state = {
   // avisa quem pode resolver em vez de mostrar uma lista vazia e falhar só na
   // gravação — um ecrã vazio parece "ainda não há pedidos", que é mentira.
   equipmentRequestsReady: true,
+  // E a `circuito-pedidos.sql`? Dá as paragens novas do circuito
+  // (encomendado, pronto a levantar) e a marca de pago. Sem ela, mover um
+  // pedido para "encomendado" era recusado pelo `check` da tabela e marcar
+  // como pago dava erro de coluna inexistente — a app oferece antes o que o
+  // servidor aceita, que é a mesma linha do `birthDateReady()`.
+  requestFlowReady: true,
+  // E a `confirmacao-tamanhos.sql`? Dá a marca de "a família confirmou" na
+  // linha da encomenda. Sem ela, carimbar dava erro de coluna inexistente —
+  // a app oferece antes o que o servidor aceita.
+  sizesConfirmReady: true,
   playerDocuments: [],    // documentos (exame médico, seguro, CC)
   squads: [],             // convocatórias (1:1 com evento jogo)
   squadPlayers: [],       // atletas em cada convocatória
@@ -146,6 +156,8 @@ export function resetState() {
   state.playerSizes = [];
   state.equipmentRequests = [];
   state.equipmentRequestsReady = true;
+  state.requestFlowReady = true;
+  state.sizesConfirmReady = true;
   state.playerDocuments = [];
   state.squads = [];
   state.squadPlayers = [];
@@ -377,7 +389,7 @@ export async function loadAll() {
          trainingPlans, trainingPlanItems, trainingEvaluations, trainingPlayerEvals,
          playerDocuments, playerSizes, squads, squadPlayers, financialEntries, gamePlans, objectives,
          eventResponses, gameResults, gameSets, tacticalScenarios, tacticalAnswers, exercises,
-         equipmentRequests] =
+         equipmentRequests, requestFlowProbe, sizesConfirmProbe] =
     await Promise.all([
       // Multi-tenant: o RLS limita as definições ao clube do utilizador, por
       // isso não filtramos por id — devolve a (única) linha do clube atual.
@@ -440,6 +452,14 @@ export async function loadAll() {
       supabase.from('exercises').select('*').order('name'),
       // Pedidos de equipamento. Tolerante à migração em falta (ver abaixo).
       supabase.from('equipment_requests').select('*').order('created_at', { ascending: false }),
+      // Sonda de UMA linha só para saber se `circuito-pedidos.sql` já correu.
+      // Uma coluna que não existe faz a consulta falhar inteira, e é isso que
+      // se lê — não se pode adivinhar pelos dados, que uma lista vazia não
+      // diz nada sobre as colunas que tem.
+      supabase.from('equipment_requests').select('id,paid_at').limit(1),
+      // Idem para `confirmacao-tamanhos.sql`. Uma tabela vazia não diz nada
+      // sobre as colunas que tem, por isso pergunta-se pela coluna.
+      supabase.from('player_sizes').select('player_id,confirmed_at').limit(1),
     ]);
 
   for (const res of [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects, episodes, sessions, appointments,
@@ -503,6 +523,8 @@ export async function loadAll() {
   // migração, em vez de impedir a app de arrancar.
   state.equipmentRequests = equipmentRequests.error ? [] : (equipmentRequests.data || []);
   state.equipmentRequestsReady = !equipmentRequests.error;
+  state.requestFlowReady = !equipmentRequests.error && !requestFlowProbe.error;
+  state.sizesConfirmReady = !sizesConfirmProbe.error;
 
   // Coerência da cache: com pais arquivados (ex.: uma equipa), os filhos que os
   // referenciam não devem aparecer nos ecrãs ativos.
@@ -718,6 +740,33 @@ export async function updateProfilePermissions(id, permissions) {
   if (state.profile?.id === id) state.profile = data;
   notify();
   return data;
+}
+
+// Elimina a conta de um utilizador do clube (RPC `delete_org_member`).
+//
+// É IRREVERSÍVEL: apaga a própria conta de login, não só o vínculo ao clube.
+// A FICHA sobrevive — `coaches.user_id`/`players.user_id` são `on delete set
+// null`, por isso o histórico do treinador e as presenças, quotas e cartão QR
+// da atleta ficam intactos; o que se perde é o acesso. O servidor recusa a
+// própria conta, a dona do clube e os admins da plataforma.
+//
+// Não passa por `deleteRow`: não há cache de `auth.users` para atualizar, e o
+// que muda aqui espalha-se por três coleções (perfis, treinadores, atletas).
+export async function deleteOrgMember(id) {
+  const { data, error } = await supabase.rpc('delete_org_member', { p_user: id });
+  if (error) throw error;
+  state.profiles = state.profiles.filter((p) => p.id !== id);
+  // A FK já pôs os `user_id` a nulo no servidor; a cache local tem de
+  // acompanhar, senão o seletor de vínculo continuava a mostrar a ficha como
+  // ligada a uma conta que já não existe.
+  state.coaches.forEach((c) => { if (c.user_id === id) c.user_id = null; });
+  state.players.forEach((p) => { if (p.user_id === id) p.user_id = null; });
+  // Convites por usar dirigidos a esta conta foram apagados pelo servidor.
+  state.invitations = (state.invitations || []).filter(
+    (i) => !(!i.used_at && i.used_by === id)
+  );
+  notify();
+  return data || {};
 }
 
 // --- Operações genéricas (CRUD) ------------------------------------------
@@ -1580,6 +1629,38 @@ export async function upsertPlayerSizes(playerId, { sizes, ...values }) {
   return data;
 }
 
+// Carimba (ou tira) a confirmação da família na linha da encomenda.
+//
+// Quem confirma é a família, do outro lado de uma mensagem que sai da app e
+// volta pelo WhatsApp; quem carimba é o clube. `confirmed_by` diz a quem
+// perguntar, não quem respondeu — e é por isso que isto é uma marca na linha
+// e não um registo da conversa.
+//
+// Uma confirmação é sobre VALORES concretos: mudar um tamanho depois disto
+// limpa a marca (trigger `clear_sizes_confirmation`), senão a linha ficava a
+// dizer "confirmado" sobre dados que ninguém viu.
+export async function setSizesConfirmed(playerId, confirmed) {
+  const { data, error } = await supabase
+    .from('player_sizes')
+    .upsert(
+      {
+        player_id: playerId,
+        confirmed_at: confirmed ? new Date().toISOString() : null,
+        confirmed_by: confirmed ? (state.profile?.id || null) : null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'player_id' }
+    )
+    .select()
+    .single();
+  if (error) throw error;
+  const i = state.playerSizes.findIndex((s) => s.player_id === playerId);
+  if (i !== -1) state.playerSizes[i] = data;
+  else state.playerSizes.push(data);
+  notify();
+  return data;
+}
+
 // --- Pedidos de equipamento ----------------------------------------------
 
 // Cria um pedido carimbando quem o fez. O `requested_by` não é decorativo: a
@@ -1605,24 +1686,29 @@ export async function createEquipmentRequests(list) {
     list.map((v) => ({ ...v, requested_by: state.profile?.id || null })));
 }
 
-// Decide um pedido (aprovar / entregar / recusar). Guarda quem decidiu e
+// Move um pedido para a paragem seguinte do circuito (confirmar, encomendar,
+// dar como pronto a levantar, entregar, recusar). Guarda quem o moveu e
 // quando — um pedido que muda de estado sozinho, sem dono nem data, não
 // responde à única pergunta que se lhe faz um mês depois: "quem disse que
-// sim?". O servidor recusa esta escrita a quem não é coordenador/seccionista
+// sim?". O servidor recusa esta escrita a quem não é coordenador/direção
 // (trigger `guard_request_decision`).
+//
+// A `decision_note` só se escreve quando vem alguma: mover um pedido pelo
+// circuito não pode apagar o motivo escrito noutra paragem.
 export async function decideEquipmentRequest(id, status, note = null) {
-  return updateRow('equipment_requests', 'equipmentRequests', id, {
+  const payload = {
     status,
-    decision_note: note?.trim() || null,
     decided_by: state.profile?.id || null,
     decided_at: new Date().toISOString(),
-  });
+  };
+  if (note != null) payload.decision_note = note.trim() || null;
+  return updateRow('equipment_requests', 'equipmentRequests', id, payload);
 }
 
-// Marca (ou desmarca) um pedido como pago. É uma MARCA e não um lançamento:
-// o registo da receita é do Financeiro, e ligar as duas coisas é uma decisão à
-// parte. Desmarcar existe porque a entrega faz-se ao balcão, com fila — e um
-// clique errado sem volta obrigava a mexer na base de dados.
+// Marca (ou desmarca) o pedido como pago. É uma quitação e não um lançamento
+// no Financeiro: o que isto responde é "esta família ainda deve este
+// artigo?", que é a pergunta que a atleta faz no portal e a que o clube
+// andava a responder numa folha de cálculo à parte.
 export async function setRequestPaid(id, paid) {
   return updateRow('equipment_requests', 'equipmentRequests', id, {
     paid_at: paid ? new Date().toISOString() : null,

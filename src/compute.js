@@ -298,6 +298,65 @@ export function articleVariant(articleKey, teamId) {
   return own || base;
 }
 
+// --- Pedidos de equipamento: quanto custa e o que está por pagar ---------
+
+// Quanto custa um pedido, ao preço de HOJE. `null` (e não zero) quando o
+// artigo não tem preço definido ou é um "outro artigo" escrito à mão: zero é
+// "o clube dá de graça" e soma; a ausência é "ainda não sei quanto custa" e
+// não pode entrar num total que alguém leva à direção a pensar que está
+// fechado.
+//
+// Procura nos artigos TODOS, incluindo os desativados: um pedido de dezembro
+// de um artigo já retirado continua a ter custado o que custava.
+export function requestCost(req) {
+  if (!req || req.article === 'outro') return null;
+  const a = allEquipmentArticles().find((x) => x.key === req.article);
+  if (!a || a.price == null) return null;
+  return a.price * (req.quantity || 1);
+}
+
+// A encomenda de um atleta: tudo o que pediu e ainda não tem — do que está
+// por decidir ao que já está no clube à espera dela — mais o total.
+//
+// É UMA lista e não duas porque é uma pergunta só: "o que é que eu pedi e em
+// que é que está?". O corte é pelo FIM do circuito: sai o que foi entregue
+// (já está com ela, é histórico), o que foi recusado (não vem) e o que já foi
+// pago (não se paga outra vez). Tudo o resto é encomenda em curso, seja qual
+// for a paragem.
+//
+// O total é o que ela vai ter de levar ao clube SE tudo for aprovado — por
+// isso `porDecidir` conta as linhas que o clube ainda não confirmou: um total
+// apresentado como fechado, quando metade ainda pode ser recusada, é um
+// número que a família prepara e não corresponde a nada.
+//
+// `semPreco` conta as linhas sem preço definido, e essas DIZEM-SE: um total
+// que engole em silêncio o que ninguém orçamentou é um número errado
+// apresentado como certo.
+export function playerOrder(playerId) {
+  const list = state.equipmentRequests
+    .filter((r) => r.player_id === playerId
+      && r.status !== 'entregue'
+      && r.status !== 'recusado'
+      && !r.paid_at)
+    .sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''));
+
+  let total = 0;
+  let semPreco = 0;
+  list.forEach((r) => {
+    const c = requestCost(r);
+    if (c == null) semPreco++;
+    else total += c;
+  });
+  return {
+    list,
+    total,
+    semPreco,
+    unidades: list.reduce((n, r) => n + (r.quantity || 1), 0),
+    porDecidir: list.filter((r) => r.status === 'pendente').length,
+    prontos: list.filter((r) => r.status === 'pronto'),
+  };
+}
+
 // Data de nascimento de um atleta como `Date` local (ou null). Constrói-se com
 // a hora explícita para o fuso não empurrar a data um dia para trás.
 export function birthDate(player) {

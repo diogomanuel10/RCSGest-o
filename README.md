@@ -63,7 +63,9 @@ As permissões são impostas pela base de dados (RLS), não só pela interface.
    `pedidos-equipamento.sql` (pedidos de material do treinador ao clube),
    `artigos-configuraveis.sql` (o clube define os seus artigos de equipamento
    e os tamanhos de cada um), `pedidos-atleta.sql` (a atleta pede equipamento
-   da sua página), `fotos-artigos.sql` (foto de cada artigo de equipamento)
+   da sua página), `fotos-artigos.sql` (foto de cada artigo de equipamento),
+   `circuito-pedidos.sql` (as paragens de um pedido e o que está por pagar),
+   `confirmacao-tamanhos.sql` (a família confirma os dados da encomenda)
    e `painel-avisos.sql` (limiares do clube + avisos por utilizador),
    `dados-exemplo.sql` (clube de demonstração para quem se regista),
    `web-push.sql` (notificações no telemóvel — ver secção 5) e

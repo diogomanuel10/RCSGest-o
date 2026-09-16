@@ -5,22 +5,28 @@
 // rasgou as meias, arranjas-lhe umas?". Isso vivia em mensagens de telemóvel:
 // quem pede não sabe se foi tratado e quem trata não tem lista para trabalhar.
 //
-// Quem PEDE é o treinador (é ele que vê a atleta); quem DECIDE é o
-// coordenador/seccionista (é quem paga o material). A separação não é de UI —
-// o trigger `guard_request_decision` recusa a decisão a quem pediu.
+// Quem PEDE é o treinador ou a própria atleta (é quem veste o material); quem
+// DECIDE é o coordenador/direção (é quem paga). A separação não é de UI — o
+// trigger `guard_request_decision` recusa a decisão a quem pediu.
+//
+// Depois de confirmado, o pedido percorre o circuito real do material —
+// encomendado ao fornecedor, chegou ao clube, entregue ao atleta — e cada
+// paragem avisa quem pediu. O ecrã é o mesmo: o botão que se vê é sempre o
+// passo SEGUINTE (`REQUEST_NEXT_STEPS`), e não uma lista de estados por onde
+// escolher.
 
 import {
   state, createEquipmentRequest, decideEquipmentRequest, setRequestPaid, setRequestsPaid,
   updateRow, deleteRow, dbErrorMessage,
 } from '../store.js';
 import { esc, emptyHTML, euros, paginate, paginationHTML, wirePagination, wireEmptyAction, PAGE_SIZE } from '../ui.js';
-import { toastError } from '../toast.js';
 import { openModal, confirmDialog } from '../modal.js';
 import { canEdit, canDecideRequests, isClubWide, canManageSettings } from '../permissions.js';
 import {
   teamName, myTeams, equipmentArticles, playerSizes,
   articleLabel as configuredArticleLabel,
   allEquipmentArticles, articleVariant, sortSizes, kitVariantReady,
+  requestCost,
 } from '../compute.js';
 import {
   REQUEST_REASONS,
@@ -28,6 +34,8 @@ import {
   REQUEST_STATUSES,
   REQUEST_STATUS_LABEL,
   REQUEST_STATUS_BADGE,
+  REQUEST_NEXT_STEPS,
+  REQUEST_IN_FLIGHT,
 } from '../constants.js';
 
 // Filtros e paginação são estado de UI: vivem no módulo, não na base de dados.
@@ -36,8 +44,8 @@ let teamFilter = '';
 let page = 1;
 // Três leituras dos MESMOS pedidos, porque são três momentos do mesmo
 // trabalho e nenhuma serve para o outro: decidir (Lista, pedido a pedido),
-// comprar (Resumo, "quantas M no total") e ENTREGAR (Por atleta, "o que é
-// que eu dou à Ana e quanto é que ela paga"). Estado de UI, como os filtros.
+// comprar (Resumo, "quantas M no total") e ENTREGAR (Por atleta, "o que é que
+// eu dou à Ana e quanto é que ela paga"). Estado de UI, como os filtros.
 let mode = 'lista';
 
 // Corpo do separador "Pedidos" (renderizado pelo orquestrador Equipamentos).
@@ -69,8 +77,11 @@ export function renderPedidosBody(container) {
     })
     .sort(byUrgency);
 
-  const counts = { pendente: 0, aprovado: 0, entregue: 0, recusado: 0 };
+  const counts = { pendente: 0, aprovado: 0, encomendado: 0, pronto: 0, entregue: 0, recusado: 0 };
   all.forEach((r) => { if (counts[r.status] !== undefined) counts[r.status]++; });
+  // A caminho: confirmado ou já no fornecedor. São uma coisa só a quem olha
+  // para o quadro — material decidido que ainda não está no clube.
+  const aCaminho = counts.aprovado + counts.encomendado;
 
   // Quanto está em cima da mesa por decidir. É o número que falta a quem
   // aprova: hoje decide-se pedido a pedido sem nunca ver a soma, e sete
@@ -84,15 +95,26 @@ export function renderPedidosBody(container) {
     else pendingCost.total += c;
   });
 
+  // O que está por cobrar: tudo o que o clube já confirmou e ainda não
+  // recebeu. Andava numa folha de cálculo à parte, que ninguém cruzava com os
+  // pedidos — e daí saía o material entregue sem cobrar e o cobrado duas
+  // vezes. Conta também o que já foi entregue: entregar não é receber.
+  const unpaid = { count: 0, total: 0, missing: 0 };
+  all.filter(isBillable).forEach((r) => {
+    unpaid.count++;
+    const c = requestCost(r);
+    if (c == null) unpaid.missing++;
+    else unpaid.total += c;
+  });
+
   const rows = all.filter((r) => {
     if (teamFilter && playerById[r.player_id]?.team_id !== teamFilter) return false;
     if (statusFilter === 'todos') return true;
-    if (statusFilter === 'abertos') return r.status === 'pendente' || r.status === 'aprovado';
-    // "Por pagar" não é um estado da coluna `status` — é a pergunta de quem
-    // está ao balcão a receber o dinheiro, e cruza as duas coisas: já foi
-    // decidido (não se cobra um pedido que ainda pode ser recusado) e ainda
-    // não foi pago.
-    if (statusFilter === 'por_pagar') return payable(r) && !r.paid_at;
+    // "Por resolver" é tudo o que ainda não chegou ao fim: por decidir e a
+    // percorrer o circuito. É o filtro de origem porque é a única lista em
+    // que alguém tem de fazer alguma coisa.
+    if (statusFilter === 'abertos') return r.status === 'pendente' || REQUEST_IN_FLIGHT.includes(r.status);
+    if (statusFilter === 'por_pagar') return isBillable(r);
     return r.status === statusFilter;
   });
   const pg = paginate(rows, page, PAGE_SIZE);
@@ -113,7 +135,7 @@ export function renderPedidosBody(container) {
           <select id="req-status">
             <option value="abertos" ${statusFilter === 'abertos' ? 'selected' : ''}>Por resolver</option>
             ${REQUEST_STATUSES.map((s) => `<option value="${s.key}" ${statusFilter === s.key ? 'selected' : ''}>${esc(s.label)}</option>`).join('')}
-            ${paymentReady() ? `<option value="por_pagar" ${statusFilter === 'por_pagar' ? 'selected' : ''}>Por pagar</option>` : ''}
+            <option value="por_pagar" ${statusFilter === 'por_pagar' ? 'selected' : ''}>Por pagar</option>
             <option value="todos" ${statusFilter === 'todos' ? 'selected' : ''}>Todos</option>
           </select>
         </div>
@@ -139,16 +161,32 @@ export function renderPedidosBody(container) {
           : ''}
       </div>
       <div class="card metric metric--info aval-metric">
-        <span class="metric__label">Aprovados</span>
-        <strong class="metric__value">${counts.aprovado}</strong>
+        <span class="metric__label">A caminho</span>
+        <strong class="metric__value">${aCaminho}</strong>
+        ${aCaminho
+          ? `<span class="muted" style="font-size:0.8rem">${counts.aprovado} por encomendar · ${counts.encomendado} no fornecedor</span>`
+          : ''}
       </div>
+      <div class="card metric metric--gold aval-metric">
+        <span class="metric__label">Prontos a levantar</span>
+        <strong class="metric__value">${counts.pronto}</strong>
+        ${counts.pronto
+          ? '<span class="muted" style="font-size:0.8rem">À espera de quem os pediu</span>'
+          : ''}
+      </div>
+      ${canDecide ? `
+      <div class="card metric metric--red aval-metric">
+        <span class="metric__label">Por cobrar</span>
+        <strong class="metric__value">${unpaid.count}</strong>
+        ${unpaid.total || unpaid.missing
+          ? `<span class="muted" style="font-size:0.8rem">${
+              unpaid.total ? esc(euros(unpaid.total)) : 'Sem preços'}${
+              unpaid.missing ? ` · ${unpaid.missing} sem preço` : ''}</span>`
+          : ''}
+      </div>` : ''}
       <div class="card metric metric--green aval-metric">
         <span class="metric__label">Entregues</span>
         <strong class="metric__value">${counts.entregue}</strong>
-      </div>
-      <div class="card metric metric--red aval-metric">
-        <span class="metric__label">Recusados</span>
-        <strong class="metric__value">${counts.recusado}</strong>
       </div>
     </section>
 
@@ -214,11 +252,11 @@ export function renderPedidosBody(container) {
   container.querySelectorAll('[data-decide]').forEach((b) =>
     b.addEventListener('click', () => decide(b.dataset.decide, b.dataset.status))
   );
-  container.querySelectorAll('[data-paid]').forEach((b) =>
-    b.addEventListener('click', () => togglePaid(b.dataset.paid, b.dataset.value === '1'))
-  );
   container.querySelectorAll('[data-pay-player]').forEach((b) =>
     b.addEventListener('click', () => payAllOf(b.dataset.payPlayer.split(',')))
+  );
+  container.querySelectorAll('[data-paid]').forEach((b) =>
+    b.addEventListener('click', () => markPaid(b.dataset.paid, !!b.dataset.paidTo))
   );
   wirePagination(container, 'req', pg.page, pg.totalPages, (np) => {
     page = np;
@@ -293,6 +331,13 @@ function summaryHTML(rows, playerById) {
   // momento em que o clube o fez.
   const semVariantes = canManageSettings() && groups.every((g) => !g.variant);
 
+  // O filtro de origem ("Por resolver") junta agora o que ainda está por
+  // encomendar com o que já foi encomendado e o que já chegou ao clube — e
+  // esse total, levado ao fornecedor, compra tudo outra vez. O resumo conta o
+  // que está no filtro, como sempre contou; o que não pode é deixar de dizer
+  // o que lá está dentro.
+  const jaTratados = rows.filter((r) => r.status === 'encomendado' || r.status === 'pronto').length;
+
   return `
     <div class="card enc-budget" style="margin-bottom:1rem">
       <div>
@@ -304,6 +349,14 @@ function summaryHTML(rows, playerById) {
         ${missing ? ` · <strong>${missing} por orçamentar</strong>` : ''}
       </span>
     </div>
+
+    ${jaTratados ? `
+      <p class="muted" style="margin:-0.4rem 0 1rem;font-size:0.85rem">
+        Neste filtro há <strong>${jaTratados}</strong> pedido${jaTratados === 1 ? '' : 's'}
+        já encomendado${jaTratados === 1 ? '' : 's'} ao fornecedor ou já no clube, e
+        ${jaTratados === 1 ? 'entra' : 'entram'} nestas contas. Para veres só o que falta
+        encomendar, escolhe o estado <strong>Confirmado</strong>.
+      </p>` : ''}
 
     ${semVariantes ? `
       <p class="muted" style="margin:-0.4rem 0 1rem;font-size:0.85rem">
@@ -349,17 +402,14 @@ function summaryHTML(rows, playerById) {
 
 // --- Por atleta (entregas) -----------------------------------------------
 //
-// O resumo diz o que se compra; esta vista diz o que se ENTREGA, que é o
+// O resumo diz o que se COMPRA; esta vista diz o que se ENTREGA, que é o
 // momento a seguir e uma pergunta diferente: chegou a caixa, e agora é preciso
-// saber o que leva cada uma e quanto é que paga. Na lista, os pedidos da Ana
-// estão espalhados por três páginas entre os das outras vinte — e a entrega
-// faz-se atleta a atleta, com ela à frente.
+// saber o que leva cada uma e quanto é que fica a dever. Na lista, os pedidos
+// da Ana estão espalhados por três páginas entre os das outras vinte — e a
+// entrega faz-se atleta a atleta, com ela à frente.
 //
-// **O custo é o do artigo, ao preço de HOJE** (`requestCost`, o mesmo do resto
-// do ecrã), e é uma conta para cobrar — não um registo de pagamento: a app não
-// sabe quem já pagou. Quem paga o quê é decisão do clube (há material que o
-// clube dá), por isso diz-se "a pagar" e não "em dívida", e os artigos sem
-// preço contam-se à parte em vez de entrarem como zero.
+// O valor é o do artigo ao preço de HOJE (`requestCost`, o mesmo do resto do
+// ecrã); os artigos sem preço contam-se à parte, nunca como zero.
 function byPlayerHTML(rows, playerById) {
   if (!rows.length) {
     return emptyHTML('Nenhum pedido neste filtro.', { icone: '🎽' });
@@ -373,11 +423,10 @@ function byPlayerHTML(rows, playerById) {
       groups.set(key, {
         name: player?.name || 'Atleta removido',
         team: player ? teamName(state.teams.find((t) => t.id === player.team_id)) : '',
-        teamId: player?.team_id || '',
         items: [],
         units: 0,
-        cost: 0,      // ainda por pagar
-        paid: 0,      // já entregue em dinheiro
+        owed: 0,   // ainda por cobrar
+        paid: 0,   // já entregue em dinheiro
         missing: 0,
         unpaidIds: [],
       });
@@ -388,29 +437,28 @@ function byPlayerHTML(rows, playerById) {
     g.units += r.quantity || 1;
     if (c == null) g.missing += r.quantity || 1;
     else if (r.paid_at) g.paid += c;
-    else g.cost += c;
-    // Só entra no "marcar tudo como pago" o que ainda está por pagar E o que
-    // já foi decidido: um pendente pode ainda ser recusado, e receber dinheiro
-    // por uma coisa que se vai recusar é o pior dos dois mundos.
-    if (payable(r) && !r.paid_at) g.unpaidIds.push(r.id);
+    else g.owed += c;
+    // Só entra no "marcar tudo como pago" o que já é cobrável (`isBillable`):
+    // um pedido que ainda pode ser recusado não se cobra.
+    if (isBillable(r)) g.unpaidIds.push(r.id);
   });
 
   // Pela equipa e depois pelo nome: entrega-se um escalão de cada vez.
   const list = [...groups.values()].sort((a, b) =>
     a.team.localeCompare(b.team, 'pt') || a.name.localeCompare(b.name, 'pt'));
-  const total = list.reduce((n, g) => n + g.cost, 0);
-  const totalPaid = list.reduce((n, g) => n + g.paid, 0);
-  const canPay = canDecideRequests() && paymentReady();
+  const owed = list.reduce((n, g) => n + g.owed, 0);
+  const paid = list.reduce((n, g) => n + g.paid, 0);
+  const canPay = canDecideRequests() && state.requestFlowReady;
 
   return `
     <div class="card enc-budget" style="margin-bottom:1rem">
       <div>
         <span class="enc-budget__label">Por cobrar neste filtro</span>
-        <strong class="enc-budget__value">${total ? esc(euros(total)) : '—'}</strong>
+        <strong class="enc-budget__value">${owed ? esc(euros(owed)) : '—'}</strong>
       </div>
       <span class="muted enc-budget__note">
         ${list.length} atleta${list.length !== 1 ? 's' : ''}
-        ${totalPaid ? ` · ${esc(euros(totalPaid))} já pagos` : ''}
+        ${paid ? ` · ${esc(euros(paid))} já pagos` : ''}
       </span>
     </div>
 
@@ -419,7 +467,7 @@ function byPlayerHTML(rows, playerById) {
         <div class="card enc-resumo-card">
           <h3 class="enc-resumo-title" style="text-transform:none;letter-spacing:0">
             ${esc(g.name)}
-            ${g.team ? `<span class="muted" style="display:block;font-weight:400;font-size:0.8rem;text-transform:none">${esc(g.team)}</span>` : ''}
+            ${g.team ? `<span class="muted" style="display:block;font-weight:400;font-size:0.8rem">${esc(g.team)}</span>` : ''}
           </h3>
           <ul class="portal-req-list">
             ${g.items.map(({ req, cost }) => `
@@ -439,22 +487,20 @@ function byPlayerHTML(rows, playerById) {
                 <p class="portal-req__meta muted">
                   ${req.size ? `Tamanho ${esc(req.size)}` : 'Sem tamanho'}
                   ${req.quantity > 1 ? ` · ×${req.quantity}` : ''}
-                  ${cost != null ? ` · ${esc(euros(cost))}` : ' · <span>sem preço</span>'}
+                  ${cost != null ? ` · ${esc(euros(cost))}` : ' · sem preço'}
                   ${req.paid_at ? ' · <strong>pago</strong>' : ''}
                 </p>
-                ${canPay && payable(req) ? `
-                  <button class="btn btn--ghost btn--sm" data-paid="${req.id}" data-value="${req.paid_at ? '0' : '1'}" type="button">
-                    ${req.paid_at ? 'Anular pago' : 'Marcar pago'}
-                  </button>` : ''}
+                ${canPay && isBillable(req) ? `
+                  <button class="btn btn--ghost btn--sm" data-paid="${req.id}" data-paid-to="1" type="button">Marcar pago</button>` : ''}
               </li>
             `).join('')}
           </ul>
           <p class="muted enc-resumo-total">
             ${g.units} artigo${g.units !== 1 ? 's' : ''}
-            ${g.cost
-              ? `· <strong>${esc(euros(g.cost))}</strong> a pagar`
+            ${g.owed
+              ? `· <strong>${esc(euros(g.owed))}</strong> a pagar`
               : (g.paid ? '· <strong>tudo pago</strong>' : '')}
-            ${g.paid && g.cost ? `· ${esc(euros(g.paid))} já pagos` : ''}
+            ${g.paid && g.owed ? `· ${esc(euros(g.paid))} já pagos` : ''}
             ${g.missing ? `· <span class="enc-resumo-unit">${g.missing} sem preço</span>` : ''}
           </p>
           ${canPay && g.unpaidIds.length > 1 ? `
@@ -467,15 +513,27 @@ function byPlayerHTML(rows, playerById) {
 }
 
 // Ordem: primeiro o que está por resolver (mais antigo à frente — é o que já
-// espera há mais tempo), depois o histórico do mais recente para trás.
-const OPEN_ORDER = { pendente: 0, aprovado: 1, entregue: 2, recusado: 2 };
+// espera há mais tempo), depois o histórico do mais recente para trás. As
+// paragens do circuito ordenam-se pelo circuito: o que está pronto a levantar
+// está mais perto de acabar do que o que ainda nem foi encomendado, mas é o
+// que tem alguém à espera do outro lado — por isso sobe.
+const OPEN_ORDER = { pendente: 0, pronto: 1, aprovado: 2, encomendado: 2, entregue: 3, recusado: 3 };
+const DONE_FROM = 3;
 function byUrgency(a, b) {
-  const oa = OPEN_ORDER[a.status] ?? 3;
-  const ob = OPEN_ORDER[b.status] ?? 3;
+  const oa = OPEN_ORDER[a.status] ?? DONE_FROM;
+  const ob = OPEN_ORDER[b.status] ?? DONE_FROM;
   if (oa !== ob) return oa - ob;
   const da = a.created_at || '';
   const db = b.created_at || '';
-  return oa < 2 ? da.localeCompare(db) : db.localeCompare(da);
+  return oa < DONE_FROM ? da.localeCompare(db) : db.localeCompare(da);
+}
+
+// Um pedido por cobrar: o clube confirmou-o (logo, comprometeu a verba) e
+// ainda não recebeu o dinheiro. Um pedido recusado não se cobra; um pedido
+// entregue cobra-se na mesma — entregar não é receber, e foi por confundir as
+// duas coisas que houve material entregue que ninguém cobrou.
+function isBillable(r) {
+  return !r.paid_at && (REQUEST_IN_FLIGHT.includes(r.status) || r.status === 'entregue');
 }
 
 function articleLabel(req) {
@@ -501,50 +559,6 @@ function requesterLabel(uid) {
   return profile?.email || '—';
 }
 
-// Quanto custa um pedido, ao preço de HOJE. `null` quando o artigo não tem
-// preço definido ou é um "outro artigo" escrito à mão — e aí não se mostra
-// número nenhum, em vez de se mostrar zero. Procura nos artigos TODOS
-// (incluindo os desativados): um pedido de dezembro de um artigo já retirado
-// continua a ter custado o que custava.
-function requestCost(req) {
-  if (req.article === 'outro') return null;
-  const a = allEquipmentArticles().find((x) => x.key === req.article);
-  if (!a || a.price == null) return null;
-  return a.price * (req.quantity || 1);
-}
-
-// A coluna `paid_at` chega por migração (`supabase/pedidos-pagamento.sql`).
-// Sem ela, gravar rebentava o pedido inteiro — a mesma linha do
-// `birthDateReady()`. Um clube ainda sem pedidos assume-se pronto.
-function paymentReady() {
-  return !state.equipmentRequests.length || 'paid_at' in state.equipmentRequests[0];
-}
-
-// Um pedido só se paga depois de o clube o ter dado: um `pendente` ainda pode
-// ser recusado, e receber dinheiro por uma coisa que se vai recusar é o pior
-// dos dois mundos. O recusado nunca se paga.
-function payable(req) {
-  return req.status === 'aprovado' || req.status === 'entregue';
-}
-
-// Tudo o que uma atleta tem por pagar, de uma vez: é assim que o dinheiro
-// muda de mãos ao balcão — ela não paga as meias e depois o blusão.
-async function payAllOf(ids) {
-  try {
-    await setRequestsPaid(ids.filter(Boolean), true);
-  } catch (err) {
-    toastError(dbErrorMessage(err));
-  }
-}
-
-async function togglePaid(id, paid) {
-  try {
-    await setRequestPaid(id, paid);
-  } catch (err) {
-    toastError(dbErrorMessage(err));
-  }
-}
-
 function rowHTML(req, player, canDecide) {
   const badge = REQUEST_STATUS_BADGE[req.status] || 'muted';
   const label = REQUEST_STATUS_LABEL[req.status] || req.status;
@@ -552,6 +566,17 @@ function rowHTML(req, player, canDecide) {
   // disso o pedido é histórico (espelha as políticas de UPDATE/DELETE).
   const mine = req.requested_by && req.requested_by === state.profile?.id;
   const canAmend = mine && req.status === 'pendente';
+  // O botão que se vê é o passo SEGUINTE e mais nenhum: uma lista de estados
+  // por onde escolher é a forma de um pedido saltar do "confirmado" para o
+  // "entregue" sem nunca ter passado pelo fornecedor. Sem a migração do
+  // circuito, só se pode confirmar, recusar e entregar — o servidor recusa as
+  // paragens novas, e um botão que dá erro é pior do que não existir.
+  const steps = canDecide
+    ? (REQUEST_NEXT_STEPS[req.status] || [])
+        .filter((st) => state.requestFlowReady || st.status === 'aprovado' || st.status === 'entregue')
+    : [];
+  const fallbackEntrega = canDecide && !state.requestFlowReady && req.status === 'aprovado'
+    ? [{ status: 'entregue', label: 'Entregue ao atleta' }] : [];
 
   return `
     <tr>
@@ -577,19 +602,20 @@ function rowHTML(req, player, canDecide) {
       </td>
       <td>
         <span class="badge badge--${badge}">${esc(label)}</span>
-        ${req.paid_at ? '<span class="badge badge--ok">Pago</span>' : ''}
+        ${req.paid_at
+          ? '<span class="badge badge--ok">Pago</span>'
+          : isBillable(req) ? '<span class="badge badge--warn">Por pagar</span>' : ''}
         ${req.decision_note ? `<span class="muted" style="display:block;font-size:0.8rem">${esc(req.decision_note)}</span>` : ''}
       </td>
       <td class="cell-actions">
+        ${[...steps, ...fallbackEntrega].map((st) => `
+          <button class="btn btn--ghost btn--sm" data-decide="${req.id}" data-status="${st.status}" type="button">${esc(st.label)}</button>`).join('')}
         ${canDecide && req.status === 'pendente' ? `
-          <button class="btn btn--ghost btn--sm" data-decide="${req.id}" data-status="aprovado" type="button">Aprovar</button>
           <button class="btn btn--danger btn--sm" data-decide="${req.id}" data-status="recusado" type="button">Recusar</button>` : ''}
-        ${canDecide && req.status === 'aprovado' ? `
-          <button class="btn btn--ghost btn--sm" data-decide="${req.id}" data-status="entregue" type="button">Marcar entregue</button>` : ''}
-        ${canDecide && paymentReady() && payable(req) ? `
-          <button class="btn btn--ghost btn--sm" data-paid="${req.id}" data-value="${req.paid_at ? '0' : '1'}" type="button">
-            ${req.paid_at ? 'Anular pago' : 'Marcar pago'}
-          </button>` : ''}
+        ${canDecide && state.requestFlowReady && isBillable(req) ? `
+          <button class="btn btn--ghost btn--sm" data-paid="${req.id}" data-paid-to="1" type="button">Marcar pago</button>` : ''}
+        ${canDecide && state.requestFlowReady && req.paid_at ? `
+          <button class="btn btn--ghost btn--sm" data-paid="${req.id}" data-paid-to="" type="button">Desmarcar pago</button>` : ''}
         ${canAmend ? `
           <button class="btn btn--ghost btn--sm" data-edit-req="${req.id}" type="button">Editar</button>
           <button class="btn btn--danger btn--sm" data-cancel-req="${req.id}" type="button">Cancelar</button>` : ''}
@@ -635,6 +661,29 @@ async function decide(id, status) {
 
   try {
     await decideEquipmentRequest(id, status);
+  } catch (err) {
+    alert(dbErrorMessage(err));
+  }
+}
+
+// Dar (ou tirar) a quitação. Não pede confirmação: é reversível no botão ao
+// lado, e um diálogo por linha numa lista de quarenta é o que faz ninguém
+// marcar nada.
+// Tudo o que uma atleta tem por pagar, de uma vez: é assim que o dinheiro
+// muda de mãos ao balcão — ela não paga as meias e depois o blusão. Uma
+// escrita por linha, um só toast e um só re-desenho, na lógica do
+// `closeAttendanceSessions`.
+async function payAllOf(ids) {
+  try {
+    await setRequestsPaid(ids.filter(Boolean), true);
+  } catch (err) {
+    alert(dbErrorMessage(err));
+  }
+}
+
+async function markPaid(id, paid) {
+  try {
+    await setRequestPaid(id, paid);
   } catch (err) {
     alert(dbErrorMessage(err));
   }

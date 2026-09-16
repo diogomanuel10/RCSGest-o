@@ -7,7 +7,6 @@ import {
 import { esc, euros } from '../ui.js';
 import {
   totalRaised,
-  inProgressCount,
   upcomingEvents,
   todayEvents,
   eventDateTime,
@@ -24,7 +23,10 @@ import {
   injuredCount,
   upcomingAppointments,
   apptDateTime,
+  appointmentConflicts,
   activeEpisode,
+  episodeReturnDays,
+  injuryStats,
   expiringDocuments,
   objectivesNeedingAttention,
   trainingVsPlayingGaps,
@@ -68,29 +70,17 @@ import { toastError } from '../toast.js';
 import { openSeasonPlanning } from './planteis.js';
 import { DEFAULT_BRANDING } from '../branding.js';
 
-const ICON_MONEY = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v12m-3-3.5c0 1.38 1.34 2.5 3 2.5s3-1.12 3-2.5c0-1.74-1.35-2.17-3-2.5C10.35 11.67 9 11.24 9 9.5 9 8.12 10.34 7 12 7s3 1.12 3 2.5"/></svg>`;
 
-const ICON_TROPHY = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M17 5h3v2a3 3 0 0 1-3 3"/><path d="M7 5H4v2a3 3 0 0 0 3 3"/></svg>`;
 
-const ICON_CHART = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>`;
 
-const ICON_USERS = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`;
 
-const ICON_COACH = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
 
-const ICON_CHECK = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`;
 
-const ICON_CARD = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>`;
 
-const ICON_SHIELD = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`;
 
-const ICON_BOX = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>`;
 
-const ICON_PULSE = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>`;
 
-const ICON_CALENDAR = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`;
 
-const ICON_DUMBBELL = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1"/><path d="m3 3 1 1"/><path d="m18 22 4-4"/><path d="m2 6 4-4"/><path d="m3 10 7-7"/><path d="m14 21 7-7"/></svg>`;
 
 export function renderPainel(container) {
   // Painéis próprios para fisioterapeuta e preparador físico (resumo da sua área).
@@ -103,64 +93,94 @@ export function renderPainel(container) {
   const raised = totalRaised();
   const goal = state.settings.goal || 0;
   const pct = goal > 0 ? Math.min(100, Math.round((raised / goal) * 100)) : 0;
-  const inProgress = inProgressCount();
   const athletes = state.players.length;
-  const coaches = state.coaches.length;
   const teamsCount = state.teams.length;
-  const upcoming = upcomingEvents(5);
 
   const owed = quotasOwed();
   const att = attendanceStats();
-  const equipReview = equipmentNeedsAttention();
 
-  const canMark = canEdit('attendances');
-  const toMark = canMark && alertOn('presencas') ? trainingsToMark(6) : [];
-  const actions = buildActions();
-  // Alertas de documentos a expirar/expirados/sem data (só para quem os pode ver).
-  // A janela de antecedência vem das Definições (doc_alert_days).
-  const docAlerts = canEdit('documents') && alertOn('documentos') ? expiringDocuments() : [];
+  const actions = buildActions({ includePresencas: true });
   const today = todayEvents();
+  const todayIds = new Set(today.map((e) => e.id));
+  // "Próximos eventos" exclui os de HOJE: `upcomingEvents` filtra por
+  // `>= agora`, por isso o treino das 19h aparecia ao mesmo tempo no cartão
+  // "Hoje" e três blocos abaixo, em "Próximos". Ler o mesmo evento duas vezes
+  // no mesmo ecrã é o que faz o painel parecer cheio sem dizer mais nada.
+  const upcoming = upcomingEvents(12).filter((e) => !todayIds.has(e.id)).slice(0, 5);
   const quick = quickActions();
 
-  // Só se mostram os indicadores das secções a que o utilizador tem acesso —
-  // um treinador não vê patrocínios, quotas, equipamentos nem treinadores.
+  // Só se mostram os indicadores das secções a que o utilizador tem acesso.
   const seeSpon = canAccess('patrocinios');
   const seeQuotas = canAccess('quotas');
-  const seeEquip = canAccess('equipamentos');
-  const seeCoaches = canAccess('treinadores');
   const seePlanteis = canAccess('planteis');
   const seeAttendance = canAccess('presencas');
   const seeCalendar = canAccess('calendario');
   const seeMedico = canAccess('medico');
-  const attRoute = 'presencas';
   const injured = seeMedico ? injuredCount() : 0;
-  // Balanço competitivo e tendência das presenças: dois números que só existem
-  // depois de haver resultados e histórico suficiente.
   const record = seeCalendar ? clubRecord(5) : { jogos: 0 };
   const trend = seeAttendance ? attendanceTrend(30) : null;
 
-  const metrics = [
-    seeSpon     && metricOn('angariado') && metricCard(ICON_MONEY, 'Angariado', euros(raised), `Meta: ${euros(goal)}`, 'accent', 'financeiro', 'patrocinios'),
-    seeSpon     && metricOn('em_contacto') && metricCard(ICON_CHART, 'Em contacto', inProgress, 'patrocínios a decorrer', 'blue', 'financeiro', 'patrocinios'),
-    seePlanteis && metricOn('atletas') && metricCard(ICON_USERS, 'Atletas', athletes, `em ${teamsCount} equipa${teamsCount === 1 ? '' : 's'}`, 'green', 'planteis'),
-    seeCoaches  && metricOn('treinadores') && metricCard(ICON_COACH, 'Treinadores', coaches, 'na equipa técnica', 'purple', 'treinadores'),
-    seeAttendance && metricOn('presencas') && metricCard(ICON_CHECK, 'Presenças', att.rate == null ? '—' : att.rate + '%', attendanceSub(att, trend), attendanceVariant(trend), attRoute),
-    seeMedico   && metricOn('em_tratamento') && metricCard(ICON_PULSE, 'Em tratamento', injured, injured ? `atleta${injured === 1 ? '' : 's'} com episódio ativo` : 'sem lesões ativas', injured > 0 ? 'accent' : 'green', 'saude'),
-    seeQuotas   && metricOn('em_divida') && metricCard(ICON_CARD, 'Em dívida', euros(owed.total), owed.count ? `${owed.count} quota${owed.count === 1 ? '' : 's'} por pagar` : 'tudo regularizado', owed.total > 0 ? 'accent' : 'blue', 'financeiro', 'quotas'),
-    seeCalendar && metricOn('balanco') && record.jogos > 0 && metricCard(
-      ICON_TROPHY, 'Balanço', `${record.vitorias}–${record.derrotas}`,
-      `${record.taxa}% de vitórias · últimos ${record.recentes.length}: ${record.recentesV}V`,
-      record.taxa >= 50 ? 'green' : 'accent', 'calendario'),
-    seeEquip    && metricOn('equipamentos') && metricCard(ICON_BOX, 'Equipamentos', state.equipment.length, equipReview ? `${equipReview} em mau estado` : 'inventário em dia', equipReview ? 'accent' : 'purple', 'equipamentos'),
+  // A meta de patrocínios deixou de ter cartão próprio: era o mesmo par de
+  // números do indicador "Angariado" ("Angariado / Meta: X" em cima, "X
+  // angariados de Y" em baixo), com uma barra pelo meio. Ficou a percentagem
+  // no subtítulo, que é a única coisa que a barra dizia a mais.
+  const stats = [
+    seeSpon && metricOn('angariado') && {
+      label: 'Angariado', value: euros(raised),
+      sub: goal > 0 ? `${pct}% de ${euros(goal)}` : 'sem meta definida',
+      tone: goal > 0 && pct >= 100 ? 'ok' : '', route: 'financeiro', finTab: 'patrocinios',
+    },
+    seePlanteis && metricOn('atletas') && {
+      label: 'Atletas', value: athletes,
+      sub: `em ${teamsCount} equipa${teamsCount === 1 ? '' : 's'}`, route: 'planteis',
+    },
+    seeAttendance && metricOn('presencas') && {
+      label: 'Presenças', value: att.rate == null ? '—' : att.rate + '%',
+      sub: attendanceSub(att, trend),
+      tone: trend && trend.delta != null && trend.delta <= -10 ? 'warn' : '',
+      route: 'presencas',
+    },
+    seeQuotas && metricOn('em_divida') && {
+      label: 'Em dívida', value: euros(owed.total),
+      sub: owed.count ? `${owed.count} quota${owed.count === 1 ? '' : 's'} por pagar` : 'tudo regularizado',
+      tone: owed.total > 0 ? 'warn' : 'ok', route: 'financeiro', finTab: 'quotas',
+    },
+    seeMedico && metricOn('em_tratamento') && {
+      label: 'Em tratamento', value: injured,
+      sub: injured ? `atleta${injured === 1 ? '' : 's'} com episódio ativo` : 'sem lesões ativas',
+      tone: injured > 0 ? 'warn' : 'ok', route: 'saude',
+    },
+    seeCalendar && metricOn('balanco') && record.jogos > 0 && {
+      label: 'Balanço', value: `${record.vitorias}–${record.derrotas}`,
+      sub: `${record.taxa}% de vitórias`,
+      tone: record.taxa >= 50 ? 'ok' : 'warn', route: 'calendario',
+    },
   ].filter(Boolean);
 
   const steps = firstSteps();
+
+  // --- Duas colunas no ecrã grande ----------------------------------------
+  // O conteúdo estava numa coluna só, esticada à largura do ecrã: num
+  // portátil, a linha "18:30–20:30 · Cadetes F · Pavilhão…" tinha 1500px de
+  // vazio à direita, e o que interessava estava tudo abaixo da dobra. O
+  // trabalho fica na coluna larga; a agenda e os números na estreita.
+  //
+  // A **faixa de números vem sempre primeiro**. Chegou a descer para o fim nos
+  // dias com trabalho urgente — pela ideia de que a lista tem de vir à frente
+  // de tudo —, mas com as duas colunas a lista já está no topo à esquerda: o
+  // que a faixa lá em baixo fazia era obrigar a deslizar a página inteira para
+  // ver seis números que cabem numa linha.
+  //
+  // O que ainda depende do dia é só o TELEMÓVEL, onde as colunas empilham (num
+  // ecrã grande as duas veem-se ao mesmo tempo): `--calm` manda a coluna
+  // lateral — a agenda — para cima da lista quando não há nada urgente.
+  const urgente = actions.some((a) => a.urgency === 'agora');
 
   container.innerHTML = `
     <header class="page-head page-head--hero">
       <div>
         <h1 class="section-title">${esc(greeting())}${displayName() ? ', ' + esc(displayName()) : ''}</h1>
-        <p class="muted" style="margin:0;font-size:0.9rem">${todayLine(today)}</p>
+        ${birthdayLine()}
       </div>
       <div class="hero-actions">
         ${quick.map((q) => `
@@ -174,46 +194,24 @@ export function renderPainel(container) {
 
     ${steps ? stepsCard(steps) : ''}
 
-    ${today.length && seeCalendar ? `<section class="card today-card">
-      <h2 class="section-title upcoming-card__title">Hoje</h2>
-      <ul class="today-list">${today.map(todayRow).join('')}</ul>
-    </section>` : ''}
+    ${statStrip(stats)}
 
-    ${metrics.length ? `<section class="cards-grid">${metrics.join('')}</section>` : ''}
-
-    ${actions.length ? `<section class="card alerts-card">
-      <h2 class="section-title upcoming-card__title">A precisar da tua atenção</h2>
-      <ul class="alerts-list">${actions.map(actionItem).join('')}</ul>
-    </section>` : ''}
-
-    ${docAlerts.length ? `<section class="card alerts-card">
-      <h2 class="section-title upcoming-card__title">Documentos a expirar</h2>
-      <ul class="alerts-list">${docAlerts.map(docAlertItem).join('')}</ul>
-    </section>` : ''}
-
-    ${toMark.length ? `<section class="card mark-card">
-      <h2 class="section-title upcoming-card__title">Presenças por marcar</h2>
-      <ul class="mark-list">${toMark.map((m) => markRow(m)).join('')}</ul>
-    </section>` : ''}
-
-    ${seeSpon ? `<section class="card goal-card">
-      <div class="goal-card__header">
-        <h2 class="section-title goal-card__title">Meta de patrocínios</h2>
-        <span class="goal-card__pct">${pct}%</span>
+    <div class="panel-grid${urgente ? '' : ' panel-grid--calm'}">
+      <div class="panel-grid__main">
+        ${workCard(actions)}
       </div>
-      <div class="progress" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100">
-        <div class="progress__bar" style="width:${pct}%"></div>
-      </div>
-      <p class="muted goal-card__caption">
-        ${euros(raised)} angariados de ${euros(goal)} na época ${esc(state.settings.season)}.
-      </p>
-    </section>` : ''}
+      <aside class="panel-grid__side">
+        ${today.length && seeCalendar ? todayCard(today) : ''}
 
-    ${seeCalendar ? `<section class="card">
-      <h2 class="section-title upcoming-card__title">Próximos eventos</h2>
-      ${upcoming.length ? upcomingList(upcoming) : '<p class="muted" style="margin:0.3rem 0 0">Sem eventos futuros agendados.</p>'}
-    </section>` : ''}
+        ${seeCalendar ? `<section class="card">
+          <h2 class="section-title upcoming-card__title">Próximos eventos</h2>
+          ${upcoming.length ? upcomingList(upcoming) : '<p class="muted" style="margin:0.3rem 0 0">Sem outros eventos agendados.</p>'}
+        </section>` : ''}
+      </aside>
+    </div>
   `;
+
+  wireWorkCard(container, () => renderPainel(container));
 
   // Atalho: abre modal rápido de presenças diretamente do Painel.
   container.querySelectorAll('[data-mark-event]').forEach((btn) => {
@@ -389,6 +387,18 @@ function todayLine(today) {
   return `Tens ${n} evento${n === 1 ? '' : 's'} hoje${detalhe}.`;
 }
 
+// Liga o "Ver tudo" da lista de trabalho (estado de UI da vista).
+function wireWorkCard(container, rerender) {
+  container.querySelector('#work-more')?.addEventListener('click', () => {
+    workExpanded = true;
+    rerender();
+  });
+  container.querySelector('#work-less')?.addEventListener('click', () => {
+    workExpanded = false;
+    rerender();
+  });
+}
+
 // Botões de criação rápida disponíveis para o utilizador atual.
 function quickActions() {
   const list = [];
@@ -496,34 +506,56 @@ function attendanceSub(att, trend) {
   return `média em ${att.total} registo${att.total === 1 ? '' : 's'}`;
 }
 
-// Uma descida acentuada da comparência não pode ficar com a mesma cor de
-// "está tudo bem" — é o sinal mais precoce de um escalão a esvaziar.
-function attendanceVariant(trend) {
-  return trend?.delta != null && trend.delta <= -10 ? 'accent' : 'green';
-}
-
 // Uma linha do resumo "Hoje".
-function todayRow(ev) {
+function todayRow(ev, { hideLocation = false } = {}) {
   const team = teamById(ev.team_id);
   const range = eventTimeRange(ev);
-  const meta = [
+  const tipo = EVENT_TYPE_LABEL[ev.type] || ev.type;
+  // O título só entra quando DIZ alguma coisa. Um treino sem título próprio
+  // chamava-se "Treino" — a mesma palavra que o crachá mesmo ao lado, em
+  // todas as linhas de todos os dias.
+  const titulo = (ev.title || '').trim();
+  const proprio = titulo && titulo.toLowerCase() !== tipo.toLowerCase() ? titulo : '';
+  // Tudo numa linha: hora, tipo, e o resto separado por pontos. Em duas
+  // linhas, três treinos custavam 250px para dizer três horas e três equipas.
+  const resto = [
+    proprio,
     team ? teamName(team) : '',
-    ev.opponent ? `vs ${esc(ev.opponent)}` : '',
-    ev.location ? esc(ev.location) : '',
+    ev.opponent ? `vs ${ev.opponent}` : '',
+    hideLocation ? '' : (ev.location || ''),
   ].filter(Boolean).join(' · ');
 
   return `
-    <li class="today-item">
+    <li class="today-item today-item--slim">
       <span class="today-item__time">${range ? esc(range) : '—'}</span>
-      <div class="today-item__body">
-        <span class="today-item__title">
-          <span class="badge badge--${EVENT_TYPE_BADGE[ev.type] || 'muted'}">${esc(EVENT_TYPE_LABEL[ev.type] || ev.type)}</span>
-          ${esc(ev.title || EVENT_TYPE_LABEL[ev.type] || 'Evento')}
-        </span>
-        ${meta ? `<span class="muted today-item__meta">${meta}</span>` : ''}
-      </div>
+      <span class="badge badge--${EVENT_TYPE_BADGE[ev.type] || 'muted'}">${esc(tipo)}</span>
+      <span class="today-item__line">${esc(resto || tipo)}</span>
     </li>
   `;
+}
+
+// Cartão "Hoje" do coordenador.
+function todayCard(today) {
+  const local = sharedLocation(today);
+  return `
+    <section class="card today-card">
+      <h2 class="section-title upcoming-card__title">Hoje</h2>
+      ${local ? `<p class="muted today-card__where">${esc(local)}</p>` : ''}
+      <ul class="today-list">${today.map((e) => todayRow(e, { hideLocation: !!local })).join('')}</ul>
+    </section>`;
+}
+
+// O local, quando é o MESMO em todos os eventos do dia, sai das linhas e vai
+// para o cabeçalho do cartão. Três treinos seguidos no mesmo pavilhão
+// repetiam "Pavilhão Escola Secundária da Senhora da Hora" três vezes — e numa
+// coluna estreita era precisamente esse nome que empurrava a equipa para fora
+// da linha e a deixava como "Cadetes F · P…".
+function sharedLocation(events) {
+  if (events.length < 2) return '';
+  const locais = events.map((e) => (e.location || '').trim());
+  // Só sai da linha se TODOS tiverem local e for o mesmo: com um evento sem
+  // local, pôr o dos outros no cabeçalho dizia dele uma coisa que não se sabe.
+  return locais.every((l) => l && l === locais[0]) ? locais[0] : '';
 }
 
 // Navega para uma secção, reaproveitando os botões da barra lateral.
@@ -556,23 +588,26 @@ export const ALERT_CATALOG = [
   { key: 'avaliacoes',      label: 'Avaliações de atleta por decidir', can: () => canEdit('players') },
   { key: 'documentos',      label: 'Documentos a expirar',           can: () => canEdit('documents') },
   { key: 'presencas',       label: 'Presenças por marcar',           can: () => canEdit('attendances') },
-  { key: 'aniversarios',    label: 'Aniversários esta semana',       can: () => canAccess('planteis') },
+  { key: 'aniversarios',    label: 'Aniversários no cabeçalho',      can: () => canAccess('planteis') },
   { key: 'aniversarios_falta', label: 'Datas de nascimento por preencher', can: () => canEdit('players') },
 ];
 
 // Catálogo dos INDICADORES (os cartões de números no topo). Mesma regra dos
 // avisos: `can` é permissão e não se contorna; a preferência escolhe dentro
 // do que já era permitido.
+// Saíram três: `treinadores` e `em_contacto` eram números estáticos meses a
+// fio (um clube tem 6 treinadores em setembro e 6 em maio) — é o mesmo
+// argumento que já tinha eliminado o cartão "Equipas"; e `equipamentos`
+// dizia no subtítulo exatamente o aviso que já está na lista de trabalho.
+// Um indicador que nunca muda e nunca pede nada é espaço gasto acima do que
+// pede.
 export const METRIC_CATALOG = [
   { key: 'angariado',    label: 'Angariado',     can: () => canAccess('patrocinios') },
-  { key: 'em_contacto',  label: 'Em contacto',   can: () => canAccess('patrocinios') },
   { key: 'atletas',      label: 'Atletas',       can: () => canAccess('planteis') },
-  { key: 'treinadores',  label: 'Treinadores',   can: () => canAccess('treinadores') },
   { key: 'presencas',    label: 'Presenças',     can: () => canAccess('presencas') },
-  { key: 'em_tratamento',label: 'Em tratamento', can: () => canAccess('medico') },
   { key: 'em_divida',    label: 'Em dívida',     can: () => canAccess('quotas') },
+  { key: 'em_tratamento',label: 'Em tratamento', can: () => canAccess('medico') },
   { key: 'balanco',      label: 'Balanço de jogos', can: () => canAccess('calendario') },
-  { key: 'equipamentos', label: 'Equipamentos',  can: () => canAccess('equipamentos') },
 ];
 
 export function availableMetrics() {
@@ -601,101 +636,121 @@ export function alertOn(key) {
 
 // Constrói a lista de ações pendentes (cada uma navega para a sua secção).
 // Só inclui itens com algo por resolver; devolve [] se estiver tudo em dia.
-function buildActions() {
+// --- O que precisa de ti -------------------------------------------------
+// Antes havia TRÊS caixas a responder à mesma pergunta ("A precisar da tua
+// atenção", "Documentos a expirar", "Presenças por marcar") e uma lista sem
+// teto: três objetivos, três gaps, três quedas e cinco aniversários davam
+// dezanove linhas. Uma lista de dezanove atenções não é uma lista de atenção.
+//
+// Agora é UMA lista, e cada item declara duas coisas:
+//   `urgency` — em que degrau cai (`agora` | `semana` | `depois`). Não é
+//     decoração: é o que decide a ORDEM do painel inteiro (ver `renderPainel`).
+//     "A Rita deixou de aparecer aos treinos" e "faltam 3 datas de nascimento"
+//     tinham o mesmo peso visual, e uma é uma atleta a desistir do clube.
+//   `family` — a que grupo pertence. Uma família com 3 ou mais itens colapsa
+//     numa linha só com os nomes no subtítulo: o painel é o ponteiro, a secção
+//     é o detalhe. Com dois ainda vale a pena ver os dois.
+const FAMILY_SUMMARY = {
+  objetivos:  (n) => `${n} objetivos em risco ou fora de prazo`,
+  gap:        (n) => `${n} atletas treinam muito e jogam pouco`,
+  queda:      (n) => `${n} atletas deixaram de aparecer aos treinos`,
+  documentos: (n) => `${n} documentos por renovar`,
+  // Fisioterapia
+  appt_abertos:    (n) => `${n} atendimentos por fechar`,
+  retorno_passado: (n) => `${n} atletas passaram a data prevista de retorno`,
+  conflitos:       (n) => `${n} atendimentos chocam com treinos`,
+  sem_previsao:    (n) => `${n} episódios sem previsão de retorno`,
+  // Preparação física
+  sem_perfil:        (n) => `${n} atletas sem perfil físico`,
+  sem_avaliacao:     (n) => `${n} atletas nunca avaliados`,
+  avaliacao_antiga:  (n) => `${n} atletas sem avaliação há mais de ${STALE_TEST_DAYS} dias`,
+};
+const FAMILY_COLLAPSE_AT = 3;
+
+// Ao fim de quantos dias uma avaliação física deixa de servir de referência.
+const STALE_TEST_DAYS = 120;
+
+// Degraus, por ordem de apresentação. O rótulo diz quando, não o que.
+export const WORK_STEPS = [
+  { key: 'agora',  label: 'Agora' },
+  { key: 'semana', label: 'Esta semana' },
+  { key: 'depois', label: 'Quando puderes' },
+];
+
+// `includePresencas`: só o coordenador. O treinador tem o cartão inteiro das
+// presenças por marcar (é o centro do ecrã dele) e uma linha-resumo aqui era
+// a mesma coisa duas vezes no mesmo scroll.
+function buildActions({ includePresencas = false } = {}) {
   const items = [];
 
-  if (canEdit('quotas') && alertOn('quotas')) {
-    const qm = quotasThisMonth();
-    if (qm.pendentes > 0) {
+  // Presenças por marcar — uma linha, não um cartão. Quem marca presenças é o
+  // treinador; ao coordenador isto é supervisão, e o que ele precisa de saber
+  // é se está a acumular.
+  if (includePresencas && canEdit('attendances') && alertOn('presencas')) {
+    const pend = trainingsToMark(500);
+    const atrasados = pend.filter((m) => !m.isToday);
+    if (pend.length) {
       items.push({
-        variant: 'warn',
-        route: 'financeiro',
-        finTab: 'quotas',
-        title: `${qm.pendentes} quota${qm.pendentes === 1 ? '' : 's'} por cobrar este mês`,
-        sub: `${euros(qm.total)} por receber — abrir Quotas.`,
+        urgency: atrasados.length ? 'agora' : 'semana',
+        variant: atrasados.length ? 'danger' : 'warn',
+        route: 'presencas',
+        title: `${pend.length} treino${pend.length === 1 ? '' : 's'} com presenças por marcar`,
+        sub: atrasados.length ? `${atrasados.length} já passaram sem registo` : '',
       });
     }
   }
 
-  if (canEdit('prospects') && alertOn('recrutamento')) {
-    const ready = prospectsReady();
-    if (ready > 0) {
+  // Documentos: caducado é outra coisa que "a caducar". Um exame médico
+  // expirado é risco legal, não um lembrete.
+  if (canEdit('documents') && alertOn('documentos')) {
+    expiringDocuments().forEach((row) => {
+      const date = row.expiresAt
+        ? new Date(row.expiresAt + 'T00:00:00').toLocaleDateString('pt-PT',
+            { day: '2-digit', month: 'short', year: 'numeric' })
+        : '';
       items.push({
-        variant: 'ok',
-        route: 'recrutamento',
-        title: `${ready} prospeto${ready === 1 ? '' : 's'} pronto${ready === 1 ? '' : 's'} a inscrever`,
-        sub: 'Confirmados no recrutamento — inscrever no plantel.',
+        urgency: row.status === 'expired' ? 'agora' : 'semana',
+        variant: row.status === 'expired' ? 'danger' : row.status === 'missing' ? 'info' : 'warn',
+        family: 'documentos',
+        name: row.player?.name,
+        docAthlete: row.playerId,
+        route: 'planteis',
+        title: `${row.docLabel} — ${row.player?.name || 'Atleta'}`,
+        sub: row.status === 'expired'
+          ? `Expirou a ${date}`
+          : row.status === 'missing'
+            ? 'Sem data de validade'
+            : `Expira a ${date} (${row.daysLeft} dia${row.daysLeft === 1 ? '' : 's'})`,
       });
-    }
+    });
   }
 
-  // Pedidos de equipamento à espera de decisão. Vive no Painel porque é do
-  // coordenador que o treinador está à espera — e um pedido esquecido num
-  // separador ensina o treinador a voltar ao telemóvel.
+  // Pedidos de equipamento à espera de decisão. É "agora" porque do outro lado
+  // está uma pessoa à espera — e um pedido esquecido ensina o treinador (ou a
+  // atleta) a não voltar a pedir, que é o que o módulo veio resolver.
   if (canDecideRequests() && alertOn('pedidos_equipamento')) {
     const n = state.equipmentRequests.filter((r) => r.status === 'pendente').length;
     if (n > 0) {
       items.push({
+        urgency: 'agora',
         variant: 'warn',
         route: 'pedidos',
         title: `${n} pedido${n === 1 ? '' : 's'} de equipamento por decidir`,
-        sub: 'Aprovar, entregar ou recusar — abrir Equipamentos.',
       });
     }
   }
 
-  if (canEdit('equipment') && alertOn('equipamentos') && equipmentNeedsAttention() > 0) {
-    const n = equipmentNeedsAttention();
-    items.push({
-      variant: 'danger',
-      route: 'equipamentos',
-      title: `${n} equipamento${n === 1 ? '' : 's'} em mau estado`,
-      sub: 'Rever ou substituir — abrir Equipamentos.',
-    });
-  }
-
-  // Objetivos em risco ou fora de prazo. Sem isto, a secção Objetivos só se vê
-  // indo lá de propósito — e um KPI que ninguém olha não serve de nada.
-  if (canAccess('objetivos') && alertOn('objetivos')) {
-    objectivesNeedingAttention().slice(0, 3).forEach(({ obj, status, met, total }) => {
-      const sub = obj.scope === 'todas'
-        ? `${met} de ${total} equipas a cumprir — abrir Objetivos.`
-        : status === 'falhado'
-          ? 'O prazo passou sem se atingir — rever nos Objetivos.'
-          : 'Vai atrasado face ao prazo — abrir Objetivos.';
-      items.push({
-        variant: status === 'falhado' ? 'danger' : 'warn',
-        route: 'objetivos',
-        title: `${obj.title}${status === 'falhado' ? ' — fora de prazo' : ' — em risco'}`,
-        sub,
-      });
-    });
-  }
-
-  // Treina muito, joga pouco. Fica ANTES das avaliações por decidir porque é
-  // informação com prazo: depois de o atleta sair, já não serve de nada.
-  if (canAccess('planteis') && alertOn('gap_treino_jogo')) {
-    // No voleibol a participação conta-se em pontos; nas modalidades com
-    // relógio, em minutos.
-    const unidade = sport() === 'voleibol' ? 'dos pontos' : 'dos minutos';
-    trainingVsPlayingGaps(3).forEach((g) => {
-      items.push({
-        variant: 'warn',
-        route: 'planteis',
-        title: `${g.player.name} treina muito e joga pouco`,
-        sub: `${g.presenca}% de presenças em ${g.treinos} treinos, mas ${g.participacao}% ${unidade} em ${g.jogos} jogos${g.team ? ' — ' + teamName(g.team) : ''}.`,
-      });
-    });
-  }
-
-  // Quedas de comparência. A tendência do clube é uma média e uma média
-  // esconde o caso individual: enquanto o resto do plantel compensa, o número
-  // global não mexe — e quando mexe o atleta já desistiu.
+  // Quedas de comparência. A taxa do clube é uma média e a média esconde
+  // precisamente este caso: quando o número global mexe, o atleta já desistiu.
+  // Por isso é "agora" — é informação com prazo.
   if (canAccess('presencas') && alertOn('queda_presencas')) {
-    attendanceDrops(3).forEach((d) => {
+    attendanceDrops(6).forEach((d) => {
       const equipa = d.team ? ' — ' + teamName(d.team) : '';
       items.push({
+        urgency: 'agora',
         variant: 'warn',
+        family: 'queda',
+        name: d.player.name,
         route: 'presencas',
         title: d.motivo === 'seguidas'
           ? `${d.player.name} faltou aos últimos ${d.faltasSeguidas} treinos`
@@ -707,34 +762,74 @@ function buildActions() {
     });
   }
 
-  // Aniversários da semana. É o aviso mais barato de todos — chega a tempo de
-  // alguém dizer os parabéns no treino, que é a única altura em que isto vale
-  // alguma coisa. Um aniversário que se soube no dia seguinte não se recupera.
-  if (canAccess('planteis') && alertOn('aniversarios') && birthDateReady()) {
-    upcomingBirthdays(7).slice(0, 5).forEach((b) => {
-      const equipa = b.team ? ' — ' + teamName(b.team) : '';
+  // Objetivos: fora de prazo já não se recupera (agora); em risco ainda dá
+  // para corrigir (esta semana).
+  if (canAccess('objetivos') && alertOn('objetivos')) {
+    objectivesNeedingAttention().slice(0, 6).forEach(({ obj, status, met, total }) => {
+      // Só o âmbito "todas" tem dado para o subtítulo (quantas equipas
+      // cumprem); nos outros o título já diz tudo o que há a dizer.
+      const sub = obj.scope === 'todas' ? `${met} de ${total} equipas a cumprir` : '';
       items.push({
-        variant: b.days === 0 ? 'ok' : 'info',
-        route: 'planteis',
-        title: b.days === 0
-          ? `${b.player.name} faz ${b.turning} anos hoje 🎂`
-          : `${b.player.name} faz ${b.turning} anos ${b.days === 1 ? 'amanhã' : `daqui a ${b.days} dias`}`,
-        sub: `${b.date.toLocaleDateString('pt-PT', { weekday: 'long', day: '2-digit', month: 'long' })}${equipa}.`,
+        urgency: status === 'falhado' ? 'agora' : 'semana',
+        variant: status === 'falhado' ? 'danger' : 'warn',
+        family: 'objetivos',
+        name: obj.title,
+        route: 'objetivos',
+        title: `${obj.title}${status === 'falhado' ? ' — fora de prazo' : ' — em risco'}`,
+        sub,
       });
     });
   }
 
-  // As datas por preencher andam com os aniversários de propósito: uma lista
-  // de aniversários curta tanto pode ser um mês calmo como metade do plantel
-  // sem data, e só este aviso distingue as duas coisas.
-  if (canEdit('players') && alertOn('aniversarios_falta') && birthDateReady()) {
-    const semData = playersWithoutBirthday();
-    if (semData.length && state.players.length) {
+  if (canEdit('quotas') && alertOn('quotas')) {
+    const qm = quotasThisMonth();
+    if (qm.pendentes > 0) {
       items.push({
-        variant: 'info',
+        urgency: 'semana',
+        variant: 'warn',
+        route: 'financeiro',
+        finTab: 'quotas',
+        title: `${qm.pendentes} quota${qm.pendentes === 1 ? '' : 's'} por cobrar este mês`,
+        sub: `${euros(qm.total)} por receber`,
+      });
+    }
+  }
+
+  // Treina muito, joga pouco: dos sinais mais precoces de desistência, mas
+  // mede-se em semanas e não em dias — daí não ser "agora".
+  if (canAccess('planteis') && alertOn('gap_treino_jogo')) {
+    const unidade = sport() === 'voleibol' ? 'dos pontos' : 'dos minutos';
+    trainingVsPlayingGaps(6).forEach((g) => {
+      items.push({
+        urgency: 'semana',
+        variant: 'warn',
+        family: 'gap',
+        name: g.player.name,
         route: 'planteis',
-        title: `${semData.length} atleta${semData.length === 1 ? '' : 's'} sem data de nascimento`,
-        sub: 'Sem a data não há aniversário — preencher nos Plantéis, em "Aniversários".',
+        title: `${g.player.name} treina muito e joga pouco`,
+        sub: `${g.presenca}% de presenças em ${g.treinos} treinos, mas ${g.participacao}% ${unidade} em ${g.jogos} jogos${g.team ? ' — ' + teamName(g.team) : ''}.`,
+      });
+    });
+  }
+
+  if (canEdit('equipment') && alertOn('equipamentos') && equipmentNeedsAttention() > 0) {
+    const n = equipmentNeedsAttention();
+    items.push({
+      urgency: 'semana',
+      variant: 'danger',
+      route: 'equipamentos',
+      title: `${n} equipamento${n === 1 ? '' : 's'} em mau estado`,
+    });
+  }
+
+  if (canEdit('prospects') && alertOn('recrutamento')) {
+    const ready = prospectsReady();
+    if (ready > 0) {
+      items.push({
+        urgency: 'semana',
+        variant: 'ok',
+        route: 'recrutamento',
+        title: `${ready} prospeto${ready === 1 ? '' : 's'} pronto${ready === 1 ? '' : 's'} a inscrever`,
       });
     }
   }
@@ -743,28 +838,197 @@ function buildActions() {
     const pend = pendingReviews();
     if (pend > 0 && state.players.length > 0) {
       items.push({
+        urgency: 'semana',
         variant: 'info',
         route: 'planteis',
         plan: true,
         title: `${pend} avaliaç${pend === 1 ? 'ão' : 'ões'} de atleta por decidir`,
-        sub: 'Definir quem fica para a próxima época — planear nos Plantéis.',
       });
     }
   }
 
-  return items;
+  // Os aniversários saíram desta lista de propósito e foram para o cabeçalho
+  // (ver `birthdayLine`): dar os parabéns não é uma pendência, e cinco linhas
+  // de bolos empurravam para fora do ecrã o atleta que está a desistir.
+  // Isto fica, porque É trabalho: sem a data não há aniversário nenhum.
+  if (canEdit('players') && alertOn('aniversarios_falta') && birthDateReady()) {
+    const semData = playersWithoutBirthday();
+    if (semData.length && state.players.length) {
+      items.push({
+        urgency: 'depois',
+        variant: 'info',
+        route: 'planteis',
+        title: `${semData.length} atleta${semData.length === 1 ? '' : 's'} sem data de nascimento`,
+      });
+    }
+  }
+
+  return collapseFamilies(items);
 }
 
-function actionItem({ variant, title, sub, route, plan, finTab }) {
+// Mostrar o degrau "Agora" por inteiro (estado de UI desta vista).
+let workExpanded = false;
+// Quantas pendências urgentes se mostram antes do "Ver tudo". Só o "Agora"
+// tem teto: os outros degraus nascem fechados, por isso a altura deles já é
+// zero.
+const WORK_PREVIEW_NOW = 6;
+
+// O cartão único de trabalho. Substituiu as três caixas que havia ("A precisar
+// da tua atenção", "Documentos a expirar", "Presenças por marcar") — eram três
+// títulos para a mesma pergunta.
+//
+// Só o degrau **Agora** nasce aberto. "Esta semana" e "Quando puderes" são
+// `<details>` com a contagem no resumo, na convenção que o projeto já usa nos
+// Utilizadores e nos convites: com os três degraus abertos este cartão era o
+// bloco mais alto do ecrã e empurrava tudo o resto para fora, incluindo os
+// números e os eventos de hoje. Fechado, o degrau custa uma linha e continua
+// a dizer quantas coisas lá estão — que é a parte que não se pode esconder.
+function workCard(actions) {
+  const steps = WORK_STEPS
+    .map((s) => ({ ...s, list: actions.filter((a) => a.urgency === s.key) }))
+    .filter((s) => s.list.length);
+  if (!steps.length) return '';
+
+  const agora = steps.find((s) => s.key === 'agora');
+  const visiveis = agora
+    ? (workExpanded ? agora.list : agora.list.slice(0, WORK_PREVIEW_NOW))
+    : [];
+  const escondidos = agora ? agora.list.length - visiveis.length : 0;
+
+  return `
+    <section class="card alerts-card${agora ? ' alerts-card--now' : ''}">
+      <h2 class="section-title upcoming-card__title">O que precisa de ti</h2>
+      ${agora ? `
+        <ul class="alerts-list">${visiveis.map(actionItem).join('')}</ul>
+        ${escondidos > 0
+          ? `<button class="btn btn--ghost btn--sm" id="work-more" type="button" style="margin-top:0.6rem">
+               Ver as restantes ${escondidos}
+             </button>`
+          : ''}
+        ${workExpanded && agora.list.length > WORK_PREVIEW_NOW
+          ? `<button class="btn btn--ghost btn--sm" id="work-less" type="button" style="margin-top:0.6rem">
+               Mostrar menos
+             </button>`
+          : ''}` : ''}
+      ${steps.filter((s) => s.key !== 'agora').map((s) => `
+        <details class="group work-step">
+          <summary class="group__head">
+            <span class="group__title">${esc(s.label)}</span>
+            <span class="group__count">${s.list.length}</span>
+          </summary>
+          <ul class="alerts-list">${s.list.map(actionItem).join('')}</ul>
+        </details>`).join('')}
+    </section>`;
+}
+
+// Faixa de números. Substitui os nove cartões com ícone: cada um ocupava duas
+// linhas e um ícone de 42px para dizer um número, e nove deles enchiam o ecrã
+// de um telemóvel antes de se chegar ao que há para fazer. A faixa diz os
+// mesmos números em dois segundos.
+//
+// Saíram três indicadores que nunca pediam nada: "Treinadores" e "Em contacto"
+// são estáticos meses a fio (é o argumento que já tinha matado o cartão
+// "Equipas"), e "Equipamentos" repetia, no subtítulo, o aviso que já está na
+// lista de trabalho.
+function statStrip(stats) {
+  if (!stats.length) return '';
+  return `
+    <section class="stat-strip">
+      ${stats.map((st) => {
+        const inner = `
+          <span class="stat-strip__value${st.tone ? ' stat-strip__value--' + st.tone : ''}">${String(st.value)}</span>
+          <span class="stat-strip__label">${esc(st.label)}</span>
+          ${st.sub ? `<span class="stat-strip__sub muted">${esc(st.sub)}</span>` : ''}`;
+        return st.route
+          ? `<button class="stat-strip__item stat-strip__item--nav" type="button" data-nav="${esc(st.route)}"${
+              st.finTab ? ` data-fin-tab-open="${esc(st.finTab)}"` : ''
+            } title="Abrir ${esc(st.label)}">${inner}</button>`
+          : `<div class="stat-strip__item">${inner}</div>`;
+      }).join('')}
+    </section>`;
+}
+
+// Aniversários no CABEÇALHO e já não na lista de trabalho: dar os parabéns não
+// é uma pendência, e cinco linhas de bolos empurravam para fora do ecrã o
+// atleta que está a desistir. Aqui continua a chegar a tempo — que é a única
+// coisa que um aniversário precisa de fazer.
+function birthdayLine() {
+  if (!canAccess('planteis') || !alertOn('aniversarios') || !birthDateReady()) return '';
+  const list = upcomingBirthdays(7);
+  if (!list.length) return '';
+  const nomes = list.slice(0, 3).map((b) => {
+    const quando = b.days === 0 ? 'hoje' : b.days === 1 ? 'amanhã'
+      : b.date.toLocaleDateString('pt-PT', { weekday: 'long' });
+    return `${b.player.name.split(/\s+/)[0]} (${quando})`;
+  });
+  const resto = list.length > nomes.length ? ` e mais ${list.length - nomes.length}` : '';
+  return `
+    <button class="hero-birthdays" type="button" data-nav="planteis"
+            title="Ver aniversários nos Plantéis">
+      🎂 ${esc(nomes.join(' · '))}${esc(resto)}
+    </button>`;
+}
+
+// Colapsa as famílias com muitos itens numa linha só. Guarda o item mais
+// urgente do grupo (é dele a cor e o destino) e põe os nomes no subtítulo —
+// quem precisa do detalhe abre a secção, que é onde ele mora.
+function collapseFamilies(items) {
+  const counts = {};
+  items.forEach((i) => { if (i.family) counts[i.family] = (counts[i.family] || 0) + 1; });
+
+  const out = [];
+  const done = new Set();
+  items.forEach((item) => {
+    const fam = item.family;
+    if (!fam || counts[fam] < FAMILY_COLLAPSE_AT) { out.push(item); return; }
+    if (done.has(fam)) return;
+    done.add(fam);
+
+    const grupo = items.filter((i) => i.family === fam);
+    // O degrau do grupo é o do item mais urgente: um documento caducado no
+    // meio de quatro a expirar não pode descer para "esta semana".
+    const urgency = WORK_STEPS.find((s) => grupo.some((i) => i.urgency === s.key))?.key || 'semana';
+    const lead = grupo.find((i) => i.urgency === urgency) || grupo[0];
+    const nomes = grupo.map((i) => i.name).filter(Boolean);
+    // O resumo perde o `athlete`: uma linha que fala de sete atletas não pode
+    // abrir a ficha de um deles. Vai para a secção, que é onde estão os sete.
+    out.push({
+      urgency,
+      variant: lead.variant,
+      route: lead.route,
+      finTab: lead.finTab,
+      title: (FAMILY_SUMMARY[fam] || ((n) => `${n} itens`))(grupo.length),
+      sub: nomes.length
+        ? `${nomes.slice(0, 4).join(', ')}${nomes.length > 4 ? ` e mais ${nomes.length - 4}` : ''}`
+        : '',
+    });
+  });
+  return out;
+}
+
+function actionItem({ variant, title, sub, route, plan, finTab, docAthlete, athlete, tab }) {
+  // Um documento leva à FICHA do atleta e não à secção: o que se vai fazer
+  // ali é renovar aquele documento, e a lista de Plantéis é mais um clique
+  // pelo meio.
+  const target = docAthlete
+    ? `data-doc-athlete="${esc(docAthlete)}"`
+    : athlete
+      ? `data-work-athlete="${esc(athlete)}" data-work-tab="${esc(tab || 'geral')}"`
+      : `data-nav="${esc(route)}"`;
+  // O subtítulo só existe quando traz DADO — nomes, datas, valores. Metade
+  // deles dizia o procedimento ("Aprovar, entregar ou recusar — abrir
+  // Equipamentos"), que quem lê o painel já sabe: era uma linha inteira por
+  // pendência a dizer nada, e eram essas linhas que empurravam o trabalho
+  // real para fora do ecrã. Sem subtítulo, a pendência ocupa UMA linha.
   return `
     <li>
-      <button class="alert-item alert-item--${variant} alert-item--nav" data-nav="${route}"${
+      <button class="alert-item alert-item--${variant} alert-item--nav${sub ? '' : ' alert-item--slim'}" ${target}${
         plan ? ' data-plan="1"' : ''
       }${finTab ? ` data-fin-tab-open="${finTab}"` : ''} type="button">
         <span class="alert-item__dot" aria-hidden="true"></span>
         <span class="alert-item__text">
           <strong class="alert-item__title">${esc(title)}</strong>
-          <span class="muted alert-item__sub">${esc(sub)}</span>
+          ${sub ? `<span class="muted alert-item__sub">${esc(sub)}</span>` : ''}
         </span>
         <span class="alert-item__chevron" aria-hidden="true">›</span>
       </button>
@@ -774,30 +1038,6 @@ function actionItem({ variant, title, sub, route, plan, finTab }) {
 
 // Uma linha do alerta "Documentos a expirar" — abre a ficha do atleta (onde os
 // documentos vivem, no separador Geral) ao clicar.
-function docAlertItem(row) {
-  const variant = row.status === 'expired' ? 'danger' : row.status === 'missing' ? 'info' : 'warn';
-  const date = row.expiresAt
-    ? new Date(row.expiresAt + 'T00:00:00').toLocaleDateString('pt-PT',
-        { day: '2-digit', month: 'short', year: 'numeric' })
-    : '';
-  const sub = row.status === 'expired'
-    ? `Expirou a ${date} — renovar.`
-    : row.status === 'missing'
-    ? 'Sem data de validade — atualizar.'
-    : `Expira a ${date} (${row.daysLeft} dia${row.daysLeft === 1 ? '' : 's'}).`;
-  return `
-    <li>
-      <button class="alert-item alert-item--${variant} alert-item--nav" data-doc-athlete="${esc(row.playerId)}" type="button">
-        <span class="alert-item__dot" aria-hidden="true"></span>
-        <span class="alert-item__text">
-          <strong class="alert-item__title">${esc(row.docLabel)} — ${esc(row.player.name)}</strong>
-          <span class="muted alert-item__sub">${esc(sub)}</span>
-        </span>
-        <span class="alert-item__chevron" aria-hidden="true">›</span>
-      </button>
-    </li>
-  `;
-}
 
 // Uma linha do atalho "Presenças por marcar". `canClose` acrescenta o botão
 // que marca falta a quem ficou sem registo (só faz sentido em treinos que já
@@ -842,23 +1082,6 @@ function markRow({ event, total, marked, isToday }, { canClose = false, showAge 
   `;
 }
 
-// `route` opcional: quando presente, o cartão fica clicável e navega para essa
-// secção (data-nav, ligado em renderPainel). Sem rota, é só informativo.
-// `finTab` abre o Financeiro já no separador certo (patrocínios/quotas).
-function metricCard(icon, label, value, sub, variant = '', route = '', finTab = '') {
-  const cls = `card metric ${variant ? 'metric--' + variant : ''}${route ? ' metric--nav' : ''}`;
-  const inner = `
-      <div class="metric__icon-wrap">${icon}</div>
-      <span class="metric__label">${esc(label)}</span>
-      <strong class="metric__value">${String(value)}</strong>
-      <span class="metric__sub muted">${esc(sub)}</span>`;
-  return route
-    ? `<button class="${cls}" type="button" data-nav="${esc(route)}"${
-        finTab ? ` data-fin-tab-open="${esc(finTab)}"` : ''
-      } title="Abrir ${esc(label)}">${inner}</button>`
-    : `<div class="${cls}">${inner}</div>`;
-}
-
 function upcomingList(events) {
   return `
     <ul class="event-mini">
@@ -869,13 +1092,19 @@ function upcomingList(events) {
           const day = dt.toLocaleDateString('pt-PT', { day: '2-digit' });
           const mon = dt.toLocaleDateString('pt-PT', { month: 'short' }).replace('.', '');
           const time = ev.time ? ev.time.slice(0, 5) : '';
-          const meta = [
+          // Mesma regra do "Hoje": o nome só entra quando não é a palavra que
+          // o crachá ao lado já diz. "Jogo · Jogo · Seniores F" ocupava duas
+          // linhas para dizer uma.
+          const tipo = EVENT_TYPE_LABEL[ev.type] || ev.type;
+          const titulo = (ev.title || '').trim();
+          const nome = titulo && titulo.toLowerCase() !== tipo.toLowerCase() ? titulo : '';
+          // `esc()` sobre a linha inteira: o nome da equipa vinha por
+          // interpolação direta, ao contrário da convenção do projeto.
+          const meta = esc([
             team ? teamName(team) : '',
-            ev.opponent ? `vs ${esc(ev.opponent)}` : '',
-            time ? time : '',
-          ]
-            .filter(Boolean)
-            .join(' · ');
+            ev.opponent ? `vs ${ev.opponent}` : '',
+            time || '',
+          ].filter(Boolean).join(' · '));
           return `
             <li class="event-mini__item">
               <div class="event-mini__date-block">
@@ -883,9 +1112,9 @@ function upcomingList(events) {
                 <span class="event-mini__mon">${mon}</span>
               </div>
               <div class="event-mini__body">
-                <span class="event-mini__name">${esc(ev.title || EVENT_TYPE_LABEL[ev.type] || 'Evento')}</span>
                 <span class="event-mini__meta">
-                  <span class="badge badge--${EVENT_TYPE_BADGE[ev.type] || 'muted'}">${esc(EVENT_TYPE_LABEL[ev.type] || ev.type)}</span>
+                  <span class="badge badge--${EVENT_TYPE_BADGE[ev.type] || 'muted'}">${esc(tipo)}</span>
+                  ${nome ? `<strong class="event-mini__name">${esc(nome)}</strong>` : ''}
                   ${meta ? `<span class="muted">${meta}</span>` : ''}
                 </span>
               </div>
@@ -899,13 +1128,83 @@ function upcomingList(events) {
 // =========================================================================
 // Painel do Fisioterapeuta — resumo do Departamento Médico.
 // =========================================================================
+// Pendências do fisioterapeuta. O painel dele tinha três números e duas
+// listas e não dizia UMA coisa que estivesse por fazer — o que está por fazer
+// num departamento clínico é precisamente o que não se vê: o atendimento que
+// ninguém fechou, a previsão de retorno que passou, o episódio sem previsão
+// nenhuma. Tudo isto já estava na base de dados; faltava alguém perguntar.
+function buildFisioActions() {
+  const items = [];
+  const hoje = localToday();
+  const nome = (id) => state.players.find((p) => p.id === id)?.name || 'Atleta';
+
+  // Atendimentos que já passaram e continuam "agendado": ninguém disse se se
+  // realizou ou se o atleta faltou. É o equivalente clínico das presenças por
+  // marcar — e, tal como lá, o que se perde não é a linha, é a estatística.
+  state.appointments
+    .filter((a) => a.status === 'agendado' && a.date && a.date < hoje)
+    .forEach((a) => {
+      items.push({
+        urgency: 'agora', variant: 'warn', family: 'appt_abertos',
+        name: nome(a.player_id), athlete: a.player_id, tab: 'fisioterapia',
+        title: `Atendimento de ${nome(a.player_id)} por fechar`,
+        sub: `Marcado para ${dataCurta(a.date)}, ainda como "agendado"`,
+      });
+    });
+
+  // Previsão de retorno já passada sem alta dada. Ou o atleta voltou e
+  // ninguém fechou o episódio, ou não voltou e a previsão está errada — as
+  // duas hipóteses pedem a mesma coisa: alguém olhar.
+  state.clinicalEpisodes
+    .filter((e) => e.status !== 'alta' && e.expected_return && e.expected_return < hoje)
+    .forEach((e) => {
+      items.push({
+        urgency: 'agora', variant: 'danger', family: 'retorno_passado',
+        name: nome(e.player_id), athlete: e.player_id, tab: 'fisioterapia',
+        title: `${nome(e.player_id)} devia ter voltado a ${dataCurta(e.expected_return)}`,
+        sub: 'Sem alta dada',
+      });
+    });
+
+  // Atendimentos que chocam com treino ou jogo da equipa do atleta. O aviso
+  // já existia, mas só aparecia a quem ESTIVESSE a marcar o atendimento: um
+  // conflito criado na segunda só se descobria na quinta, no balneário.
+  upcomingAppointments(30)
+    .filter((a) => appointmentConflicts(a.player_id, a.date, a.time, a.end_time).length)
+    .forEach((a) => {
+      items.push({
+        urgency: 'semana', variant: 'warn', family: 'conflitos',
+        name: nome(a.player_id), athlete: a.player_id, tab: 'fisioterapia',
+        title: `Atendimento de ${nome(a.player_id)} choca com um treino`,
+        sub: `${dataCurta(a.date)} — a equipa tem evento à mesma hora`,
+      });
+    });
+
+  // Episódio em curso sem previsão de retorno. Sem data prevista, o treinador
+  // não sabe com quem conta e o episódio não tem fim à vista — nem para
+  // medir, nem para cobrar a si próprio.
+  state.clinicalEpisodes
+    .filter((e) => e.status !== 'alta' && !e.expected_return)
+    .forEach((e) => {
+      items.push({
+        urgency: 'semana', variant: 'info', family: 'sem_previsao',
+        name: nome(e.player_id), athlete: e.player_id, tab: 'fisioterapia',
+        title: `${nome(e.player_id)} sem previsão de retorno`,
+      });
+    });
+
+  return collapseFamilies(items);
+}
+
 function renderFisioPainel(container) {
   const injured = injuredCount();
-  const upcoming = upcomingAppointments(8);
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const todayAppts = state.appointments.filter(
-    (a) => a.status === 'agendado' && a.date === todayStr
-  ).length;
+  const hoje = localToday();
+  const todayAppts = state.appointments
+    .filter((a) => a.status === 'agendado' && a.date === hoje)
+    .sort((a, b) => apptDateTime(a) - apptDateTime(b));
+  // "Próximos" deixa de repetir os de HOJE, que já estão no cartão de cima —
+  // é a mesma correção do "Hoje" vs "Próximos eventos" dos outros painéis.
+  const upcoming = upcomingAppointments(30).filter((a) => a.date !== hoje).slice(0, 8);
 
   // Atletas com episódio em curso (ativo ou em recuperação), para a lista.
   const recovering = state.players
@@ -913,40 +1212,103 @@ function renderFisioPainel(container) {
     .filter((x) => x.episode)
     .sort((a, b) => (a.episode.status === 'ativo' ? 0 : 1) - (b.episode.status === 'ativo' ? 0 : 1));
 
-  const metrics = [
-    metricCard(ICON_PULSE, 'Em tratamento', injured, injured === 1 ? 'atleta com episódio ativo' : 'atletas com episódio ativo', injured > 0 ? 'accent' : 'green'),
-    metricCard(ICON_CALENDAR, 'Atendimentos hoje', todayAppts, todayAppts ? 'agendados para hoje' : 'nada agendado hoje', todayAppts ? 'blue' : 'purple'),
-    metricCard(ICON_CHECK, 'Próximos', upcoming.length, 'atendimentos por realizar', 'green'),
+  // Tempo médio até à alta e recidivas: os dois números que respondem às
+  // perguntas que ninguém conseguia responder ficha a ficha. Substituem
+  // "Atendimentos hoje" e "Próximos", que eram a contagem das duas listas
+  // desenhadas logo por baixo — o mesmo dado duas vezes no mesmo ecrã.
+  const dias = state.clinicalEpisodes.map(episodeReturnDays).filter((d) => d != null);
+  const media = dias.length ? Math.round(dias.reduce((s, d) => s + d, 0) / dias.length) : null;
+  const recidivas = injuryStats().reduce((n, z) => n + z.recidivas, 0);
+
+  const stats = [
+    { label: 'Em tratamento', value: injured,
+      sub: injured ? `atleta${injured === 1 ? '' : 's'} com episódio em curso` : 'sem episódios em curso',
+      tone: injured > 0 ? 'warn' : 'ok', route: 'saude' },
+    { label: 'Alta média', value: media == null ? '—' : `${media} d`,
+      sub: dias.length ? `em ${dias.length} episódio${dias.length === 1 ? '' : 's'} com alta` : 'ainda sem altas registadas',
+      route: 'saude' },
+    { label: 'Recidivas', value: recidivas,
+      sub: recidivas ? 'voltaram a lesionar a mesma zona' : 'nenhuma zona repetida',
+      tone: recidivas > 0 ? 'warn' : 'ok', route: 'saude' },
   ];
+
+  const actions = buildFisioActions();
+  const urgente = actions.some((a) => a.urgency === 'agora');
 
   container.innerHTML = `
     <header class="page-head page-head--hero">
       <div>
         <h1 class="section-title">${esc(greeting())}${displayName() ? ', ' + esc(displayName()) : ''}</h1>
-        <p class="muted" style="margin:0;font-size:0.9rem">Resumo do Departamento Médico.</p>
+        <p class="muted" style="margin:0;font-size:0.9rem">Departamento Médico.</p>
       </div>
     </header>
 
-    <section class="cards-grid">${metrics.join('')}</section>
+    ${statStrip(stats)}
 
-    <section class="card">
-      <h2 class="section-title upcoming-card__title">Próximos atendimentos</h2>
-      ${upcoming.length ? `<ul class="today-list">${upcoming.map(apptRow).join('')}</ul>`
-        : '<p class="muted" style="margin:0.3rem 0 0">Sem atendimentos agendados.</p>'}
-    </section>
+    <div class="panel-grid${urgente ? '' : ' panel-grid--calm'}">
+      <div class="panel-grid__main">
+        ${workCard(actions)}
 
-    <section class="card">
-      <h2 class="section-title upcoming-card__title">Atletas em tratamento</h2>
-      ${recovering.length ? `<ul class="today-list">${recovering.map(injuredRow).join('')}</ul>`
-        : '<p class="muted" style="margin:0.3rem 0 0">Nenhum atleta com episódio em curso.</p>'}
-    </section>
+        <section class="card">
+          <h2 class="section-title upcoming-card__title">Atletas em tratamento</h2>
+          ${recovering.length ? `<ul class="today-list">${recovering.map(injuredRow).join('')}</ul>`
+            : '<p class="muted" style="margin:0.3rem 0 0">Nenhum atleta com episódio em curso.</p>'}
+        </section>
+      </div>
+      <aside class="panel-grid__side">
+        ${todayAppts.length ? `<section class="card today-card">
+          <h2 class="section-title upcoming-card__title">Hoje</h2>
+          <ul class="today-list">${todayAppts.map(apptRow).join('')}</ul>
+        </section>` : ''}
+
+        <section class="card">
+          <h2 class="section-title upcoming-card__title">Próximos atendimentos</h2>
+          ${upcoming.length ? `<ul class="today-list">${upcoming.map(apptRow).join('')}</ul>`
+            : '<p class="muted" style="margin:0.3rem 0 0">Sem outros atendimentos agendados.</p>'}
+        </section>
+      </aside>
+    </div>
   `;
 
+  wireWorkCard(container, () => renderFisioPainel(container));
+  wireAreaPainel(container, 'fisioterapia');
+}
+
+// Data curta e legível (dd mmm) para os subtítulos das pendências.
+function dataCurta(iso) {
+  if (!iso) return '';
+  return new Date(iso + 'T00:00:00').toLocaleDateString('pt-PT', { day: '2-digit', month: 'short' });
+}
+
+// Hoje em ISO local (e não `toISOString`, que devolve UTC e às 23h de verão
+// dá o dia seguinte — um atendimento de hoje passava a "atrasado").
+function localToday() {
+  const d = new Date();
+  const mes = String(d.getMonth() + 1).padStart(2, '0');
+  const dia = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${mes}-${dia}`;
+}
+
+// Ligações comuns aos painéis de área (fisio e preparador): abrir a ficha do
+// atleta no separador da área, navegar a partir das pendências e configurar.
+function wireAreaPainel(container, tab) {
   container.querySelectorAll('[data-open-athlete]').forEach((el) => {
-    const open = () => { if (el.dataset.openAthlete) openAthleteProfile(el.dataset.openAthlete, { tab: 'fisioterapia' }); };
+    const open = () => {
+      if (el.dataset.openAthlete) openAthleteProfile(el.dataset.openAthlete, { tab });
+    };
     el.addEventListener('click', open);
-    el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
+    });
   });
+  container.querySelectorAll('[data-work-athlete]').forEach((el) =>
+    el.addEventListener('click', () =>
+      openAthleteProfile(el.dataset.workAthlete, { tab: el.dataset.workTab || tab })
+    )
+  );
+  container.querySelectorAll('[data-nav]').forEach((el) =>
+    el.addEventListener('click', () => navTo(el.dataset.nav))
+  );
 }
 
 function apptRow(a) {
@@ -983,47 +1345,127 @@ function injuredRow({ player, episode }) {
 // =========================================================================
 // Painel do Preparador Físico — resumo da Preparação Física.
 // =========================================================================
+// Pendências do preparador físico. O painel dele dizia "247 avaliações
+// registadas no total" — o exemplo perfeito de um número que nunca pede nada:
+// só sobe, nunca desce, e não distingue o clube que mede toda a gente do que
+// mediu vinte atletas há três épocas. O que interessa é o inverso: QUEM falta
+// medir, que é o trabalho do preparador.
+function buildPrepActions() {
+  const items = [];
+  const comPerfil = new Set(
+    state.physicalProfiles.filter((p) => p.height_cm || p.weight_kg).map((p) => p.player_id)
+  );
+  // Data da última avaliação de cada atleta.
+  const ultima = new Map();
+  for (const t of state.physicalTests) {
+    if (!t.date) continue;
+    const atual = ultima.get(t.player_id);
+    if (!atual || t.date > atual) ultima.set(t.player_id, t.date);
+  }
+  const limite = new Date();
+  limite.setDate(limite.getDate() - STALE_TEST_DAYS);
+  const limiteISO = limite.toISOString().slice(0, 10);
+
+  state.players.forEach((p) => {
+    // Sem altura nem peso não há IMC, não há nada — é o primeiro registo de
+    // toda a ficha física e sem ele o resto não se calcula.
+    if (!comPerfil.has(p.id)) {
+      items.push({
+        urgency: 'semana', variant: 'warn', family: 'sem_perfil',
+        name: p.name, athlete: p.id, tab: 'fisica',
+        title: `${p.name} sem perfil físico`,
+      });
+      return;
+    }
+    const data = ultima.get(p.id);
+    if (!data) {
+      items.push({
+        urgency: 'semana', variant: 'info', family: 'sem_avaliacao',
+        name: p.name, athlete: p.id, tab: 'fisica',
+        title: `${p.name} nunca foi avaliada`,
+      });
+    } else if (data < limiteISO) {
+      items.push({
+        urgency: 'depois', variant: 'info', family: 'avaliacao_antiga',
+        name: p.name, athlete: p.id, tab: 'fisica',
+        title: `${p.name} sem avaliação desde ${dataCurta(data)}`,
+      });
+    }
+  });
+
+  return collapseFamilies(items);
+}
+
 function renderPreparadorPainel(container) {
   const now = new Date();
+  const hoje = localToday();
   const athletes = state.players.length;
   const upcomingGames = state.events
     .filter((e) => e.type === 'jogo' && eventDateTime(e) >= now)
     .sort((a, b) => eventDateTime(a) - eventDateTime(b))
     .slice(0, 8);
   const upcomingGym = state.gymSessions
-    .filter((s) => new Date(s.date + 'T00:00:00') >= new Date(now.toISOString().slice(0, 10)))
+    .filter((se) => (se.date || '') >= hoje)
     .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
     .slice(0, 8);
-  const testsCount = state.physicalTests.length;
 
-  const metrics = [
-    metricCard(ICON_USERS, 'Atletas', athletes, `em ${state.teams.length} equipa${state.teams.length === 1 ? '' : 's'}`, 'green'),
-    metricCard(ICON_DUMBBELL, 'Treinos de ginásio', upcomingGym.length, upcomingGym.length ? 'agendados a seguir' : 'nada agendado', 'blue'),
-    metricCard(ICON_CHART, 'Avaliações físicas', testsCount, 'registadas no total', 'purple'),
+  // Quantos atletas têm alguma avaliação, e há quanto tempo foi a última do
+  // clube. Substituem "Treinos de ginásio" (que era a contagem da lista logo
+  // por baixo) e "Avaliações físicas no total" (que só sabia crescer).
+  const avaliados = new Set(state.physicalTests.map((t) => t.player_id)).size;
+  const ultimaData = state.physicalTests
+    .map((t) => t.date).filter(Boolean).sort().pop() || null;
+  const diasDesde = ultimaData
+    ? Math.round((new Date(hoje) - new Date(ultimaData)) / 86400000)
+    : null;
+
+  const stats = [
+    { label: 'Atletas', value: athletes,
+      sub: `em ${state.teams.length} equipa${state.teams.length === 1 ? '' : 's'}`, route: 'planteis' },
+    { label: 'Avaliados', value: athletes ? `${avaliados}/${athletes}` : '—',
+      sub: athletes ? `${Math.round((avaliados / athletes) * 100)}% do clube com medições` : 'ainda sem atletas',
+      tone: athletes && avaliados === athletes ? 'ok' : avaliados < athletes / 2 ? 'warn' : '',
+      route: 'saude' },
+    { label: 'Última avaliação', value: diasDesde == null ? '—' : diasDesde === 0 ? 'hoje' : `${diasDesde} d`,
+      sub: ultimaData ? `registada a ${dataCurta(ultimaData)}` : 'ainda sem avaliações',
+      tone: diasDesde != null && diasDesde > STALE_TEST_DAYS ? 'warn' : '',
+      route: 'saude' },
   ];
+
+  const actions = buildPrepActions();
 
   container.innerHTML = `
     <header class="page-head page-head--hero">
       <div>
         <h1 class="section-title">${esc(greeting())}${displayName() ? ', ' + esc(displayName()) : ''}</h1>
-        <p class="muted" style="margin:0;font-size:0.9rem">Resumo da Preparação Física.</p>
+        <p class="muted" style="margin:0;font-size:0.9rem">Preparação Física.</p>
       </div>
     </header>
 
-    <section class="cards-grid">${metrics.join('')}</section>
+    ${statStrip(stats)}
 
-    <section class="card">
-      <h2 class="section-title upcoming-card__title">Próximos treinos de ginásio</h2>
-      ${upcomingGym.length ? `<ul class="today-list">${upcomingGym.map(gymRow).join('')}</ul>`
-        : '<p class="muted" style="margin:0.3rem 0 0">Sem treinos de ginásio agendados.</p>'}
-    </section>
+    <div class="panel-grid panel-grid--calm">
+      <div class="panel-grid__main">
+        ${workCard(actions)}
 
-    <section class="card">
-      <h2 class="section-title upcoming-card__title">Próximos jogos</h2>
-      ${upcomingGames.length ? upcomingList(upcomingGames)
-        : '<p class="muted" style="margin:0.3rem 0 0">Sem jogos agendados.</p>'}
-    </section>
+        <section class="card">
+          <h2 class="section-title upcoming-card__title">Próximos treinos de ginásio</h2>
+          ${upcomingGym.length ? `<ul class="today-list">${upcomingGym.map(gymRow).join('')}</ul>`
+            : '<p class="muted" style="margin:0.3rem 0 0">Sem treinos de ginásio agendados.</p>'}
+        </section>
+      </div>
+      <aside class="panel-grid__side">
+        <section class="card">
+          <h2 class="section-title upcoming-card__title">Próximos jogos</h2>
+          ${upcomingGames.length ? upcomingList(upcomingGames)
+            : '<p class="muted" style="margin:0.3rem 0 0">Sem jogos agendados.</p>'}
+        </section>
+      </aside>
+    </div>
   `;
+
+  wireWorkCard(container, () => renderPreparadorPainel(container));
+  wireAreaPainel(container, 'fisica');
 }
 
 function gymRow(s) {
@@ -1081,33 +1523,36 @@ function renderTreinadorPainel(container) {
   const limitados = myUnavailablePlayers();
   const att = attendanceStats();
   const trend = attendanceTrend(30);
-  const upcoming = upcomingEvents(20).filter(isMyEvent).slice(0, 5);
+  // Como no painel do coordenador, os eventos de HOJE não se repetem aqui —
+  // já estão no cartão "Hoje", três linhas acima.
+  const todayIds = new Set(today.map((e) => e.id));
+  const upcoming = upcomingEvents(30).filter((e) => isMyEvent(e) && !todayIds.has(e.id)).slice(0, 5);
   const proximoJogo = state.events
     .filter((e) => e.type === 'jogo' && isMyEvent(e) && eventDateTime(e) >= new Date())
     .sort((a, b) => eventDateTime(a) - eventDateTime(b))[0] || null;
 
-  const metrics = [
-    canMark && metricCard(
-      ICON_CHECK, 'Por marcar', toMark.length,
-      toMark.length
-        ? (atrasados.length
-            ? `${atrasados.length} de treinos já passados`
-            : 'todos de hoje')
-        : 'presenças em dia',
-      toMark.length ? 'accent' : 'green', 'presencas'),
-    metricCard(ICON_USERS, 'Atletas', players.length,
-      `em ${teams.length} equipa${teams.length === 1 ? '' : 's'}`, 'green', 'planteis'),
-    canAccess('presencas') && metricCard(
-      ICON_CHART, 'Comparência', att.rate == null ? '—' : att.rate + '%',
-      attendanceSub(att, trend), attendanceVariant(trend), 'presencas'),
-    proximoJogo && metricCard(
-      ICON_TROPHY, 'Próximo jogo', diasAte(proximoJogo),
-      [teamName(teamById(proximoJogo.team_id)), proximoJogo.opponent ? 'vs ' + proximoJogo.opponent : '']
+  // A faixa perdeu o "Por marcar": o número estava por cima do cartão que
+  // lista, linha a linha, exatamente os mesmos treinos — o mesmo dado duas
+  // vezes, com meio ecrã de distância.
+  const stats = [
+    { label: 'Atletas', value: players.length,
+      sub: `em ${teams.length} equipa${teams.length === 1 ? '' : 's'}`, route: 'planteis' },
+    canAccess('presencas') && {
+      label: 'Comparência', value: att.rate == null ? '—' : att.rate + '%',
+      sub: attendanceSub(att, trend),
+      tone: trend && trend.delta != null && trend.delta <= -10 ? 'warn' : '',
+      route: 'presencas' },
+    proximoJogo && {
+      label: 'Próximo jogo', value: diasAte(proximoJogo),
+      sub: [teamName(teamById(proximoJogo.team_id)), proximoJogo.opponent ? 'vs ' + proximoJogo.opponent : '']
         .filter(Boolean).join(' · ') || 'agendado',
-      'blue', 'calendario'),
+      route: 'calendario' },
   ].filter(Boolean);
 
+  // O treinador NÃO leva a linha-resumo das presenças na lista de trabalho: o
+  // cartão inteiro está logo aqui ao lado, e é o centro do ecrã dele.
   const actions = buildActions();
+  const urgente = actions.some((a) => a.urgency === 'agora') || atrasados.length > 0;
 
   container.innerHTML = `
     <header class="page-head page-head--hero">
@@ -1115,8 +1560,8 @@ function renderTreinadorPainel(container) {
         <h1 class="section-title">${esc(greeting())}${displayName() ? ', ' + esc(displayName()) : ''}</h1>
         <p class="muted" style="margin:0;font-size:0.9rem">
           ${esc(teams.length ? teams.map(teamName).join(' · ') : 'Ainda não estás ligado a nenhuma equipa.')}
-          ${today.length ? ' — ' + esc(todayLine(today).replace(/^Tens /, 'tens ')) : ''}
         </p>
+        ${birthdayLine()}
       </div>
       <div class="hero-actions">
         ${availableAlerts().length || availableMetrics().length
@@ -1125,45 +1570,49 @@ function renderTreinadorPainel(container) {
       </div>
     </header>
 
-    ${metrics.length ? `<section class="cards-grid">${metrics.join('')}</section>` : ''}
+    ${statStrip(stats)}
 
-    ${today.length ? `<section class="card today-card">
-      <h2 class="section-title upcoming-card__title">Hoje</h2>
-      <ul class="mark-list">${today.map(coachTodayRow).join('')}</ul>
-    </section>` : ''}
+    <div class="panel-grid${urgente ? '' : ' panel-grid--calm'}">
+      <div class="panel-grid__main">
+        ${toMark.length ? markCard(toMark, atrasados, antigos) : ''}
 
-    ${toMark.length ? markCard(toMark, atrasados, antigos) : ''}
+        ${semPlano.length ? `<section class="card mark-card">
+          <h2 class="section-title upcoming-card__title">Treinos por preparar</h2>
+          <p class="muted" style="margin:0 0 0.5rem;font-size:0.85rem">
+            Próximos 7 dias, ainda sem exercícios no plano.
+          </p>
+          <ul class="mark-list">${semPlano.slice(0, 6).map(planRow).join('')}</ul>
+        </section>` : ''}
 
-    ${semPlano.length ? `<section class="card mark-card">
-      <h2 class="section-title upcoming-card__title">Treinos por preparar</h2>
-      <p class="muted" style="margin:0 0 0.5rem;font-size:0.85rem">
-        Próximos 7 dias, ainda sem exercícios no plano.
-      </p>
-      <ul class="mark-list">${semPlano.slice(0, 6).map(planRow).join('')}</ul>
-    </section>` : ''}
+        ${semResultado.length ? `<section class="card mark-card">
+          <h2 class="section-title upcoming-card__title">Jogos por registar</h2>
+          <ul class="mark-list">${semResultado.map(resultRow).join('')}</ul>
+        </section>` : ''}
 
-    ${semResultado.length ? `<section class="card mark-card">
-      <h2 class="section-title upcoming-card__title">Jogos por registar</h2>
-      <ul class="mark-list">${semResultado.map(resultRow).join('')}</ul>
-    </section>` : ''}
+        ${workCard(actions)}
+      </div>
+      <aside class="panel-grid__side">
+        ${today.length ? `<section class="card today-card">
+          <h2 class="section-title upcoming-card__title">Hoje</h2>
+          ${sharedLocation(today) ? `<p class="muted today-card__where">${esc(sharedLocation(today))}</p>` : ''}
+          <ul class="mark-list">${today.map((e) => coachTodayRow(e, !!sharedLocation(today))).join('')}</ul>
+        </section>` : ''}
 
-    ${actions.length ? `<section class="card alerts-card">
-      <h2 class="section-title upcoming-card__title">A precisar da tua atenção</h2>
-      <ul class="alerts-list">${actions.map(actionItem).join('')}</ul>
-    </section>` : ''}
+        ${limitados.length ? `<section class="card">
+          <h2 class="section-title upcoming-card__title">Não estão a 100%</h2>
+          <ul class="today-list">${limitados.slice(0, 8).map(limitedRow).join('')}</ul>
+        </section>` : ''}
 
-    ${limitados.length ? `<section class="card">
-      <h2 class="section-title upcoming-card__title">Não estão a 100%</h2>
-      <ul class="today-list">${limitados.slice(0, 8).map(limitedRow).join('')}</ul>
-    </section>` : ''}
-
-    <section class="card">
-      <h2 class="section-title upcoming-card__title">Próximos eventos</h2>
-      ${upcoming.length ? upcomingList(upcoming)
-        : '<p class="muted" style="margin:0.3rem 0 0">Sem eventos futuros agendados.</p>'}
-    </section>
+        <section class="card">
+          <h2 class="section-title upcoming-card__title">Próximos eventos</h2>
+          ${upcoming.length ? upcomingList(upcoming)
+            : '<p class="muted" style="margin:0.3rem 0 0">Sem outros eventos agendados.</p>'}
+        </section>
+      </aside>
+    </div>
   `;
 
+  wireWorkCard(container, () => renderTreinadorPainel(container));
   wireCoachPainel(container, antigos);
 }
 
@@ -1208,7 +1657,7 @@ function markCard(toMark, atrasados, antigos) {
 }
 
 // Linha de "Hoje": mostra o evento e o que se pode fazer com ele agora.
-function coachTodayRow(ev) {
+function coachTodayRow(ev, hideLocation = false) {
   const team = teamById(ev.team_id);
   const range = eventTimeRange(ev);
   const isJogo = ev.type === 'jogo';
@@ -1222,7 +1671,7 @@ function coachTodayRow(ev) {
         <span class="mark-item__title">${esc(team ? teamName(team) : (ev.title || 'Evento'))}</span>
         <span class="muted mark-item__sub">${esc([
           ev.opponent ? 'vs ' + ev.opponent : '',
-          ev.location || '',
+          hideLocation ? '' : (ev.location || ''),
         ].filter(Boolean).join(' · ') || '—')}</span>
       </div>
       <div style="display:flex;gap:0.4rem;align-items:center;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
@@ -1327,6 +1776,11 @@ function wireCoachPainel(container, antigos) {
       if (el.dataset.finTabOpen) openFinanceiroTab(el.dataset.finTabOpen);
       navTo(el.dataset.nav);
     })
+  );
+  // A lista de trabalho pode trazer documentos (se o treinador os puder ver),
+  // e esses abrem a FICHA do atleta e não uma secção.
+  container.querySelectorAll('[data-doc-athlete]').forEach((el) =>
+    el.addEventListener('click', () => openAthleteProfile(el.dataset.docAthlete, { tab: 'geral' }))
   );
   container.querySelectorAll('[data-open-athlete]').forEach((el) => {
     const open = () => openAthleteProfile(el.dataset.openAthlete, { tab: 'geral' });
