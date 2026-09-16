@@ -114,7 +114,11 @@ function messageFor(playerId, team) {
     // novo (`sizes` jsonb): a mensagem não pode depender de a migração dos
     // artigos ter corrido.
     row: { ...row, sizes: playerSizes(playerId) },
-    articles: equipmentArticles(),
+    // Os artigos que o clube marcou como "fora da mensagem" (o ✉ nas
+    // Definições) não entram: há peças que o clube trata sozinho e sobre as
+    // quais não faz pergunta nenhuma à família. Continuam na encomenda, no
+    // resumo e no `.xlsx` — o que sai é só a pergunta.
+    articles: equipmentArticles().filter((a) => !a.no_confirm),
     clubName: branding().club_name || '',
   });
 }

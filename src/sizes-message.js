@@ -15,18 +15,21 @@
 // pensar do zero e responde-se muito menos do que a uma que diz "temos isto,
 // está certo?".
 
+// A mensagem leva SÓ o que está preenchido. As linhas em branco chegaram a
+// ir com um "(por preencher)" ao lado — a ideia era que quem lê dissesse o
+// que falta —, mas o que sai é uma lista de buracos: a família recebe oito
+// linhas, seis delas vazias, e deixa de conseguir ver as duas que tinha de
+// verificar. Uma mensagem com três linhas certas lê-se; uma com oito, metade
+// a dizer que a app não sabe, parece um formulário por preencher e
+// responde-se como a um formulário — não se responde.
+//
+// O que falta continua a ver-se onde é trabalho de quem o preenche: na
+// tabela das Encomendas, com o contador e o "—" em cada célula.
+//
 // Nome a estampar: o que estiver guardado. NÃO se usa o nome do atleta como
 // recurso — é exatamente isso que se está a perguntar, e uma mensagem que
 // apresenta um palpite como se fosse dado é uma confirmação que confirma o
 // engano.
-function jerseyLine(label, value) {
-  const v = (value || '').trim();
-  return `${label}: ${v || '(por preencher — diz-nos o que queres estampar)'}`;
-}
-
-// `articles` é a lista em vigor do clube; `sizes` o objeto { chave: tamanho }.
-// Os artigos por preencher DIZEM-SE, em vez de saírem da lista: são
-// precisamente aqueles sobre os quais se está a escrever.
 export function sizesMessage({ player, team, row = {}, articles, clubName }) {
   const sizes = row.sizes || {};
 
@@ -41,22 +44,36 @@ export function sizesMessage({ player, team, row = {}, articles, clubName }) {
     '.',
   ].join('');
 
-  const linhas = articles.map((a) => {
-    const v = (sizes[a.key] || '').trim();
-    return `• ${a.label}: ${v || '(por preencher)'}`;
-  });
+  const dados = [
+    player.number ? `Número: ${player.number}` : '',
+    (row.nome_camisola || '').trim() ? `Nome na camisola principal: ${row.nome_camisola.trim()}` : '',
+    (row.nome_camisola_alt || '').trim() ? `Nome na camisola alternativa: ${row.nome_camisola_alt.trim()}` : '',
+  ].filter(Boolean);
+
+  const linhas = articles
+    .map((a) => [a.label, (sizes[a.key] || '').trim()])
+    .filter(([, v]) => v)
+    .map(([label, v]) => `• ${label}: ${v}`);
+
+  // Com a ficha inteira em branco não há nada para confirmar, e uma mensagem
+  // só com o cumprimento e um "está certo?" pergunta sobre o vazio. Aí
+  // diz-se o que é preciso — é a única altura em que esta mensagem pergunta
+  // em vez de confirmar.
+  if (!dados.length && !linhas.length) {
+    return [
+      quem,
+      '',
+      'Ainda não temos nada registado: diz-nos o número que queres, o nome a estampar na camisola (principal e alternativa) e os tamanhos de cada peça.',
+      ...(clubName ? ['', `— ${clubName}`] : []),
+    ].join('\n');
+  }
 
   return [
     quem,
+    ...(dados.length ? ['', ...dados] : []),
+    ...(linhas.length ? ['', 'Tamanhos:', ...linhas] : []),
     '',
-    `Número: ${player.number ? player.number : '(por atribuir)'}`,
-    jerseyLine('Nome na camisola principal', row.nome_camisola),
-    jerseyLine('Nome na camisola alternativa', row.nome_camisola_alt),
-    '',
-    'Tamanhos:',
-    ...linhas,
-    '',
-    'Se estiver tudo certo, responde só "confirmo". Se houver alguma coisa a corrigir, diz o quê — depois de encomendado já não dá para trocar.',
+    'Se estiver tudo certo, responde só "confirmo". Se houver alguma coisa a corrigir — ou a acrescentar —, diz o quê: depois de encomendado já não dá para trocar.',
     ...(clubName ? ['', `— ${clubName}`] : []),
   ].join('\n');
 }
