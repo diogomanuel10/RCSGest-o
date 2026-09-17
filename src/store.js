@@ -104,6 +104,11 @@ export const state = {
   squadPlayers: [],       // atletas em cada convocatória
   eventResponses: [],     // o que o atleta respondeu a cada evento (vou/não vou)
   eventPlayers: [],       // quem entra num evento de plantel escolhido (musculação)
+  testReferences: [],     // faixas de referência das avaliações físicas (por teste e sexo)
+  // A `referencias-testes.sql` já correu? Sem ela não há onde gravar uma
+  // tabela de referência — a app continua a ler a que traz no código, mas o
+  // editor não aparece (um botão que dá erro é pior do que botão nenhum).
+  testReferencesReady: true,
   // A `musculacao.sql` já correu? Sem ela não há `event_players`, e um treino
   // de musculação sem forma de dizer QUEM lá vai é um treino de toda a gente —
   // que é exatamente o contrário do que ele é. Sem a migração, o tipo nem
@@ -170,6 +175,8 @@ export function resetState() {
   state.eventResponses = [];
   state.eventPlayers = [];
   state.musculacaoReady = true;
+  state.testReferences = [];
+  state.testReferencesReady = true;
   state.gameResults = [];
   state.gameSets = [];
   state.financialEntries = [];
@@ -397,7 +404,7 @@ export async function loadAll() {
          trainingPlans, trainingPlanItems, trainingEvaluations, trainingPlayerEvals,
          playerDocuments, playerSizes, squads, squadPlayers, financialEntries, gamePlans, objectives,
          eventResponses, gameResults, gameSets, tacticalScenarios, tacticalAnswers, exercises,
-         equipmentRequests, requestFlowProbe, sizesConfirmProbe, eventPlayers] =
+         equipmentRequests, requestFlowProbe, sizesConfirmProbe, eventPlayers, testReferences] =
     await Promise.all([
       // Multi-tenant: o RLS limita as definições ao clube do utilizador, por
       // isso não filtramos por id — devolve a (única) linha do clube atual.
@@ -471,6 +478,9 @@ export async function loadAll() {
       // Quem entra em cada evento de plantel escolhido (musculação). Tolerante
       // à migração `musculacao.sql` em falta (ver abaixo).
       supabase.from('event_players').select('*'),
+      // Faixas de referência das avaliações físicas. Tolerante à migração
+      // `referencias-testes.sql` em falta (ver abaixo).
+      supabase.from('test_references').select('*'),
     ]);
 
   for (const res of [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects, episodes, sessions, appointments,
@@ -525,6 +535,10 @@ export async function loadAll() {
   // em vez de não arrancar, e os formulários deixam de o oferecer.
   state.musculacaoReady  = !eventPlayers.error;
   state.eventPlayers     = eventPlayers.error ? [] : (eventPlayers.data || []);
+  // Sem `referencias-testes.sql` a app segue com a tabela que traz no código
+  // (ver TEST_REFERENCES em constants.js) e esconde o editor.
+  state.testReferencesReady = !testReferences.error;
+  state.testReferences      = testReferences.error ? [] : (testReferences.data || []);
   state.gameResults      = gameResults.error   ? [] : (gameResults.data   || []);
   state.gameSets         = gameSets.error      ? [] : (gameSets.data      || []);
   // Sem `tatica.sql` a consulta devolve erro e a secção fica simplesmente
@@ -1809,6 +1823,47 @@ export async function removeSquadPlayer(squadId, playerId) {
   state.squadPlayers = state.squadPlayers.filter(
     (sp) => !(sp.squad_id === squadId && sp.player_id === playerId)
   );
+  notify();
+}
+
+// --- Faixas de referência das avaliações físicas --------------------------
+
+// Grava (ou substitui) a tabela de referência de um teste para um sexo. É um
+// upsert sobre (type, gender) porque é isso que a tabela é: UMA referência por
+// teste e por sexo — duas para o mesmo caso deixavam a app a escolher à sorte.
+export async function saveTestReference({ type, gender, source, note, bands }) {
+  const row = {
+    type,
+    gender,
+    source: source?.trim() || null,
+    note: note?.trim() || null,
+    bands,
+    updated_at: new Date().toISOString(),
+  };
+  const existing = state.testReferences.find(
+    (r) => r.type === type && r.gender === gender
+  );
+  const { data, error } = existing
+    ? await supabase.from('test_references').update(row).eq('id', existing.id).select().single()
+    : await supabase.from('test_references').insert(row).select().single();
+  if (error) throw error;
+
+  const i = state.testReferences.findIndex((r) => r.id === data.id);
+  if (i !== -1) state.testReferences[i] = data;
+  else state.testReferences.push(data);
+  toastOk('Referência guardada.');
+  notify();
+  return data;
+}
+
+// Apaga a tabela do clube para este teste/sexo. NÃO é "ficar sem referência":
+// a app volta a ler a que traz no código, se houver — é o mesmo que repor o
+// que vinha de origem.
+export async function deleteTestReference(id) {
+  const { error } = await supabase.from('test_references').delete().eq('id', id);
+  if (error) throw error;
+  state.testReferences = state.testReferences.filter((r) => r.id !== id);
+  toastOk('Referência removida.');
   notify();
 }
 

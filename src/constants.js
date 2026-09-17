@@ -295,7 +295,8 @@ export const PHYSICAL_TEST_TYPES = [
   { key: '1rm_peso_morto',  label: '1RM Peso morto',         unit: 'kg', better: 'up' },
   { key: '1rm_agachamento', label: '1RM Agachamento',        unit: 'kg', better: 'up' },
   { key: '1rm_supino',      label: '1RM Supino',             unit: 'kg', better: 'up' },
-  { key: 'aperto_mao',      label: 'Aperto de mão (preensão)', unit: 'kg', better: 'up' },
+  { key: 'aperto_mao',      label: 'Preensão — mão dominante', unit: 'kg', better: 'up' },
+  { key: 'aperto_mao_nd',   label: 'Preensão — mão não dominante', unit: 'kg', better: 'up' },
   { key: 'salto_bloco',     label: 'Salto em altura (bloco)', unit: 'cm', better: 'up' },
   { key: 'cmj',             label: 'Salto CMJ',              unit: 'cm', better: 'up' },
   { key: 'sprint_20m',      label: 'Sprint 20 m',            unit: 's',  better: 'down' },
@@ -310,6 +311,73 @@ export const PHYSICAL_TEST_UNIT = Object.fromEntries(
 export const PHYSICAL_TEST_BETTER = Object.fromEntries(
   PHYSICAL_TEST_TYPES.map((t) => [t.key, t.better])
 );
+
+// --- Valores de referência por teste, sexo e idade -------------------------
+//
+// Uma medição sozinha não diz nada a quem a lê pela primeira vez: "28 kgf" é
+// muito ou é pouco? Quem tem a tabela na cabeça sabe; quem está a começar
+// escreve o número e fica na mesma. A referência responde a isso e a mais
+// nada.
+//
+// É REFERÊNCIA e não nota. O que interessa é cada atleta melhorar os seus
+// próprios índices — a evolução (`playerTestProgress`) é que é o trabalho, e
+// isto é o contexto em que ela se lê. Uma atleta em "Baixo" que subiu 4 kgf em
+// três meses está a fazer exatamente o que se lhe pede; uma em "Forte" que
+// desceu 5 tem um problema que a faixa esconde. Por isso o crachá anda sempre
+// acompanhado da palavra "referência" e nunca substitui a variação.
+//
+// **Só existe o que tem fonte.** Esta tabela é a que o clube forneceu:
+// preensão manual, FEMININO. Não há aqui valores para o masculino nem para os
+// outros testes, e isso é deliberado — inventar faixas para o CMJ ou para o
+// sprint era pôr a app a dizer a uma miúda de 15 anos que está "abaixo do
+// normal" com base num número que ninguém mediu. Sem faixa, a app mostra o
+// valor e cala-se sobre o resto.
+//
+// Acrescentar um teste é acrescentar uma entrada aqui, com a sua `source`: a
+// fonte é mostrada ao lado do crachá, porque uma referência sem origem é um
+// número sem autoridade — e quem a lê tem direito a saber de onde vem.
+export const TEST_REFERENCES = {
+  // Força de preensão manual (dinamómetro), em kgf.
+  aperto_mao: {
+    source: 'Revista Brasileira de Cineantropometria & Desempenho Humano',
+    note: 'Valores médios esperados, mão dominante.',
+    F: [
+      { from: 15, to: 19, min: 22, max: 30 },
+      { from: 20, to: 29, min: 25, max: 35 },
+      { from: 30, to: 39, min: 26, max: 36 },
+      { from: 40, to: 49, min: 24, max: 33 },
+      { from: 50, to: 59, min: 22, max: 30 },
+      { from: 60, to: 69, min: 19, max: 27 },
+      { from: 70, to: null, min: 16, max: 23 },
+    ],
+  },
+  aperto_mao_nd: {
+    source: 'Revista Brasileira de Cineantropometria & Desempenho Humano',
+    note: 'Valores médios esperados, mão não dominante.',
+    F: [
+      { from: 15, to: 19, min: 20, max: 27 },
+      { from: 20, to: 29, min: 22, max: 32 },
+      { from: 30, to: 39, min: 23, max: 33 },
+      { from: 40, to: 49, min: 21, max: 30 },
+      { from: 50, to: 59, min: 20, max: 28 },
+      { from: 60, to: 69, min: 18, max: 25 },
+      { from: 70, to: null, min: 15, max: 21 },
+    ],
+  },
+};
+
+// Como se lê um valor contra a sua faixa. Três degraus e não cinco: a faixa é
+// um intervalo de MÉDIA, e partir "abaixo" em dois graus era fingir uma
+// precisão que a tabela não tem.
+//
+// "Baixo" é âmbar e não vermelho de propósito. Vermelho lê-se como avaria, e
+// estar abaixo da média de uma tabela populacional não é uma avaria — numa
+// atleta de 15 anos é quase sempre só o ponto de partida.
+export const TEST_REFERENCE_LEVELS = {
+  baixo:  { label: 'Baixo',  badge: 'warn' },
+  normal: { label: 'Normal', badge: 'info' },
+  forte:  { label: 'Forte',  badge: 'ok' },
+};
 
 // Objetivo dominante de um mesociclo / treino.
 export const TRAINING_OBJECTIVES = [

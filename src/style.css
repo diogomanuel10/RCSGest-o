@@ -5645,6 +5645,40 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 }
 
 /* Dica por baixo de um campo do formulário e marca de obrigatório. */
+/* Editor das faixas de referência. O corpo rola dentro do diálogo: sete
+   faixas mais a fonte mais os botões não cabem num telemóvel, e o que não
+   pode sair do ecrã é o "Guardar". */
+.ref-editor {
+  overflow-y: auto;
+  padding-top: 0.2rem;
+}
+/* De onde vem a tabela (do clube ou de origem). É uma frase e não um crachá:
+   a informação é uma ressalva, não um estado. */
+.ref-origin {
+  margin: 0.1rem 0 0.9rem;
+  font-size: 0.82rem;
+}
+/* Uma matriz de números pequenos — não empilha no telemóvel (`no-stack`), que
+   empilhada perdia a leitura de linha que é o que a faz ser uma tabela. */
+.ref-table td {
+  padding: 0.3rem 0.4rem;
+}
+.ref-table .pf-min-input {
+  width: 100%;
+  min-width: 64px;
+}
+
+/* O crachá de referência de uma avaliação física ("Normal", "Baixo",
+   "Forte"). Anda sempre colado ao valor ou à faixa que o explica — sozinho
+   leria-se como uma nota, e é referência. */
+.ref-badge {
+  margin-right: 0.35rem;
+  vertical-align: middle;
+}
+.field__hint .ref-badge {
+  margin-right: 0.3rem;
+}
+
 .field__hint {
   margin: 0.25rem 0 0;
   font-size: 0.79rem;
