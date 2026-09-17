@@ -140,6 +140,7 @@ declare
     'game_minutes','athlete_availability','training_plans','training_plan_items',
     'training_evaluations','training_player_evals','player_documents','player_sizes',
     'squads','squad_players','event_players','financial_entries','game_plans','objectives',
+    'test_references',
     'notifications','push_subscriptions'
   ];
 begin
@@ -439,6 +440,7 @@ declare
     'game_minutes','athlete_availability','training_plans','training_plan_items',
     'training_evaluations','training_player_evals','player_documents','player_sizes',
     'squads','squad_players','event_players','financial_entries','game_plans','objectives',
+    'test_references',
     'notifications','push_subscriptions'
   ];
 begin

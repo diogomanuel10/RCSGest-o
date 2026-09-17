@@ -50,6 +50,7 @@ import {
 import { canEdit } from '../permissions.js';
 import { openAthleteProfile } from './athlete-profile.js';
 import { openEventForm, openRecurrentForm } from './calendario.js';
+import { openTestReferences } from './referencias.js';
 
 let tab = 'atletas'; // 'atletas' | 'musculacao' | 'periodizacao' | 'jogos'
 let search = '';
@@ -106,6 +107,10 @@ export function renderPreparacao(container) {
     });
   }
   wireAthletes(container);
+
+  // As faixas de referência são material do preparador (a fonte é dele), por
+  // isso o botão vive na SUA secção e não nas Definições.
+  container.querySelector('#pf-refs')?.addEventListener('click', () => openTestReferences());
 
   // --- Seletor de equipa (periodização + jogos) ---
   container.querySelector('#pf-team')?.addEventListener('change', (e) => {
@@ -190,6 +195,12 @@ function renderAtletas() {
           <label for="pf-search">Pesquisar atleta</label>
           <input type="search" id="pf-search" placeholder="Nome do atleta…" value="${esc(search)}" />
         </div>
+        ${canEdit('physical')
+          ? `<div style="align-self:flex-end">
+               <button class="btn btn--ghost" id="pf-refs" type="button"
+                       title="Faixas de referência das avaliações físicas">Referências</button>
+             </div>`
+          : ''}
       </div>
       <div id="pf-list">${athleteListHTML()}</div>
     </section>

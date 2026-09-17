@@ -5,7 +5,7 @@ import { isClubWide } from './permissions.js';
 import {
   TIER_VALUE, IN_PROGRESS_STATUSES, DEFAULT_ESCALOES,
   DEFAULT_SPORT, SPORT_POSITIONS, DEFAULT_POSITIONS, DOC_TYPE_LABEL, DOCUMENT_TYPES,
-  PHYSICAL_TEST_LABEL, PHYSICAL_TEST_UNIT, PHYSICAL_TEST_BETTER,
+  PHYSICAL_TEST_LABEL, PHYSICAL_TEST_UNIT, PHYSICAL_TEST_BETTER, PHYSICAL_TEST_TYPES,
   RESPONSE_LEAD_HOURS, DEFAULT_RESPONSE_LEAD_HOURS,
   DEFAULT_EQUIPMENT_ARTICLES,
   isPickedEvent,
@@ -1527,22 +1527,107 @@ export function playerGender(player) {
 //                       preparador achar que ela se enganou.
 //   • { band, … }     — a faixa, com a fonte para se mostrar ao lado.
 export function testReference(type, player, at = new Date()) {
-  const ref = TEST_REFERENCES[type];
-  if (!ref) return null;
-
   const gender = playerGender(player);
-  const bands = gender ? ref[gender] : null;
-  if (!bands || !bands.length) return { ref, source: ref.source, reason: 'sexo', gender };
+  // Sem sexo conhecido não há tabela possível — mas também não há nada a
+  // dizer sobre um teste que não tem tabela nenhuma, em nenhum sexo.
+  const anyTable = testReferenceTable(type, 'F') || testReferenceTable(type, 'M');
+  if (!anyTable) return null;
+
+  const table = gender ? testReferenceTable(type, gender) : null;
+  if (!table) return { source: anyTable.source, reason: 'sexo', gender };
 
   const a = playerAge(player, at);
-  if (!a) return { ref, source: ref.source, reason: 'idade' };
+  if (!a) return { source: table.source, reason: 'idade' };
 
-  const band = bands.find(
+  const band = (table.bands || []).find(
     (b) => a.age >= b.from && (b.to == null || a.age <= b.to)
   );
-  if (!band) return { ref, source: ref.source, reason: 'faixa', age: a };
+  if (!band) return { source: table.source, reason: 'faixa', age: a };
 
-  return { ref, source: ref.source, note: ref.note, band, age: a, gender };
+  return { source: table.source, note: table.note, custom: table.custom, band, age: a, gender };
+}
+
+// A tabela em vigor para um teste e um sexo: a do CLUBE se existir, senão a
+// que a app traz no código. Mesmo padrão dos escalões, das posições e dos
+// artigos de equipamento — o clube sobrepõe-se, e quem não configurou nada
+// continua a ter a referência de origem em vez de nada.
+//
+// Devolve sempre a mesma forma (`{ bands, source, note, custom }`), para quem
+// a lê não ter de saber de onde veio. `custom` é o que distingue as duas — o
+// editor precisa de saber se está a mostrar a tabela do clube ou a de origem.
+export function testReferenceTable(type, gender) {
+  const own = state.testReferences.find(
+    (r) => r.type === type && r.gender === gender
+  );
+  if (own) {
+    const bands = Array.isArray(own.bands) ? own.bands : [];
+    // Uma tabela do clube SEM faixas não é uma tabela: é uma linha vazia que
+    // alguém gravou a meio. Vale mais recorrer à de origem do que responder
+    // "sem referência para esta idade" a todas as idades.
+    if (bands.length) {
+      return { bands, source: own.source, note: own.note, custom: true, id: own.id };
+    }
+  }
+  const builtIn = TEST_REFERENCES[type];
+  const bands = builtIn?.[gender];
+  if (!bands || !bands.length) return null;
+  return { bands, source: builtIn.source, note: builtIn.note, custom: false };
+}
+
+// Testes que podem ter referência (todos menos o "Outro", que é etiqueta
+// livre: uma tabela para "Outro" aplicar-se-ia a coisas diferentes com o mesmo
+// nome).
+export function referenceableTests() {
+  return PHYSICAL_TEST_TYPES.filter((t) => t.key !== 'outro');
+}
+
+// Valida um conjunto de faixas antes de o gravar. Devolve uma lista de erros
+// em PT (vazia = está bom).
+//
+// As sobreposições são recusadas e não corrigidas: com duas faixas a cobrir os
+// 20 anos, a procura fica-se pela primeira que encontra — a mesma atleta seria
+// lida por uma referência ou por outra conforme a ordem em que foram
+// escritas, e isso não se vê em lado nenhum até alguém reparar no número
+// errado.
+export function validateBands(bands) {
+  const errors = [];
+  if (!bands.length) {
+    errors.push('A tabela precisa de pelo menos uma faixa etária.');
+    return errors;
+  }
+
+  bands.forEach((b, i) => {
+    const n = i + 1;
+    if (!Number.isFinite(b.from)) errors.push(`Faixa ${n}: falta a idade inicial.`);
+    if (b.to != null && !Number.isFinite(b.to)) errors.push(`Faixa ${n}: idade final inválida.`);
+    if (b.to != null && Number.isFinite(b.from) && b.to < b.from) {
+      errors.push(`Faixa ${n}: a idade final é menor do que a inicial.`);
+    }
+    if (!Number.isFinite(b.min) || !Number.isFinite(b.max)) {
+      errors.push(`Faixa ${n}: faltam os valores mínimo e máximo.`);
+    } else if (b.max < b.min) {
+      errors.push(`Faixa ${n}: o máximo é menor do que o mínimo.`);
+    }
+  });
+  if (errors.length) return errors;
+
+  const abertas = bands.filter((b) => b.to == null);
+  if (abertas.length > 1) {
+    errors.push('Só pode haver uma faixa sem idade final ("X anos ou mais").');
+  }
+
+  const ordenadas = [...bands].sort((a, b) => a.from - b.from);
+  for (let i = 1; i < ordenadas.length; i++) {
+    const anterior = ordenadas[i - 1];
+    const atual = ordenadas[i];
+    if (anterior.to == null || atual.from <= anterior.to) {
+      errors.push(
+        `As faixas ${bandAgeText(anterior)} e ${bandAgeText(atual)} sobrepõem-se.`
+      );
+      break;
+    }
+  }
+  return errors;
 }
 
 // Onde cai um valor em relação à faixa — POSICIONALMENTE, sem juízo:

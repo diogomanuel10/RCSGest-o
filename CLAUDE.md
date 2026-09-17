@@ -283,6 +283,7 @@ src/
     clinical-file.js    Área de Fisioterapia do perfil (episódios, sessões, atendimentos)
     preparacao.js       Separador Prep. física (atletas + musculação + periodização + mapa de jogos)
     physical-file.js    Área de Prep. física do perfil (dados físicos, avaliações, controlo)
+    referencias.js      Editor das faixas de referência das avaliações físicas
     calendario.js       Vista Calendário
     presencas.js        Quem vem a um evento: presenças (treino) ou convocatória (jogo)
     portal.js           Portal do atleta (a sua página pessoal, mobile-first)
@@ -301,6 +302,7 @@ supabase/qrcode-presencas.sql  Presenças por QR: token do atleta + RPCs de chec
 supabase/convites-massa.sql    Convites de atleta em lote (RPC create_invitations_bulk)
 supabase/convocatoria-simples.sql Convocatória só com convocado/não convocado
 supabase/musculacao.sql        Sessões de musculação: evento com o plantel escolhido (event_players)
+supabase/referencias-testes.sql Faixas de referência das avaliações físicas (por teste e sexo)
 supabase/grupo-whatsapp.sql    Link do grupo de WhatsApp da equipa (guia de entrada)
 supabase/pedidos-equipamento.sql  Pedidos de equipamento (treinador -> clube) + notificações
 supabase/artigos-configuraveis.sql Artigos e tamanhos de equipamento definidos pelo clube
@@ -1700,10 +1702,49 @@ separador antes de navegar (usado pelos cartões do Painel).
     trocar campos), e num campo que se está a escrever isso rouba o cursor à
     segunda letra. O `onMount` entrega o `<form>` já montado a quem só quer
     atualizar uma linha de texto ao lado do campo.
-  - **Onde se acrescenta**: uma entrada em `TEST_REFERENCES` com a sua `source`
-    e as faixas por sexo. `testLevel()` já sabe que o lado bom depende do teste
-    (`better`): acima da faixa num sprint é tempo a mais e lê-se "Baixo", e num
-    teste sem lado bom declarado (o IMC) diz só onde caiu, sem juízo.
+  - **O lado bom depende do teste** (`better`): acima da faixa num sprint é
+    tempo a mais e lê-se "Baixo"; num teste sem lado bom declarado (o IMC) diz
+    só onde caiu, sem juízo.
+  - **As tabelas são EDITÁVEIS pelo preparador**
+    (`supabase/referencias-testes.sql`, `views/referencias.js`, botão
+    "Referências" no separador Atletas da Preparação Física): a que vem no
+    código é uma só, e as outras — a masculina, o CMJ, o sprint — estão nos
+    PDFs e nos livros dele. Uma referência que precisa de uma alteração de
+    código para existir é uma referência que nunca chega.
+    - **Quem escreve é quem tem a FONTE**: o preparador e o coordenador
+      (`ref_write`, a mesma regra do `phys_write`). Não passa pelas Definições,
+      que são do coordenador — é a mesma decisão da musculação.
+    - **O clube sobrepõe-se; não substitui.** `testReferenceTable()` procura a
+      tabela do clube e recorre à de origem quando não há — o padrão dos
+      escalões, das posições e dos artigos. Nada é semeado na base de dados:
+      uma cópia por clube de uma coisa que ninguém pediu, e um clube que a
+      apagasse ficava sem referência nenhuma em vez de voltar à de origem.
+      Por isso "Repor a de origem" é apagar a linha do clube, e não copiar
+      valores para lá.
+    - **Uma tabela do clube sem faixas recorre à de origem.** Uma linha vazia
+      gravada a meio não é uma tabela: era responder "sem referência para esta
+      idade" a todas as idades, que se lê como avaria.
+    - **O ecrã diz DE ONDE vem a tabela** que está a mostrar (do clube ou de
+      origem). Sem isso, quem abre a preensão feminina vê sete faixas
+      preenchidas e não sabe se foi ele que as escreveu — e a diferença decide
+      se as corrige à vontade.
+    - **As sobreposições são recusadas, não corrigidas** (`validateBands`):
+      com duas faixas a cobrir os 20 anos, a procura fica-se pela primeira que
+      encontra, e a mesma atleta passa a ser lida por uma referência ou por
+      outra conforme a ordem em que foram escritas. Buracos são permitidos — um
+      clube que só tenha as faixas dos escalões que treina não está errado, só
+      não diz nada sobre as outras idades. Só pode haver uma faixa aberta no
+      topo ("X anos ou mais").
+    - **As faixas vivem num `jsonb`** e não numa tabela filha, pela razão dos
+      tamanhos de equipamento: isto lê-se sempre INTEIRO — dá-se a idade e
+      procura-se a faixa que a contém — e nunca uma faixa isolada.
+    - **O atleta não lê esta tabela** (`ref_read` exclui-o): não é dado dele,
+      é a tabela populacional contra a qual o clube o lê, e no portal
+      apareceria como uma nota sobre o corpo dela sem ninguém por perto para a
+      explicar.
+    - Sem a migração o editor abre em **só leitura** e diz porquê
+      (`state.testReferencesReady`) — a app continua a usar a tabela de origem.
+      É a mesma linha do `birthDateReady()`.
 - **Evolução física** (`playerTestProgress`): mostrar só a última medição
   desperdiça o trabalho de medir — o que interessa não é "salta 41 cm", é
   "saltava 37 e agora salta 41". A **direção** da variação não é o sinal do

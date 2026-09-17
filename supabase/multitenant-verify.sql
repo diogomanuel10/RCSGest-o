@@ -39,6 +39,7 @@ declare
     'gym_attendance','game_minutes','athlete_availability','training_plans',
     'training_plan_items','training_evaluations','training_player_evals',
     'player_documents','player_sizes','squads','squad_players','event_players',
+    'test_references',
     'financial_entries','game_plans','objectives','notifications','push_subscriptions',
     'profiles'
   ];
