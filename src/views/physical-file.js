@@ -24,6 +24,11 @@ import {
   playerGymStats,
   playerGameMinutes,
   eventDateTime,
+  testReference,
+  testReading,
+  testRowReading,
+  bandText,
+  bandAgeText,
 } from '../compute.js';
 import { openModal, confirmDialog } from '../modal.js';
 import {
@@ -103,7 +108,7 @@ export function renderPhysicalInto(container, playerId, { editable } = {}) {
       ${tests.length
         ? `<div class="scroll-x"><table class="players-table">
              <thead><tr><th>Data</th><th>Teste</th><th>Valor</th>${canPhysical ? '<th></th>' : ''}</tr></thead>
-             <tbody>${tests.map((t) => testRowHTML(t, canPhysical)).join('')}</tbody>
+             <tbody>${tests.map((t) => testRowHTML(t, canPhysical, p)).join('')}</tbody>
            </table></div>`
         : '<p class="muted" style="margin:0.3rem 0 0">Sem avaliações registadas.</p>'}
     </div>
@@ -207,14 +212,62 @@ function sparkline(p) {
     </svg>`;
 }
 
-function testRowHTML(t, editable) {
+// O crachá de referência de uma medição: "Normal", "Baixo", "Forte".
+//
+// É REFERÊNCIA e não nota — daí a palavra estar sempre lá. Quem lê a ficha tem
+// de conseguir distinguir "está abaixo da média da tabela" de "está mal", e
+// são coisas diferentes: o que se pede a cada atleta é que melhore os SEUS
+// números, e isso quem o diz é a coluna da evolução, não esta.
+function referenceBadgeHTML(test, player) {
+  const r = testRowReading(test, player);
+  if (!r || !r.level) return '';
+  return `<span class="badge badge--${r.level.badge} ref-badge"
+                title="Referência para ${esc(bandAgeText(r.band))}: ${esc(bandText(r.band, PHYSICAL_TEST_UNIT[test.type] || ''))}">${esc(r.level.label)}</span>`;
+}
+
+// A linha de referência do formulário, atualizada a cada tecla. Diz sempre uma
+// de três coisas: a leitura, a faixa que se espera, ou PORQUE não há faixa —
+// nunca fica em branco sem se explicar, que é o que faz alguém concluir que a
+// app se enganou.
+function referenceLineHTML(type, value, player, dateStr) {
+  const at = dateStr ? new Date(`${dateStr}T00:00:00`) : new Date();
+  const ref = testReference(type, player, at);
+  if (!ref) return ''; // teste sem tabela: não há nada a dizer
+
+  if (ref.reason === 'sexo') {
+    return 'Sem tabela de referência para este escalão — a que está carregada é feminina.';
+  }
+  if (ref.reason === 'idade') {
+    return 'Sem data de nascimento na ficha: a referência depende da idade.';
+  }
+  if (ref.reason === 'faixa') {
+    return `A tabela de referência não cobre esta idade (${ref.age.age} anos).`;
+  }
+
+  const unit = PHYSICAL_TEST_UNIT[type] || '';
+  const faixa = `Referência ${esc(bandAgeText(ref.band))}: <strong>${esc(bandText(ref.band, unit))}</strong>`;
+  const fonte = ref.source ? ` · <span class="muted">${esc(ref.source)}</span>` : '';
+  const aprox = ref.age && !ref.age.exact
+    ? ' <span class="muted">(idade pelo ano de nascimento)</span>'
+    : '';
+
+  const reading = value !== '' && value != null ? testReading(type, value, player, at) : null;
+  const level = reading?.level;
+  const crachá = level
+    ? `<span class="badge badge--${level.badge} ref-badge">${esc(level.label)}</span> `
+    : '';
+
+  return `${crachá}${faixa}${aprox}${fonte}`;
+}
+
+function testRowHTML(t, editable, player) {
   const unit = t.unit || PHYSICAL_TEST_UNIT[t.type] || '';
   const val = t.value != null ? `${t.value}${unit ? ' ' + unit : ''}` : '—';
   return `
     <tr>
       <td>${esc(fmtDate(t.date))}</td>
       <td>${esc(testName(t))}${t.notes ? `<span class="player-extra muted">${esc(t.notes)}</span>` : ''}</td>
-      <td>${esc(val)}</td>
+      <td>${esc(val)} ${referenceBadgeHTML(t, player)}</td>
       ${editable
         ? `<td class="cell-actions">
              <button class="btn btn--ghost btn--sm" data-test-edit="${t.id}" type="button">Editar</button>
@@ -287,6 +340,7 @@ function openProfileForm(playerId, onSaved) {
 
 export function openTestForm({ playerId, test, onSaved }) {
   const existing = test || null;
+  const player = state.players.find((x) => x.id === playerId) || null;
   const today = new Date().toISOString().slice(0, 10);
   openModal({
     title: existing ? 'Editar avaliação' : 'Nova avaliação física',
@@ -296,10 +350,39 @@ export function openTestForm({ playerId, test, onSaved }) {
       { name: 'date', label: 'Data', type: 'date', required: true },
       { name: 'type', label: 'Teste', type: 'select', required: true, options: PHYSICAL_TEST_TYPES },
       { name: 'label', label: 'Nome do teste (se "Outro")', placeholder: 'ex.: Flexibilidade' },
-      { name: 'value', label: 'Valor', type: 'number' },
+      // A referência vive no `hint` deste campo, e é aqui que ela faz falta:
+      // ao lado do número que se está a escrever, e não numa tabela que é
+      // preciso ir consultar a outro lado. O conteúdo é reescrito a cada
+      // tecla (ver `onMount`) — o `hint` inicial é só o que se sabe antes de
+      // haver valor.
+      {
+        name: 'value',
+        label: 'Valor',
+        type: 'number',
+        hint: ' ',
+      },
       { name: 'unit', label: 'Unidade', placeholder: 'kg, cm, %, s…' },
       { name: 'notes', label: 'Observações', type: 'textarea', full: true },
     ],
+    // A leitura de referência escreve-se a cada tecla, sem reconstruir o
+    // formulário: `reactive` fecharia e reabriria o modal, e num campo que se
+    // está a escrever isso rouba o cursor à segunda letra.
+    onMount: (form) => {
+      const hint = form.querySelector('#f-value-hint');
+      if (!hint || !player) return;
+      const typeEl = form.querySelector('[name="type"]');
+      const valueEl = form.querySelector('[name="value"]');
+      const dateEl = form.querySelector('[name="date"]');
+      const refresh = () => {
+        const html = referenceLineHTML(typeEl.value, valueEl.value, player, dateEl.value);
+        hint.innerHTML = html;
+        hint.style.display = html ? '' : 'none';
+      };
+      valueEl.addEventListener('input', refresh);
+      typeEl.addEventListener('change', refresh);
+      dateEl.addEventListener('change', refresh);
+      refresh();
+    },
     onSubmit: async (values) => {
       const type = values.type || 'outro';
       const payload = {

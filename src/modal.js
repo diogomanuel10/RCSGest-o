@@ -253,7 +253,7 @@ export function wireDialog(overlay, { onClose, initialFocus } = {}) {
 // ("escolhe o tamanho do que precisas e deixa em branco o resto") estava
 // pendurada no primeiro artigo e lia-se como se fosse só sobre esse artigo.
 export function openModal({
-  title, intro = '', fields, values = {}, submitLabel = 'Guardar', onSubmit, onFieldChange,
+  title, intro = '', fields, values = {}, submitLabel = 'Guardar', onSubmit, onFieldChange, onMount,
 }) {
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
@@ -287,6 +287,14 @@ export function openModal({
   // Foco no primeiro campo.
   const firstInput = form.querySelector('input, select, textarea');
   firstInput?.focus();
+
+  // Um gancho para o que o `reactive` não serve: reagir a cada TECLA sem
+  // reconstruir o formulário. O `onFieldChange` fecha e reabre o modal (é isso
+  // que precisa de fazer para trocar os campos), e num campo que se está a
+  // escrever isso rouba o cursor à segunda letra. Quem só quer atualizar uma
+  // linha de texto ao lado do campo — a leitura de referência de um teste
+  // físico — liga-se aqui e mexe no DOM que já tem à frente.
+  onMount?.(form);
 
   // Campos `checks`: "Todas"/"Nenhuma" e o contador. Sem o contador, uma lista
   // de vinte nomes meio marcada não diz quantos ficaram — e o número é

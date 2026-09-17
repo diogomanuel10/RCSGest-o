@@ -9,6 +9,7 @@ import {
   RESPONSE_LEAD_HOURS, DEFAULT_RESPONSE_LEAD_HOURS,
   DEFAULT_EQUIPMENT_ARTICLES,
   isPickedEvent,
+  TEST_REFERENCES, TEST_REFERENCE_LEVELS,
 } from './constants.js';
 
 // Tipos de documento que deviam ter data de validade (exame médico, seguro…).
@@ -370,9 +371,14 @@ export function birthDate(player) {
 // Idade do atleta. Com data completa é a idade REAL (já fez anos este ano ou
 // ainda não); só com o ano é a idade que faz durante o ano civil — que é a
 // que conta para o escalão, e a única que os dados sustentam.
-export function playerAge(player) {
+//
+// `at` é a data a que se quer a idade. Por omissão é hoje, que é o que o clube
+// pergunta quase sempre — mas uma medição de 2023 tem de ser lida contra a
+// idade que a atleta tinha EM 2023: julgá-la pela idade de hoje muda-lhe a
+// faixa de referência por baixo e faz um registo correto passar a "baixo".
+export function playerAge(player, at = new Date()) {
   const d = birthDate(player);
-  const now = new Date();
+  const now = at instanceof Date ? at : new Date(at);
   if (d) {
     let age = now.getFullYear() - d.getFullYear();
     const passou =
@@ -1499,6 +1505,111 @@ export function playerTests(playerId) {
 // catálogo. Vive aqui (e não na vista) porque a evolução agrupa por ele.
 export function testName(t) {
   return t.type === 'outro' && t.label ? t.label : (PHYSICAL_TEST_LABEL[t.type] || t.type);
+}
+
+// --- Valores de referência de um teste físico ------------------------------
+
+// O sexo de um atleta lê-se da EQUIPA (`teams.gender`) — é lá que existe, e
+// não na ficha. Um atleta sem equipa reconhecível não tem sexo conhecido, e
+// prefere-se não ter referência a escolher uma tabela à sorte.
+export function playerGender(player) {
+  const team = teamById(player?.team_id);
+  return team?.gender || null;
+}
+
+// A faixa de referência que se aplica a ESTE atleta neste teste. Devolve:
+//   • null            — o teste não tem tabela nenhuma (o caso normal). A app
+//                       cala-se: não há nada a dizer e dizer "sem referência"
+//                       em dez linhas de cada ficha era ruído.
+//   • { reason }      — há tabela, mas não para este caso (sexo, idade em
+//                       falta, idade fora do que a tabela cobre). Diz-se, e
+//                       diz-se PORQUÊ: é a diferença entre a app não saber e o
+//                       preparador achar que ela se enganou.
+//   • { band, … }     — a faixa, com a fonte para se mostrar ao lado.
+export function testReference(type, player, at = new Date()) {
+  const ref = TEST_REFERENCES[type];
+  if (!ref) return null;
+
+  const gender = playerGender(player);
+  const bands = gender ? ref[gender] : null;
+  if (!bands || !bands.length) return { ref, source: ref.source, reason: 'sexo', gender };
+
+  const a = playerAge(player, at);
+  if (!a) return { ref, source: ref.source, reason: 'idade' };
+
+  const band = bands.find(
+    (b) => a.age >= b.from && (b.to == null || a.age <= b.to)
+  );
+  if (!band) return { ref, source: ref.source, reason: 'faixa', age: a };
+
+  return { ref, source: ref.source, note: ref.note, band, age: a, gender };
+}
+
+// Onde cai um valor em relação à faixa — POSICIONALMENTE, sem juízo:
+// 'abaixo' | 'dentro' | 'acima'. O juízo faz-se a seguir, e depende do teste.
+export function testPosition(value, band) {
+  if (value == null || !band) return null;
+  const v = Number(value);
+  if (!Number.isFinite(v)) return null;
+  if (v < band.min) return 'abaixo';
+  if (v > band.max) return 'acima';
+  return 'dentro';
+}
+
+// Como se LÊ essa posição. Não é o sinal do número que decide: 28 kgf acima da
+// faixa é força a mais (bom), mas 4,2 s acima da faixa num sprint é tempo a
+// mais (mau). Quem sabe qual é o lado bom é o `better` do teste — a mesma
+// regra que o `playerTestProgress` já usa para a variação.
+//
+// Com `better` nulo (o IMC) não se diz "baixo" nem "forte": diz-se onde caiu e
+// mais nada. Um IMC acima da média pode ser massa muscular ganha, e chamar-lhe
+// fraco seria dizer uma coisa que os dados não sustentam.
+export function testLevel(type, value, band) {
+  const pos = testPosition(value, band);
+  if (!pos) return null;
+  if (pos === 'dentro') return { key: 'normal', ...TEST_REFERENCE_LEVELS.normal, position: pos };
+
+  const better = PHYSICAL_TEST_BETTER[type];
+  if (better == null) {
+    return {
+      key: pos,
+      label: pos === 'abaixo' ? 'Abaixo da média' : 'Acima da média',
+      badge: 'muted',
+      position: pos,
+    };
+  }
+  const good = (better === 'up' && pos === 'acima') || (better === 'down' && pos === 'abaixo');
+  const key = good ? 'forte' : 'baixo';
+  return { key, ...TEST_REFERENCE_LEVELS[key], position: pos };
+}
+
+// Tudo junto, que é como as vistas precisam: a faixa deste atleta e onde o
+// valor caiu lá dentro.
+export function testReading(type, value, player, at = new Date()) {
+  const ref = testReference(type, player, at);
+  if (!ref || !ref.band) return ref;
+  return { ...ref, level: testLevel(type, value, ref.band) };
+}
+
+// A leitura de uma medição já gravada, contra a idade que a atleta tinha nesse
+// dia (ver `playerAge`).
+export function testRowReading(test, player) {
+  if (!test) return null;
+  const at = test.date ? new Date(`${test.date}T00:00:00`) : new Date();
+  return testReading(test.type, test.value, player, at);
+}
+
+// Texto da faixa ("22–30 kg"), para se mostrar sem repetir a formatação.
+export function bandText(band, unit = '') {
+  if (!band) return '';
+  const u = unit ? ` ${unit}` : '';
+  return `${band.min}–${band.max}${u}`;
+}
+
+// Texto da faixa etária ("15 a 19 anos", "70 anos ou mais").
+export function bandAgeText(band) {
+  if (!band) return '';
+  return band.to == null ? `${band.from} anos ou mais` : `${band.from} a ${band.to} anos`;
 }
 
 // Evolução das avaliações físicas de um atleta, um bloco por teste.

@@ -1657,6 +1657,53 @@ separador antes de navegar (usado pelos cartões do Painel).
   número que diz se a alta está a ser dada cedo demais. A média de dias só conta
   episódios com alta e com as duas datas: incluir os que ainda decorrem daria um
   tempo de retorno mais curto do que o real.
+- **Valores de referência de um teste** (`TEST_REFERENCES` em `constants.js`,
+  `testReference`/`testLevel`/`testReading` em `compute.js`): uma medição
+  sozinha não diz nada a quem a lê pela primeira vez — "28 kgf" é muito ou é
+  pouco? Quem tem a tabela na cabeça sabe; quem está a começar escreve o número
+  e fica na mesma. A referência aparece **ao lado do campo, enquanto se
+  escreve** o valor, e outra vez como crachá na lista de avaliações.
+  - **É referência e NÃO é nota.** O que se pede a cada atleta é que melhore os
+    SEUS índices — isso é a evolução (`playerTestProgress`), e é ela que é o
+    trabalho. A faixa é o contexto em que se lê: uma atleta em "Baixo" que
+    subiu 4 kgf em três meses está a fazer exatamente o que se lhe pede, e uma
+    em "Forte" que desceu 5 tem um problema que a faixa esconde. Por isso a
+    palavra "Referência" anda sempre no texto, o crachá nunca substitui a
+    variação, e "Baixo" é **âmbar e não vermelho** — vermelho lê-se como
+    avaria, e estar abaixo da média de uma tabela populacional não é uma
+    avaria (numa atleta de 15 anos é quase sempre só o ponto de partida).
+  - **Só existe o que tem FONTE.** Está carregada a tabela que o clube deu:
+    preensão manual, feminino, por faixa etária. Não há faixas para o masculino
+    nem para os outros testes, e isso é deliberado — inventar uma faixa para o
+    CMJ era pôr a app a dizer a uma miúda de 15 anos que está "abaixo do
+    normal" com base num número que ninguém mediu. Cada tabela declara a sua
+    `source`, que é mostrada ao lado: uma referência sem origem é um número sem
+    autoridade, e quem a lê tem direito a saber de onde vem.
+  - **Um teste sem tabela não diz nada** (devolve `null`): escrever "sem
+    referência" em dez linhas de cada ficha era ruído. Mas quando a tabela
+    EXISTE e não se aplica, diz-se porquê — sexo, idade em falta na ficha, ou
+    idade fora do que a tabela cobre. É a diferença entre a app não saber e o
+    preparador concluir que ela se enganou.
+  - **A preensão são dois testes** (`aperto_mao`, `aperto_mao_nd`), porque a
+    tabela tem duas colunas: mão dominante e não dominante. Os registos antigos
+    ficam na chave `aperto_mao` — não se perde nada, e a partir daqui diz-se
+    qual das mãos foi.
+  - **A idade é a do DIA DA MEDIÇÃO** e não a de hoje (`playerAge(player, at)`,
+    `testRowReading`): julgar um registo de 2022 pela idade atual muda-lhe a
+    faixa por baixo e faz um valor correto passar a "Baixo". Sem data de
+    nascimento não há faixa nenhuma — de um ano não se inventa um dia, e aqui
+    nem o ano chega sem se dizer que é aproximado (di-lo no próprio texto).
+  - **O sexo lê-se da EQUIPA** (`teams.gender`), que é onde existe — a ficha do
+    atleta não o guarda.
+  - **A leitura ao vivo usa `onMount(form)` do `openModal`** e não o
+    `reactive`: o `reactive` fecha e reabre o modal (é o que tem de fazer para
+    trocar campos), e num campo que se está a escrever isso rouba o cursor à
+    segunda letra. O `onMount` entrega o `<form>` já montado a quem só quer
+    atualizar uma linha de texto ao lado do campo.
+  - **Onde se acrescenta**: uma entrada em `TEST_REFERENCES` com a sua `source`
+    e as faixas por sexo. `testLevel()` já sabe que o lado bom depende do teste
+    (`better`): acima da faixa num sprint é tempo a mais e lê-se "Baixo", e num
+    teste sem lado bom declarado (o IMC) diz só onde caiu, sem juízo.
 - **Evolução física** (`playerTestProgress`): mostrar só a última medição
   desperdiça o trabalho de medir — o que interessa não é "salta 41 cm", é
   "saltava 37 e agora salta 41". A **direção** da variação não é o sinal do
