@@ -1,12 +1,13 @@
 // Vista: Calendário. Lista de eventos por ordem cronológica, com filtros
 // por tipo e por equipa, distinguindo eventos passados dos futuros.
 
-import { state, createRow, createRows, updateRow, archiveRow, dbErrorMessage } from '../store.js';
+import { state, createRow, createRows, updateRow, archiveRow, setEventPlayers, dbErrorMessage } from '../store.js';
 import { setSelectedEvent } from './presencas.js';
 import { openResultModal } from './resultado.js';
 import { esc, emptyHTML, wireEmptyAction } from '../ui.js';
 import { toastError } from '../toast.js';
-import { eventDateTime, eventTimeRange, teamById, teamName, escalaoColor, gameResult, gameSetsOf } from '../compute.js';
+import { eventDateTime, eventTimeRange, teamById, teamName, escalaoColor, gameResult, gameSetsOf,
+         eventPlayerIds, eventRoster } from '../compute.js';
 import { openModal, confirmDialog, wireDialog } from '../modal.js';
 import { openAthleteProfile } from './athlete-profile.js';
 import { findPlanForEvent, openGamePlanForEvent } from './plano-jogo.js';
@@ -19,8 +20,33 @@ import {
   APPOINTMENT_STATUS_LABEL,
   DEFAULT_LOCATION,
   WEEKDAYS,
+  isPickedEvent,
 } from '../constants.js';
-import { canEdit, canAccess } from '../permissions.js';
+import { canEdit, canAccess, canEditEvent } from '../permissions.js';
+
+// Tipos que este utilizador pode criar. O coordenador cria tudo; o preparador
+// físico cria musculação e mais nada — e a musculação só existe depois de a
+// migração `musculacao.sql` correr (sem `event_players` não há forma de dizer
+// quem lá vai, que é a única coisa que a distingue de um treino).
+function creatableTypes() {
+  return EVENT_TYPES.filter((t) => {
+    if (t.key === 'musculacao') return state.musculacaoReady && canEdit('musculacao');
+    return canEdit('events');
+  });
+}
+
+// Atletas de uma equipa, por número — as opções do seletor de participantes.
+function teamPlayerOptions(teamId) {
+  if (!teamId) return [];
+  return state.players
+    .filter((p) => p.team_id === teamId)
+    .sort((a, b) => (Number(a.number) || 999) - (Number(b.number) || 999))
+    .map((p) => ({
+      key: p.id,
+      label: p.name,
+      meta: p.number ? `#${p.number}` : '',
+    }));
+}
 
 // Nº máximo de eventos mostrados numa célula da grelha antes de resumir com
 // "+N mais" (clicando no dia abre-se o detalhe completo).
@@ -77,7 +103,10 @@ let gridMonth = new Date(); // mês exibido na grelha
 let weekRef = new Date();   // qualquer dia da semana exibida na vista Semana
 
 export function renderCalendario(container) {
-  const editable = canEdit('events');
+  // "Pode criar alguma coisa neste calendário?" — o coordenador cria tudo, o
+  // preparador físico só musculação. Quem pode editar CADA evento decide-se
+  // linha a linha (`canEditEvent`).
+  const editable = creatableTypes().length > 0;
   const showAppts = canAccess('medico');
   const now = new Date();
 
@@ -471,6 +500,15 @@ function eventRow(ev, isPast, editable) {
   const showTraining = ev.type === 'treino' && canEdit('attendances');
   const hasTraining = showTraining && state.trainingPlans.some((tp) => tp.event_id === ev.id);
 
+  // Numa sessão de musculação o que se quer saber de relance é QUANTAS entram
+  // — é a diferença entre esta e todas as outras linhas do calendário, e o
+  // número é o que se confere à porta do ginásio.
+  const nPicked = isPickedEvent(ev) ? eventRoster(ev).length : 0;
+  // Editar/remover é por evento: o preparador físico mexe nas sessões de
+  // musculação e em mais nada. Um botão que aparece e depois dá erro de
+  // permissão lê-se como avaria.
+  const canEditThis = editable && canEditEvent(ev);
+
   return `
     <div class="event-row ${isPast ? 'event-row--past' : ''}"${accent}>
       <div class="event-row__when">
@@ -486,6 +524,9 @@ function eventRow(ev, isPast, editable) {
         ${ev.type === 'jogo' && nConvocados > 0
           ? `<span class="badge badge--info" style="margin-top:0.3rem;display:inline-block">${nConvocados} convocado${nConvocados !== 1 ? 's' : ''}</span>`
           : ''}
+        ${isPickedEvent(ev)
+          ? `<span class="badge badge--${nPicked ? 'gold' : 'warn'}" style="margin-top:0.3rem;display:inline-block">${nPicked ? `${nPicked} atleta${nPicked !== 1 ? 's' : ''}` : 'Sem atletas'}</span>`
+          : ''}
       </div>
       <div class="cell-actions">
         ${showPlan ? `<button class="btn btn--ghost btn--sm" data-plan-event="${ev.id}" type="button">${hasPlan ? 'Plano ✓' : 'Preparar plano'}</button>` : ''}
@@ -493,7 +534,7 @@ function eventRow(ev, isPast, editable) {
         ${canSquad ? `<button class="btn btn--ghost btn--sm" data-squad="${ev.id}" type="button">Convocar</button>` : ''}
         ${canResult(ev) ? `<button class="btn btn--ghost btn--sm" data-result="${ev.id}" type="button">${gameResult(ev.id) ? 'Resultado ✓' : 'Registar resultado'}</button>` : ''}
         ${ev.type === 'jogo' && gameResult(ev.id) ? `<button class="btn btn--ghost btn--sm" data-report="${ev.id}" type="button">Resumo</button>` : ''}
-        ${editable
+        ${canEditThis
           ? `<button class="btn btn--ghost btn--sm" data-edit="${ev.id}" type="button">Editar</button>
              <button class="btn btn--danger btn--sm" data-del="${ev.id}" type="button">Remover</button>`
           : ''}
@@ -588,14 +629,25 @@ function apptEventRow(ev, isPast) {
   `;
 }
 
-function openForm(id, prefillDate) {
+function openForm(id, prefillDate, defaults) {
   const existing = id ? state.events.find((e) => e.id === id) : null;
-  openModal({
-    title: existing ? 'Editar evento' : 'Novo evento',
-    submitLabel: existing ? 'Guardar' : 'Adicionar',
-    values: existing || { type: 'jogo', location: DEFAULT_LOCATION, date: prefillDate || '' },
-    fields: [
-      { name: 'type', label: 'Tipo', type: 'select', required: true, options: EVENT_TYPES },
+  const types = creatableTypes();
+  const defaultType = types.some((t) => t.key === 'jogo') ? 'jogo' : types[0]?.key || 'jogo';
+  const values = existing
+    ? { ...existing, players: eventPlayerIds(existing.id) }
+    : { type: defaultType, location: DEFAULT_LOCATION, date: prefillDate || '', players: [], ...(defaults || {}) };
+
+  // O formulário muda de forma com o TIPO e com a EQUIPA: a musculação
+  // acrescenta a lista de quem entra naquele horário, e essa lista é do
+  // plantel escolhido. Reconstruir só na gravação não serve — os campos por
+  // preencher bloqueiam o submit antes de lá chegar (ver `reactive` no
+  // modal.js).
+  function build(current) {
+    const isPicked = isPickedEvent({ type: current.type });
+    const teamId = current.team_id || '';
+    const options = teamPlayerOptions(teamId);
+    return [
+      { name: 'type', label: 'Tipo', type: 'select', required: true, options: types, reactive: true },
       { name: 'title', label: 'Título', placeholder: 'ex.: Jornada 3' },
       { name: 'date', label: 'Data', type: 'date', required: true },
       { name: 'time', label: 'Hora de início', type: 'time' },
@@ -604,31 +656,85 @@ function openForm(id, prefillDate) {
         name: 'team_id',
         label: 'Equipa',
         type: 'select',
-        placeholder: 'Sem equipa',
+        placeholder: isPicked ? 'Escolhe a equipa' : 'Sem equipa',
+        required: isPicked,
+        reactive: true,
         options: state.teams.map((t) => ({ key: t.id, label: teamName(t) })),
+        hint: isPicked ? 'A musculação escolhe-se dentro de um escalão.' : '',
       },
-      { name: 'opponent', label: 'Adversário (só jogos)', placeholder: 'Nome do adversário' },
+      ...(isPicked
+        ? [{
+            name: 'players',
+            label: 'Atletas neste horário',
+            type: 'checks',
+            full: true,
+            required: true,
+            options,
+            emptyText: teamId
+              ? 'Esta equipa ainda não tem atletas.'
+              : 'Escolhe primeiro a equipa.',
+            hint: 'O ginásio não leva o plantel todo: marca quem entra nesta sessão.',
+          }]
+        : []),
+      ...(isPicked ? [] : [{ name: 'opponent', label: 'Adversário (só jogos)', placeholder: 'Nome do adversário' }]),
       { name: 'location', label: 'Local', full: true },
-    ],
-    onSubmit: async (values) => {
-      const payload = {
-        type: values.type,
-        title: values.title?.trim() || null,
-        date: values.date,
-        time: values.time || null,
-        end_time: values.end_time || null,
-        team_id: values.team_id || null,
-        opponent: values.type === 'jogo' ? values.opponent?.trim() || null : null,
-        location: values.location?.trim() || null,
-      };
-      try {
-        if (existing) await updateRow('events', 'events', id, payload);
-        else await createRow('events', 'events', payload);
-      } catch (err) {
-        throw new Error(dbErrorMessage(err));
-      }
-    },
-  });
+    ];
+  }
+
+  let reopen;
+  reopen = (current) => {
+    const close = openModal({
+      title: existing ? 'Editar evento' : 'Novo evento',
+      submitLabel: existing ? 'Guardar' : 'Adicionar',
+      values: current,
+      fields: build(current),
+      onFieldChange: (name, snapshot) => {
+        // Só o tipo e a equipa mudam a forma do formulário; qualquer outra
+        // alteração não vale perder o que já lá está escrito.
+        if (name !== 'type' && name !== 'team_id') return;
+        const next = { ...current, ...snapshot };
+        // Trocar de equipa desfaz a escolha de atletas: são de outro plantel.
+        // Deixar lá os anteriores gravava no grupo das 19h gente que nem
+        // treina naquele escalão.
+        if (name === 'team_id') next.players = [];
+        close();
+        reopen(next);
+      },
+      onSubmit: async (submitted) => {
+        const isPicked = isPickedEvent({ type: submitted.type });
+        const picked = Array.isArray(submitted.players) ? submitted.players : [];
+        // O `required` de um grupo de caixas não é validado pelo browser (não
+        // há um controlo único a que ele se aplique), e uma sessão de
+        // musculação sem ninguém é uma sessão que não existe.
+        if (isPicked && !picked.length) {
+          throw new Error('Escolhe pelo menos um atleta para esta sessão.');
+        }
+        const payload = {
+          type: submitted.type,
+          title: submitted.title?.trim() || null,
+          date: submitted.date,
+          time: submitted.time || null,
+          end_time: submitted.end_time || null,
+          team_id: submitted.team_id || null,
+          opponent: submitted.type === 'jogo' ? submitted.opponent?.trim() || null : null,
+          location: submitted.location?.trim() || null,
+        };
+        try {
+          const row = existing
+            ? await updateRow('events', 'events', id, payload)
+            : await createRow('events', 'events', payload);
+          const eventId = row?.id || id;
+          // Trocar um evento de musculação para outro tipo larga o grupo: um
+          // treino da equipa toda com uma lista de dez nomes por baixo é uma
+          // contradição à espera de decidir qual das duas manda.
+          if (eventId) await setEventPlayers(eventId, isPicked ? picked : []);
+        } catch (err) {
+          throw new Error(dbErrorMessage(err));
+        }
+      },
+    });
+  };
+  reopen(values);
 }
 
 async function remove(id) {
@@ -645,18 +751,35 @@ async function remove(id) {
   }
 }
 
+// Criador de eventos recorrentes. Nasceu para os treinos semanais e serve
+// agora também a musculação, que é o caso onde a recorrência mais pesa: o
+// ginásio faz-se por horários fixos e o mesmo grupo repete-se toda a semana —
+// lançar sessão a sessão eram trinta formulários para dizer três coisas.
 function openRecurrentModal() {
   const today = toLocalISO(new Date());
   const inThreeMonths = toLocalISO(new Date(Date.now() + 90 * 86400000));
+  const types = creatableTypes().filter((t) => t.key === 'treino' || t.key === 'musculacao');
+  if (!types.length) return;
+  let recType = types[0].key;
+  const recTitle = (t) => (t === 'musculacao' ? 'Musculação recorrente' : 'Treinos recorrentes');
+  const recSubmit = (t) => (t === 'musculacao' ? 'Criar sessões' : 'Criar treinos');
 
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
     <div class="modal card" role="dialog" aria-modal="true" aria-labelledby="rec-title" style="width:min(540px,96vw)">
       <div class="modal__head">
-        <h2 id="rec-title">Treinos recorrentes</h2>
+        <h2 id="rec-title">${esc(recTitle(recType))}</h2>
         <button class="modal__close" type="button" aria-label="Fechar">&times;</button>
       </div>
+
+      ${types.length > 1 ? `
+      <div class="field">
+        <label for="rec-type">Tipo</label>
+        <select id="rec-type">
+          ${types.map((t) => `<option value="${t.key}" ${t.key === recType ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}
+        </select>
+      </div>` : ''}
 
       <div class="field">
         <label>Dias da semana</label>
@@ -703,12 +826,18 @@ function openRecurrentModal() {
         <input type="text" id="rec-title-field" placeholder="ex.: Treino semanal" />
       </div>
 
+      <div class="field field--full" id="rec-players-field" hidden>
+        <span class="field__label">Atletas neste horário <span class="field__req" title="Obrigatório">*</span></span>
+        <div id="rec-players"></div>
+        <p class="field__hint muted">O mesmo grupo em todas as sessões criadas. Trocar de equipa recomeça a escolha.</p>
+      </div>
+
       <p class="rec-preview muted" id="rec-preview" style="font-size:0.85rem;margin:0.2rem 0 0"></p>
 
       <div id="rec-err" class="modal__error" style="display:none"></div>
       <div class="modal__actions">
         <button class="btn btn--ghost" id="rec-cancel" type="button">Cancelar</button>
-        <button class="btn btn--primary" id="rec-confirm" type="button" disabled>Criar treinos</button>
+        <button class="btn btn--primary" id="rec-confirm" type="button" disabled>${esc(recSubmit(recType))}</button>
       </div>
     </div>
   `;
@@ -719,21 +848,88 @@ function openRecurrentModal() {
   const confirmBtn = overlay.querySelector('#rec-confirm');
   const previewEl = overlay.querySelector('#rec-preview');
   const errEl = overlay.querySelector('#rec-err');
+  const teamEl = overlay.querySelector('#rec-team');
+  const typeEl = overlay.querySelector('#rec-type');
+  const playersField = overlay.querySelector('#rec-players-field');
+  const playersBox = overlay.querySelector('#rec-players');
+  const selectedPlayers = new Set();
+
+  const isPicked = () => isPickedEvent({ type: recType });
+
+  // A lista de atletas é reconstruída a cada troca de equipa (e some quando o
+  // tipo deixa de ser musculação). A escolha anterior NÃO sobrevive à troca:
+  // são atletas de outro plantel.
+  function renderPlayers() {
+    playersField.hidden = !isPicked();
+    if (!isPicked()) return;
+    const options = teamPlayerOptions(teamEl.value);
+    if (!options.length) {
+      playersBox.innerHTML = `<p class="muted">${teamEl.value ? 'Esta equipa ainda não tem atletas.' : 'Escolhe primeiro a equipa.'}</p>`;
+      return;
+    }
+    playersBox.innerHTML = `
+      <div class="check-list">
+        <div class="check-list__bar">
+          <button type="button" class="btn btn--ghost btn--sm" data-rec-all>Todas</button>
+          <button type="button" class="btn btn--ghost btn--sm" data-rec-none>Nenhuma</button>
+          <span class="muted check-list__count" id="rec-players-count"></span>
+        </div>
+        ${options.map((o, i) => `
+          <label class="check-item" for="rec-p-${i}">
+            <input type="checkbox" id="rec-p-${i}" value="${esc(o.key)}" ${selectedPlayers.has(o.key) ? 'checked' : ''} />
+            <span>${esc(o.label)}${o.meta ? ` <span class="muted">${esc(o.meta)}</span>` : ''}</span>
+          </label>`).join('')}
+      </div>`;
+    const boxes = [...playersBox.querySelectorAll('input[type="checkbox"]')];
+    const countEl = playersBox.querySelector('#rec-players-count');
+    const sync = () => {
+      selectedPlayers.clear();
+      boxes.filter((b) => b.checked).forEach((b) => selectedPlayers.add(b.value));
+      countEl.textContent = `${selectedPlayers.size} de ${boxes.length} selecionada${boxes.length === 1 ? '' : 's'}`;
+      updatePreview();
+    };
+    boxes.forEach((b) => b.addEventListener('change', sync));
+    playersBox.querySelector('[data-rec-all]').addEventListener('click', () => { boxes.forEach((b) => { b.checked = true; }); sync(); });
+    playersBox.querySelector('[data-rec-none]').addEventListener('click', () => { boxes.forEach((b) => { b.checked = false; }); sync(); });
+    sync();
+  }
 
   function updatePreview() {
     const start = overlay.querySelector('#rec-start').value;
     const end = overlay.querySelector('#rec-end').value;
+    const label = isPicked() ? 'sessão' : 'treino';
     if (!start || !end || !selectedDays.size) {
       previewEl.textContent = '';
       confirmBtn.disabled = true;
       return;
     }
     const dates = generateDates(start, end, [...selectedDays]);
+    // Na musculação faltam sempre duas respostas antes de se poder criar seja
+    // o que for: a equipa e quem entra. Dizê-lo aqui — e não num erro depois
+    // de carregar — é a diferença entre um formulário e uma adivinha.
+    if (isPicked() && (!teamEl.value || !selectedPlayers.size)) {
+      previewEl.textContent = !teamEl.value
+        ? 'Escolhe a equipa e os atletas deste horário.'
+        : 'Escolhe os atletas deste horário.';
+      confirmBtn.disabled = true;
+      return;
+    }
     previewEl.textContent = dates.length
-      ? `${dates.length} treino${dates.length === 1 ? '' : 's'} a criar`
-      : 'Nenhum treino nesse período com os dias selecionados.';
+      ? `${dates.length} ${label}${dates.length === 1 ? '' : 's'} a criar`
+        + (isPicked() ? `, com ${selectedPlayers.size} atleta${selectedPlayers.size === 1 ? '' : 's'}` : '')
+      : `Nenhuma data nesse período com os dias selecionados.`;
     confirmBtn.disabled = dates.length === 0;
   }
+
+  typeEl?.addEventListener('change', () => {
+    recType = typeEl.value;
+    overlay.querySelector('#rec-title').textContent = recTitle(recType);
+    confirmBtn.textContent = recSubmit(recType);
+    renderPlayers();
+    updatePreview();
+  });
+  teamEl.addEventListener('change', () => { selectedPlayers.clear(); renderPlayers(); updatePreview(); });
+  renderPlayers();
 
   overlay.querySelectorAll('.weekday-pill').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -765,8 +961,10 @@ function openRecurrentModal() {
     const dates = generateDates(start, end, [...selectedDays]);
     if (!dates.length) return;
 
+    if (isPicked() && (!teamId || !selectedPlayers.size)) return;
+
     const rows = dates.map((date) => ({
-      type: 'treino',
+      type: recType,
       date,
       time: time || null,
       end_time: endTime || null,
@@ -778,7 +976,14 @@ function openRecurrentModal() {
     confirmBtn.disabled = true;
     errEl.style.display = 'none';
     try {
-      await createRows('events', 'events', rows);
+      const created = await createRows('events', 'events', rows);
+      // O grupo é o MESMO em todas as sessões criadas — é isso que faz disto
+      // um horário e não trinta sessões soltas. Vai uma escrita por sessão
+      // porque os participantes são por evento, mas o gesto é um só.
+      if (isPicked()) {
+        const picked = [...selectedPlayers];
+        for (const ev of created) await setEventPlayers(ev.id, picked);
+      }
       close();
     } catch (err) {
       errEl.textContent = dbErrorMessage(err);
@@ -814,13 +1019,18 @@ function toLocalISO(d) {
   return `${y}-${m}-${day}`;
 }
 
-// Aberturas usadas pela criação rápida do Painel.
-export function openEventForm() {
-  openForm();
+// Aberturas usadas pela criação rápida do Painel e pela Preparação Física.
+//
+// O horário do ginásio é trabalho do preparador físico: mandá-lo ao Calendário
+// para lançar cada sessão era mandá-lo ao ecrã de outra pessoa. Daí os
+// `defaults` — abre-se o mesmo formulário já com o tipo e a equipa certos.
+export function openEventForm(id = null, defaults = null) {
+  openForm(id, null, defaults);
 }
 export function openRecurrentTrainings() {
   openRecurrentModal();
 }
+export { openRecurrentTrainings as openRecurrentForm };
 
 
 // Quem regista o resultado: quem marca convocatórias (coordenador e treinador

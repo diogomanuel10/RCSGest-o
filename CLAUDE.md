@@ -281,7 +281,7 @@ src/
     saude.js            Vista Saúde & Física (orquestra Médico + Prep. Física)
     medico.js           Separador Fisioterapia (atletas + agenda + histórico de lesões)
     clinical-file.js    Área de Fisioterapia do perfil (episódios, sessões, atendimentos)
-    preparacao.js       Separador Prep. física (atletas + periodização + mapa de jogos)
+    preparacao.js       Separador Prep. física (atletas + musculação + periodização + mapa de jogos)
     physical-file.js    Área de Prep. física do perfil (dados físicos, avaliações, controlo)
     calendario.js       Vista Calendário
     presencas.js        Quem vem a um evento: presenças (treino) ou convocatória (jogo)
@@ -300,6 +300,7 @@ supabase/schema.sql     Tabelas, índices, RLS e dados iniciais (correr no Supab
 supabase/qrcode-presencas.sql  Presenças por QR: token do atleta + RPCs de check-in
 supabase/convites-massa.sql    Convites de atleta em lote (RPC create_invitations_bulk)
 supabase/convocatoria-simples.sql Convocatória só com convocado/não convocado
+supabase/musculacao.sql        Sessões de musculação: evento com o plantel escolhido (event_players)
 supabase/grupo-whatsapp.sql    Link do grupo de WhatsApp da equipa (guia de entrada)
 supabase/pedidos-equipamento.sql  Pedidos de equipamento (treinador -> clube) + notificações
 supabase/artigos-configuraveis.sql Artigos e tamanhos de equipamento definidos pelo clube
@@ -518,7 +519,9 @@ separador antes de navegar (usado pelos cartões do Painel).
   `permissions.js`). Os dados clínicos têm o seu próprio RLS (`med_rw`):
   leitura/escrita só para esses dois papéis.
 - A **Preparação Física** (`fisica`) é exclusiva do coordenador e do
-  preparador físico (também `canAccess`). O perfil físico e a periodização têm
+  preparador físico (também `canAccess`). O preparador é ainda o único papel,
+  além do coordenador, que escreve no calendário — e só em eventos do tipo
+  `musculacao` (ver «Musculação»). O perfil físico e a periodização têm
   RLS próprio (`phys_*`/`prep_*`). A **história clínica** é editada pela
   fisio/coordenador (`mh_write`) e o preparador só a consulta (`mh_read`).
 - O **RLS** no Supabase é a fonte de verdade (ver `schema.sql`): leitura para
@@ -1015,6 +1018,70 @@ separador antes de navegar (usado pelos cartões do Painel).
     sondado no `loadAll`): uma marca que não grava é pior do que marca
     nenhuma. A mensagem funciona à mesma — não depende de coluna nova.
 
+- **Musculação: a sessão com o plantel ESCOLHIDO**
+  (`supabase/musculacao.sql`, tipo de evento `musculacao`, `event_players`): a
+  Preparação Física tinha periodização, avaliações e perfis — tudo menos o
+  trabalho que as atletas fazem mesmo. A sessão de ginásio das 19h de terça
+  vivia num papel colado à porta e num grupo de WhatsApp: quem não estava lá
+  na terça não sabia se lhe tinha calhado, e o calendário do clube dizia que
+  àquela hora não havia nada.
+  - **É um EVENTO e não uma tabela nova.** É essa decisão que a põe no
+    calendário, na página de cada atleta, nas presenças e nas notificações —
+    caminhos que já existem e já funcionam para eventos. Uma tabela à parte
+    obrigava a reescrever cada um deles para ganhar zero.
+  - **O que muda é o PLANTEL, e é só isso.** Um treino é da equipa toda; uma
+    sessão de musculação é dos atletas escolhidos para aquele horário
+    (`event_players`, uma linha por atleta — estar no grupo é ter linha, como
+    na convocatória). O ginásio tem seis bancos e não vinte: escrever a sessão
+    para a equipa inteira era dizer a doze atletas que têm ginásio à mesma
+    hora no mesmo sítio. Escolhe-se a EQUIPA e depois quem entra —
+    `eventRoster()` em `compute.js` é a regra escrita uma vez, e é ela que as
+    presenças, o portal, as respostas e as notificações leem.
+  - **Uma sessão sem ninguém não se grava.** O formulário recusa-a (e o
+    Painel do preparador assinala as agendadas que ficaram sem grupo): uma
+    sessão sem atletas não aparece a atleta nenhuma, e quem a marcou fica à
+    espera de gente que nunca soube que tinha ginásio.
+  - **Recorrente, porque é um horário e não um evento.** O criador de
+    recorrentes do Calendário ganhou o tipo: escolhem-se os dias da semana, o
+    período e o grupo, e sai o mesmo grupo em todas as sessões. Lançar à
+    unidade eram trinta formulários para dizer três coisas.
+  - **Quem a monta é o PREPARADOR FÍSICO** (`EDIT_ROLES.musculacao`, política
+    `events_musculacao` no RLS). O calendário continua a ser do coordenador —
+    esta é a exceção, e é de domínio: obrigá-lo a pedir que lhe lancem cada
+    sessão devolvia o horário ao papel colado à porta. O `with check` prende o
+    tipo nos dois sentidos, senão criava-se uma sessão e editava-se para
+    "jogo", ficando com escrita no calendário inteiro por uma porta lateral. O
+    treinador fica de fora: dois donos do mesmo horário é a forma de ninguém
+    saber quem o mudou.
+  - **As presenças são as mesmas** (`attendances`, marcadas no ecrã de
+    Presenças ou no próprio separador da Preparação Física — o preparador
+    raramente tem acesso a Presenças, e uma sessão que ele dá e não pode
+    registar volta ao caderno). **Mas não contam para a comparência da
+    equipa**: `attendanceStats` passou a contar só os TREINOS. Misturá-las
+    fazia a taxa do escalão subir ou descer consoante quem o preparador
+    tivesse chamado ao ginásio — é a mesma razão por que os jogos nunca
+    entraram.
+  - **O `close_attendance_session` fecha sobre o GRUPO**, não sobre a equipa:
+    numa sessão de oito, a versão antiga marcava falta às doze que nem estavam
+    escaladas.
+  - **O quiosque QR não entra aqui**, de propósito: o `check_in_by_qr` procura
+    o TREINO da equipa do atleta mais perto de agora, e um quiosque que
+    "adivinhasse" o grupo marcava presença a quem passou pela porta sem estar
+    escalado. A app também não oferece o botão nestas sessões.
+  - **Entrar e sair do grupo avisam AMBOS** (trigger em `event_players`), a
+    mesma regra da convocatória: avisar só a entrada deixava a atleta a contar
+    com uma sessão de que já tinha sido tirada. Pelo mesmo motivo, o "evento
+    novo" NÃO notifica nas sessões de musculação — elas nascem sem ninguém
+    (os participantes são linhas escritas logo a seguir), e o aviso sairia
+    para um grupo vazio.
+  - **Quem recebe as respostas é o preparador** e não o treinador da equipa
+    (`event_response_audience`): é ele que conta os bancos. E a atleta só
+    responde se estiver no grupo — o `respond_to_event` recusa o resto, e o
+    portal nem desenha os botões (`canRespondToEvent`).
+  - **A app só oferece o tipo depois da migração** (`state.musculacaoReady`,
+    sondado no `loadAll`): sem `event_players` não há forma de dizer quem lá
+    vai, que é a única coisa que distingue esta sessão de um treino. É a mesma
+    linha do `birthDateReady()`.
 - **Importar atletas (.xlsx)**: nos Plantéis, cada equipa tem "Importar (xlsx)".
   `players-xlsx.js` lê o ficheiro com SheetJS (carregado dinamicamente) e mapeia
   as colunas por cabeçalho (Nome, Número, Ano de nascimento, Posição; aceita
@@ -1683,9 +1750,11 @@ separador antes de navegar (usado pelos cartões do Painel).
     `gym_sessions` (treinos) e `gym_exercises` (séries/carga/reps/OBS).
   - Controlo por atleta: `gym_attendance` (presenças nos treinos → treinos
     feitos, faltas, tempo) e `game_minutes` (minutos de jogo por jogo).
-  - A vista `preparacao.js` tem três separadores (Atletas, Periodização, Mapa
-    de jogos); `physical-file.js` é a ficha física do atleta (abre também dos
-    Plantéis). Editável por quem tem `canEdit('physical')`.
+  - A vista `preparacao.js` tem quatro separadores (Atletas, Musculação,
+    Periodização, Mapa de jogos); `physical-file.js` é a ficha física do
+    atleta (abre também dos Plantéis). Editável por quem tem
+    `canEdit('physical')` — a Musculação por `canEdit('musculacao')`, que é
+    quem monta o horário do ginásio.
 
 ## Convenções
 

@@ -140,11 +140,22 @@ export const REVIEW_BADGE = Object.fromEntries(
 );
 
 // --- Calendário ---
+// A `musculacao` é um treino de PREPARAÇÃO FÍSICA e não um treino da equipa:
+// é o único tipo cujo plantel não é a equipa toda, mas os atletas escolhidos
+// para aquele horário (ver `event_players` e `eventRoster` em compute.js). O
+// ginásio tem seis bancos e não vinte, e o horário faz-se por grupos.
 export const EVENT_TYPES = [
   { key: 'jogo', label: 'Jogo', badge: 'danger' },
   { key: 'treino', label: 'Treino', badge: 'info' },
+  { key: 'musculacao', label: 'Musculação', badge: 'gold' },
   { key: 'evento', label: 'Evento', badge: 'warn' },
 ];
+
+// Tipos de evento cujo plantel são os atletas ESCOLHIDOS, e não a equipa
+// inteira. É uma lista e não um `=== 'musculacao'` espalhado por dez
+// ficheiros: a pergunta ("quem é que isto abrange?") é uma só.
+export const PICKED_EVENT_TYPES = ['musculacao'];
+export const isPickedEvent = (ev) => PICKED_EVENT_TYPES.includes(ev?.type);
 export const EVENT_TYPE_LABEL = Object.fromEntries(
   EVENT_TYPES.map((t) => [t.key, t.label])
 );
@@ -503,12 +514,13 @@ export const EVENT_RESPONSES = [
 ];
 
 // Antecedência mínima para responder, em horas, por tipo de evento.
-// O TREINO fecha 6 horas antes: uma falta avisada à hora do treino não é um
-// aviso — o treinador já saiu de casa com o plano feito e já não chama
-// ninguém. O JOGO aceita até começar: uma convocatória confirma-se até ao
-// último momento e, aí, saber tarde é melhor do que não saber.
+// O TREINO (e a musculação, que é um treino) fecha 6 horas antes: uma falta
+// avisada à hora do treino não é um aviso — quem treina já saiu de casa com o
+// plano feito e já não chama ninguém. O JOGO aceita até começar: uma
+// convocatória confirma-se até ao último momento e, aí, saber tarde é melhor
+// do que não saber.
 // Espelha o prazo validado no servidor (`respond_to_event`, comunicacao.sql).
-export const RESPONSE_LEAD_HOURS = { treino: 6, jogo: 0 };
+export const RESPONSE_LEAD_HOURS = { treino: 6, musculacao: 6, jogo: 0 };
 export const DEFAULT_RESPONSE_LEAD_HOURS = 0;
 export const EVENT_RESPONSE_LABEL = Object.fromEntries(EVENT_RESPONSES.map((r) => [r.key, r.label]));
 export const EVENT_RESPONSE_BADGE = Object.fromEntries(EVENT_RESPONSES.map((r) => [r.key, r.badge]));

@@ -28,7 +28,7 @@ import {
   teamName,
   playerAttendanceStats,
   playerQuotas,
-  playerEventResponse, eventResponseWindow, canRespondToEvent,
+  playerEventResponse, eventResponseWindow, canRespondToEvent, isPlayerEvent,
   playerRecentTrainings,
   playerRecentForm,
   playerUpcomingSquads,
@@ -108,11 +108,13 @@ function relativeDay(dt) {
 }
 
 // Os eventos que dizem respeito a este atleta: os da sua equipa e os do clube
-// (`team_id` nulo). O RLS já entrega só estes, mas a vista não depende disso —
-// é o mesmo recorte que decide quem pode responder ao quê.
+// (`team_id` nulo), mais as sessões de MUSCULAÇÃO para que foi escolhida — que
+// são da sua equipa mas não são de toda a gente. O RLS já entrega só estes, mas
+// a vista não depende disso: é o mesmo recorte que decide quem pode responder
+// ao quê (`isPlayerEvent`).
 function myUpcoming(me, limit) {
   return upcomingEvents(60)
-    .filter((ev) => ev.team_id === me.team_id || ev.team_id == null)
+    .filter((ev) => isPlayerEvent(me, ev))
     .slice(0, limit);
 }
 
@@ -327,7 +329,7 @@ function hojeHTML(me, upcoming) {
     ` : ''}
 
     <section class="card portal-section">
-      <h2 class="section-title portal-section__title">Próximos treinos e jogos</h2>
+      <h2 class="section-title portal-section__title">O que tenho pela frente</h2>
       <p class="portal-section__note">
         Diz ao teu treinador se contas ir. Avisar não é justificar a falta —
         quem decide isso é ele.

@@ -103,6 +103,12 @@ export const state = {
   squads: [],             // convocatórias (1:1 com evento jogo)
   squadPlayers: [],       // atletas em cada convocatória
   eventResponses: [],     // o que o atleta respondeu a cada evento (vou/não vou)
+  eventPlayers: [],       // quem entra num evento de plantel escolhido (musculação)
+  // A `musculacao.sql` já correu? Sem ela não há `event_players`, e um treino
+  // de musculação sem forma de dizer QUEM lá vai é um treino de toda a gente —
+  // que é exatamente o contrário do que ele é. Sem a migração, o tipo nem
+  // aparece nos formulários: é a mesma linha do `birthDateReady()`.
+  musculacaoReady: true,
   gameResults: [],        // resultado final de cada jogo (sets)
   gameSets: [],           // parciais de cada set
   financialEntries: [],   // receitas e despesas do clube
@@ -162,6 +168,8 @@ export function resetState() {
   state.squads = [];
   state.squadPlayers = [];
   state.eventResponses = [];
+  state.eventPlayers = [];
+  state.musculacaoReady = true;
   state.gameResults = [];
   state.gameSets = [];
   state.financialEntries = [];
@@ -389,7 +397,7 @@ export async function loadAll() {
          trainingPlans, trainingPlanItems, trainingEvaluations, trainingPlayerEvals,
          playerDocuments, playerSizes, squads, squadPlayers, financialEntries, gamePlans, objectives,
          eventResponses, gameResults, gameSets, tacticalScenarios, tacticalAnswers, exercises,
-         equipmentRequests, requestFlowProbe, sizesConfirmProbe] =
+         equipmentRequests, requestFlowProbe, sizesConfirmProbe, eventPlayers] =
     await Promise.all([
       // Multi-tenant: o RLS limita as definições ao clube do utilizador, por
       // isso não filtramos por id — devolve a (única) linha do clube atual.
@@ -460,6 +468,9 @@ export async function loadAll() {
       // Idem para `confirmacao-tamanhos.sql`. Uma tabela vazia não diz nada
       // sobre as colunas que tem, por isso pergunta-se pela coluna.
       supabase.from('player_sizes').select('player_id,confirmed_at').limit(1),
+      // Quem entra em cada evento de plantel escolhido (musculação). Tolerante
+      // à migração `musculacao.sql` em falta (ver abaixo).
+      supabase.from('event_players').select('*'),
     ]);
 
   for (const res of [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects, episodes, sessions, appointments,
@@ -510,6 +521,10 @@ export async function loadAll() {
   // Tolerante à migração em falta: sem `comunicacao.sql` a consulta devolve
   // erro e a app segue sem respostas, em vez de não arrancar de todo.
   state.eventResponses   = eventResponses.error ? [] : (eventResponses.data || []);
+  // Sem `musculacao.sql` a tabela não existe: a app segue sem o tipo de evento
+  // em vez de não arrancar, e os formulários deixam de o oferecer.
+  state.musculacaoReady  = !eventPlayers.error;
+  state.eventPlayers     = eventPlayers.error ? [] : (eventPlayers.data || []);
   state.gameResults      = gameResults.error   ? [] : (gameResults.data   || []);
   state.gameSets         = gameSets.error      ? [] : (gameSets.data      || []);
   // Sem `tatica.sql` a consulta devolve erro e a secção fica simplesmente
@@ -625,6 +640,12 @@ function pruneOrphans() {
   const squadIds = new Set(state.squads.map((s) => s.id));
   state.squadPlayers = state.squadPlayers.filter(
     (sp) => squadIds.has(sp.squad_id) && playerIds.has(sp.player_id)
+  );
+
+  // Participantes (musculação): só de eventos e atletas ativos. Sem isto, uma
+  // atleta arquivada continuava a contar no grupo das 19h.
+  state.eventPlayers = state.eventPlayers.filter(
+    (ep) => eventIds.has(ep.event_id) && playerIds.has(ep.player_id)
   );
 }
 
@@ -1789,6 +1810,49 @@ export async function removeSquadPlayer(squadId, playerId) {
     (sp) => !(sp.squad_id === squadId && sp.player_id === playerId)
   );
   notify();
+}
+
+// --- Participantes de um evento (musculação) -----------------------------
+
+// Define QUEM entra num evento de plantel escolhido. Recebe a lista inteira e
+// escreve a diferença: as linhas que faltam entram, as que sobram saem.
+//
+// É uma escrita por lado (um insert, um delete) e um só toast, e não uma volta
+// à base de dados por atleta — é a lógica do `createRows` e do
+// `closeAttendanceSessions`: montar o grupo das 19h são vinte gestos num ecrã,
+// mas conceptualmente é UMA decisão.
+export async function setEventPlayers(eventId, playerIds) {
+  const wanted = new Set(playerIds.filter(Boolean));
+  const current = state.eventPlayers.filter((ep) => ep.event_id === eventId);
+  const have = new Set(current.map((ep) => ep.player_id));
+
+  const toAdd = [...wanted].filter((id) => !have.has(id));
+  const toRemove = current.filter((ep) => !wanted.has(ep.player_id));
+
+  if (toRemove.length) {
+    const { error } = await supabase
+      .from('event_players')
+      .delete()
+      .eq('event_id', eventId)
+      .in('player_id', toRemove.map((ep) => ep.player_id));
+    if (error) throw error;
+    const gone = new Set(toRemove.map((ep) => ep.player_id));
+    state.eventPlayers = state.eventPlayers.filter(
+      (ep) => !(ep.event_id === eventId && gone.has(ep.player_id))
+    );
+  }
+
+  if (toAdd.length) {
+    const { data, error } = await supabase
+      .from('event_players')
+      .insert(toAdd.map((player_id) => ({ event_id: eventId, player_id })))
+      .select();
+    if (error) throw error;
+    state.eventPlayers.push(...(data || []));
+  }
+
+  if (toAdd.length || toRemove.length) notify();
+  return { added: toAdd.length, removed: toRemove.length };
 }
 
 // --- Definições (linha única) --------------------------------------------

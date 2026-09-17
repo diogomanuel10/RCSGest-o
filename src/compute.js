@@ -8,6 +8,7 @@ import {
   PHYSICAL_TEST_LABEL, PHYSICAL_TEST_UNIT, PHYSICAL_TEST_BETTER,
   RESPONSE_LEAD_HOURS, DEFAULT_RESPONSE_LEAD_HOURS,
   DEFAULT_EQUIPMENT_ARTICLES,
+  isPickedEvent,
 } from './constants.js';
 
 // Tipos de documento que deviam ter data de validade (exame médico, seguro…).
@@ -476,9 +477,19 @@ export function quotasOwed() {
 // A taxa é sempre a das equipas de quem pergunta: para o coordenador é a do
 // clube, para o treinador é a dos seus escalões. Uma média que inclui equipas
 // que ele não treina não lhe diz nada e não é acionável por ele.
+// A comparência é a dos TREINOS da equipa e de mais nada. A musculação tem
+// presenças na mesma tabela (é o mesmo gesto e o mesmo ecrã), mas é trabalho de
+// outro plantel — o grupo escolhido para aquele horário — e misturá-la aqui
+// fazia a taxa da equipa subir ou descer consoante quem o preparador físico
+// tivesse chamado ao ginásio. É a mesma razão por que os jogos não entram.
 export function attendanceStats() {
   const mine = myEventIdSet();
-  const all = mine ? state.attendances.filter((a) => mine.has(a.event_id)) : state.attendances;
+  const trainingIds = new Set(
+    state.events.filter((e) => e.type === 'treino').map((e) => e.id)
+  );
+  const all = state.attendances.filter(
+    (a) => trainingIds.has(a.event_id) && (!mine || mine.has(a.event_id))
+  );
   const counts = { presente: 0, atraso: 0, justificado: 0, falta: 0 };
   all.forEach((a) => {
     if (counts[a.status] !== undefined) counts[a.status]++;
@@ -1226,9 +1237,79 @@ export function eventResponseWindow(ev) {
 // que é o oposto do que a janela de resposta faz questão de evitar.
 // A comparação é a mesma do servidor (`is distinct from`): sem equipa de um
 // lado e sem equipa do outro continua a ser a mesma coisa.
+//
+// A musculação acrescenta uma condição: ser da equipa não chega, é preciso
+// estar NO GRUPO daquele horário. Uma atleta da equipa que não foi escolhida
+// para a sessão das 19h não tem o que responder — e responder-lhe "vou" seria
+// aparecer a um treino onde não há banco para ela.
 export function canRespondToEvent(player, ev) {
   if (!player || !ev) return false;
-  return (ev.team_id ?? null) === (player.team_id ?? null);
+  if ((ev.team_id ?? null) !== (player.team_id ?? null)) return false;
+  if (isPickedEvent(ev)) return isEventParticipant(player.id, ev.id);
+  return true;
+}
+
+// --- Plantel de um evento --------------------------------------------------
+
+// Quem entra num evento. Para quase todos é a EQUIPA; para a musculação são os
+// atletas escolhidos para aquele horário (`event_players`).
+//
+// Existe uma função só porque a pergunta é uma só, feita em cinco ecrãs: quem
+// marco presente, quem conto para a taxa, a quem mostro isto no portal, quem
+// aviso. Com a regra escrita cinco vezes, bastava um deles ficar para trás
+// para uma atleta aparecer num sítio e não no outro.
+export function eventRoster(ev) {
+  if (!ev) return [];
+  const byNumber = (a, b) => (Number(a.number) || 999) - (Number(b.number) || 999);
+  if (isPickedEvent(ev)) {
+    const ids = new Set(
+      state.eventPlayers.filter((ep) => ep.event_id === ev.id).map((ep) => ep.player_id)
+    );
+    return state.players.filter((p) => ids.has(p.id)).sort(byNumber);
+  }
+  if (!ev.team_id) return [];
+  return state.players.filter((p) => p.team_id === ev.team_id).sort(byNumber);
+}
+
+// Ids dos atletas escolhidos para um evento (a lista crua, sem passar pelas
+// fichas — serve para pré-marcar o formulário).
+export function eventPlayerIds(eventId) {
+  return state.eventPlayers
+    .filter((ep) => ep.event_id === eventId)
+    .map((ep) => ep.player_id);
+}
+
+export function isEventParticipant(playerId, eventId) {
+  return state.eventPlayers.some(
+    (ep) => ep.event_id === eventId && ep.player_id === playerId
+  );
+}
+
+// Sessões de musculação de uma equipa (todas, se `teamId` for vazio), da mais
+// recente para trás. É a lista do preparador físico: o ginásio trabalha-se por
+// horários e não por escalões, mas escolhe-se sempre dentro de um.
+export function musculacaoSessions(teamId = '') {
+  return state.events
+    .filter((e) => e.type === 'musculacao' && (!teamId || e.team_id === teamId))
+    .sort((a, b) => eventDateTime(b) - eventDateTime(a));
+}
+
+// As presenças de uma sessão, por atleta (mapa player_id -> linha).
+export function eventAttendanceMap(eventId) {
+  const map = {};
+  state.attendances
+    .filter((a) => a.event_id === eventId)
+    .forEach((a) => { map[a.player_id] = a; });
+  return map;
+}
+
+// Um evento diz respeito a este atleta? É o recorte do portal e o mesmo que o
+// servidor aplica: a equipa dela (ou o clube inteiro) e, na musculação, só se
+// estiver no grupo.
+export function isPlayerEvent(player, ev) {
+  if (!player || !ev) return false;
+  if (isPickedEvent(ev)) return isEventParticipant(player.id, ev.id);
+  return ev.team_id == null || ev.team_id === player.team_id;
 }
 
 // O que um atleta respondeu a um evento (ou null se ainda não respondeu).
@@ -1246,7 +1327,10 @@ export function eventResponseSummary(eventId) {
   const counts = { vou: 0, nao_vou: 0 };
   if (!ev) return { counts, ausentes: [], semResposta: 0 };
 
-  const squad = state.players.filter((p) => p.team_id === ev.team_id);
+  // Quem "devia" ter respondido é o plantel do EVENTO — na musculação, só o
+  // grupo daquele horário. Contar a equipa toda dava vinte "sem resposta" num
+  // treino de oito.
+  const squad = eventRoster(ev);
   const byPlayer = new Map(
     state.eventResponses.filter((r) => r.event_id === eventId).map((r) => [r.player_id, r])
   );

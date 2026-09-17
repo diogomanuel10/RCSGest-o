@@ -2928,6 +2928,66 @@ button.stat-strip__item--nav:hover {
 .field--full {
   grid-column: 1 / -1;
 }
+/* Etiqueta de um campo que não tem um controlo único (o grupo de caixas do
+   `type: 'checks'`): a mesma aparência do `<label>`, sem o `for`. */
+.field__label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 0.35rem;
+  letter-spacing: 0.02em;
+}
+/* Lista de caixas de seleção (que atletas entram nesta sessão). Rola em vez
+   de crescer: vinte nomes empurravam o botão de gravar para fora do ecrã de
+   um telemóvel, e o que se está a decidir são os nomes E o gravar. */
+.check-list {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 8px);
+  background: var(--surface);
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 0.35rem;
+}
+.check-list__bar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  position: sticky;
+  top: -0.35rem;
+  background: var(--surface);
+  padding: 0.25rem 0.15rem 0.4rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0.25rem;
+}
+.check-list__count {
+  font-size: 0.78rem;
+  margin-left: auto;
+}
+.check-item {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.35rem 0.4rem;
+  margin: 0;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text);
+  text-transform: none;
+  letter-spacing: 0;
+  cursor: pointer;
+}
+.check-item:hover {
+  background: var(--surface-2);
+}
+.check-item input {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  margin: 0;
+}
 .modal__actions {
   display: flex;
   justify-content: flex-end;
@@ -8126,6 +8186,15 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
     width: 32px;
     height: 32px;
     opacity: 1;
+  }
+  /* A caixa fica em 22px e o alvo é a ETIQUETA à volta, essa sim com 44px —
+     a mesma exceção deliberada das restantes caixas de seleção da app. */
+  .check-item {
+    min-height: 44px;
+  }
+  .check-item input {
+    width: 22px;
+    height: 22px;
   }
 }
 
