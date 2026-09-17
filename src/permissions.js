@@ -90,6 +90,12 @@ const EDIT_ROLES = {
   players: ['coordenador', 'treinador', 'seccionista'],
   // Calendário: só o coordenador cria/edita/apaga eventos (treinos e jogos).
   events: ['coordenador'],
+  // A MUSCULAÇÃO é a exceção, e é uma exceção de domínio e não de conveniência:
+  // quem monta os grupos do ginásio, por horário, é o preparador físico — se
+  // ele tiver de pedir ao coordenador que lance cada sessão, o horário volta
+  // para o papel colado à porta do ginásio, que é onde estava. Espelha a
+  // política `events_musculacao` do RLS.
+  musculacao: ['coordenador', 'preparador'],
   attendances: ['coordenador', 'treinador'],
   prospects: ['coordenador', 'treinador', 'seccionista'],
   // Departamento médico: dados clínicos e atendimentos só do coordenador e
@@ -269,6 +275,21 @@ const DELETE_ROLES = {
 export function canDelete(entity) {
   if (DELETE_ROLES[entity]) return DELETE_ROLES[entity].includes(currentRole());
   return canEdit(entity);
+}
+
+// Pode criar/editar este evento? O calendário é do coordenador; a musculação é
+// também do preparador físico (ver EDIT_ROLES.musculacao). Uma função e não um
+// `canEdit('events') || …` espalhado: a pergunta é a mesma em quatro ecrãs.
+export function canEditEvent(ev) {
+  if (canEdit('events')) return true;
+  return ev?.type === 'musculacao' && canEdit('musculacao');
+}
+
+// Pode marcar presenças neste evento? Nas sessões de musculação quem regista é
+// quem as dá — o preparador físico. Espelha a política `attendances` do RLS.
+export function canMarkAttendance(ev) {
+  if (canEdit('attendances')) return true;
+  return ev?.type === 'musculacao' && canEdit('musculacao');
 }
 
 // Decidir um pedido de equipamento (aprovar/entregar/recusar) é de quem

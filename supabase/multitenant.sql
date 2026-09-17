@@ -139,7 +139,7 @@ declare
     'training_phases','mesocycles','gym_sessions','gym_exercises','gym_attendance',
     'game_minutes','athlete_availability','training_plans','training_plan_items',
     'training_evaluations','training_player_evals','player_documents','player_sizes',
-    'squads','squad_players','financial_entries','game_plans','objectives',
+    'squads','squad_players','event_players','financial_entries','game_plans','objectives',
     'notifications','push_subscriptions'
   ];
 begin
@@ -438,7 +438,7 @@ declare
     'training_phases','mesocycles','gym_sessions','gym_exercises','gym_attendance',
     'game_minutes','athlete_availability','training_plans','training_plan_items',
     'training_evaluations','training_player_evals','player_documents','player_sizes',
-    'squads','squad_players','financial_entries','game_plans','objectives',
+    'squads','squad_players','event_players','financial_entries','game_plans','objectives',
     'notifications','push_subscriptions'
   ];
 begin

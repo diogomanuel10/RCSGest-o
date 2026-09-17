@@ -21,11 +21,11 @@ import { state, upsertAttendance, closeAttendanceSession,
          ensureSquad, upsertSquadPlayer, removeSquadPlayer, dbErrorMessage } from '../store.js';
 import { esc, emptyHTML } from '../ui.js';
 import { eventDateTime, eventTimeRange, teamById, teamName, eventResponseSummary,
-         playerEventResponse } from '../compute.js';
+         playerEventResponse, eventRoster } from '../compute.js';
 import { ATTENDANCE_STATUSES, ATTENDANCE_LABEL, ATTENDANCE_BADGE,
-         SQUAD_CALLED,
+         SQUAD_CALLED, EVENT_TYPE_LABEL, isPickedEvent,
          EVENT_RESPONSE_LABEL, EVENT_RESPONSE_BADGE } from '../constants.js';
-import { canEdit } from '../permissions.js';
+import { canEdit, canMarkAttendance } from '../permissions.js';
 import { confirmDialog, wireDialog } from '../modal.js';
 import { toastError } from '../toast.js';
 
@@ -44,13 +44,15 @@ export function setSelectedEvent(id) {
 }
 
 export function renderPresencas(container) {
-  const editable = canEdit('attendances');
-
   const canSquad = canEdit('squads');
 
-  // Treinos E jogos, do mais recente para o mais antigo.
+  // Treinos, sessões de musculação E jogos, do mais recente para o mais antigo.
+  // A musculação entra aqui porque o gesto é o mesmo (quem apareceu), e não
+  // porque seja um treino da equipa: o plantel dela é o grupo escolhido para
+  // aquele horário, e a comparência que conta para a equipa continua a ser só
+  // a dos treinos (ver `attendanceStats`).
   const eventos = state.events
-    .filter((e) => e.type === 'treino' || e.type === 'jogo')
+    .filter((e) => e.type === 'treino' || e.type === 'jogo' || e.type === 'musculacao')
     .sort((a, b) => eventDateTime(b) - eventDateTime(a));
 
   if (!eventos.length) {
@@ -89,12 +91,12 @@ export function renderPresencas(container) {
 
   const ev = eventos.find((e) => e.id === selectedEventId);
   const isGame = ev?.type === 'jogo';
+  const isPicked = isPickedEvent(ev);
+  const editable = canMarkAttendance(ev);
   const team = teamById(ev?.team_id);
-  const players = team
-    ? state.players
-        .filter((p) => p.team_id === team.id)
-        .sort((a, b) => (Number(a.number) || 999) - (Number(b.number) || 999))
-    : [];
+  // Quem entra neste evento: a equipa, ou — na musculação — só o grupo daquele
+  // horário. É a mesma função que o portal e as notificações usam.
+  const players = eventRoster(ev);
 
   // Contagens de presença para o evento selecionado
   const counts = { presente: 0, atraso: 0, justificado: 0, falta: 0 };
@@ -127,7 +129,10 @@ export function renderPresencas(container) {
 
   // O quiosque só aparece depois de a migração `qrcode-presencas.sql` correr
   // (é ela que traz a coluna) e enquanto o clube o mantiver ligado.
-  const qrOn = editable && !isGame && state.settings.qr_checkin_enabled === true;
+  // O quiosque procura o TREINO da equipa do atleta mais perto de agora
+  // (`check_in_by_qr`): numa sessão de musculação não teria onde marcar, por
+  // isso não se oferece — um botão que dá erro é pior do que botão nenhum.
+  const qrOn = editable && !isGame && !isPicked && state.settings.qr_checkin_enabled === true;
   // Quem avisou que não vem. Aparece ANTES da lista porque é o que o treinador
   // quer saber ao chegar ao pavilhão — com quem pode contar hoje.
   const avisos = eventResponseSummary(selectedEventId);
@@ -137,6 +142,7 @@ export function renderPresencas(container) {
       <div>
         <h1 class="section-title">Presenças</h1>
         <p class="muted" style="margin:0;font-size:0.88rem">Registo de presenças nos treinos</p>
+        ${isPicked ? '<p class="muted" style="margin:0.15rem 0 0;font-size:0.82rem">Sessão de musculação — só os atletas deste horário.</p>' : ''}
       </div>
       ${qrOn
         ? `<button class="btn btn--primary" id="pres-kiosk" type="button">Modo quiosque</button>`
@@ -148,7 +154,7 @@ export function renderPresencas(container) {
     <div class="presenca-picker card" style="margin-bottom:1.2rem">
       <div class="row row--between row--wrap" style="gap:0.8rem">
         <div style="min-width:260px;flex:1">
-          <label for="pres-event">Treino ou jogo</label>
+          <label for="pres-event">Treino, musculação ou jogo</label>
           <select id="pres-event">
             ${eventPickerHTML(eventos, selectedEventId)}
           </select>
@@ -191,7 +197,7 @@ export function renderPresencas(container) {
 
     <section class="card">
       <div class="goal-card__header">
-        <h2 class="section-title goal-card__title">${isGame ? 'Convocatória' : 'Lista de atletas'}</h2>
+        <h2 class="section-title goal-card__title">${isGame ? 'Convocatória' : isPicked ? 'Atletas deste horário' : 'Lista de atletas'}</h2>
         <span class="goal-card__pct">${isGame
           ? `${calledCount} de ${totalPlayers}`
           : `${pct}% registado`}</span>
@@ -210,7 +216,7 @@ export function renderPresencas(container) {
       ${!isGame && editable && team && totalPlayers && marked < totalPlayers
         ? `<div class="row row--between row--wrap pres-close">
              <span class="muted" style="font-size:0.85rem">
-               ${totalPlayers - marked} atleta${totalPlayers - marked === 1 ? '' : 's'} sem registo neste treino.
+               ${totalPlayers - marked} atleta${totalPlayers - marked === 1 ? '' : 's'} sem registo ${isPicked ? 'nesta sessão' : 'neste treino'}.
              </span>
              <button class="btn btn--ghost btn--sm" id="pres-close" type="button">Fechar sessão (marcar faltas)</button>
            </div>`
@@ -219,7 +225,9 @@ export function renderPresencas(container) {
       ${!team
         ? `<p class="muted" style="margin:1rem 0 0">Este ${isGame ? 'jogo' : 'treino'} não tem equipa associada. Edita-o no Calendário para atribuir uma equipa.</p>`
         : !players.length
-        ? '<p class="muted" style="margin:1rem 0 0">Sem atletas nesta equipa.</p>'
+        ? `<p class="muted" style="margin:1rem 0 0">${isPicked
+             ? 'Esta sessão ainda não tem atletas escolhidos. Edita-a no Calendário para escolher quem entra.'
+             : 'Sem atletas nesta equipa.'}</p>`
         : `<ul class="pres-list">${players.map((p) => isGame
             ? squadRow(p, isCalled(p.id), ev, canSquad)
             : playerRow(p, attendanceMap[p.id], ev, editable)).join('')}</ul>`
@@ -313,7 +321,7 @@ function eventLabel(ev) {
   });
   const tm = teamById(ev.team_id);
   const range = eventTimeRange(ev);
-  const tipo = ev.type === 'jogo' ? 'Jogo' : 'Treino';
+  const tipo = EVENT_TYPE_LABEL[ev.type] || 'Treino';
   const vs = ev.type === 'jogo' && ev.opponent ? ' vs ' + ev.opponent : '';
   return `${tipo} · ${dt}${range ? ' ' + range : ''}${tm ? ' — ' + teamName(tm) : ''}${vs}${ev.title ? ' — ' + ev.title : ''}`;
 }
@@ -564,11 +572,9 @@ export function openQuickAttendance(eventId) {
   const ev = state.events.find((e) => e.id === eventId);
   if (!ev) return;
   const team = teamById(ev.team_id);
-  const players = team
-    ? state.players
-        .filter((p) => p.team_id === team.id)
-        .sort((a, b) => (Number(a.number) || 999) - (Number(b.number) || 999))
-    : [];
+  // O plantel do EVENTO (na musculação, só o grupo daquele horário) — a mesma
+  // função do ecrã inteiro.
+  const players = eventRoster(ev);
 
   const attendanceMap = {};
   state.attendances.filter((a) => a.event_id === eventId).forEach((a) => {
@@ -683,6 +689,7 @@ function renderSummary(container, tabBar) {
         <div>
           <h1 class="section-title">Presenças</h1>
           <p class="muted" style="margin:0;font-size:0.88rem">Registo de presenças nos treinos</p>
+        ${isPicked ? '<p class="muted" style="margin:0.15rem 0 0;font-size:0.82rem">Sessão de musculação — só os atletas deste horário.</p>' : ''}
         </div>
       </header>
       ${tabBar}
@@ -742,6 +749,7 @@ function renderSummary(container, tabBar) {
       <div>
         <h1 class="section-title">Presenças</h1>
         <p class="muted" style="margin:0;font-size:0.88rem">Registo de presenças nos treinos</p>
+        ${isPicked ? '<p class="muted" style="margin:0.15rem 0 0;font-size:0.82rem">Sessão de musculação — só os atletas deste horário.</p>' : ''}
       </div>
     </header>
 

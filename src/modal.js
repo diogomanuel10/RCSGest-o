@@ -51,6 +51,37 @@ function fieldHTML(field, value) {
       ? `<option value="" ${v ? '' : 'selected'}>${esc(field.placeholder)}</option>`
       : '';
     control = `<select id="${id}" name="${field.name}" ${required}>${placeholder}${orphan}${opts}</select>`;
+  } else if (field.type === 'checks') {
+    // Lista de caixas de seleção com o MESMO nome: é a forma de um campo
+    // responder "estas e não as outras" (que atletas entram nesta sessão de
+    // musculação). Um `<select multiple>` não serve — num telemóvel obriga a
+    // arrastar com o dedo dentro de uma caixa de 100px e a acertar em vinte
+    // nomes sem os ver todos.
+    const options = field.options || [];
+    const chosen = new Set((Array.isArray(v) ? v : []).map(String));
+    const boxes = options
+      .map((o, i) => {
+        const key = typeof o === 'string' ? o : o.key;
+        const label = typeof o === 'string' ? o : o.label;
+        const meta = typeof o === 'string' ? '' : o.meta || '';
+        const on = chosen.has(String(key)) ? 'checked' : '';
+        return `<label class="check-item" for="${id}-${i}">
+            <input type="checkbox" id="${id}-${i}" name="${field.name}"
+                   value="${esc(key)}" ${on} />
+            <span>${esc(label)}${meta ? ` <span class="muted">${esc(meta)}</span>` : ''}</span>
+          </label>`;
+      })
+      .join('');
+    control = options.length
+      ? `<div class="check-list" id="${id}" data-checks="${field.name}">
+           <div class="check-list__bar">
+             <button type="button" class="btn btn--ghost btn--sm" data-check-all="${field.name}">Todas</button>
+             <button type="button" class="btn btn--ghost btn--sm" data-check-none="${field.name}">Nenhuma</button>
+             <span class="muted check-list__count" data-check-count="${field.name}"></span>
+           </div>
+           ${boxes}
+         </div>`
+      : `<p class="muted" id="${id}">${esc(field.emptyText || 'Sem opções disponíveis.')}</p>`;
   } else if (field.type === 'file') {
     control = `<input type="file" id="${id}" name="${field.name}" ${required}
       accept="${esc(field.accept || '*/*')}" style="padding:0.25rem 0" />`;
@@ -101,14 +132,33 @@ function fieldHTML(field, value) {
        </div>`
     : main;
 
+  // Um grupo de caixas não tem um controlo único para o `for` apontar: a
+  // etiqueta é do CONJUNTO, e um `<label for>` a apontar para uma `<div>` não
+  // liga nada (e é anunciado como se ligasse).
+  const labelTag = field.type === 'checks'
+    ? `<span class="field__label">${esc(field.label)}${field.required ? ' <span class="field__req" title="Obrigatório">*</span>' : ''}</span>`
+    : `<label for="${id}">${esc(field.label)}${
+        field.required ? ' <span class="field__req" title="Obrigatório">*</span>' : ''
+      }</label>`;
+
   return `<div class="field${span}${field.image ? ' field--with-image' : ''}" data-field="${field.name}">
     ${image}
-    <label for="${id}">${esc(field.label)}${
-      field.required ? ' <span class="field__req" title="Obrigatório">*</span>' : ''
-    }</label>
+    ${labelTag}
     ${qty}
     ${hint}
   </div>`;
+}
+
+// Valores do formulário. `Object.fromEntries` colapsa nomes repetidos no
+// último, por isso os campos `checks` — que são N caixas com o mesmo nome —
+// são lidos à parte, com `getAll`, e chegam ao `onSubmit` como array.
+function readValues(form, fields) {
+  const data = new FormData(form);
+  const values = Object.fromEntries(data.entries());
+  fields.filter((f) => f.type === 'checks').forEach((f) => {
+    values[f.name] = data.getAll(f.name);
+  });
+  return values;
 }
 
 // Elementos que podem receber foco dentro de um contentor, pela ordem do DOM.
@@ -238,6 +288,25 @@ export function openModal({
   const firstInput = form.querySelector('input, select, textarea');
   firstInput?.focus();
 
+  // Campos `checks`: "Todas"/"Nenhuma" e o contador. Sem o contador, uma lista
+  // de vinte nomes meio marcada não diz quantos ficaram — e o número é
+  // exatamente o que se está a decidir (quantas atletas naquele horário).
+  form.querySelectorAll('[data-checks]').forEach((list) => {
+    const name = list.dataset.checks;
+    const boxes = [...list.querySelectorAll('input[type="checkbox"]')];
+    const countEl = list.querySelector(`[data-check-count="${name}"]`);
+    const refresh = () => {
+      const n = boxes.filter((b) => b.checked).length;
+      if (countEl) countEl.textContent = `${n} de ${boxes.length} selecionada${boxes.length === 1 ? '' : 's'}`;
+    };
+    list.querySelector(`[data-check-all="${name}"]`)
+      ?.addEventListener('click', () => { boxes.forEach((b) => { b.checked = true; }); refresh(); });
+    list.querySelector(`[data-check-none="${name}"]`)
+      ?.addEventListener('click', () => { boxes.forEach((b) => { b.checked = false; }); refresh(); });
+    boxes.forEach((b) => b.addEventListener('change', refresh));
+    refresh();
+  });
+
   // Campos marcados com `reactive: true` avisam assim que mudam, para a vista
   // poder reconstruir o formulário (ex.: mudar o tipo de objetivo troca os
   // campos seguintes). Reconstruir só na gravação não serve: os campos
@@ -245,8 +314,7 @@ export function openModal({
   if (onFieldChange) {
     fields.filter((f) => f.reactive).forEach((f) => {
       form.querySelector(`[name="${f.name}"]`)?.addEventListener('change', () => {
-        const current = Object.fromEntries(new FormData(form).entries());
-        onFieldChange(f.name, current);
+        onFieldChange(f.name, readValues(form, fields));
       });
     });
   }
@@ -291,7 +359,7 @@ export function openModal({
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     errorEl.classList.add('hidden');
-    const values = Object.fromEntries(new FormData(form).entries());
+    const values = readValues(form, fields);
 
     submitBtn.disabled = true;
     submitBtn.textContent = 'A guardar…';
