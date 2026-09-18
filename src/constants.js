@@ -450,6 +450,38 @@ export const DOCUMENT_TYPES = [
 ];
 export const DOC_TYPE_LABEL = Object.fromEntries(DOCUMENT_TYPES.map((d) => [d.key, d.label]));
 
+// --- O que falta na ficha de um atleta ---
+//
+// Os três dados que o clube precisa de ter para inscrever uma atleta e que o
+// coordenador NÃO consegue preencher sozinho: a foto está no telemóvel da
+// família, o dia do aniversário está no cartão dela e a fotocópia é um
+// ficheiro que alguém tem de digitalizar. São por isso os três que o portal
+// pede a quem tem conta ligada à ficha (ver `playerDataGaps` em compute.js).
+//
+// A ordem é a do esforço que cada um custa a quem responde: a foto tira-se
+// ali, a data sabe-se de cor, a fotocópia obriga a ir buscar o cartão.
+export const PLAYER_DATA_ITEMS = [
+  {
+    key: 'foto',
+    label: 'Fotografia',
+    ask: 'Uma fotografia tua, de frente e com a cara bem visível.',
+    action: 'Escolher foto',
+  },
+  {
+    key: 'nascimento',
+    label: 'Data de nascimento',
+    ask: 'O dia completo — a ficha só tem o ano.',
+    action: 'Preencher data',
+  },
+  {
+    key: 'cc',
+    label: 'Fotocópia do Cartão de Cidadão',
+    ask: 'Uma foto ou digitalização legível do cartão.',
+    action: 'Enviar ficheiro',
+  },
+];
+export const PLAYER_DATA_LABEL = Object.fromEntries(PLAYER_DATA_ITEMS.map((i) => [i.key, i.label]));
+
 // --- Tamanhos e artigos de equipamento ---
 
 // Conjunto de tamanhos por omissão para vestuário. Serve de sugestão no

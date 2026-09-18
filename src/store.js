@@ -1496,6 +1496,14 @@ export async function upsertPlayerEval(evaluationId, playerId, values) {
 // --- Documentos dos atletas ----------------------------------------------
 
 export async function uploadPlayerDocument(playerId, docType, file, expiresAt) {
+  // "Substituir" tem de substituir mesmo: o que havia aqui era um insert, e
+  // por isso a segunda fotocópia nascia como uma SEGUNDA linha do mesmo tipo.
+  // A lista mostra a primeira que encontra, ou seja, continuava a mostrar a
+  // antiga — e o ficheiro velho ficava no bucket para sempre.
+  const anterior = state.playerDocuments.find(
+    (d) => d.player_id === playerId && d.doc_type === docType
+  );
+
   const ext = file.name.split('.').pop();
   const ts = Date.now();
   const path = `${playerId}/${docType}/${ts}.${ext}`;
@@ -1523,6 +1531,12 @@ export async function uploadPlayerDocument(playerId, docType, file, expiresAt) {
     throw error;
   }
   state.playerDocuments.push(data);
+  // Só depois de o novo estar gravado: se a limpeza falhar fica um ficheiro a
+  // mais no bucket, que é lixo; apagar primeiro e falhar a seguir deixava o
+  // atleta sem documento nenhum.
+  if (anterior) {
+    try { await deletePlayerDocument(anterior.id); } catch { /* lixo no bucket */ }
+  }
   notify();
   return data;
 }
@@ -1545,6 +1559,126 @@ export async function getDocumentSignedUrl(storagePath) {
   return data.signedUrl;
 }
 
+// --- Fotografia do atleta -------------------------------------------------
+
+const PLAYER_PHOTO_BUCKET = 'player-photos';
+// Isto desenha-se a 38px no cartão do plantel e a 96px na ficha. 480px de
+// lado chegam para as duas com folga (e para um ecrã retina), e é o que faz a
+// subida caber na rede do pavilhão — quem tira a foto está lá.
+const PLAYER_PHOTO_MAX_PX = 480;
+
+// O bucket é PRIVADO (ver `supabase/dados-atleta.sql`), por isso cada
+// endereço é assinado e expira. Guardam-se em memória enquanto forem válidos:
+// os Plantéis re-desenham a cada notificação do store, e pedir sessenta
+// assinaturas por re-desenho punha a rede a trabalhar para mostrar a mesma
+// coisa.
+const PHOTO_URL_TTL = 3600;              // o que se pede ao servidor
+const photoUrlCache = new Map();         // caminho -> { url, exp }
+
+// Assina em LOTE: um plantel são sessenta fotos, e sessenta chamadas a
+// `createSignedUrl` são sessenta idas ao servidor para desenhar um ecrã.
+export async function photoUrls(paths) {
+  const out = new Map();
+  const agora = Date.now();
+  const faltam = [];
+
+  for (const path of new Set((paths || []).filter(Boolean))) {
+    const hit = photoUrlCache.get(path);
+    if (hit && hit.exp > agora) out.set(path, hit.url);
+    else faltam.push(path);
+  }
+  if (!faltam.length) return out;
+
+  const { data, error } = await supabase.storage
+    .from(PLAYER_PHOTO_BUCKET)
+    .createSignedUrls(faltam, PHOTO_URL_TTL);
+  // Uma foto que não carrega não pode partir o ecrã onde está: quem chamar
+  // fica com o que houver e desenha as iniciais no resto.
+  if (error) return out;
+
+  for (const item of data || []) {
+    if (!item?.signedUrl || !item.path) continue;
+    // Margem de um minuto: um endereço que expira entre o pedido e o
+    // desenho da imagem dá um quadrado partido sem explicação.
+    photoUrlCache.set(item.path, { url: item.signedUrl, exp: agora + (PHOTO_URL_TTL - 60) * 1000 });
+    out.set(item.path, item.signedUrl);
+  }
+  return out;
+}
+
+// Envia a foto e devolve o CAMINHO no bucket. A pasta de topo é o id da
+// ficha: é por ela que as políticas do Storage decidem quem pode escrever
+// (ver `is_my_player_folder`).
+//
+// O nome leva um sufixo aleatório a cada gravação, como o das fotos dos
+// artigos: um caminho fixo continuaria a devolver a imagem antiga enquanto a
+// assinatura anterior não expirasse.
+export async function uploadPlayerPhoto(playerId, file) {
+  const blob = await shrinkImage(file, PLAYER_PHOTO_MAX_PX);
+  const rand = Math.random().toString(36).slice(2, 10);
+  const path = `${playerId}/${rand}.jpg`;
+
+  const { error } = await supabase.storage
+    .from(PLAYER_PHOTO_BUCKET)
+    .upload(path, blob, { contentType: 'image/jpeg', upsert: false });
+  if (error) throw error;
+  return path;
+}
+
+// Apagar a foto antiga é um extra (lixo no bucket, não um erro para quem
+// está a guardar) — a mesma decisão do `deleteArticlePhoto`.
+async function deletePlayerPhoto(path) {
+  if (!path) return;
+  try {
+    await supabase.storage.from(PLAYER_PHOTO_BUCKET).remove([path]);
+  } catch {
+    /* sem consequência para o utilizador */
+  }
+}
+
+// Guarda a foto na ficha. Quem grava decide por que porta entra: o clube
+// escreve na linha (`updateRow`, com o RLS de `players` a decidir), a atleta
+// escreve pela RPC — `players` não tem, nem pode ter, política de UPDATE para
+// ela (ver o porquê em `supabase/dados-atleta.sql`).
+export async function savePlayerPhoto(playerId, file) {
+  const player = state.players.find((p) => p.id === playerId);
+  const anterior = player?.photo_path || null;
+  const path = await uploadPlayerPhoto(playerId, file);
+  try {
+    if (isMyPlayer(playerId)) await saveMyPlayerData({ photo_path: path });
+    else await updateRow('players', 'players', playerId, { photo_path: path });
+  } catch (err) {
+    // A ficha não ficou a apontar para cá: o ficheiro que acabou de subir é
+    // lixo, e deixá-lo lá é pagar armazenamento por uma foto que ninguém vê.
+    await deletePlayerPhoto(path);
+    throw err;
+  }
+  await deletePlayerPhoto(anterior);
+  return path;
+}
+
+// A ficha ligada à conta atual é dela? É o mesmo vínculo do portal — uma
+// conta liga-se a UMA ficha, e é essa.
+function isMyPlayer(playerId) {
+  const p = state.players.find((x) => x.id === playerId);
+  return !!p && !!p.user_id && p.user_id === state.profile?.id;
+}
+
+// A porta do atleta para a sua própria ficha. Só a data de nascimento e a
+// foto, e a data só se ainda estiver por preencher — o servidor recusa o
+// resto e é ele que manda (ver `update_my_player_data`).
+export async function saveMyPlayerData({ birth_date = null, photo_path = null } = {}) {
+  const { data, error } = await supabase.rpc('update_my_player_data', {
+    p_birth_date: birth_date,
+    p_photo_path: photo_path,
+  });
+  if (error) throw error;
+  const i = state.players.findIndex((p) => p.id === data?.id);
+  if (i !== -1) state.players[i] = data;
+  notify();
+  return data;
+}
+
 // --- Fotos dos artigos de equipamento ------------------------------------
 
 const ARTICLE_PHOTO_BUCKET = 'equipment-photos';
@@ -1557,9 +1691,9 @@ const ARTICLE_PHOTO_MAX_PX = 600;
 // Acontece no cliente e não numa função do servidor porque o que se quer
 // poupar é a SUBIDA: quem carrega a foto está muitas vezes no pavilhão,
 // com a mesma rede fraca do quiosque.
-async function shrinkImage(file) {
+async function shrinkImage(file, maxPx = ARTICLE_PHOTO_MAX_PX) {
   const bitmap = await createImageBitmap(file);
-  const scale = Math.min(1, ARTICLE_PHOTO_MAX_PX / Math.max(bitmap.width, bitmap.height));
+  const scale = Math.min(1, maxPx / Math.max(bitmap.width, bitmap.height));
   const w = Math.max(1, Math.round(bitmap.width * scale));
   const h = Math.max(1, Math.round(bitmap.height * scale));
 

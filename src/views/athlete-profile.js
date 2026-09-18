@@ -11,7 +11,7 @@
 // limitações ao treino (sem aceder ao detalhe clínico), além da última
 // avaliação física.
 
-import { state, regeneratePlayerQr, createInvitation, dbErrorMessage } from '../store.js';
+import { state, regeneratePlayerQr, createInvitation, savePlayerPhoto, dbErrorMessage } from '../store.js';
 import { esc, euros } from '../ui.js';
 import { confirmDialog } from '../modal.js';
 import { toastError, toastOk } from '../toast.js';
@@ -29,6 +29,8 @@ import {
   sport,
   playerAge,
   nextBirthday,
+  playerPhotoReady,
+  playerDataGaps,
 } from '../compute.js';
 import {
   REVIEW_LABEL,
@@ -42,6 +44,8 @@ import {
   PHYSICAL_TEST_UNIT,
 } from '../constants.js';
 import { canAccess, canEdit, canManageUsers } from '../permissions.js';
+import { photoAvatarHTML, hydratePhotos } from '../player-photo.js';
+import { PLAYER_DATA_LABEL } from '../constants.js';
 import { renderClinicalInto } from './clinical-file.js';
 import { renderPhysicalInto } from './physical-file.js';
 import { renderDocumentsInto } from './documents-section.js';
@@ -100,18 +104,29 @@ export function renderAthleteProfilePage(container, playerId, { onEdit, onBack }
   const tabs = allowedTabs();
   if (!tabs.some((t) => t.key === _activeTab)) _activeTab = 'geral';
 
-  const initials = (player.name || '?')
-    .split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
+  // A foto é um `<button>` quando quem vê a pode trocar: é o sítio onde se
+  // olha para ela, e mandar procurar o controlo noutro canto do ecrã é pedir
+  // duas viagens para uma decisão. Sem permissão (ou antes da migração) fica
+  // o avatar de sempre.
+  const canPhoto = canEdit('players') && playerPhotoReady();
+  const avatar = photoAvatarHTML(player, 'pd-avatar');
 
   container.innerHTML = `
     <div class="athlete-page">
       <header class="page-head ap-page-head">
         <div class="ap-head">
           <button class="btn btn--ghost btn--sm" data-ap-back type="button">← Voltar</button>
-          <span class="pd-avatar" aria-hidden="true">${esc(initials || '?')}</span>
+          ${canPhoto
+            ? `<button class="pd-avatar-btn" data-ap-photo type="button"
+                       title="${player.photo_path ? 'Trocar a fotografia' : 'Adicionar fotografia'}"
+                       aria-label="${player.photo_path ? 'Trocar a fotografia' : 'Adicionar fotografia'}">
+                 ${avatar}<span class="pd-avatar-btn__mark" aria-hidden="true">📷</span>
+               </button>`
+            : avatar}
           <div>
             <strong class="pd-hero__name">${esc(player.name)}</strong>
             <span class="muted pd-hero__meta">${headMeta(player)}</span>
+            ${gapsLine(player)}
           </div>
         </div>
         <div class="row" style="gap:0.4rem">
@@ -139,6 +154,27 @@ export function renderAthleteProfilePage(container, playerId, { onEdit, onBack }
     else renderGeral(body, playerId);
   }
 
+  hydratePhotos(container);
+
+  container.querySelector('[data-ap-photo]')?.addEventListener('click', async () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.addEventListener('change', async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      if (file.size > 12 * 1024 * 1024) { toastError('A imagem não pode exceder 12 MB.'); return; }
+      try {
+        // Sem toast próprio: a gravação passa pelo `updateRow`, e é ele que
+        // confirma com o nome da entidade (a regra dos toasts do store).
+        await savePlayerPhoto(playerId, file);
+      } catch (err) {
+        toastError(dbErrorMessage(err));
+      }
+    });
+    input.click();
+  });
+
   container.querySelector('[data-ap-back]')?.addEventListener('click', () => onBack?.());
   container.querySelector('[data-ap-edit]')?.addEventListener('click', () => onEdit?.());
   // Ficha imprimível: só inclui as secções que quem a gera já podia ver na
@@ -156,6 +192,19 @@ export function renderAthleteProfilePage(container, playerId, { onEdit, onBack }
   );
 
   paintTab();
+}
+
+// O que falta nesta ficha, no cabeçalho e não enterrado nas secções: são os
+// três dados que travam uma inscrição, e quem abre a ficha para os verificar
+// não tem de percorrer o ecrã inteiro para descobrir quais faltam. A pergunta
+// do CC só se faz a quem lê os documentos — para os outros papéis
+// `player_documents` chega vazio, e responder por essa lista era dizer que o
+// clube inteiro não tem fotocópia nenhuma.
+function gapsLine(player) {
+  const gaps = playerDataGaps(player, { docs: canEdit('documents') });
+  if (!gaps.length) return '';
+  const nomes = gaps.map((k) => PLAYER_DATA_LABEL[k] || k).join(' · ');
+  return `<span class="badge badge--warn pd-hero__gaps">Falta: ${esc(nomes)}</span>`;
 }
 
 function headMeta(player) {

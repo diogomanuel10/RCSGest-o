@@ -13,6 +13,7 @@
 import {
   state, respondToEvent, saveTacticalAnswer, dbErrorMessage,
   createEquipmentRequests, deleteRow, articlePhotoUrl,
+  savePlayerPhoto, saveMyPlayerData, uploadPlayerDocument,
 } from '../store.js';
 import { toastOk, toastError } from '../toast.js';
 import { getNotifications, markRead } from '../notifications.js';
@@ -20,6 +21,7 @@ import { openModal, wireDialog, confirmDialog } from '../modal.js';
 import { saveOfflineCard } from '../offline-card.js';
 import { renderDrill } from '../tactical-court.js';
 import { esc, euros, emptyHTML } from '../ui.js';
+import { photoAvatarHTML, hydratePhotos } from '../player-photo.js';
 import {
   upcomingEvents,
   eventDateTime,
@@ -36,6 +38,8 @@ import {
   articleLabel,
   requestCost,
   playerOrder,
+  playerDataGaps,
+  playerPhotoReady,
 } from '../compute.js';
 import {
   EVENT_TYPE_LABEL,
@@ -52,6 +56,7 @@ import {
   TACTICAL_ROLE_MATCH,
   REQUEST_STATUS_LABEL,
   REQUEST_STATUS_BADGE,
+  PLAYER_DATA_ITEMS,
 } from '../constants.js';
 
 // Estado local de UI, como nos filtros das outras vistas: sobrevive aos
@@ -151,6 +156,7 @@ export function renderPortal(container) {
   container.innerHTML = `
     <div class="portal">
     ${heroHTML(me, team, availability)}
+    ${dadosHTML(me)}
     ${nextUpHTML(next, me)}
     ${orderHTML(playerOrder(me.id))}
 
@@ -171,6 +177,135 @@ export function renderPortal(container) {
   `;
 
   wire(container, me, team);
+  hydratePhotos(container);
+}
+
+// --- A ficha por completar -----------------------------------------------
+//
+// Três dados faltam em quase todas as fichas — foto, data de nascimento e
+// fotocópia do CC — e o clube não os consegue preencher sozinho: estão todos
+// deste lado. Pedi-los por mensagem, atleta a atleta, é o trabalho que nunca
+// acaba; aqui a pergunta fica no sítio por onde ela passa de qualquer maneira.
+//
+// FICA ATÉ ESTAR PREENCHIDO, e desaparece sozinho quando estiver: é o único
+// bloco do portal que se põe à frente do "A seguir", e ganha esse lugar
+// precisamente por ser temporário. Um aviso permanente no topo deixa de ser
+// lido ao terceiro dia.
+function dadosHTML(me) {
+  // Antes da migração (`supabase/dados-atleta.sql`) não há coluna para a foto
+  // nem política que a deixe entregar o cartão de cidadão: o cartão pedia três
+  // coisas e as três davam erro. É a mesma linha do `birthDateReady()` — um
+  // botão que dá erro é pior do que um botão que não existe.
+  if (!playerPhotoReady()) return '';
+
+  const gaps = playerDataGaps(me);
+  if (!gaps.length) return '';
+
+  const itens = PLAYER_DATA_ITEMS.filter((i) => gaps.includes(i.key));
+  return `
+    <section class="card portal-dados">
+      <div class="portal-dados__head">
+        <span class="portal-dados__label">Falta na tua ficha</span>
+        <p class="portal-dados__intro">
+          O clube precisa disto para te inscrever. Só tu o podes preencher — demora um minuto.
+        </p>
+      </div>
+      <ul class="portal-dados__list">
+        ${itens.map((i) => `
+          <li class="portal-dados__item">
+            <div class="portal-dados__text">
+              <strong>${esc(i.label)}</strong>
+              <span class="muted">${esc(i.ask)}</span>
+            </div>
+            <button class="btn btn--primary btn--sm" data-dados="${i.key}" type="button">${esc(i.action)}</button>
+          </li>
+        `).join('')}
+      </ul>
+      ${gaps.includes('cc') ? `
+        <p class="portal-dados__nota muted">
+          A fotocópia fica guardada num arquivo privado do clube: só a direção e o
+          departamento clínico lhe chegam.
+        </p>` : ''}
+    </section>
+  `;
+}
+
+// Um campo de ficheiro fora de um formulário: o que se quer aqui é UM gesto
+// (escolher a foto no telemóvel), e um modal com um `type: 'file'` e um botão
+// de gravar são três. O elemento vive só o tempo da escolha.
+function pickFile(accept) {
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = accept;
+    // O `change` não dispara em quem cancela: o elemento fica pendurado, sem
+    // consequência, e o `resolve(null)` nunca chega — por isso a promessa é
+    // resolvida também pelo `cancel`, que os browsers atuais já emitem.
+    input.addEventListener('cancel', () => resolve(null));
+    input.addEventListener('change', () => resolve(input.files?.[0] || null));
+    input.click();
+  });
+}
+
+async function fillFoto(me, container) {
+  const file = await pickFile('image/*');
+  if (!file) return;
+  if (file.size > 12 * 1024 * 1024) {
+    toastError('A imagem não pode exceder 12 MB.');
+    return;
+  }
+  try {
+    await savePlayerPhoto(me.id, file);
+    toastOk('Fotografia guardada.');
+    renderPortal(container);
+  } catch (err) {
+    toastError(dbErrorMessage(err));
+  }
+}
+
+function fillNascimento(me) {
+  openModal({
+    title: 'Data de nascimento',
+    intro: 'Escreve o dia em que fazes anos. Depois de gravada, só o clube a pode corrigir.',
+    submitLabel: 'Guardar',
+    fields: [
+      {
+        name: 'birth_date',
+        label: 'Data de nascimento',
+        type: 'date',
+        required: true,
+        // O ano que já está na ficha é o único ponto de partida que existe —
+        // e é ele que decide o escalão, por isso a data tem de o respeitar.
+        hint: me.birth_year ? `A ficha diz que nasceste em ${me.birth_year}.` : '',
+      },
+    ],
+    onSubmit: async (values) => {
+      const d = values.birth_date;
+      if (!d) throw new Error('Escolhe uma data.');
+      if (new Date(d) > new Date()) throw new Error('A data não pode ser no futuro.');
+      if (me.birth_year && d.slice(0, 4) !== String(me.birth_year)) {
+        throw new Error(`A ficha diz que nasceste em ${me.birth_year}. Se estiver errado, fala com o clube.`);
+      }
+      await saveMyPlayerData({ birth_date: d });
+      toastOk('Data guardada.');
+    },
+  });
+}
+
+async function fillCC(me, container) {
+  const file = await pickFile('.pdf,.jpg,.jpeg,.png,.webp');
+  if (!file) return;
+  if (file.size > 10 * 1024 * 1024) {
+    toastError('O ficheiro não pode exceder 10 MB.');
+    return;
+  }
+  try {
+    await uploadPlayerDocument(me.id, 'cc', file, null);
+    toastOk('Fotocópia enviada.');
+    renderPortal(container);
+  } catch (err) {
+    toastError(dbErrorMessage(err));
+  }
 }
 
 // --- Cabeçalho -----------------------------------------------------------
@@ -214,8 +349,11 @@ function heroHTML(me, team, availability) {
   return `
     <header class="portal-hero">
       <div class="portal-hero__id">
-        <h1 class="portal-hero__greet">${esc(greet())}${first ? ', ' + esc(first) : ''}</h1>
-        <p class="portal-hero__meta">${esc(meta)}</p>
+        ${me.photo_path ? photoAvatarHTML(me, 'portal-hero__foto') : ''}
+        <div class="portal-hero__nome">
+          <h1 class="portal-hero__greet">${esc(greet())}${first ? ', ' + esc(first) : ''}</h1>
+          <p class="portal-hero__meta">${esc(meta)}</p>
+        </div>
       </div>
       ${alerta || pedir ? `<div class="portal-hero__side">${alerta}${pedir}</div>` : ''}
     </header>
@@ -744,6 +882,14 @@ function wire(container, me, team) {
   );
 
   container.querySelector('#portal-pedir')?.addEventListener('click', () => openRequestModal(me));
+
+  container.querySelectorAll('[data-dados]').forEach((btn) =>
+    btn.addEventListener('click', () => {
+      if (btn.dataset.dados === 'foto') fillFoto(me, container);
+      else if (btn.dataset.dados === 'nascimento') fillNascimento(me);
+      else fillCC(me, container);
+    })
+  );
 
   container.querySelectorAll('[data-cancel-req]').forEach((btn) =>
     btn.addEventListener('click', () => cancelMyRequest(btn.dataset.cancelReq))

@@ -259,6 +259,7 @@ src/
   join-guide.js         Guia de entrada no portal: passos comuns + mensagem do escalão
   sizes-message.js      Mensagem à família para confirmar os dados da encomenda
   join-poster.js        Cartaz A4 do guia de entrada (QR da app + QR do grupo)
+  player-photo.js       Foto de perfil nos avatares (endereços assinados em lote)
   offline-card.js       Cartão QR guardado no dispositivo (ecrã de recurso sem rede)
   tactical-court.js     Campo em SVG + exercício de decisão (todas as posições)
   report-sheet.js       Folha A4 imprimível: janela, estilos e blocos comuns
@@ -313,6 +314,7 @@ supabase/confirmacao-tamanhos.sql A família confirma número, nomes de camisola
 supabase/fotos-artigos.sql     Bucket público com a foto de cada artigo de equipamento
 supabase/variante-equipamento.sql Cor/modelo do equipamento por escalão (resumo dos pedidos)
 supabase/aniversarios.sql      Data de nascimento do atleta (aniversários + quem falta)
+supabase/dados-atleta.sql      Foto de perfil + a atleta completa a sua ficha (foto, data, CC)
 supabase/remover-utilizadores.sql Eliminar contas do clube (RPC delete_org_member)
 supabase/portal-atleta.sql     Portal: o atleta lê a sua própria disponibilidade
 supabase/comunicacao.sql       Respostas do atleta a eventos + avisos do clube
@@ -1094,6 +1096,68 @@ separador antes de navegar (usado pelos cartões do Painel).
     sondado no `loadAll`): sem `event_players` não há forma de dizer quem lá
     vai, que é a única coisa que distingue esta sessão de um treino. É a mesma
     linha do `birthDateReady()`.
+- **A ficha completa-se do lado do atleta**
+  (`supabase/dados-atleta.sql`, `src/player-photo.js`, `playerDataGaps` em
+  `compute.js`): três dados faltavam em quase todas as fichas — a
+  **fotografia**, a **data de nascimento** e a **fotocópia do CC**. São os três
+  que o clube precisa de ter para inscrever uma atleta, e os três que o
+  coordenador não consegue preencher sozinho: a foto está no telemóvel da
+  família, o dia do aniversário está no cartão dela e a fotocópia é um ficheiro
+  que alguém tem de digitalizar. Pedi-los por mensagem, atleta a atleta, é o
+  trabalho que nunca acaba — e as fichas ficam a meio a época inteira.
+  - **Quem tem conta ligada preenche-os do PORTAL**, num cartão que fica no
+    topo ATÉ estar preenchido e desaparece sozinho quando estiver. É o único
+    bloco que se põe à frente do "A seguir", e ganha esse lugar precisamente
+    por ser temporário: um aviso permanente no cimo deixa de ser lido ao
+    terceiro dia. O clube continua a poder preencher tudo pela ficha.
+  - **A foto é um CAMINHO no Storage** (`players.photo_path`), não uma data
+    URL: é a decisão das fotos dos artigos. Cento e vinte fichas com a imagem
+    na linha seriam megabytes lidos em cada `loadAll()`, por toda a gente, para
+    mostrar 38 píxeis de cara.
+  - **O bucket é PRIVADO**, ao contrário do `equipment-photos`. A foto de um
+    casaco de treino não é dado pessoal; a cara de uma atleta de catorze anos
+    é — e um bucket público é um endereço que, uma vez descoberto, não tem dono
+    nem expira. O custo assume-se: os endereços assinam-se, e por isso
+    assinam-se em LOTE e guardam-se em memória enquanto forem válidos
+    (`photoUrls` no `store.js`) — os Plantéis re-desenham a cada notificação do
+    store, e sessenta assinaturas por re-desenho eram a rede a trabalhar para
+    mostrar o mesmo ecrã. O isolamento entre clubes não vem do caminho: a
+    política lê `players`, cujo RLS já é RESTRICTIVE por `org_id`.
+  - **As iniciais não desaparecem, ficam por baixo** (`photoAvatarHTML` +
+    `hydratePhotos`): entre o HTML e a assinatura há sempre um intervalo, e
+    nesse intervalo vê-se o avatar de sempre em vez de um buraco. Uma foto que
+    falhe deixa o ecrã exatamente como estava antes de existirem fotos.
+  - **`players` NÃO ganha política de UPDATE para o atleta.** Uma política de
+    update é por LINHA e não por coluna: abrir a linha dela para a foto abria-a
+    para a equipa, o número e o `review_status` — ou seja, a atleta podia
+    mudar-se de escalão. Escreve-se pela RPC `update_my_player_data`, que é a
+    mesma decisão do `set_painel_prefs` em `profiles`.
+  - **A data de nascimento PREENCHE-SE, não se corrige** (o servidor recusa
+    quando já lá está): é ela que decide o escalão em que a atleta joga, e
+    mudá-la é decisão do clube, na ficha, onde se vê o que se está a gravar. O
+    formulário do portal também recusa um ano diferente do que a ficha já tem —
+    o ano é o único ponto de partida que existe e é ele que calcula o escalão.
+  - **Do CC ela ESCREVE só o CC.** Vê os seus documentos todos (que o exame
+    médico caduca em março é exatamente o que ela tem de saber), mas o exame e
+    o seguro são documentos que o clube emite ou recebe: deixá-la substituí-los
+    era deixá-la substituir a prova de que está apta a jogar. Apagar o próprio
+    CC é o que permite substituir uma fotocópia ilegível — que é metade das
+    fotocópias tiradas com um telemóvel.
+  - **"Substituir" passou a substituir mesmo**: o `uploadPlayerDocument`
+    inseria, por isso a segunda fotocópia nascia como uma SEGUNDA linha do
+    mesmo tipo, a lista continuava a mostrar a primeira e o ficheiro velho
+    ficava no bucket para sempre. A antiga só se apaga depois de a nova estar
+    gravada: ao contrário, uma falha a meio deixava o atleta sem documento
+    nenhum.
+  - **Quem olha para a ficha vê o que falta** (`gapsLine`, no cabeçalho do
+    perfil) e o Painel diz quantas estão a meio (`fichas_incompletas`, degrau
+    `depois`, com os nomes no subtítulo). O trabalho aqui não é preencher — é
+    saber a quem telefonar. A pergunta do CC só se faz a quem lê documentos:
+    para os outros papéis `player_documents` chega VAZIO, e responder por essa
+    lista era dizer que o clube inteiro não tem fotocópia nenhuma.
+  - **Antes da migração nada disto aparece** (`playerPhotoReady()`): sem a
+    coluna e sem as políticas, o cartão pedia três coisas e as três davam erro.
+    É a mesma linha do `birthDateReady()`.
 - **Importar atletas (.xlsx)**: nos Plantéis, cada equipa tem "Importar (xlsx)".
   `players-xlsx.js` lê o ficheiro com SheetJS (carregado dinamicamente) e mapeia
   as colunas por cabeçalho (Nome, Número, Ano de nascimento, Posição; aceita

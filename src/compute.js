@@ -456,6 +456,52 @@ export function playersWithoutBirthday(teamId = null) {
     .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt'));
 }
 
+// --- O que falta na ficha de um atleta -----------------------------------
+//
+// Três dados faltavam em quase todas as fichas — foto, data de nascimento e
+// fotocópia do CC — e nenhum deles se preenche do lado do clube: estão todos
+// do lado da atleta e da família. É esta lista que o portal usa para insistir
+// (um cartão fixo enquanto faltar algum) e o Painel para dizer quantas fichas
+// estão a meio.
+
+// A coluna `players.photo_path` chega por migração (`supabase/dados-atleta.sql`).
+// Mesma regra da data de nascimento: sem a coluna, gravar o caminho rebentava
+// a ficha inteira, por isso a app só oferece a foto depois da migração. Um
+// clube ainda sem atletas assume-se pronto — é o estado de quem instalou agora.
+export function playerPhotoReady() {
+  return !state.players.length || 'photo_path' in state.players[0];
+}
+
+// O que falta a ESTA ficha, pela ordem do catálogo. `docs: false` desliga a
+// pergunta do CC: `player_documents` só é lido pelo coordenador, pela fisio,
+// pelo preparador e pela própria atleta — para os outros papéis a lista chega
+// VAZIA, e uma lista vazia lida como resposta dizia que o clube inteiro não
+// tem fotocópia nenhuma.
+export function playerDataGaps(player, { docs = true } = {}) {
+  if (!player) return [];
+  const gaps = [];
+  if (playerPhotoReady() && !player.photo_path) gaps.push('foto');
+  if (birthDateReady() && !player.birth_date) gaps.push('nascimento');
+  if (docs && !playerHasDoc(player.id, 'cc')) gaps.push('cc');
+  return gaps;
+}
+
+export function playerHasDoc(playerId, docType) {
+  return state.playerDocuments.some((d) => d.player_id === playerId && d.doc_type === docType);
+}
+
+// As fichas a meio, do mesmo âmbito dos aniversários (o treinador vê as suas
+// equipas, os papéis de âmbito de clube veem tudo). Ordenadas por quem tem
+// mais em falta: a ficha sem nada preenchido é a que precisa do telefonema.
+export function playersMissingData(teamId = null, opts = {}) {
+  return birthdayScope()
+    .filter((p) => !teamId || p.team_id === teamId)
+    .map((p) => ({ player: p, gaps: playerDataGaps(p, opts) }))
+    .filter((r) => r.gaps.length)
+    .sort((a, b) => b.gaps.length - a.gaps.length
+      || (a.player.name || '').localeCompare(b.player.name || '', 'pt'));
+}
+
 // Total angariado = soma do valor do nível dos patrocínios CONFIRMADOS.
 // Patrocínios confirmados sem nível contam 0 (não deviam existir, pois a app
 // exige nível ao confirmar — mas o cálculo é defensivo na mesma).
