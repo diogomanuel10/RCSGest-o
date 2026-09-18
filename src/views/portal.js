@@ -269,23 +269,20 @@ function fillNascimento(me) {
     intro: 'Escreve o dia em que fazes anos. Depois de gravada, só o clube a pode corrigir.',
     submitLabel: 'Guardar',
     fields: [
-      {
-        name: 'birth_date',
-        label: 'Data de nascimento',
-        type: 'date',
-        required: true,
-        // O ano que já está na ficha é o único ponto de partida que existe —
-        // e é ele que decide o escalão, por isso a data tem de o respeitar.
-        hint: me.birth_year ? `A ficha diz que nasceste em ${me.birth_year}.` : '',
-      },
+      { name: 'birth_date', label: 'Data de nascimento', type: 'date', required: true },
     ],
     onSubmit: async (values) => {
       const d = values.birth_date;
       if (!d) throw new Error('Escolhe uma data.');
       if (new Date(d) > new Date()) throw new Error('A data não pode ser no futuro.');
-      if (me.birth_year && d.slice(0, 4) !== String(me.birth_year)) {
-        throw new Error(`A ficha diz que nasceste em ${me.birth_year}. Se estiver errado, fala com o clube.`);
-      }
+      // A DATA manda no ano, e não ao contrário. O formulário chegou a recusar
+      // um ano diferente do que a ficha tinha, para proteger o escalão — e o
+      // que isso fazia era barrar precisamente quem tinha o ano errado na
+      // ficha: a atleta lia "fala com o clube" e ficava sem preencher nada,
+      // que é o problema que isto veio resolver. O ano da ficha é muitas vezes
+      // um palpite de uma importação antiga; a data vem do cartão de cidadão
+      // dela. O `players_sync_birth_year` (supabase/aniversarios.sql) acerta o
+      // ano sozinho a partir da data — as duas colunas nunca divergem.
       await saveMyPlayerData({ birth_date: d });
       toastOk('Data guardada.');
     },

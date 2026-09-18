@@ -1134,9 +1134,17 @@ separador antes de navegar (usado pelos cartões do Painel).
     mesma decisão do `set_painel_prefs` em `profiles`.
   - **A data de nascimento PREENCHE-SE, não se corrige** (o servidor recusa
     quando já lá está): é ela que decide o escalão em que a atleta joga, e
-    mudá-la é decisão do clube, na ficha, onde se vê o que se está a gravar. O
-    formulário do portal também recusa um ano diferente do que a ficha já tem —
-    o ano é o único ponto de partida que existe e é ele que calcula o escalão.
+    mudá-la é decisão do clube, na ficha, onde se vê o que se está a gravar.
+    - **Mas a DATA manda no ano, e não ao contrário.** O formulário do portal
+      chegou a recusar uma data cujo ano não batesse certo com o
+      `birth_year` da ficha, para proteger o escalão — e o que isso fazia era
+      barrar exatamente quem tinha o ano errado: a atleta lia "fala com o
+      clube" e ficava sem preencher nada, que é o problema que isto veio
+      resolver. O ano da ficha é muitas vezes um palpite de uma importação
+      antiga; a data vem do cartão de cidadão dela. O trigger
+      `players_sync_birth_year` acerta o ano a partir da data, por isso as
+      duas colunas continuam a não divergir — o que muda é qual delas é a
+      fonte.
   - **Do CC ela ESCREVE só o CC.** Vê os seus documentos todos (que o exame
     médico caduca em março é exatamente o que ela tem de saber), mas o exame e
     o seguro são documentos que o clube emite ou recebe: deixá-la substituí-los
