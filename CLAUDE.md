@@ -1382,20 +1382,25 @@ separador antes de navegar (usado pelos cartões do Painel).
   a: o que tenho hoje, o que ficou por fechar, o que tenho de preparar. Tudo
   recortado às suas equipas (`myTeams`/`isMyEvent` em `compute.js`, que também
   passaram a recortar `attendanceStats`/`attendanceTrend`/`trainingsToMark`).
-  - **As presenças por marcar são o centro do ecrã**, não um cartão no fundo:
-    é a tarefa que se acumula (um treino por marcar vira quinze em três
-    semanas) e a única que, por ficar por fazer, estraga todos os números
-    calculados a seguir — comparência, quedas individuais, "treina muito, joga
-    pouco". Aparecem TODAS (não as primeiras seis), separadas entre hoje e
-    atrasadas, com a idade de cada uma.
-  - **Fechar em lote** (`closeAttendanceSessions` no `store.js`): marcar treino
-    a treino de há um mês não é registo, é ficção — o que se sabe mesmo é quem
-    não tem registo nenhum. Um botão fecha de uma vez as sessões com mais de 7
-    dias, com uma escrita por treino e um só toast.
-  - Mais três blocos que existiam mas estavam a três cliques: treinos dos
-    próximos 7 dias **sem exercícios no plano** (uma linha de plano vazia é um
-    plano por fazer), **jogos por registar** resultado, e quem **não está a
-    100%** (disponibilidade, sem detalhe clínico).
+  - **Duas listas de treinos saíram do painel**: o cartão "Presenças por
+    marcar" (com as sessões atrasadas e o fechar em lote) e o "Treinos por
+    preparar". Eram duas listas longas, uma por cima da outra, com o mesmo
+    desenho e os mesmos botões — e entre as duas empurravam para fora do ecrã
+    o que este painel tem de dizer primeiro: o que há hoje e quem avisou que
+    não vem. Cada uma delas tem o seu ecrã, e é lá que o trabalho se faz: as
+    presenças na secção Presenças (onde está o plantel), o plano no Calendário
+    ou no próprio evento de hoje, que continua a ter o botão "Plano".
+    - **A faixa também não as conta.** Um número sozinho não é trabalho: "9
+      treinos por fechar" não diz QUAIS, e obriga na mesma a abrir a secção.
+      Pela mesma razão `buildActions()` continua sem `includePresencas` no
+      painel do treinador — essa linha-resumo é supervisão, e é do
+      coordenador.
+    - O `closeAttendanceSession`/`closeAttendanceSessions` do `store.js`
+      continuam a existir e a ser usados pela secção Presenças; o que saiu foi
+      o atalho no painel.
+  - Ficam dois blocos que existiam mas estavam a três cliques: **jogos por
+    registar** resultado e quem **não está a 100%** (disponibilidade, sem
+    detalhe clínico).
   - **Quem avisou que NÃO vem aparece na linha do evento** (`absenceLine`,
     sobre `eventResponseSummary`). A resposta do atleta já existia e já chegava
     por notificação — mas uma notificação lê-se uma vez, de passagem, e no dia
@@ -1543,12 +1548,11 @@ separador antes de navegar (usado pelos cartões do Painel).
       trabalho de semanas e não de horas, por isso a faixa vem sempre à frente
       nesse painel. Inventar urgência onde não há é a forma mais rápida de o
       degrau "Agora" deixar de ser lido.
-  - **No painel do treinador**, o cartão "Por marcar" da faixa saiu: o número
-    estava por cima do cartão que lista, linha a linha, exatamente os mesmos
-    treinos. Pela mesma razão, `buildActions({ includePresencas })` só dá a
-    linha-resumo das presenças ao **coordenador** — para quem isto é supervisão
-    e o que interessa é se está a acumular. O treinador mantém o cartão inteiro,
-    que é o centro do ecrã dele.
+  - **No painel do treinador** não há presenças por marcar de todo — nem o
+    cartão, nem o número da faixa, nem a linha-resumo
+    (`buildActions({ includePresencas })` é só do **coordenador**, para quem
+    isto é supervisão e o que interessa é se está a acumular). Ver «Painel do
+    treinador».
 - **Painel personalizável** (`supabase/painel-avisos.sql`): dois catálogos em
   `painel.js` — `METRIC_CATALOG` (os cartões de números) e `ALERT_CATALOG` (a
   lista "A precisar da tua atenção"). Cada entrada declara quem a **pode** ver
