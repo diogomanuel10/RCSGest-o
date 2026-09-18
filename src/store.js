@@ -1643,7 +1643,20 @@ async function deletePlayerPhoto(path) {
 export async function savePlayerPhoto(playerId, file) {
   const player = state.players.find((p) => p.id === playerId);
   const anterior = player?.photo_path || null;
-  const path = await uploadPlayerPhoto(playerId, file);
+
+  // Guardar uma foto são DOIS passos com donos diferentes — o ficheiro vai
+  // para o Storage (políticas do bucket) e o caminho vai para a ficha (RLS de
+  // `players`). Uma recusa em qualquer deles dava a mesma frase ("sem
+  // permissão"), e as duas pedem coisas opostas a quem a lê: uma é o bucket
+  // que falta, a outra é o papel de quem está a gravar. Por isso cada passo
+  // diz qual é.
+  let path;
+  try {
+    path = await uploadPlayerPhoto(playerId, file);
+  } catch (err) {
+    throw stepError(err, 'A imagem não foi aceite pelo arquivo de fotos do clube');
+  }
+
   try {
     if (isMyPlayer(playerId)) await saveMyPlayerData({ photo_path: path });
     else await updateRow('players', 'players', playerId, { photo_path: path });
@@ -1651,10 +1664,24 @@ export async function savePlayerPhoto(playerId, file) {
     // A ficha não ficou a apontar para cá: o ficheiro que acabou de subir é
     // lixo, e deixá-lo lá é pagar armazenamento por uma foto que ninguém vê.
     await deletePlayerPhoto(path);
-    throw err;
+    throw stepError(err, 'A imagem subiu, mas não foi possível guardá-la na ficha');
   }
   await deletePlayerPhoto(anterior);
   return path;
+}
+
+// Diz em que passo se falhou sem perder o que o servidor respondeu: a causa
+// verdadeira ("row-level security", "bucket not found") é o que resolve o
+// problema, e engoli-la para mostrar uma frase bonita deixa quem lê sem nada
+// para procurar.
+function stepError(err, passo) {
+  // O erro cru fica na consola: é lá que se vê o código do Postgres e a
+  // política que recusou, e nada disso cabe num toast.
+  console.error(`[foto do atleta] ${passo}:`, err);
+  const detalhe = dbErrorMessage(err);
+  const e = new Error(`${passo}: ${detalhe}`);
+  e.cause = err;
+  return e;
 }
 
 // A ficha ligada à conta atual é dela? É o mesmo vínculo do portal — uma
