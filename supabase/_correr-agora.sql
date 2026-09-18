@@ -1,23 +1,31 @@
 -- =====================================================================
--- Rumia — TUDO O QUE FALTA CORRER (gerado a 2026-09-16)
+-- Rumia — TUDO O QUE FALTA CORRER (gerado a 2026-09-18)
 -- =====================================================================
 -- Cola isto INTEIRO no SQL Editor do Supabase e corre uma vez.
 --
--- São seis migrações, nesta ordem (a ordem importa: cada uma depende das
--- colunas e do vocabulário que as anteriores criam):
+-- São três migrações. Ao contrário do lote anterior, estas são
+-- INDEPENDENTES umas das outras — a ordem entre elas não importa:
 --
---   1. artigos-configuraveis.sql  o clube define os seus artigos e tamanhos
---   2. pedidos-atleta.sql         a atleta pede do portal; decide coord./direção
---   3. fotos-artigos.sql          bucket com a foto de cada artigo
---   4. variante-equipamento.sql   a cor/modelo do equipamento por escalão
---   5. circuito-pedidos.sql       as paragens de um pedido + o que está por pagar
---   6. confirmacao-tamanhos.sql   a família confirma os dados da encomenda
+--   1. musculacao.sql         sessões de ginásio com o plantel escolhido
+--   2. referencias-testes.sql as faixas de referência que o preparador escreve
+--   3. decimais-fisicos.sql   altura e peso com 2 casas (não arredondar)
 --
--- Todas são seguras de re-executar: se já correste alguma, correr outra vez
--- não desfaz nada nem duplica seja o que for.
+-- O que ELAS precisam já deve estar aplicado (schema.sql, multitenant.sql,
+-- notifications.sql, qrcode-presencas.sql, trainer-notifications.sql,
+-- comunicacao.sql e notificacoes-atleta.sql). Se alguma função aparecer como
+-- inexistente, é uma dessas que falta.
+--
+-- Todas são seguras de re-executar: correr outra vez não desfaz nada nem
+-- duplica seja o que for (testado, duas passagens seguidas).
 --
 -- O SQL Editor corre isto como um bloco só. Se alguma linha falhar, NADA é
 -- aplicado — ficas no estado anterior, sem meio caminho andado.
+--
+-- ATENÇÃO AO COLAR: o editor do Supabase corre só o TEXTO SELECIONADO quando
+-- há uma seleção ativa. Um "unterminated dollar-quoted string" quase sempre
+-- quer dizer isso — metade de uma função foi enviada. Clica uma vez no
+-- editor para desmarcar a seleção antes de correr, e confirma que a última
+-- linha colada é a da VERIFICAÇÃO, lá no fim.
 --
 -- Depois de correr, confirma com a consulta que está no FIM do ficheiro.
 -- =====================================================================
@@ -25,795 +33,702 @@
 
 
 -- ####################################################################
--- ##  artigos-configuraveis.sql
+-- ##  musculacao.sql
 -- ####################################################################
 
 -- =====================================================================
--- Rumia — Artigos de equipamento e tamanhos configuráveis pelo clube
+-- Rumia — Musculação: sessões com o plantel ESCOLHIDO
 -- =====================================================================
--- Corre DEPOIS de schema.sql e multitenant.sql.
--- Pode ser corrido várias vezes sem problema.
+-- Correr DEPOIS de schema.sql, multitenant.sql, comunicacao.sql,
+-- qrcode-presencas.sql e notificacoes-atleta.sql. Pode correr várias vezes.
 --
--- Porquê: a lista de artigos vivia cravada no código (EQUIPMENT_ARTICLES em
--- constants.js) e os tamanhos eram XS–XXL para todos. Um clube que dá
--- joelheiras, ou que compra camisolas em tamanhos de criança (6/8/10/12),
--- não tinha onde o dizer — e o que a app não sabe registar acaba registado
--- numa folha de Excel à parte, que é onde as encomendas se perdem.
+-- Porque existe: a preparação física já tinha periodização, avaliações e
+-- perfis, mas o trabalho que as atletas fazem mesmo — a sessão de ginásio das
+-- 19h de terça — não estava em lado nenhum que elas vissem. Vivia num papel
+-- colado à porta do ginásio e num grupo de WhatsApp: quem não estava lá na
+-- terça não sabia se lhe tinha calhado a sessão, e o calendário do clube dizia
+-- que naquela hora não havia nada.
 --
--- O obstáculo era o formato: `player_sizes` tinha UMA COLUNA POR ARTIGO, por
--- isso criar um artigo novo exigia um ALTER TABLE. Um coordenador não corre
--- ALTER TABLE. Os tamanhos passam a viver todos numa só coluna `sizes`
--- (jsonb), com a chave do artigo como chave do objeto.
+-- A sessão passa a ser um EVENTO (`events`, tipo `musculacao`) e não uma
+-- tabela nova. É essa decisão que a faz aparecer no calendário, na página de
+-- cada atleta, nas presenças e nas notificações — tudo isso já existe e já
+-- funciona para eventos. Uma tabela à parte obrigava a reescrever cada um
+-- desses caminhos, e o que se ganhava era zero.
 --
--- O que faz:
---   1. Acrescenta `settings.equipment_articles jsonb` (a lista do clube)
---   2. Acrescenta `player_sizes.sizes jsonb`
---   3. Copia para lá o que já estava nas 9 colunas fixas
---   4. NÃO apaga as colunas antigas (ver nota no fim)
--- =====================================================================
-
--- ---------------------------------------------------------------------
--- 1. A lista de artigos do clube
--- ---------------------------------------------------------------------
--- Vazio = usar a lista por omissão do código (DEFAULT_EQUIPMENT_ARTICLES),
--- exatamente como `settings.positions`: um clube que não configura nada
--- continua a ver os nove artigos de sempre, sem seed nenhum.
+-- O que muda em relação a um treino é UMA coisa, e é a que interessa: o
+-- plantel. Um treino é da equipa toda; uma sessão de musculação é dos atletas
+-- escolhidos para aquele horário. O ginásio tem seis bancos e não vinte, e o
+-- horário faz-se por grupos — escrever a sessão para a equipa inteira era
+-- dizer a doze atletas que têm ginásio à mesma hora no mesmo sítio.
 --
--- Cada entrada é { key, label, sizes: [], active }. A `key` é imutável — é
--- ela que está guardada em player_sizes.sizes e em equipment_requests.article.
--- `sizes` vazio = tamanho em texto livre (as meias). `active: false` tira o
--- artigo de circulação SEM apagar a definição: os pedidos e tamanhos já
--- registados continuam a saber traduzir a chave.
-alter table settings add column if not exists equipment_articles jsonb not null default '[]'::jsonb;
-
--- ---------------------------------------------------------------------
--- 2. Os tamanhos numa coluna só
--- ---------------------------------------------------------------------
--- Um objeto { "<chave do artigo>": "<tamanho>" }. A chave é a mesma que o
--- clube configura em settings.equipment_articles e a mesma que
--- equipment_requests.article já guardava — sem isso o pedido de um artigo e
--- o tamanho desse artigo na ficha ficavam a falar línguas diferentes.
---
--- É jsonb e não uma tabela chave/valor por atleta porque isto lê-se sempre
--- inteiro (a tabela das Encomendas é uma linha por atleta com todas as
--- colunas) e nunca se consulta por artigo isolado. Uma tabela filha só
--- acrescentava uma junção a cada leitura.
-alter table player_sizes add column if not exists sizes jsonb not null default '{}'::jsonb;
-
--- ---------------------------------------------------------------------
--- 3. Trazer o que já está preenchido
--- ---------------------------------------------------------------------
--- Sem isto, a migração apagava do ecrã todos os tamanhos já registados: eles
--- continuavam na base de dados, mas a app deixava de os ir buscar ali. O
--- `||` mantém o que já estiver em `sizes` por cima do valor antigo (correr o
--- ficheiro duas vezes não desfaz uma edição feita entretanto).
-update player_sizes set sizes =
-  (
-    jsonb_strip_nulls(jsonb_build_object(
-      'camisola',        camisola,
-      'camisola_alt',    camisola_alt,
-      'calcoes',         calcoes,
-      'meias',           meias,
-      'casaco_treino',   casaco_treino,
-      'calca_treino',    calca_treino,
-      'mochila',         mochila,
-      'blusao',          blusao,
-      'camisola_treino', camisola_treino
-    ))
-    || coalesce(sizes, '{}'::jsonb)
-  )
-where sizes is null or sizes = '{}'::jsonb;
-
--- ---------------------------------------------------------------------
--- 4. As colunas antigas ficam
--- ---------------------------------------------------------------------
--- De propósito, e é a mesma regra do ano de nascimento quando entrou a data
--- completa: uma migração que apaga a coluna de origem no mesmo passo em que
--- copia os dados não tem volta se a cópia correr mal. Ficam como estão (a
--- app deixa de as escrever) e apagam-se num ficheiro à parte, depois de a
--- coluna nova ter uma época de uso.
---
--- Quando for altura, é isto:
---   alter table player_sizes
---     drop column camisola,      drop column camisola_alt,
---     drop column calcoes,       drop column meias,
---     drop column casaco_treino, drop column calca_treino,
---     drop column mochila,       drop column blusao,
---     drop column camisola_treino;
-
-
--- ####################################################################
--- ##  pedidos-atleta.sql
--- ####################################################################
-
--- =====================================================================
--- Rumia — A atleta pede o seu equipamento (e quem decide muda)
--- =====================================================================
--- Corre DEPOIS de pedidos-equipamento.sql e artigos-configuraveis.sql.
--- Pode ser corrido várias vezes sem problema.
---
--- Porquê: o pedido nascia sempre no treinador. Mas quem sabe que a camisola
--- de treino já não serve é quem a veste — e nos escalões com conta ligada ao
--- portal essa pessoa já está na app. O caminho "digo ao treinador, o
--- treinador lança" é uma mensagem de telemóvel a mais no meio, com a mesma
--- perda que o módulo veio resolver.
---
--- O que muda:
---   1. `settings.athlete_requests_enabled` — o clube liga/desliga isto
---   2. RLS: a atleta cria e vê os SEUS pedidos
---   3. Quem VÊ o quadro todo e quem DECIDE passa a ser coordenador + direção
---      (sai o seccionista, o leitura, a fisio e o preparador)
---   4. `equipment_article_label` deixa de ter os artigos escritos à mão
+-- O que cria:
+--   1. `event_players` — quem entra em cada sessão (+ isolamento por clube)
+--   2. `event_roster_ids` / `event_athlete_user_ids` — o plantel de um evento
+--   3. Escrita de eventos e presenças para o PREPARADOR FÍSICO (só musculação)
+--   4. Notificações: as do atleta passam a respeitar o grupo escolhido, e
+--      entrar/sair de um grupo avisa
+--   5. `respond_to_event` e `close_attendance_session` a olhar para o grupo
 -- =====================================================================
 
 -- ---------------------------------------------------------------------
--- 1. Interruptor do clube
+-- 1. Quem entra em cada sessão
 -- ---------------------------------------------------------------------
--- Desligado seria mais seguro, mas um interruptor que ninguém sabe que
--- existe é uma funcionalidade que não existe. Fica LIGADO: o que trava o
--- volume é a lista de artigos que a atleta pode pedir (`requestable` em
--- settings.equipment_articles), que é escolha artigo a artigo e não um
--- tudo-ou-nada.
-alter table settings add column if not exists athlete_requests_enabled boolean not null default true;
-
--- ---------------------------------------------------------------------
--- 2. Quem vê
--- ---------------------------------------------------------------------
-drop policy if exists "eqreq_read"   on equipment_requests;
-drop policy if exists "eqreq_insert" on equipment_requests;
-drop policy if exists "eqreq_update" on equipment_requests;
-drop policy if exists "eqreq_delete" on equipment_requests;
-
--- O quadro TODO do clube é de quem paga o material: coordenador e direção.
--- Saíram o seccionista, o leitura, a fisio e o preparador — nenhum deles tem
--- nada a fazer com um pedido de equipamento, e uma lista que toda a gente vê
--- deixa de ser um sítio onde se escreve "a Ana rasgou as meias".
---
--- Ao lado disso, duas leituras próprias e recortadas:
---   • o treinador vê os das SUAS equipas (é ele que pede por quem não tem
---     conta ligada, e um pedido que quem pediu não pode acompanhar é a
---     mensagem de telemóvel outra vez);
---   • a atleta vê os SEUS. A regra antiga era que o atleta não via nada
---     disto, "porque criava a expectativa de que o material está a caminho
---     antes de alguém o ter decidido" — isso vale para o pedido que OUTRO
---     fez por ela, não para o que ela própria escreveu. Quem pede sabe que
---     pediu; o que lhe faltava era saber em que ficou.
-create policy "eqreq_read" on equipment_requests for select to authenticated
-using (
-  app_role() in ('coordenador','direcao')
-  or (app_role() = 'treinador'
-      and player_id in (select id from players where team_id in (select trainer_team_ids())))
-  or (app_role() = 'atleta'
-      and player_id in (select id from players where user_id = auth.uid()))
+-- É uma linha por ATLETA e por EVENTO, como a convocatória de um jogo — e pela
+-- mesma razão: estar no grupo é ter linha, não estar é não ter. Sem coluna de
+-- estado, porque não há um segundo estado que signifique alguma coisa.
+create table if not exists event_players (
+  id         uuid primary key default gen_random_uuid(),
+  event_id   uuid not null references events(id)  on delete cascade,
+  player_id  uuid not null references players(id) on delete cascade,
+  created_at timestamptz default now(),
+  unique (event_id, player_id)
 );
 
--- ---------------------------------------------------------------------
--- 3. Quem cria
--- ---------------------------------------------------------------------
--- A atleta só pede para a SUA ficha, e só se o clube tiver isto ligado. O
--- `player_id in (... user_id = auth.uid())` é o mesmo vínculo do portal: uma
--- conta liga-se a uma ficha e é essa, e não a que vier no pedido.
-create policy "eqreq_insert" on equipment_requests for insert to authenticated
-with check (
-  requested_by = auth.uid()
-  and (
-    app_role() in ('coordenador','direcao')
-    or (app_role() = 'treinador'
-        and player_id in (select id from players where team_id in (select trainer_team_ids())))
-    or (app_role() = 'atleta'
-        and status = 'pendente'
-        and player_id in (select id from players where user_id = auth.uid())
-        -- `settings` é UMA LINHA POR CLUBE desde o multitenant.sql. O
-        -- `limit 1` funcionava por acidente (a política de isolamento já
-        -- filtra o que este utilizador vê), mas escrever o clube à mão é o
-        -- que torna isso verdade em vez de sorte.
-        and coalesce(
-          (select athlete_requests_enabled from settings where org_id = current_org_id()),
-          true))
-  )
+create index if not exists idx_event_players_event  on event_players (event_id);
+create index if not exists idx_event_players_player on event_players (player_id);
+
+-- Multi-tenant: `org_id` + política RESTRICTIVE de isolamento, como todas as
+-- outras tabelas de dados (ver multitenant.sql).
+alter table event_players add column if not exists org_id uuid references organizations(id) on delete cascade;
+alter table event_players alter column org_id set default current_org_id();
+create index if not exists idx_event_players_org on event_players (org_id);
+
+-- Linhas criadas antes desta coluna existir (não deve haver, mas é barato):
+update event_players ep
+   set org_id = e.org_id
+  from events e
+ where e.id = ep.event_id and ep.org_id is null;
+
+alter table event_players enable row level security;
+
+drop policy if exists tenant_isolation on event_players;
+create policy tenant_isolation on event_players as restrictive for all to authenticated
+  using (org_id = current_org_id()) with check (org_id = current_org_id());
+
+-- LEITURA: a equipa técnica vê os grupos todos; o treinador os das SUAS
+-- equipas; a atleta os SEUS. Uma atleta que não veja a sua própria linha não
+-- consegue saber que tem ginásio — que é o problema de origem.
+drop policy if exists "evp_read" on event_players;
+create policy "evp_read" on event_players for select to authenticated using (
+  app_role() in ('coordenador','direcao','seccionista','leitura','fisioterapeuta','preparador')
+  OR player_id = athlete_player_id()
+  OR event_id in (select id from events where team_id in (select trainer_team_ids()))
 );
 
--- ---------------------------------------------------------------------
--- 4. Quem altera e quem cancela
--- ---------------------------------------------------------------------
--- Quem pediu corrige o SEU pedido enquanto ninguém lhe tocou — o tamanho
--- errado, a quantidade. Vale para o treinador e para a atleta, pela mesma
--- razão. O ESTADO fica fechado aos dois pelo trigger abaixo: a política de
--- UPDATE, sozinha, deixava-os escrever `status='aprovado'`.
-create policy "eqreq_update" on equipment_requests for update to authenticated
-using (
-  app_role() in ('coordenador','direcao')
-  or (app_role() in ('treinador','atleta') and requested_by = auth.uid() and status = 'pendente')
-)
-with check (
-  app_role() in ('coordenador','direcao')
-  or (app_role() in ('treinador','atleta') and requested_by = auth.uid())
-);
-
--- Cancelar o que se pediu, enquanto ninguém decidiu. Depois de decidido é
--- histórico — e o histórico não se apaga para desfazer uma recusa.
-create policy "eqreq_delete" on equipment_requests for delete to authenticated
-using (
-  app_role() in ('coordenador','direcao')
-  or (app_role() in ('treinador','atleta') and requested_by = auth.uid() and status = 'pendente')
-);
+-- ESCRITA: quem monta o horário — o coordenador e o preparador físico. O
+-- treinador fica de fora de propósito: a musculação é da preparação física, e
+-- dois donos do mesmo horário é a forma de ninguém saber quem o mudou.
+drop policy if exists "evp_write" on event_players;
+create policy "evp_write" on event_players for all to authenticated
+  using (app_role() in ('coordenador','preparador'))
+  with check (app_role() in ('coordenador','preparador'));
 
 -- ---------------------------------------------------------------------
--- 5. Quem decide
+-- 2. O plantel de um evento
 -- ---------------------------------------------------------------------
--- Coordenador e direção. O seccionista sai: decidir um pedido é comprometer
--- verba, e isso ficou do lado de quem responde por ela.
-create or replace function public.guard_request_decision()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-  if (new.status is distinct from old.status)
-     and coalesce(app_role(), '') not in ('coordenador','direcao') then
-    raise exception 'Só o coordenador ou a direção podem decidir um pedido de equipamento.';
-  end if;
-  return new;
-end;
+-- A regra escrita UMA vez: na musculação são os atletas escolhidos; em tudo o
+-- resto é a equipa. Com a regra repetida em cada função, bastava uma ficar
+-- para trás para uma atleta ser notificada de uma sessão que não é dela (ou,
+-- pior, não ser notificada da que é).
+create or replace function public.event_roster_ids(p_event events)
+returns uuid[] language sql stable security definer set search_path = public as $$
+  select coalesce(case when p_event.type = 'musculacao' then
+    (select array_agg(ep.player_id)
+       from event_players ep
+       join players p on p.id = ep.player_id
+      where ep.event_id = p_event.id
+        and p.archived_at is null)
+  else
+    (select array_agg(p.id)
+       from players p
+      where p.team_id = p_event.team_id
+        and p.archived_at is null
+        and (p_event.org_id is null or p.org_id = p_event.org_id))
+  end, '{}'::uuid[]);
 $$;
 
--- ---------------------------------------------------------------------
--- 6. A etiqueta do artigo deixa de estar escrita à mão
--- ---------------------------------------------------------------------
--- Esta função escreve o texto das notificações. Tinha os nove artigos de
--- origem num CASE, por isso um artigo criado pelo clube nas Definições
--- chegava ao telemóvel como `joelheiras` em vez de "Joelheiras" — e com a
--- atleta a receber estas notificações isso passa a ser lido por quem não faz
--- ideia do que é uma chave. Lê agora a lista do clube, com o CASE de origem
--- como recurso para quem ainda não configurou nada.
--- **Recebe o CLUBE**, e isto não é decoração. A função é chamada de dentro
--- dos triggers de notificação, que são `security definer` e por isso NÃO
--- passam pelo RLS: sem o `p_org`, o `select ... from settings` varria as
--- definições de TODOS os clubes e a etiqueta de um artigo podia vir da lista
--- de outro. É a mesma regra do `check_in_by_qr` — num contexto sem
--- `auth.uid()`, o isolamento entre clubes é escrito à mão ou não existe.
-drop function if exists public.equipment_article_label(text, text);
-create or replace function public.equipment_article_label(
-  p_article text, p_other text, p_org uuid
-)
-returns text
-language sql
-stable
-as $$
-  select coalesce(
-    -- 1. "Outro artigo" traz a etiqueta escrita no próprio pedido.
-    case when p_article = 'outro'
-         then nullif(trim(coalesce(p_other, '')), '') end,
-    -- 2. A lista configurada pelo clube (inclui os artigos desativados: um
-    --    pedido de dezembro tem de continuar legível depois de o artigo sair
-    --    de circulação).
-    (select a.value ->> 'label'
-       from settings s,
-            lateral jsonb_array_elements(coalesce(s.equipment_articles, '[]'::jsonb)) a
-      where s.org_id = p_org
-        and a.value ->> 'key' = p_article
-        and nullif(trim(coalesce(a.value ->> 'label', '')), '') is not null
-      limit 1),
-    -- 3. A lista de origem, para os clubes que nunca configuraram artigos.
-    case p_article
-      when 'camisola'        then 'Camisola'
-      when 'camisola_alt'    then 'Camisola alternativa'
-      when 'calcoes'         then 'Calções'
-      when 'meias'           then 'Meias'
-      when 'casaco_treino'   then 'Casaco fato de treino'
-      when 'calca_treino'    then 'Calça fato de treino'
-      when 'mochila'         then 'Mochila'
-      when 'blusao'          then 'Blusão'
-      when 'camisola_treino' then 'Camisola de treino'
-      when 'outro'           then 'Outro artigo'
-    end,
-    -- 4. Último recurso: a própria chave. Feio, mas nunca nulo.
-    p_article
-  );
+-- Os utilizadores (contas) desse plantel. Só chega a quem tem conta ligada à
+-- ficha — sem conta não há a quem notificar, que é o que o convite ao portal
+-- resolve.
+create or replace function public.event_athlete_user_ids(p_event events)
+returns setof uuid language sql stable security definer set search_path = public as $$
+  select p.user_id
+    from players p
+   where p.id = any(event_roster_ids(p_event))
+     and p.user_id is not null
+     and p.archived_at is null;
 $$;
 
--- ---------------------------------------------------------------------
--- 7. O aviso de pedido novo vai a quem decide
--- ---------------------------------------------------------------------
--- Era `coordenador` + `seccionista`; segue agora quem decide. Sem isto, o
--- seccionista continuava a receber avisos de uma lista que já não pode abrir
--- e a direção não recebia nenhum.
-create or replace function notify_equipment_request_created()
-returns trigger language plpgsql security definer
-set search_path = public
-as $$
-declare
-  v_player text;
-  v_label  text;
-  v_role   text;
-begin
-  select name into v_player from players where id = NEW.player_id;
-  select role into v_role  from profiles where id = NEW.requested_by;
-  v_label := equipment_article_label(NEW.article, NEW.article_other, NEW.org_id);
-
-  insert into notifications (type, title, body, data, target_role, org_id)
-  select
-    'equipment_request',
-    case when v_role = 'atleta'
-         then 'Pedido de equipamento de uma atleta'
-         else 'Novo pedido de equipamento' end,
-    coalesce(v_player, 'Atleta') || ' — ' || v_label
-      || coalesce(' (tam. ' || NEW.size || ')', '')
-      || case when NEW.quantity > 1 then ' ×' || NEW.quantity else '' end || '.',
-    jsonb_build_object('request_id', NEW.id, 'player_id', NEW.player_id, 'article', NEW.article),
-    r,
-    NEW.org_id
-  from unnest(array['coordenador','direcao']) as r
-  -- Quem pediu não precisa de ser avisado do seu próprio pedido.
-  where r is distinct from coalesce(v_role, '');
-
-  return NEW;
-end;
-$$;
+grant execute on function public.event_roster_ids(events) to authenticated;
+grant execute on function public.event_athlete_user_ids(events) to authenticated;
 
 -- ---------------------------------------------------------------------
--- 8. O aviso de DECISÃO acompanha a assinatura nova
+-- 3. Quem escreve uma sessão de musculação
 -- ---------------------------------------------------------------------
--- Obrigatório, não opcional: o ponto 6 apagou a versão de dois argumentos de
--- `equipment_article_label`, e esta função continuava a chamá-la. Sem isto,
--- decidir um pedido rebentava com "function does not exist" — e o INSERT da
--- notificação leva o UPDATE do pedido atrás.
+-- O calendário continua a ser do coordenador. A musculação é a exceção, e é
+-- uma exceção de domínio: quem monta os grupos do ginásio é o preparador
+-- físico — obrigá-lo a pedir ao coordenador que lance cada sessão devolvia o
+-- horário ao papel colado à porta.
 --
--- Aproveita para dizer à atleta o que lhe respondeu o clube numa linguagem
--- que ela leia: o corpo é o mesmo, o título é que deixa de falar de
--- "pedido de equipamento" quando quem o recebe é quem o vestiu.
-create or replace function notify_equipment_request_decided()
-returns trigger language plpgsql security definer
-set search_path = public
-as $$
-declare
-  v_player text;
-  v_label  text;
-  v_title  text;
-  v_role   text;
-begin
-  if NEW.status is not distinct from OLD.status then return NEW; end if;
-  if NEW.requested_by is null then return NEW; end if;
-  -- Quem decidiu o seu próprio pedido já sabe o que decidiu.
-  if NEW.requested_by = NEW.decided_by then return NEW; end if;
+-- O `with check` prende o TIPO nos dois sentidos: sem ele, o preparador criava
+-- uma sessão de musculação e logo a seguir editava-a para "jogo", ficando com
+-- escrita no calendário inteiro por uma porta lateral.
+drop policy if exists "events_musculacao" on events;
+create policy "events_musculacao" on events for all to authenticated
+  using (app_role() = 'preparador' and type = 'musculacao')
+  with check (app_role() = 'preparador' and type = 'musculacao');
 
-  select name into v_player from players where id = NEW.player_id;
-  select role into v_role  from profiles where id = NEW.requested_by;
-  v_label := equipment_article_label(NEW.article, NEW.article_other, NEW.org_id);
-
-  v_title := case NEW.status
-    when 'aprovado' then case when v_role = 'atleta'
-                              then 'O clube aprovou o teu pedido'
-                              else 'Pedido de equipamento aprovado' end
-    when 'entregue' then case when v_role = 'atleta'
-                              then 'O teu material está pronto a levantar'
-                              else 'Equipamento entregue' end
-    when 'recusado' then case when v_role = 'atleta'
-                              then 'O clube respondeu ao teu pedido'
-                              else 'Pedido de equipamento recusado' end
-    else 'Pedido de equipamento reaberto'
-  end;
-
-  insert into notifications (type, title, body, data, target_user_id, org_id)
-  values (
-    'equipment_request_decided',
-    v_title,
-    -- À atleta não se repete o nome dela: ela sabe de quem é o pedido.
-    case when v_role = 'atleta' then '' else coalesce(v_player, 'Atleta') || ' — ' end
-      || v_label
-      || coalesce('. ' || nullif(trim(NEW.decision_note), ''), '.'),
-    jsonb_build_object('request_id', NEW.id, 'player_id', NEW.player_id, 'status', NEW.status),
-    NEW.requested_by,
-    NEW.org_id
-  );
-  return NEW;
-end;
-$$;
-
-drop trigger if exists trg_notify_equipment_request_decided on equipment_requests;
-create trigger trg_notify_equipment_request_decided
-  after update on equipment_requests
-  for each row execute function notify_equipment_request_decided();
-
-
--- ####################################################################
--- ##  fotos-artigos.sql
--- ####################################################################
-
--- =====================================================================
--- Rumia — Foto de cada artigo de equipamento
--- =====================================================================
--- Corre DEPOIS de artigos-configuraveis.sql e pedidos-atleta.sql.
--- Pode ser corrido várias vezes sem problema.
---
--- Porquê: "Casaco Fato de Treino", "Blusão" e "Camisola de Treino" são três
--- etiquetas que só distinguem o material a quem já o conhece. Quem tem de
--- escolher entre elas no portal é uma atleta de doze anos que entrou em
--- setembro — e escolher o artigo errado gasta um pedido, uma decisão tua e
--- uma entrega, para depois recomeçar. A foto responde à pergunta que o nome
--- não responde: é ISTO que eu quero?
---
--- O que cria: o bucket `equipment-photos`. O CAMINHO do ficheiro vai em
--- `settings.equipment_articles[].photo`, ao lado do resto da definição do
--- artigo — é parte do artigo, não uma tabela nova.
--- =====================================================================
-
--- ---------------------------------------------------------------------
--- 1. O bucket
--- ---------------------------------------------------------------------
--- **Público de propósito**, ao contrário do `player-docs`. Duas razões:
---   • um URL assinado expira numa hora, e estas imagens desenham-se numa
---     lista que se re-desenha a cada notificação do store — seria assinar
---     nove endereços a toda a hora para mostrar uma camisola;
---   • quem mais precisa de as ver é a ATLETA, e a leitura do `player-docs`
---     está fechada ao coordenador/fisio/preparador. Abrir esse bucket a
---     toda a gente para caber aqui uma foto de um casaco seria pôr as
---     fotocópias do cartão de cidadão do lado errado da porta.
---
--- A foto de um casaco de treino de um clube não é dado pessoal: é a mesma
--- imagem que está no site da marca. Ainda assim o caminho leva o `org_id` e
--- um sufixo aleatório, para não ser adivinhável a partir do nome do artigo.
---
--- 2 MB por ficheiro é folgado — a app reduz para ~600px antes de enviar, e
--- o limite existe para o caso de alguém lá chegar por outro caminho.
-insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values (
-  'equipment-photos',
-  'equipment-photos',
-  true,
-  2097152,  -- 2 MB por ficheiro
-  array['image/jpeg','image/png','image/webp']
-)
-on conflict (id) do update set
-  public             = true,
-  file_size_limit    = 2097152,
-  allowed_mime_types = array['image/jpeg','image/png','image/webp'];
-
--- ---------------------------------------------------------------------
--- 2. Quem escreve
--- ---------------------------------------------------------------------
--- A leitura é pública (é o que `public = true` faz) — não há política de
--- SELECT a escrever. Escrever e apagar é só do coordenador, pela mesma razão
--- que o resto do editor de artigos: é estrutura do clube.
-drop policy if exists "equip_photos_write"  on storage.objects;
-drop policy if exists "equip_photos_update" on storage.objects;
-drop policy if exists "equip_photos_delete" on storage.objects;
-
--- A primeira pasta do caminho é o `org_id`, e é verificada: sem isso um
--- coordenador podia escrever dentro da pasta de outro clube. A app só
--- escreve na sua, mas uma política que confia na app não é uma política.
-create policy "equip_photos_write" on storage.objects for insert to authenticated
-  with check (
-    bucket_id = 'equipment-photos'
-    and app_role() = 'coordenador'
-    and (storage.foldername(name))[1] = current_org_id()::text
-  );
-
--- O UPDATE é preciso para o `upsert` do cliente: substituir a foto de um
--- artigo sem ele é apagar-e-voltar-a-criar, e no meio disso o artigo fica
--- sem imagem se a segunda metade falhar.
-create policy "equip_photos_update" on storage.objects for update to authenticated
-  using      (bucket_id = 'equipment-photos' and app_role() = 'coordenador'
-              and (storage.foldername(name))[1] = current_org_id()::text)
-  with check (bucket_id = 'equipment-photos' and app_role() = 'coordenador'
-              and (storage.foldername(name))[1] = current_org_id()::text);
-
-create policy "equip_photos_delete" on storage.objects for delete to authenticated
+-- PRESENÇAS: quem dá a sessão é quem a regista. Sem isto, o preparador marcava
+-- o horário e não podia dizer quem apareceu — e uma sessão que não se regista
+-- volta para o caderno.
+drop policy if exists "att_musculacao" on attendances;
+create policy "att_musculacao" on attendances for all to authenticated
   using (
-    bucket_id = 'equipment-photos'
-    and app_role() = 'coordenador'
-    and (storage.foldername(name))[1] = current_org_id()::text
+    app_role() = 'preparador'
+    and event_id in (select id from events where type = 'musculacao')
+  )
+  with check (
+    app_role() = 'preparador'
+    and event_id in (select id from events where type = 'musculacao')
   );
 
+-- ---------------------------------------------------------------------
+-- 4. Notificações
+-- ---------------------------------------------------------------------
+-- A etiqueta legível de um evento. Sem este `case`, uma sessão chegava ao
+-- telemóvel como "Musculacao" (o `initcap` do tipo, sem cedilha) — que é o
+-- mesmo problema do `equipment_article_label` a mandar `joelheiras` para o
+-- telemóvel de uma família.
+create or replace function public.event_label(p_event events)
+returns text language sql immutable as $$
+  select coalesce(p_event.title, case p_event.type
+    when 'treino'     then 'Treino'
+    when 'jogo'       then 'Jogo'
+    when 'musculacao' then 'Musculação'
+    else initcap(p_event.type)
+  end);
+$$;
 
+-- A. Evento novo — agora só para quem ele abrange.
+create or replace function public.notify_athletes_event_added()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  uid uuid;
+begin
+  if NEW.team_id is null or NEW.archived_at is not null then return NEW; end if;
+  if NEW.date < current_date then return NEW; end if;
 
--- ####################################################################
--- ##  variante-equipamento.sql
--- ####################################################################
+  -- Uma sessão de musculação nasce SEM ninguém (os participantes são linhas à
+  -- parte, escritas logo a seguir): quem avisa é o trigger de `event_players`.
+  -- Notificar aqui seria notificar um grupo vazio.
+  if NEW.type = 'musculacao' then return NEW; end if;
 
--- Cor / modelo do equipamento por escalão (resumo dos pedidos)
--- ------------------------------------------------------------------
--- Correr no SQL Editor do Supabase (depois de `schema.sql` e de
--- `artigos-configuraveis.sql`).
---
--- Contar os pedidos por artigo e tamanho responde "quantas camisolas de
--- treino M é que tenho de encomendar?" — mas num clube a mesma camisola não
--- é a mesma peça em todos os escalões: os sub-21 usam-na azul e os restantes
--- branca. Uma contagem que junte as duas dá um número que não se pode levar
--- ao fornecedor, e o erro só aparece quando a encomenda chega.
---
--- A cor vive na EQUIPA, como o link do grupo de WhatsApp: é do escalão, não
--- do clube nem do atleta. É TEXTO LIVRE de propósito — hoje é uma cor, no
--- clube do lado é "modelo antigo" ou o nome do patrocinador na frente, e uma
--- lista fechada obrigaria a prever isso tudo.
---
--- Fica vazia em quase todas as equipas: a variante por omissão de cada artigo
--- está nas Definições (`settings.equipment_articles[].variant`), e a equipa só
--- preenche isto quando FOGE a essa regra. Sem variante no artigo, não há
--- separação nenhuma — a contagem é uma só, como era.
-alter table teams add column if not exists kit_variant text;
+  for uid in select event_athlete_user_ids(NEW) loop
+    insert into notifications (type, title, body, data, target_user_id, org_id)
+    values (
+      'event_added',
+      'Novo evento na tua agenda',
+      event_label(NEW) || ' a ' || to_char(NEW.date, 'DD/MM')
+        || coalesce(' às ' || NEW.time, '') || '.',
+      jsonb_build_object('event_id', NEW.id, 'type', NEW.type,
+                         'date', NEW.date, 'time', NEW.time),
+      uid,
+      NEW.org_id
+    );
+  end loop;
+  return NEW;
+end;
+$$;
 
--- Sem política nova: `teams` já tem o RLS por papel do `schema.sql`, e isto é
--- mais uma coluna da equipa. Sem CHECK, pela mesma razão do `whatsapp_url` —
--- um CHECK a um campo opcional recusava a gravação da equipa inteira.
+-- B. Evento alterado (data, hora ou local).
+create or replace function public.notify_athletes_event_updated()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  uid     uuid;
+  changes text := '';
+begin
+  if NEW.team_id is null then return NEW; end if;
+  if NEW.date < current_date then return NEW; end if;
 
+  if OLD.date is distinct from NEW.date then
+    changes := changes || 'passa para ' || to_char(NEW.date, 'DD/MM') || '. ';
+  end if;
+  if OLD.time is distinct from NEW.time then
+    changes := changes || 'nova hora: ' || coalesce(NEW.time, '—') || '. ';
+  end if;
+  if OLD.location is distinct from NEW.location and NEW.location is not null then
+    changes := changes || 'novo local: ' || NEW.location || '. ';
+  end if;
 
+  if changes = '' then return NEW; end if;
 
--- ####################################################################
--- ##  circuito-pedidos.sql
--- ####################################################################
+  for uid in select event_athlete_user_ids(NEW) loop
+    insert into notifications (type, title, body, data, target_user_id, org_id)
+    values (
+      'event_updated',
+      'Alteração na tua agenda',
+      event_label(NEW) || ' de ' || to_char(NEW.date, 'DD/MM') || ': ' || changes,
+      jsonb_build_object('event_id', NEW.id, 'type', NEW.type,
+                         'date', NEW.date, 'time', NEW.time),
+      uid,
+      NEW.org_id
+    );
+  end loop;
+  return NEW;
+end;
+$$;
 
--- =====================================================================
--- Rumia — O circuito de um pedido de equipamento (e o que há a pagar)
--- =====================================================================
--- Corre DEPOIS de pedidos-equipamento.sql e pedidos-atleta.sql.
--- Pode ser corrido várias vezes sem problema.
---
--- Porquê: o pedido tinha quatro estados — por decidir, aprovado, entregue,
--- recusado — e entre "aprovado" e "entregue" passavam-se semanas em que
--- ninguém sabia dizer o que estava a acontecer. A camisola estava por
--- encomendar? Já tinha chegado e estava à espera dela no gabinete? A atleta
--- perguntava ao treinador, o treinador perguntava ao clube, e a resposta era
--- a mesma que a app já dava: "aprovado". Um estado que dura semanas e não
--- distingue nada não é um estado, é uma sala de espera.
---
--- O circuito real do material tem quatro paragens e cada uma muda o que a
--- atleta tem de fazer:
---   pendente     — o clube ainda não decidiu           (ela espera)
---   aprovado     — confirmado pelo clube               (ela espera)
---   encomendado  — pedido ao fornecedor                (ela espera, mas sabe porquê)
---   pronto       — chegou, está no clube               (ela vai levantar)
---   entregue     — está com ela                        (acabou)
--- (`recusado` continua a ser o fim da linha do outro lado.)
---
--- A regra do módulo — "um estado a mais é mais um sítio onde um pedido fica
--- parado sem ninguém reparar" — continua a valer: o que faz um estado ganhar
--- lugar é haver alguém do outro lado cuja ação muda. `pronto` é o único
--- estado do circuito que pede alguma coisa à ATLETA (ir buscar), e
--- `encomendado` é o que responde à única pergunta que se faz durante a
--- espera. Nenhum dos dois é uma gaveta administrativa.
---
--- O que cria:
---   1. Dois estados novos no `check` de `equipment_requests.status`
---   2. `paid_at` / `paid_by` — o que está por cobrar a cada atleta
---   3. O trigger de decisão passa a guardar também o pagamento
---   4. Notificações para "encomendado" e "pronto a levantar"
--- =====================================================================
+-- C. Evento cancelado (arquivado).
+create or replace function public.notify_athletes_event_cancelled()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  uid uuid;
+begin
+  if NEW.team_id is null then return NEW; end if;
+  if NEW.date < current_date then return NEW; end if;
+
+  for uid in select event_athlete_user_ids(NEW) loop
+    insert into notifications (type, title, body, data, target_user_id, org_id)
+    values (
+      'event_cancelled',
+      'Evento cancelado',
+      event_label(NEW) || ' de ' || to_char(NEW.date, 'DD/MM') || ' foi cancelado.',
+      jsonb_build_object('event_id', NEW.id, 'type', NEW.type, 'date', NEW.date),
+      uid,
+      NEW.org_id
+    );
+  end loop;
+  return NEW;
+end;
+$$;
+
+-- D/E. Entrar e sair de um grupo avisam AMBOS — a mesma regra da convocatória.
+-- Avisar só a entrada deixava a atleta a contar com uma sessão de que já tinha
+-- sido tirada; e é precisamente quem foi tirada que não tem como saber.
+create or replace function public.notify_athlete_event_player_change()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  added boolean := (TG_OP = 'INSERT');
+  row_  event_players%rowtype;
+  ev    events%rowtype;
+  uid   uuid;
+begin
+  if added then row_ := NEW; else row_ := OLD; end if;
+
+  select * into ev from events where id = row_.event_id;
+  if not found or ev.date < current_date or ev.archived_at is not null then
+    return row_;
+  end if;
+
+  select p.user_id into uid
+    from players p
+   where p.id = row_.player_id
+     and p.user_id is not null
+     and p.archived_at is null;
+  if uid is null then return row_; end if;
+
+  insert into notifications (type, title, body, data, target_user_id, org_id)
+  values (
+    case when added then 'event_joined' else 'event_left' end,
+    case when added then 'Tens sessão de musculação' else 'Sessão de musculação retirada' end,
+    case when added
+      then event_label(ev) || ' a ' || to_char(ev.date, 'DD/MM')
+           || coalesce(' às ' || ev.time, '')
+           || coalesce(' — ' || ev.location, '') || '.'
+      else 'Já não estás na sessão de ' || to_char(ev.date, 'DD/MM')
+           || coalesce(' às ' || ev.time, '') || '.'
+    end,
+    jsonb_build_object('event_id', ev.id, 'type', ev.type, 'date', ev.date, 'joined', added),
+    uid,
+    ev.org_id
+  );
+  return row_;
+end;
+$$;
+
+drop trigger if exists trg_notify_event_player_added on event_players;
+create trigger trg_notify_event_player_added
+  after insert on event_players
+  for each row
+  execute function notify_athlete_event_player_change();
+
+drop trigger if exists trg_notify_event_player_removed on event_players;
+create trigger trg_notify_event_player_removed
+  after delete on event_players
+  for each row
+  execute function notify_athlete_event_player_change();
+
+-- Quem é avisado quando uma atleta responde. Numa sessão de musculação quem
+-- precisa de saber é o PREPARADOR FÍSICO — é ele que conta os bancos. Mandar
+-- isso ao treinador da equipa era mandar-lhe respostas sobre um treino que ele
+-- não dá; o coordenador entra pela mesma salvaguarda de sempre (quando não há
+-- ninguém do outro lado, a resposta não pode cair no vazio).
+create or replace function public.event_response_audience(
+  p_team_id    uuid,
+  p_org_id     uuid,
+  p_event_type text
+)
+returns setof uuid
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  with staff as (
+    select t.uid
+      from (select team_trainer_user_ids(p_team_id) as uid) t
+     where p_event_type <> 'musculacao'
+    union
+    select pr.id as uid
+      from profiles pr
+     where p_event_type = 'musculacao'
+       and pr.role = 'preparador'
+       and (p_org_id is null or pr.org_id = p_org_id)
+  ),
+  coords as (
+    select pr.id as uid
+    from   profiles pr
+    where  pr.role = 'coordenador'
+    and    (p_org_id is null or pr.org_id = p_org_id)
+  )
+  select distinct uid from (
+    select uid from staff
+    union
+    select uid from coords
+     where p_event_type = 'jogo'
+        or not exists (select 1 from staff where uid is not null)
+  ) t
+  where uid is not null;
+$$;
 
 -- ---------------------------------------------------------------------
--- 1. Estados novos
+-- 5. Responder e fechar a sessão
 -- ---------------------------------------------------------------------
--- A chave `aprovado` fica como está — é a que está guardada nos pedidos
--- todos e o que muda é só a etiqueta ("Confirmado"), a mesma regra dos
--- artigos: a chave é imutável, a etiqueta é que se lê.
-alter table equipment_requests drop constraint if exists equipment_requests_status_check;
-alter table equipment_requests add constraint equipment_requests_status_check
-  check (status in ('pendente','aprovado','encomendado','pronto','entregue','recusado'));
-
--- ---------------------------------------------------------------------
--- 2. O que está por pagar
--- ---------------------------------------------------------------------
--- O material aprovado é quase sempre cobrado à família, e isso vivia fora da
--- app: uma folha de cálculo com os nomes e os valores, que ninguém cruzava
--- com os pedidos. O resultado era o material entregue sem ninguém cobrar, ou
--- cobrado duas vezes.
---
--- Não é uma tabela de pagamentos nem entra no Financeiro: é uma MARCA no
--- pedido — está pago ou está por pagar. Ligar isto ao livro-razão é uma
--- decisão à parte, como já acontece com o preço dos artigos (uma estimativa
--- ao preço de hoje, e não um registo de despesa).
-alter table equipment_requests add column if not exists paid_at timestamptz;
-alter table equipment_requests add column if not exists paid_by uuid references auth.users(id) on delete set null;
-
-create index if not exists idx_eqreq_unpaid on equipment_requests (paid_at)
-  where paid_at is null;
-
--- ---------------------------------------------------------------------
--- 3. Quem decide e quem cobra
--- ---------------------------------------------------------------------
--- A política de UPDATE deixa quem pediu corrigir o SEU pedido enquanto está
--- pendente — e isso, sozinho, deixava-o escrever `status='aprovado'`. O mesmo
--- valeria agora para o `paid_at`: uma atleta a marcar como pago o que não
--- pagou. Quem decide e quem dá a quitação é quem responde pela verba.
-create or replace function public.guard_request_decision()
-returns trigger
+-- A atleta responde à sessão como responde a um treino (o prazo é o mesmo: 6
+-- horas antes), com uma condição a mais — tem de estar no grupo. Ser da equipa
+-- não chega: responder "vou" a uma sessão que não é sua era aparecer a um
+-- horário onde não há banco para ela.
+create or replace function public.respond_to_event(
+  p_event_id uuid,
+  p_response text,
+  p_note     text default null
+)
+returns jsonb
 language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  v_org    uuid := current_org_id();
+  v_player players%rowtype;
+  v_event  events%rowtype;
+  v_row    event_responses%rowtype;
+  v_before text;
+  v_start  timestamp;
+  v_limit  timestamp;
+  v_label  text;
+  v_title  text;
+  uid      uuid;
 begin
-  if (new.status is distinct from old.status)
-     and coalesce(app_role(), '') not in ('coordenador','direcao') then
-    raise exception 'Só o coordenador ou a direção podem mover um pedido de equipamento.';
+  if p_response not in ('vou','nao_vou') then
+    raise exception 'Resposta inválida.';
   end if;
-  if (new.paid_at is distinct from old.paid_at)
-     and coalesce(app_role(), '') not in ('coordenador','direcao') then
-    raise exception 'Só o coordenador ou a direção podem marcar um pedido como pago.';
+
+  select * into v_player from players
+   where user_id = auth.uid()
+     and archived_at is null
+     and (v_org is null or org_id = v_org)
+   limit 1;
+  if not found then
+    raise exception 'A tua conta não está associada a nenhum atleta.';
   end if;
-  return new;
+
+  select * into v_event from events
+   where id = p_event_id
+     and archived_at is null
+     and (v_org is null or org_id = v_org);
+  if not found then
+    raise exception 'Evento não encontrado.';
+  end if;
+
+  if v_event.team_id is distinct from v_player.team_id then
+    raise exception 'Este evento não é da tua equipa.';
+  end if;
+
+  if v_event.type = 'musculacao'
+     and not exists (
+       select 1 from event_players
+        where event_id = v_event.id and player_id = v_player.id
+     ) then
+    raise exception 'Não estás nesta sessão de musculação.';
+  end if;
+
+  v_start := v_event.date + coalesce(nullif(v_event.time,''), '23:59')::time;
+  v_limit := case when v_event.type in ('treino','musculacao')
+                  then v_start - interval '6 hours'
+                  else v_start
+             end;
+
+  if v_start < club_now() then
+    raise exception 'Este evento já passou.';
+  end if;
+  if v_limit < club_now() then
+    raise exception 'As respostas a este treino fecharam às % (6 horas antes). Avisa o teu treinador diretamente.',
+      to_char(v_limit, 'HH24:MI" de "DD/MM');
+  end if;
+
+  select response into v_before from event_responses
+   where event_id = p_event_id and player_id = v_player.id;
+
+  insert into event_responses (event_id, player_id, response, note, responded_at)
+  values (p_event_id, v_player.id, p_response, nullif(trim(coalesce(p_note,'')), ''), now())
+  on conflict (event_id, player_id) do update
+    set response     = excluded.response,
+        note         = excluded.note,
+        responded_at = excluded.responded_at
+  returning * into v_row;
+
+  if coalesce(v_before,'') is distinct from p_response then
+    v_label := case v_event.type
+                 when 'jogo'       then 'jogo'
+                 when 'musculacao' then 'treino de musculação'
+                 else 'treino'
+               end;
+    v_title := case when p_response = 'nao_vou'
+                    then 'Falta avisada'
+                    else 'Presença confirmada' end;
+
+    for uid in select event_response_audience(v_event.team_id, v_event.org_id, v_event.type) loop
+      insert into notifications (type, title, body, data, target_user_id, org_id)
+      values (
+        'event_response',
+        v_title,
+        v_player.name ||
+          case when p_response = 'nao_vou' then ' não vai ao ' else ' vai ao ' end ||
+          v_label ||
+          ' de ' || to_char(v_event.date, 'DD/MM') ||
+          coalesce(' às ' || v_event.time, '') ||
+          coalesce(' — ' || v_row.note, '') || '.',
+        jsonb_build_object(
+          'event_id',  v_event.id,
+          'player_id', v_player.id,
+          'response',  p_response
+        ),
+        uid,
+        v_event.org_id
+      );
+    end loop;
+  end if;
+
+  return to_jsonb(v_row);
 end;
 $$;
 
-drop trigger if exists trg_guard_request_decision on equipment_requests;
-create trigger trg_guard_request_decision before update on equipment_requests
-  for each row execute function public.guard_request_decision();
+revoke all on function public.respond_to_event(uuid, text, text) from public, anon;
+grant execute on function public.respond_to_event(uuid, text, text) to authenticated;
 
--- ---------------------------------------------------------------------
--- 4. Avisar em cada paragem
--- ---------------------------------------------------------------------
--- Um circuito com cinco paragens que só avisa em duas é o mesmo silêncio de
--- antes com mais ecrãs. A paragem que MAIS importa é a `pronto`: é a única
--- que pede alguma coisa à atleta, e um material que fica no gabinete à espera
--- de quem não sabe que já chegou é o mesmo que não ter chegado.
-create or replace function notify_equipment_request_decided()
-returns trigger language plpgsql security definer
+-- Fechar a sessão marca falta a quem ficou sem registo NENHUM — e "quem" é o
+-- plantel do evento, não a equipa. Numa sessão de musculação de oito atletas,
+-- a versão antiga marcava falta às doze que nem estavam convocadas.
+create or replace function public.close_attendance_session(p_event_id uuid)
+returns integer
+language plpgsql
+security definer
 set search_path = public
 as $$
 declare
-  v_player text;
-  v_label  text;
-  v_title  text;
-  v_role   text;
+  v_role  text := app_role();
+  v_org   uuid := current_org_id();
+  v_event events%rowtype;
+  v_count integer;
 begin
-  if NEW.status is not distinct from OLD.status then return NEW; end if;
-  if NEW.requested_by is null then return NEW; end if;
-  -- Quem moveu o seu próprio pedido já sabe o que fez.
-  if NEW.requested_by = NEW.decided_by then return NEW; end if;
-
-  select name into v_player from players where id = NEW.player_id;
-  select role into v_role  from profiles where id = NEW.requested_by;
-  v_label := equipment_article_label(NEW.article, NEW.article_other, NEW.org_id);
-
-  v_title := case NEW.status
-    when 'aprovado'    then case when v_role = 'atleta'
-                                then 'O clube confirmou o teu pedido'
-                                else 'Pedido de equipamento confirmado' end
-    when 'encomendado' then case when v_role = 'atleta'
-                                then 'O teu material já foi encomendado'
-                                else 'Equipamento encomendado ao fornecedor' end
-    when 'pronto'      then case when v_role = 'atleta'
-                                then 'Já podes levantar o teu material'
-                                else 'Equipamento pronto a levantar' end
-    when 'entregue'    then case when v_role = 'atleta'
-                                then 'Material entregue'
-                                else 'Equipamento entregue' end
-    when 'recusado'    then case when v_role = 'atleta'
-                                then 'O clube respondeu ao teu pedido'
-                                else 'Pedido de equipamento recusado' end
-    else 'Pedido de equipamento reaberto'
-  end;
-
-  insert into notifications (type, title, body, data, target_user_id, org_id)
-  values (
-    'equipment_request_decided',
-    v_title,
-    -- À atleta não se repete o nome dela: ela sabe de quem é o pedido.
-    case when v_role = 'atleta' then '' else coalesce(v_player, 'Atleta') || ' — ' end
-      || v_label
-      || coalesce('. ' || nullif(trim(NEW.decision_note), ''), '.'),
-    jsonb_build_object('request_id', NEW.id, 'player_id', NEW.player_id, 'status', NEW.status),
-    NEW.requested_by,
-    NEW.org_id
-  );
-  return NEW;
-end;
-$$;
-
-drop trigger if exists trg_notify_equipment_request_decided on equipment_requests;
-create trigger trg_notify_equipment_request_decided
-  after update on equipment_requests
-  for each row execute function notify_equipment_request_decided();
-
-
-
--- ####################################################################
--- ##  confirmacao-tamanhos.sql
--- ####################################################################
-
--- =====================================================================
--- Rumia — A família confirma os dados da encomenda
--- =====================================================================
--- Corre DEPOIS de schema.sql, multitenant.sql e artigos-configuraveis.sql.
--- Pode ser corrido várias vezes sem problema.
---
--- Porquê: a tabela das Encomendas é a lista que vai ao fornecedor, e o que
--- lá está não foi confirmado por ninguém. O número, o nome a estampar na
--- camisola e os tamanhos foram escritos pelo treinador de memória, ou saíram
--- de uma medição de setembro do ano passado — e o erro só aparece quando a
--- caixa chega: uma camisola com "MARIA" em vez de "MARIANA", um M que devia
--- ser S. Uma camisola estampada não se troca.
---
--- A confirmação já se fazia — por WhatsApp, atleta a atleta, e ficava no
--- histórico da conversa. O que faltava era saber, olhando para a lista,
--- QUEM já respondeu: sem isso, à vigésima família ninguém sabe em qual ia.
---
--- O que cria:
---   1. `player_sizes.confirmed_at` / `confirmed_by` — quem já respondeu
---   2. Nada mais: o RLS de `player_sizes` já decide quem escreve aqui
--- =====================================================================
-
--- ---------------------------------------------------------------------
--- 1. A marca de confirmado
--- ---------------------------------------------------------------------
--- É uma MARCA na linha e não uma tabela de respostas: a resposta em si
--- chega por WhatsApp ou por email, fora da app, e guardá-la aqui seria um
--- segundo sítio para a mesma conversa. O que a app precisa de saber é uma
--- coisa só — esta linha já foi confirmada por quem a veste?
---
--- `confirmed_by` é quem CARIMBOU (o coordenador), não quem confirmou: quem
--- confirma é a família, do outro lado da mensagem, e essa não tem
--- necessariamente conta na app. Serve para saber a quem perguntar.
-alter table player_sizes add column if not exists confirmed_at timestamptz;
-alter table player_sizes add column if not exists confirmed_by uuid references auth.users(id) on delete set null;
-
--- ---------------------------------------------------------------------
--- 2. Uma confirmação é sobre VALORES concretos
--- ---------------------------------------------------------------------
--- Mudar o tamanho ou o nome a estampar depois de confirmado deixa a linha a
--- dizer "confirmado" sobre dados que ninguém viu — que é pior do que não
--- ter marca nenhuma, porque ninguém volta a perguntar. A app limpa a marca
--- a cada gravação de tamanhos (ver `upsertPlayerSizes` no store), e o
--- trigger fecha a porta a quem escreva por fora da app.
---
--- Só olha para o que foi CONFIRMADO: o `updated_at` muda a cada gravação,
--- incluindo a que carimba a própria confirmação.
-create or replace function public.clear_sizes_confirmation()
-returns trigger
-language plpgsql
-as $$
-begin
-  if NEW.confirmed_at is not distinct from OLD.confirmed_at
-     and (NEW.sizes            is distinct from OLD.sizes
-       or NEW.nome_camisola    is distinct from OLD.nome_camisola
-       or NEW.nome_camisola_alt is distinct from OLD.nome_camisola_alt)
-  then
-    NEW.confirmed_at := null;
-    NEW.confirmed_by := null;
+  if v_role is null or v_role not in ('coordenador','treinador','preparador') then
+    raise exception 'Sem permissão para fechar a sessão.';
   end if;
-  return NEW;
+
+  select * into v_event from events
+   where id = p_event_id and (v_org is null or org_id = v_org);
+  if not found then
+    raise exception 'Treino não encontrado.';
+  end if;
+
+  if v_role = 'treinador'
+     and v_event.team_id not in (select trainer_team_ids()) then
+    raise exception 'Sem permissão para fechar a sessão desta equipa.';
+  end if;
+
+  -- O preparador físico fecha as sessões de musculação e mais nenhuma: é o
+  -- mesmo recorte da política de escrita das presenças.
+  if v_role = 'preparador' and v_event.type <> 'musculacao' then
+    raise exception 'Sem permissão para fechar esta sessão.';
+  end if;
+
+  insert into attendances (event_id, player_id, status, source)
+  select v_event.id, p.id, 'falta', 'manual'
+    from players p
+   where p.id = any(event_roster_ids(v_event))
+     and p.archived_at is null
+     and (v_org is null or p.org_id = v_org)
+     and not exists (
+       select 1 from attendances a
+        where a.event_id = v_event.id and a.player_id = p.id
+     );
+  get diagnostics v_count = row_count;
+  return v_count;
 end;
 $$;
 
-drop trigger if exists trg_clear_sizes_confirmation on player_sizes;
-create trigger trg_clear_sizes_confirmation before update on player_sizes
-  for each row execute function public.clear_sizes_confirmation();
+revoke all on function public.close_attendance_session(uuid) from public, anon;
+grant execute on function public.close_attendance_session(uuid) to authenticated;
+
+-- ---------------------------------------------------------------------
+-- 6. Nota sobre o QR
+-- ---------------------------------------------------------------------
+-- O `check_in_by_qr` continua a procurar TREINOS e só treinos, de propósito: o
+-- quiosque está à porta do pavilhão e escolhe o treino da equipa do atleta
+-- mais perto de agora. Numa sessão de musculação o plantel é outro, e um
+-- quiosque que "adivinhasse" o grupo marcava presença a quem passou pela porta
+-- sem estar escalado. A app também não oferece o quiosque nestas sessões.
+
+-- ####################################################################
+-- ##  referencias-testes.sql
+-- ####################################################################
+
+-- =====================================================================
+-- Rumia — Valores de referência das avaliações físicas
+-- =====================================================================
+-- Correr DEPOIS de schema.sql e multitenant.sql. Pode correr várias vezes.
+--
+-- Porque existe: a app já mostra "Baixo / Normal / Forte" ao lado do valor que
+-- se está a escrever, mas a única tabela que conhecia vinha escrita no código
+-- (preensão manual, feminino). O preparador físico tem as outras — a
+-- masculina, o CMJ, o sprint — em PDFs e livros que são dele, e não há forma
+-- de as pôr na app sem um programador pelo meio. Uma referência que exige uma
+-- alteração de código para existir é uma referência que nunca chega.
+--
+-- Quem as escreve é o PREPARADOR (e o coordenador): é ele que tem a fonte e é
+-- ele que responde por ela. Mesma regra das restantes tabelas da área física
+-- (`phys_*`/`prep_*`) — não passa pelas Definições, que são do coordenador.
+--
+-- As faixas vivem num `jsonb` e não numa tabela filha pela mesma razão dos
+-- tamanhos de equipamento (`player_sizes.sizes`): isto lê-se sempre INTEIRO —
+-- dá-se a idade e procura-se a faixa que a contém — e nunca uma faixa isolada.
+-- Uma tabela filha era uma junção e sete linhas para responder a uma pergunta
+-- que é uma só.
+-- =====================================================================
+
+create table if not exists test_references (
+  id         uuid primary key default gen_random_uuid(),
+  -- Chave do teste (ver PHYSICAL_TEST_TYPES em constants.js).
+  type       text not null,
+  gender     text not null check (gender in ('M','F')),
+  -- A FONTE não é decoração: uma referência sem origem é um número sem
+  -- autoridade, e quem a lê na ficha de uma atleta tem direito a saber de onde
+  -- vem. É mostrada ao lado do valor.
+  source     text,
+  note       text,
+  -- [{ "from": 15, "to": 19, "min": 22, "max": 30 }, …]
+  -- `to` nulo = faixa aberta no topo ("70 anos ou mais").
+  bands      jsonb not null default '[]'::jsonb,
+  updated_at timestamptz default now(),
+  created_at timestamptz default now()
+);
+
+-- Uma tabela por teste e sexo, por clube. Sem isto, duas tabelas para o mesmo
+-- caso deixavam a app a escolher uma à sorte — e a atleta a ser lida por uma
+-- referência diferente conforme o dia.
+alter table test_references add column if not exists org_id uuid references organizations(id) on delete cascade;
+alter table test_references alter column org_id set default current_org_id();
+create index if not exists idx_test_references_org on test_references (org_id);
+
+create unique index if not exists idx_test_references_unique
+  on test_references (org_id, type, gender);
+
+alter table test_references enable row level security;
+
+drop policy if exists tenant_isolation on test_references;
+create policy tenant_isolation on test_references as restrictive for all to authenticated
+  using (org_id = current_org_id()) with check (org_id = current_org_id());
+
+-- LEITURA: toda a equipa técnica. O crachá de referência aparece na ficha do
+-- atleta, que o treinador também abre — sem leitura, a app mostrava-lhe o
+-- valor sem o contexto e era como se a tabela não existisse.
+--
+-- O ATLETA não lê. Não é dado dele: é a tabela populacional contra a qual o
+-- clube o lê, e no portal apareceria como uma nota sobre o corpo dela sem
+-- ninguém por perto para a explicar.
+drop policy if exists "ref_read" on test_references;
+create policy "ref_read" on test_references for select to authenticated
+  using (app_role() <> 'atleta');
+
+-- ESCRITA: coordenador e preparador físico — a mesma regra do `phys_write`.
+drop policy if exists "ref_write" on test_references;
+create policy "ref_write" on test_references for all to authenticated
+  using (app_role() in ('coordenador','preparador'))
+  with check (app_role() in ('coordenador','preparador'));
+
+-- Nada é semeado aqui de propósito. A tabela de preensão feminina continua a
+-- viver no código (`TEST_REFERENCES` em constants.js) e serve de recurso a
+-- quem não tiver nada gravado — é o mesmo padrão dos escalões, das posições e
+-- dos artigos de equipamento. Semeá-la em cada clube fazia uma cópia por
+-- clube de uma coisa que ninguém pediu, e um clube que a apagasse ficava sem
+-- referência nenhuma em vez de voltar à de origem.
+
+-- ####################################################################
+-- ##  decimais-fisicos.sql
+-- ####################################################################
+
+-- =====================================================================
+-- Rumia — Duas casas decimais nos dados físicos
+-- =====================================================================
+-- Correr DEPOIS de schema.sql. Pode correr várias vezes.
+--
+-- Porque existe: `physical_tests.value` já era `numeric(8,2)`, mas o campo do
+-- formulário era um `type="number"` sem `step` — e sem `step` o browser assume
+-- 1 e RECUSA qualquer decimal. Na prática não se conseguia escrever 28,5 numa
+-- preensão nem 3,05 num sprint, que é precisamente onde a casa decimal É a
+-- medição. Isso corrigiu-se na app.
+--
+-- O que falta é a base de dados: a altura e o peso estavam em `numeric(5,1)`,
+-- por isso um peso de 63,45 kg — o que uma balança de bioimpedância dá — era
+-- gravado como 63,5 SEM ninguém ver. Um campo que aceita mais casas do que a
+-- coluna guarda é um campo que arredonda pelas costas de quem mediu, e a
+-- medição é o trabalho todo do preparador físico.
+--
+-- Alargar uma coluna `numeric` não perde nada: os valores já gravados continuam
+-- iguais (63,5 passa a ler-se 63,50), e o que muda é só o que se pode gravar a
+-- partir daqui. O sentido contrário — apertar — é que arredondava o histórico.
+-- =====================================================================
+
+alter table physical_profiles alter column height_cm type numeric(5,2);
+alter table physical_profiles alter column weight_kg type numeric(5,2);
+
+-- `physical_tests.value` fica como está: já era numeric(8,2), que é a precisão
+-- que a app passa a oferecer. Fica aqui escrito para quem vier a seguir não ter
+-- de ir confirmar ao schema.
 
 
 -- =====================================================================
 -- VERIFICAÇÃO — corre isto a seguir, numa consulta à parte
 -- =====================================================================
--- Devem sair oito linhas, todas com ok = true. Qualquer false diz
+-- Devem sair cinco linhas, todas com ok = true. Qualquer false diz
 -- exatamente o que ficou por aplicar.
 --
--- select 'settings.equipment_articles' as o_que,
+-- select 'tabela event_players' as o_que,
+--        to_regclass('public.event_players') is not null as ok
+-- union all
+-- select 'tabela test_references',
+--        to_regclass('public.test_references') is not null
+-- union all
+-- select 'função event_roster_ids',
+--        exists (select 1 from pg_proc where proname='event_roster_ids')
+-- union all
+-- select 'altura com 2 casas',
 --        exists (select 1 from information_schema.columns
---                 where table_name='settings' and column_name='equipment_articles') as ok
+--                 where table_name='physical_profiles' and column_name='height_cm'
+--                   and numeric_scale = 2)
 -- union all
--- select 'settings.athlete_requests_enabled',
+-- select 'peso com 2 casas',
 --        exists (select 1 from information_schema.columns
---                 where table_name='settings' and column_name='athlete_requests_enabled')
--- union all
--- select 'player_sizes.sizes',
---        exists (select 1 from information_schema.columns
---                 where table_name='player_sizes' and column_name='sizes')
--- union all
--- select 'bucket equipment-photos',
---        exists (select 1 from storage.buckets where id='equipment-photos')
--- union all
--- select 'teams.kit_variant',
---        exists (select 1 from information_schema.columns
---                 where table_name='teams' and column_name='kit_variant')
--- union all
--- select 'equipment_requests.paid_at',
---        exists (select 1 from information_schema.columns
---                 where table_name='equipment_requests' and column_name='paid_at')
--- union all
--- select 'player_sizes.confirmed_at',
---        exists (select 1 from information_schema.columns
---                 where table_name='player_sizes' and column_name='confirmed_at')
--- union all
--- select 'tamanhos antigos copiados',
---        not exists (select 1 from player_sizes
---                     where sizes = '{}'::jsonb
---                       and coalesce(camisola, calcoes, meias, blusao) is not null);
+--                 where table_name='physical_profiles' and column_name='weight_kg'
+--                   and numeric_scale = 2);

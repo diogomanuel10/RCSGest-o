@@ -297,6 +297,7 @@ src/
     nova-epoca.js       Assistente de viragem de época (só coordenador)
     utilizadores.js     Vista Utilizadores (gestão de papéis — só coordenador)
     arquivados.js       Vista Arquivados (registos inativos + repor — só coordenador)
+supabase/_correr-agora.sql  O que falta correr, num ficheiro só (colar inteiro no SQL Editor)
 supabase/schema.sql     Tabelas, índices, RLS e dados iniciais (correr no Supabase)
 supabase/qrcode-presencas.sql  Presenças por QR: token do atleta + RPCs de check-in
 supabase/convites-massa.sql    Convites de atleta em lote (RPC create_invitations_bulk)
