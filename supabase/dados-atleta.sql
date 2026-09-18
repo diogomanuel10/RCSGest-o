@@ -4,6 +4,12 @@
 -- Corre DEPOIS de schema.sql, multitenant.sql e aniversarios.sql.
 -- Pode ser corrido várias vezes sem problema.
 --
+-- SE A CÓPIA PARA O SQL EDITOR VIER CORTADA (o erro é "unterminated
+-- dollar-quoted string": o texto acaba dentro de uma função), corre em vez
+-- disto `dados-atleta-minimo.sql` e `dados-atleta-minimo-2.sql`, que são os
+-- mesmos comandos sem os comentários, em dois blocos pequenos. Este ficheiro
+-- é o que explica PORQUÊ, e é o que se mantém.
+--
 -- Porquê: três dados faltam em quase todas as fichas — a FOTOGRAFIA, a DATA
 -- DE NASCIMENTO e a FOTOCÓPIA DO CC. São os três que o clube precisa de ter
 -- para inscrever uma atleta na federação, e os três que o coordenador não
@@ -75,6 +81,33 @@ $$;
 
 grant execute on function is_my_player_folder(text) to authenticated;
 
+-- Quem pode ESCREVER um ficheiro dentro da pasta de uma ficha: a própria
+-- atleta, ou quem edita fichas no clube. Vive numa função e não dentro das
+-- políticas porque a mesma pergunta se faz nas fotos e nos documentos, e uma
+-- condição escrita quatro vezes diverge à primeira correção.
+--
+-- É `security invoker` de propósito (ao contrário da função acima): a consulta
+-- a `players` passa assim pelo RLS, que já é RESTRICTIVE por `org_id` — sem
+-- isso, o coordenador de um clube que soubesse o id de uma ficha de outro
+-- podia trocar-lhe a foto.
+create or replace function can_write_player_file(p_name text)
+returns boolean
+language sql
+stable
+set search_path = public
+as $$
+  select is_my_player_folder(p_name)
+      or (
+        app_role() in ('coordenador','direcao','seccionista','treinador')
+        and exists (
+          select 1 from players p
+           where p.id::text = (storage.foldername(p_name))[1]
+        )
+      );
+$$;
+
+grant execute on function can_write_player_file(text) to authenticated;
+
 -- A foto é de quem a pode ver na app: o plantel é partilhado, e uma foto de
 -- perfil que só o coordenador visse não seria uma foto de perfil. O
 -- isolamento entre clubes vem do `exists` sobre `players` — essa consulta
@@ -95,43 +128,13 @@ create policy "player_photos_read" on storage.objects for select to authenticate
     )
   );
 
--- Escrever é de quem edita fichas — e da PRÓPRIA, que é a razão de isto
--- existir. A atleta escreve só dentro da sua pasta.
-create policy "player_photos_write" on storage.objects for insert to authenticated
-  with check (
-    bucket_id = 'player-photos'
-    and (
-      is_my_player_folder(name)
-      or (
-        app_role() in ('coordenador','direcao','seccionista','treinador')
-        and exists (select 1 from players p where p.id::text = (storage.foldername(name))[1])
-      )
-    )
-  );
-
-create policy "player_photos_update" on storage.objects for update to authenticated
-  using (
-    bucket_id = 'player-photos'
-    and (
-      is_my_player_folder(name)
-      or (
-        app_role() in ('coordenador','direcao','seccionista','treinador')
-        and exists (select 1 from players p where p.id::text = (storage.foldername(name))[1])
-      )
-    )
-  );
-
-create policy "player_photos_delete" on storage.objects for delete to authenticated
-  using (
-    bucket_id = 'player-photos'
-    and (
-      is_my_player_folder(name)
-      or (
-        app_role() in ('coordenador','direcao','seccionista','treinador')
-        and exists (select 1 from players p where p.id::text = (storage.foldername(name))[1])
-      )
-    )
-  );
+-- Escrever, substituir e apagar são a MESMA pergunta ("é a tua pasta, ou és
+-- do clube que edita esta ficha?") e por isso são uma política só: três
+-- políticas eram três statements a poder falhar para dizer a mesma coisa —
+-- e foi exatamente aí que a migração parou a meio da primeira vez.
+create policy "player_photos_write" on storage.objects for all to authenticated
+  using      (bucket_id = 'player-photos' and can_write_player_file(name))
+  with check (bucket_id = 'player-photos' and can_write_player_file(name));
 
 -- ---------------------------------------------------------------------
 -- 3. A fotocópia do CC, entregue pela própria
@@ -192,17 +195,19 @@ create policy "player_docs_read" on storage.objects for select to authenticated
     )
   );
 
-create policy "player_docs_write" on storage.objects for insert to authenticated
-  with check (
+-- A atleta escreve só dentro da pasta `cc` (o caminho é
+-- `<player_id>/<tipo>/<ts>.<ext>`, por isso a pasta 2 é o tipo de documento):
+-- o exame médico e o seguro são documentos que o clube emite ou recebe, e
+-- deixá-la substituí-los era deixá-la substituir a prova de que está apta.
+create policy "player_docs_write" on storage.objects for all to authenticated
+  using (
     bucket_id = 'player-docs'
     and (
       app_role() in ('coordenador','fisioterapeuta','preparador')
       or (is_my_player_folder(name) and (storage.foldername(name))[2] = 'cc')
     )
-  );
-
-create policy "player_docs_delete" on storage.objects for delete to authenticated
-  using (
+  )
+  with check (
     bucket_id = 'player-docs'
     and (
       app_role() in ('coordenador','fisioterapeuta','preparador')
@@ -266,7 +271,26 @@ grant execute on function update_my_player_data(date, text) to authenticated;
 -- ---------------------------------------------------------------------
 -- Confirmação
 -- ---------------------------------------------------------------------
--- select count(*) filter (where photo_path is not null) as com_foto,
---        count(*) filter (where birth_date is not null) as com_data,
---        count(*) as total
---   from players where archived_at is null;
+-- Corre com o ficheiro e diz, peça a peça, o que ficou instalado. Se alguma
+-- linha disser FALTA, é aí que o ficheiro parou — o erro do SQL Editor diz
+-- porquê, e as peças anteriores já estão feitas (tudo isto é seguro de
+-- repetir).
+select
+  case when exists (select 1 from information_schema.columns
+                     where table_name = 'players' and column_name = 'photo_path')
+       then 'ok' else 'FALTA' end                                    as coluna_photo_path,
+  case when exists (select 1 from storage.buckets where id = 'player-photos')
+       then 'ok' else 'FALTA' end                                    as bucket,
+  (select count(*) from pg_proc
+    where proname in ('is_my_player_folder','can_write_player_file','update_my_player_data'))
+       || ' de 3'                                                    as funcoes,
+  (select count(*) from pg_policies
+    where schemaname = 'storage' and tablename = 'objects'
+      and policyname in ('player_photos_read','player_photos_write'))
+       || ' de 2'                                                    as politicas_fotos,
+  (select count(*) from pg_policies
+    where schemaname = 'storage' and tablename = 'objects'
+      and policyname in ('player_docs_read','player_docs_write'))
+       || ' de 2'                                                    as politicas_documentos,
+  (select count(*) from pg_policies where tablename = 'player_documents')
+       || ' de 4'                                                    as politicas_ficheiros;
