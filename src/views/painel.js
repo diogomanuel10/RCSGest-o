@@ -1724,6 +1724,8 @@ function renderTreinadorPainel(container) {
       </div>
     </header>
 
+    ${absenceAlert(today)}
+
     ${statStrip(stats)}
 
     <div class="panel-grid${urgente ? '' : ' panel-grid--calm'}">
@@ -1763,7 +1765,11 @@ function renderTreinadorPainel(container) {
 
 
 // Linha de "Hoje": mostra o evento e o que se pode fazer com ele agora.
-// Quem avisou que NÃO vem. A resposta do atleta já existia
+// Quem avisou que NÃO vem, na linha de um evento FUTURO — o de hoje está no
+// aviso principal (`absenceAlert`), e desenhá-lo nos dois sítios era dizer ao
+// treinador que tinha o dobro das faltas.
+//
+// A resposta do atleta já existia
 // (`event_responses`) e já chegava ao treinador por notificação — mas uma
 // notificação lê-se uma vez, de passagem, e no dia do treino a pergunta
 // "afinal quem falta hoje?" só tinha resposta na secção Presenças. O painel é
@@ -1772,6 +1778,59 @@ function renderTreinadorPainel(container) {
 // Só entram os "não vou": o "vou" é o esperado e não muda nada ao treino, e
 // quem nem respondeu é ruído num plantel de vinte — a contagem completa está
 // nas Presenças, a um clique daqui (a linha leva ao evento, já escolhido).
+// O aviso PRINCIPAL: quem não vem hoje, no topo do painel e antes de tudo o
+// resto. A linha na agenda (`absenceLine`) chega para um treino de sábado
+// respondido na quarta — não chega para o de hoje às 18h30, que é a única
+// coisa deste ecrã que muda o que o treinador vai fazer daqui a duas horas.
+// Numa coluna lateral, a três cartões de distância, a falta da Rita lia-se
+// depois de já ter saído de casa com o treino montado para vinte.
+//
+// É só de HOJE. Um aviso permanente com as ausências da semana toda deixa de
+// ser lido ao terceiro dia — e o que é de sábado continua a ver-se na linha
+// do evento, em "Próximos eventos", que é onde se prepara o sábado.
+//
+// Vai ACIMA da faixa de números: a faixa responde a "como vai a época" e
+// isto responde a "com quem conto hoje". Ler a comparência da época antes de
+// saber que faltam três pessoas ao treino de logo é a ordem ao contrário.
+function absenceAlert(events) {
+  if (!canAccess('presencas')) return '';
+
+  const blocos = events
+    .map((ev) => ({ ev, ausentes: eventResponseSummary(ev.id).ausentes }))
+    .filter((b) => b.ausentes.length);
+  if (!blocos.length) return '';
+
+  const total = blocos.reduce((n, b) => n + b.ausentes.length, 0);
+
+  // Aqui o nome vai INTEIRO e o motivo com ele. Este é o sítio com espaço
+  // para os dizer, e é o motivo que evita a mensagem de telemóvel a
+  // perguntar porquê — na linha da agenda só cabia com uma ausência.
+  const linha = ({ ev, ausentes }) => {
+    const team = teamById(ev.team_id);
+    const quando = [eventTimeRange(ev), team ? teamName(team) : '']
+      .filter(Boolean).join(' · ');
+    const quem = ausentes
+      .map((a) => a.player.name + (a.note ? ` (${a.note})` : ''))
+      .join(', ');
+    return `
+      <li>
+        <button class="absent-row" type="button" data-work-event="${esc(ev.id)}"
+                title="Ver quem vem a este evento">
+          ${quando ? `<span class="absent-row__when">${esc(quando)}</span>` : ''}
+          <span class="absent-row__who">${esc(quem)}</span>
+        </button>
+      </li>`;
+  };
+
+  return `
+    <section class="card absent-card" role="status">
+      <h2 class="section-title absent-card__title">
+        ✋ ${total} ${total === 1 ? 'atleta avisou que não vem' : 'atletas avisaram que não vêm'} hoje
+      </h2>
+      <ul class="absent-list">${blocos.map(linha).join('')}</ul>
+    </section>`;
+}
+
 function absenceLine(ev) {
   if (!canAccess('presencas')) return '';
   const { ausentes } = eventResponseSummary(ev.id);
@@ -1811,7 +1870,6 @@ function coachTodayRow(ev, hideLocation = false) {
           ev.opponent ? 'vs ' + ev.opponent : '',
           hideLocation ? '' : (ev.location || ''),
         ].filter(Boolean).join(' · ') || '—')}</span>
-        ${absenceLine(ev)}
       </div>
       <div style="display:flex;gap:0.4rem;align-items:center;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
         ${isJogo
