@@ -4,6 +4,12 @@
 -- Corre DEPOIS de schema.sql, multitenant.sql e aniversarios.sql.
 -- Pode ser corrido várias vezes sem problema.
 --
+-- SE A CÓPIA PARA O SQL EDITOR VIER CORTADA (o erro é "unterminated
+-- dollar-quoted string": o texto acaba dentro de uma função), corre em vez
+-- disto `dados-atleta-minimo.sql` e `dados-atleta-minimo-2.sql`, que são os
+-- mesmos comandos sem os comentários, em dois blocos pequenos. Este ficheiro
+-- é o que explica PORQUÊ, e é o que se mantém.
+--
 -- Porquê: três dados faltam em quase todas as fichas — a FOTOGRAFIA, a DATA
 -- DE NASCIMENTO e a FOTOCÓPIA DO CC. São os três que o clube precisa de ter
 -- para inscrever uma atleta na federação, e os três que o coordenador não
