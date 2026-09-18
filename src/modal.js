@@ -87,7 +87,20 @@ function fieldHTML(field, value) {
       accept="${esc(field.accept || '*/*')}" style="padding:0.25rem 0" />`;
   } else {
     const type = field.type || 'text';
-    control = `<input type="${type}" id="${id}" name="${field.name}" ${required}
+    // `step` num campo numérico não é um detalhe: sem ele o browser assume
+    // `step=1` e RECUSA qualquer decimal — escrever 28,5 num campo de
+    // avaliação física deixava o formulário inválido sem dizer porquê. O passo
+    // declara a precisão que se aceita, e é a mesma que a coluna guarda: um
+    // campo que deixa escrever mais casas do que a base de dados guarda é um
+    // campo que arredonda pelas costas de quem mediu.
+    //
+    // `inputmode="decimal"` vai junto porque é o que põe a vírgula no teclado
+    // de um telemóvel — e quem escreve isto está no pavilhão, não à secretária.
+    const step = type === 'number' && field.step ? ` step="${esc(field.step)}"` : '';
+    const inputMode = type === 'number' && field.step && field.step !== '1'
+      ? ' inputmode="decimal"'
+      : '';
+    control = `<input type="${type}" id="${id}" name="${field.name}" ${required}${step}${inputMode}
       value="${esc(v)}" placeholder="${esc(field.placeholder || '')}" />`;
   }
 

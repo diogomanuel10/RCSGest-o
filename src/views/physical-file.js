@@ -319,8 +319,8 @@ function openProfileForm(playerId, onSaved) {
     submitLabel: 'Guardar',
     values: prof,
     fields: [
-      { name: 'height_cm', label: 'Altura (cm)', type: 'number' },
-      { name: 'weight_kg', label: 'Peso (kg)', type: 'number' },
+      { name: 'height_cm', label: 'Altura (cm)', type: 'number', step: '0.01' },
+      { name: 'weight_kg', label: 'Peso (kg)', type: 'number', step: '0.01' },
       { name: 'dominant_hand', label: 'Mão dominante', type: 'select', placeholder: '—', options: DOMINANT_HANDS },
     ],
     onSubmit: async (values) => {
@@ -359,6 +359,10 @@ export function openTestForm({ playerId, test, onSaved }) {
         name: 'value',
         label: 'Valor',
         type: 'number',
+        // Duas casas decimais, que é o que a coluna guarda (`numeric(8,2)`).
+        // Sem `step` o browser assume 1 e recusava "28,5" — num teste de
+        // preensão ou num sprint, a casa decimal É a medição.
+        step: '0.01',
         hint: ' ',
       },
       { name: 'unit', label: 'Unidade', placeholder: 'kg, cm, %, s…' },
