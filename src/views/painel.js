@@ -2,7 +2,7 @@
 // Cartões de métricas, barra de progresso da meta e próximos eventos.
 
 import {
-  state, savePainelPrefs, closeAttendanceSession, closeAttendanceSessions, dbErrorMessage,
+  state, savePainelPrefs, dbErrorMessage,
 } from '../store.js';
 import { esc, euros } from '../ui.js';
 import {
@@ -36,7 +36,6 @@ import {
   sport,
   myTeams,
   isMyEvent,
-  trainingsWithoutPlan,
   gamesWithoutResult,
   myUnavailablePlayers,
   upcomingBirthdays,
@@ -67,10 +66,9 @@ import { openEventForm, openRecurrentTrainings } from './calendario.js';
 import { openSponsorForm } from './patrocinios.js';
 import { openFinanceiroTab } from './financeiro.js';
 import { openAthleteProfile } from './athlete-profile.js';
-import { confirmDialog, wireDialog } from '../modal.js';
+import { wireDialog } from '../modal.js';
 import { setSelectedEvent } from './presencas.js';
 import { openResultModal } from './resultado.js';
-import { toastError } from '../toast.js';
 import { openSeasonPlanning } from './planteis.js';
 import { DEFAULT_BRANDING } from '../branding.js';
 
@@ -1200,49 +1198,6 @@ function actionItem(item) {
 // Uma linha do alerta "Documentos a expirar" — abre a ficha do atleta (onde os
 // documentos vivem, no separador Geral) ao clicar.
 
-// Uma linha do atalho "Presenças por marcar". `canClose` acrescenta o botão
-// que marca falta a quem ficou sem registo (só faz sentido em treinos que já
-// aconteceram) e `showAge` diz há quanto tempo o treino ficou por fechar.
-function markRow({ event, total, marked, isToday }, { canClose = false, showAge = false } = {}) {
-  const team = teamById(event.team_id);
-  const dt = eventDateTime(event);
-  const dateLabel = isToday
-    ? 'Hoje'
-    : dt.toLocaleDateString('pt-PT', { weekday: 'short', day: '2-digit', month: 'short' });
-  const range = eventTimeRange(event);
-  const falta = Math.max(0, total - marked);
-  const idade = showAge ? idadeLabel(event) : '';
-  const sub = [
-    idade,
-    total
-      ? (marked === 0 ? `${total} atleta${total === 1 ? '' : 's'} por marcar`
-         : `${falta} de ${total} por marcar`)
-      : 'sem equipa associada',
-  ].filter(Boolean).join(' · ');
-
-  return `
-    <li class="mark-item">
-      <div class="mark-item__when">
-        <span class="mark-item__date${isToday ? ' mark-item__date--today' : ''}">${esc(dateLabel)}</span>
-        ${range ? `<span class="muted mark-item__time">${esc(range)}</span>` : ''}
-      </div>
-      <div class="mark-item__body">
-        <span class="mark-item__title">${esc(team ? teamName(team) : (event.title || 'Treino'))}</span>
-        <span class="muted mark-item__sub">${esc(sub)}</span>
-      </div>
-      <div style="display:flex;gap:0.4rem;align-items:center;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
-        ${canClose && total
-          ? `<button class="btn btn--ghost btn--sm" data-close-event="${event.id}" type="button"
-                     title="Marcar falta a quem ficou sem registo">Fechar</button>`
-          : ''}
-        <button class="btn btn--ghost btn--sm" data-plan-event="${event.id}" type="button">Plano</button>
-        <button class="btn btn--accent btn--sm" data-mark-event="${event.id}" type="button"
-                ${total ? '' : 'disabled'}>Marcar</button>
-      </div>
-    </li>
-  `;
-}
-
 // `absences`: mostrar quem avisou que não vai. Só o painel do TREINADOR o
 // pede — uma falta a um treino de sexta é trabalho de quem o dá, e ao
 // coordenador com dez escalões seria uma linha de nomes por evento sobre
@@ -1703,28 +1658,12 @@ function gymRow(s) {
 // calcula a seguir — a taxa de comparência, as quedas individuais, o "treina
 // muito, joga pouco".
 
-// Mostrar tudo ou só as primeiras? Uma lista de 30 treinos empurrava o resto
-// do painel para fora do ecrã; escondê-los de vez era fingir que não existem.
-let markExpanded = false;
-const MARK_PREVIEW = 6;
-// Uma sessão "antiga" é o que já não se vai marcar de memória. Uma semana é o
-// ponto em que o treinador deixa de saber quem lá esteve.
-const OLD_SESSION_DAYS = 7;
-
 function renderTreinadorPainel(container) {
   const teams = myTeams();
   const teamIds = new Set(teams.map((t) => t.id));
   const players = state.players.filter((p) => teamIds.has(p.team_id));
   const today = todayEvents().filter(isMyEvent);
-  const canMark = canEdit('attendances');
 
-  // Todos os treinos por marcar (não só os primeiros 6: o problema é
-  // precisamente serem muitos).
-  const toMark = canMark ? trainingsToMark(500) : [];
-  const atrasados = toMark.filter((m) => !m.isToday);
-  const antigos = atrasados.filter((m) => daysAgo(m.event) >= OLD_SESSION_DAYS);
-
-  const semPlano = trainingsWithoutPlan(7);
   const semResultado = canEdit('game_results') ? gamesWithoutResult(5) : [];
   const limitados = myUnavailablePlayers();
   const att = attendanceStats();
@@ -1737,9 +1676,10 @@ function renderTreinadorPainel(container) {
     .filter((e) => e.type === 'jogo' && isMyEvent(e) && eventDateTime(e) >= new Date())
     .sort((a, b) => eventDateTime(a) - eventDateTime(b))[0] || null;
 
-  // A faixa perdeu o "Por marcar": o número estava por cima do cartão que
-  // lista, linha a linha, exatamente os mesmos treinos — o mesmo dado duas
-  // vezes, com meio ecrã de distância.
+  // A faixa não conta as presenças por marcar. O cartão que as listava saiu
+  // deste painel (ver abaixo) e o número sozinho não é trabalho: diz que há
+  // nove treinos por fechar e não diz quais, o que obriga na mesma a abrir a
+  // secção. Quem marca presenças marca-as lá.
   const stats = [
     { label: 'Atletas', value: players.length,
       sub: `em ${teams.length} equipa${teams.length === 1 ? '' : 's'}`, route: 'planteis' },
@@ -1755,10 +1695,18 @@ function renderTreinadorPainel(container) {
       route: 'calendario' },
   ].filter(Boolean);
 
-  // O treinador NÃO leva a linha-resumo das presenças na lista de trabalho: o
-  // cartão inteiro está logo aqui ao lado, e é o centro do ecrã dele.
+  // Saíram deste painel o cartão "Presenças por marcar" e o "Treinos por
+  // preparar". Eram duas listas longas de treinos, uma por cima da outra, com
+  // o mesmo desenho e os mesmos botões, e entre as duas empurravam para fora
+  // do ecrã o que o painel tem de dizer primeiro: o que há hoje e quem não
+  // vem. As presenças marcam-se na secção Presenças, que é onde se vê o
+  // plantel; o plano prepara-se no Calendário ou no próprio evento de hoje,
+  // que continua a ter o botão "Plano".
+  //
+  // `buildActions()` continua sem `includePresencas` — a linha-resumo é
+  // supervisão, e ao treinador diria o que ele já sabe sem lhe dizer quais.
   const actions = buildActions();
-  const urgente = actions.some((a) => a.urgency === 'agora') || atrasados.length > 0;
+  const urgente = actions.some((a) => a.urgency === 'agora');
 
   container.innerHTML = `
     <header class="page-head page-head--hero">
@@ -1780,16 +1728,6 @@ function renderTreinadorPainel(container) {
 
     <div class="panel-grid${urgente ? '' : ' panel-grid--calm'}">
       <div class="panel-grid__main">
-        ${toMark.length ? markCard(toMark, atrasados, antigos) : ''}
-
-        ${semPlano.length ? `<section class="card mark-card">
-          <h2 class="section-title upcoming-card__title">Treinos por preparar</h2>
-          <p class="muted" style="margin:0 0 0.5rem;font-size:0.85rem">
-            Próximos 7 dias, ainda sem exercícios no plano.
-          </p>
-          <ul class="mark-list">${semPlano.slice(0, 6).map(planRow).join('')}</ul>
-        </section>` : ''}
-
         ${semResultado.length ? `<section class="card mark-card">
           <h2 class="section-title upcoming-card__title">Jogos por registar</h2>
           <ul class="mark-list">${semResultado.map(resultRow).join('')}</ul>
@@ -1820,48 +1758,9 @@ function renderTreinadorPainel(container) {
 
   wireWorkCard(container, () => renderTreinadorPainel(container));
   wireWorkTargets(container);
-  wireCoachPainel(container, antigos);
+  wireCoachPainel(container);
 }
 
-// Cartão central: tudo o que está por marcar, separado entre o que é de hoje
-// (ainda fresco) e o que ficou para trás.
-function markCard(toMark, atrasados, antigos) {
-  const hoje = toMark.filter((m) => m.isToday);
-  const visiveis = markExpanded ? atrasados : atrasados.slice(0, MARK_PREVIEW);
-  const escondidos = atrasados.length - visiveis.length;
-
-  return `
-    <section class="card mark-card">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:0.6rem;flex-wrap:wrap">
-        <h2 class="section-title upcoming-card__title" style="margin:0">
-          Presenças por marcar <span class="muted">(${toMark.length})</span>
-        </h2>
-        ${antigos.length > 1
-          ? `<button class="btn btn--ghost btn--sm" data-close-old type="button"
-                     title="Marca falta a quem ficou sem qualquer registo nesses treinos">
-               Fechar ${antigos.length} sessões antigas
-             </button>`
-          : ''}
-      </div>
-      ${hoje.length ? `
-        <p class="pd-label" style="margin:0.7rem 0 0.2rem">Hoje</p>
-        <ul class="mark-list">${hoje.map((m) => markRow(m)).join('')}</ul>` : ''}
-      ${visiveis.length ? `
-        <p class="pd-label" style="margin:0.7rem 0 0.2rem">Por fechar</p>
-        <ul class="mark-list">${visiveis.map((m) => markRow(m, { canClose: true, showAge: true })).join('')}</ul>` : ''}
-      ${escondidos > 0
-        ? `<button class="btn btn--ghost btn--sm" data-mark-more type="button" style="margin-top:0.6rem">
-             Ver os restantes ${escondidos}
-           </button>`
-        : ''}
-      ${markExpanded && atrasados.length > MARK_PREVIEW
-        ? `<button class="btn btn--ghost btn--sm" data-mark-less type="button" style="margin-top:0.6rem">
-             Mostrar menos
-           </button>`
-        : ''}
-    </section>
-  `;
-}
 
 // Linha de "Hoje": mostra o evento e o que se pode fazer com ele agora.
 // Quem avisou que NÃO vem. A resposta do atleta já existia
@@ -1925,28 +1824,6 @@ function coachTodayRow(ev, hideLocation = false) {
   `;
 }
 
-// Linha de "Treinos por preparar".
-function planRow(ev) {
-  const team = teamById(ev.team_id);
-  const dt = eventDateTime(ev);
-  const dateLabel = dt.toLocaleDateString('pt-PT', { weekday: 'short', day: '2-digit', month: 'short' });
-  const range = eventTimeRange(ev);
-  return `
-    <li class="mark-item">
-      <div class="mark-item__when">
-        <span class="mark-item__date">${esc(dateLabel)}</span>
-        ${range ? `<span class="muted mark-item__time">${esc(range)}</span>` : ''}
-      </div>
-      <div class="mark-item__body">
-        <span class="mark-item__title">${esc(team ? teamName(team) : (ev.title || 'Treino'))}</span>
-        <span class="muted mark-item__sub">Sem exercícios no plano</span>
-      </div>
-      <div style="flex-shrink:0">
-        <button class="btn btn--accent btn--sm" data-plan-event="${ev.id}" type="button">Preparar</button>
-      </div>
-    </li>
-  `;
-}
 
 // Linha de "Jogos por registar".
 function resultRow(ev) {
@@ -1992,9 +1869,7 @@ function limitedRow({ player, av }) {
   `;
 }
 
-function wireCoachPainel(container, antigos) {
-  const repaint = () => renderTreinadorPainel(container);
-
+function wireCoachPainel(container) {
   container.querySelectorAll('[data-mark-event]').forEach((btn) =>
     btn.addEventListener('click', () => openQuickAttendance(btn.dataset.markEvent))
   );
@@ -2030,70 +1905,10 @@ function wireCoachPainel(container, antigos) {
     });
   });
 
-  container.querySelector('[data-mark-more]')?.addEventListener('click', () => {
-    markExpanded = true;
-    repaint();
-  });
-  container.querySelector('[data-mark-less]')?.addEventListener('click', () => {
-    markExpanded = false;
-    repaint();
-  });
-
-  container.querySelectorAll('[data-close-event]').forEach((btn) =>
-    btn.addEventListener('click', () => closeOne(btn.dataset.closeEvent))
-  );
-  container.querySelector('[data-close-old]')?.addEventListener('click', () => closeOld(antigos));
-
-  container.querySelector('#alert-prefs')?.addEventListener('click', () =>
-    openAlertPrefs(repaint)
-  );
 }
 
-// Fechar UM treino: quem ficou sem registo leva falta. Sem isto, o ausente
-// fica só "sem registo" — que não conta para a taxa de comparência e faz o
-// número parecer melhor do que é.
-async function closeOne(eventId) {
-  const row = trainingsToMark(500).find((m) => m.event.id === eventId);
-  const falta = row ? Math.max(0, row.total - row.marked) : 0;
-  const ok = await confirmDialog(
-    `Marcar falta a ${falta} atleta${falta === 1 ? '' : 's'} sem registo neste treino? Quem já tem estado não é alterado.`,
-    { confirmLabel: 'Fechar treino' }
-  );
-  if (!ok) return;
-  try {
-    await closeAttendanceSession(eventId);
-  } catch (err) {
-    toastError(dbErrorMessage(err));
-  }
-}
 
-// Fechar TODAS as sessões antigas de uma vez. É a saída para quem tem semanas
-// acumuladas: marcar treino a treino de há um mês não é registo, é ficção — o
-// que se sabe mesmo é quem não tem registo nenhum.
-async function closeOld(antigos) {
-  const ids = antigos.map((m) => m.event.id);
-  const total = antigos.reduce((s, m) => s + Math.max(0, m.total - m.marked), 0);
-  const ok = await confirmDialog(
-    `Fechar ${ids.length} treinos com mais de ${OLD_SESSION_DAYS} dias? Marca falta a ${total} registo${total === 1 ? '' : 's'} em falta; quem já tem estado não é alterado.`,
-    { confirmLabel: 'Fechar sessões' }
-  );
-  if (!ok) return;
-  try {
-    await closeAttendanceSessions(ids);
-  } catch (err) {
-    toastError(dbErrorMessage(err));
-  }
-}
 
-// "ontem" / "há 5 dias" / "há 3 semanas" — a idade do treino por fechar.
-function idadeLabel(ev) {
-  const dias = daysAgo(ev);
-  if (dias <= 0) return '';
-  if (dias === 1) return 'ontem';
-  if (dias < 14) return `há ${dias} dias`;
-  const semanas = Math.floor(dias / 7);
-  return `há ${semanas} semanas`;
-}
 
 // Dias inteiros desde o evento (0 = hoje).
 function daysAgo(ev) {
