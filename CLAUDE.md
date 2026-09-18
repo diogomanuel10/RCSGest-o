@@ -303,6 +303,7 @@ supabase/convites-massa.sql    Convites de atleta em lote (RPC create_invitation
 supabase/convocatoria-simples.sql Convocatória só com convocado/não convocado
 supabase/musculacao.sql        Sessões de musculação: evento com o plantel escolhido (event_players)
 supabase/referencias-testes.sql Faixas de referência das avaliações físicas (por teste e sexo)
+supabase/decimais-fisicos.sql  Altura e peso com 2 casas decimais (não arredondar a medição)
 supabase/grupo-whatsapp.sql    Link do grupo de WhatsApp da equipa (guia de entrada)
 supabase/pedidos-equipamento.sql  Pedidos de equipamento (treinador -> clube) + notificações
 supabase/artigos-configuraveis.sql Artigos e tamanhos de equipamento definidos pelo clube
@@ -381,11 +382,20 @@ Cada `views/*.js` exporta `renderXxx(container)` que:
    fosse uma nota sobre esse campo. Cada campo aceita `hint` (texto de
    ajuda por baixo, ligado por `aria-describedby`), `qty` (uma quantidade
    estreita ao lado do controlo principal, quando é a mesma pergunta sobre a
-   mesma coisa — que tamanho e quantas) e `reactive: true` — este
+   mesma coisa — que tamanho e quantas), `step` (num campo numérico) e
+   `reactive: true` — este
    avisa por `onFieldChange(nome, valores)` assim que muda, para a vista poder
    reconstruir o formulário (ex.: mudar o tipo de objetivo troca os campos
    seguintes). Reconstruir na gravação não serve: os campos obrigatórios ainda
    vazios fazem a validação nativa bloquear o submit antes de lá chegar.
+   **Um `type: 'number'` sem `step` recusa decimais**: o browser assume
+   `step=1` e "28,5" deixa o formulário inválido sem dizer porquê — foi o que
+   impediu, durante meses, que se escrevesse a casa decimal de uma preensão ou
+   de um sprint, que é onde ela É a medição. O passo declara a precisão
+   aceite, e é a MESMA que a coluna guarda: um campo que deixa escrever mais
+   casas do que a base de dados grava arredonda pelas costas de quem mediu
+   (ver `supabase/decimais-fisicos.sql`). Com um passo decimal vai também
+   `inputmode="decimal"`, que é o que põe a vírgula no teclado de um telemóvel.
 4. Após uma operação no `store`, a notificação re-desenha a vista — por isso
    as vistas **não** atualizam o DOM manualmente após guardar.
 5. A **confirmação visível** da gravação vem do `store`, não da vista: as
