@@ -70,6 +70,7 @@ import { wireDialog } from '../modal.js';
 import { setSelectedEvent } from './presencas.js';
 import { openResultModal } from './resultado.js';
 import { openSeasonPlanning } from './planteis.js';
+import { openBirthdayCard } from './parabens.js';
 import { DEFAULT_BRANDING } from '../branding.js';
 
 
@@ -215,6 +216,7 @@ export function renderPainel(container) {
 
   wireWorkCard(container, () => renderPainel(container));
   wireWorkTargets(container);
+  wireBirthdayLine(container);
 
   // Atalho: abre modal rápido de presenças diretamente do Painel.
   container.querySelectorAll('[data-mark-event]').forEach((btn) => {
@@ -1014,11 +1016,25 @@ function birthdayLine() {
     return `${b.player.name.split(/\s+/)[0]} (${quando})`;
   });
   const resto = list.length > nomes.length ? ` e mais ${list.length - nomes.length}` : '';
+  // Leva ao DIÁLOGO e já não aos Plantéis. A linha diz o primeiro nome e o
+  // dia — e era aí que acabava: felicitar alguém obrigava a abrir os
+  // Plantéis, encontrar a ficha entre vinte e copiar o contacto à mão. O que
+  // decide o gesto (nome inteiro, escalão, contacto da família e, para o
+  // coordenador, a mensagem escrita) passa a estar a um clique.
   return `
-    <button class="hero-birthdays" type="button" data-nav="planteis"
-            title="Ver aniversários nos Plantéis">
+    <button class="hero-birthdays" type="button" data-birthdays="7"
+            title="Ver quem faz anos e mandar uma palavra">
       🎂 ${esc(nomes.join(' · '))}${esc(resto)}
     </button>`;
+}
+
+// A linha de aniversários do cabeçalho, nos dois painéis que a mostram (o do
+// clube e o do treinador). Fica fora do `wireWorkTargets` de propósito: não é
+// uma pendência nem navega para uma secção — abre o cartão de quem faz anos.
+function wireBirthdayLine(root) {
+  root.querySelector('[data-birthdays]')?.addEventListener('click', (e) =>
+    openBirthdayCard(upcomingBirthdays(Number(e.currentTarget.dataset.birthdays) || 7))
+  );
 }
 
 // As linhas de grupo que estão desenhadas AGORA, para o diálogo de detalhe as
@@ -1760,6 +1776,7 @@ function renderTreinadorPainel(container) {
 
   wireWorkCard(container, () => renderTreinadorPainel(container));
   wireWorkTargets(container);
+  wireBirthdayLine(container);
   wireCoachPainel(container);
 }
 

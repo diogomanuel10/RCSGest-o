@@ -257,6 +257,7 @@ src/
   players-qr.js         Folha de cartões QR imprimíveis (A4, tamanho cartão)
   invite-slips.js       Talões de convite ao portal imprimíveis (A4, QR do link)
   join-guide.js         Guia de entrada no portal: passos comuns + mensagem do escalão
+  birthday-message.js   Mensagem de parabéns à família (cartão de aniversário)
   sizes-message.js      Mensagem à família para confirmar os dados da encomenda
   join-poster.js        Cartaz A4 do guia de entrada (QR da app + QR do grupo)
   player-photo.js       Foto de perfil nos avatares (endereços assinados em lote)
@@ -276,6 +277,7 @@ src/
     planteis.js         Vista Plantéis (CRUD + importar atletas via .xlsx)
     convites-portal.js  Convites ao portal de um plantel inteiro (links + envio)
     guia-entrada.js     Guia de entrada de um escalão (mensagem para o grupo + cartaz)
+    parabens.js         Cartão de aniversário (contacto + mensagem de parabéns)
     pedidos.js          Pedidos de equipamento do treinador ao clube (separador)
     athlete-profile.js  Perfil do Atleta (modal unificado com separadores)
     avaliacao.js        Vista Avaliação de plantel (Mantém/Sai/Pendente)
@@ -1473,6 +1475,30 @@ separador antes de navegar (usado pelos cartões do Painel).
     chegar a tempo, que é a única coisa que um aniversário precisa de fazer. As
     **datas por preencher** ficam na lista, no degrau `depois` — isso É
     trabalho: sem a data não há aniversário nenhum.
+    - **A linha abre um cartão** (`views/parabens.js`, `openBirthdayCard`) e já
+      não os Plantéis: dizia o primeiro nome e o dia, e era aí que acabava —
+      felicitar alguém eram cinco passos noutros ecrãs (abrir os Plantéis,
+      encontrar a ficha entre vinte, copiar o contacto do encarregado, mudar
+      para o telemóvel, escrever do zero). Cinco passos para um gesto de trinta
+      segundos é um gesto que se deixa de fazer. O cartão tem o que o decide: o
+      nome INTEIRO (no cabeçalho vai só o primeiro, e num clube há duas
+      Marias), o escalão e o **contacto da família** (`guardian_contact`, o
+      mesmo canal dos convites ao portal e da confirmação de tamanhos). Com
+      mais do que um aniversário escolhe-se o nome no topo — o cabeçalho mostra
+      três, e abrir só o primeiro mandava procurar os outros aos Plantéis.
+    - **A mensagem é só do COORDENADOR** (`birthday-message.js`): não é uma
+      permissão de dados (o nome, o escalão e o contacto já estavam na ficha, e
+      quem vê a linha vê os Plantéis) — é sobre quem fala em nome do clube. Uma
+      mensagem assinada pelo clube, mandada por três pessoas ao mesmo
+      encarregado, deixa de ser uma mensagem do clube.
+    - **Vai para a FAMÍLIA e agradece-lhe**: nos escalões de formação quem tem
+      telemóvel é o encarregado de educação, e metade do que ali se diz é para
+      ele. O texto constrói-se a cada escolha — o "hoje / amanhã / no próximo
+      dia 24" é do atleta escolhido, e reaproveitar o do anterior mandava à
+      família de uma a data da outra. Nada é enviado pelas costas de ninguém: o
+      botão abre o WhatsApp ou o email (`contactChannel`/`sendVia`, os mesmos
+      dos convites) com o texto escrito, e sem contacto na ficha fica só o
+      copiar.
   - **Duas colunas no ecrã grande** (`.panel-grid`): `.content__inner` não tem
     `max-width`, por isso tudo vivia numa coluna só esticada a 1800px — a linha
     "18:30–20:30 · Cadetes F · Pavilhão…" tinha 1500px de vazio à direita e o
