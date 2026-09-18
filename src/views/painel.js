@@ -44,6 +44,7 @@ import {
   playersMissingData,
   birthDateReady,
   eventRoster,
+  eventResponseSummary,
 } from '../compute.js';
 import {
   EVENT_TYPE_LABEL,
@@ -1242,7 +1243,11 @@ function markRow({ event, total, marked, isToday }, { canClose = false, showAge 
   `;
 }
 
-function upcomingList(events) {
+// `absences`: mostrar quem avisou que não vai. Só o painel do TREINADOR o
+// pede — uma falta a um treino de sexta é trabalho de quem o dá, e ao
+// coordenador com dez escalões seria uma linha de nomes por evento sobre
+// treinos a que não vai. É a mesma regra do `event_response_audience`.
+function upcomingList(events, { absences = false } = {}) {
   return `
     <ul class="event-mini">
       ${events
@@ -1277,6 +1282,7 @@ function upcomingList(events) {
                   ${nome ? `<strong class="event-mini__name">${esc(nome)}</strong>` : ''}
                   ${meta ? `<span class="muted">${meta}</span>` : ''}
                 </span>
+                ${absences ? absenceLine(ev) : ''}
               </div>
             </li>`;
         })
@@ -1805,7 +1811,7 @@ function renderTreinadorPainel(container) {
 
         <section class="card">
           <h2 class="section-title upcoming-card__title">Próximos eventos</h2>
-          ${upcoming.length ? upcomingList(upcoming)
+          ${upcoming.length ? upcomingList(upcoming, { absences: true })
             : '<p class="muted" style="margin:0.3rem 0 0">Sem outros eventos agendados.</p>'}
         </section>
       </aside>
@@ -1858,6 +1864,38 @@ function markCard(toMark, atrasados, antigos) {
 }
 
 // Linha de "Hoje": mostra o evento e o que se pode fazer com ele agora.
+// Quem avisou que NÃO vem. A resposta do atleta já existia
+// (`event_responses`) e já chegava ao treinador por notificação — mas uma
+// notificação lê-se uma vez, de passagem, e no dia do treino a pergunta
+// "afinal quem falta hoje?" só tinha resposta na secção Presenças. O painel é
+// onde ela se faz, à hora a que se faz.
+//
+// Só entram os "não vou": o "vou" é o esperado e não muda nada ao treino, e
+// quem nem respondeu é ruído num plantel de vinte — a contagem completa está
+// nas Presenças, a um clique daqui (a linha leva ao evento, já escolhido).
+function absenceLine(ev) {
+  if (!canAccess('presencas')) return '';
+  const { ausentes } = eventResponseSummary(ev.id);
+  if (!ausentes.length) return '';
+
+  // Primeiros nomes, como nos aniversários: numa coluna de 360px o nome
+  // completo de três atletas parte a linha, e quem treina o plantel reconhece
+  // pelo primeiro. Os homónimos resolvem-se no ecrã a que isto leva.
+  const nomes = ausentes.slice(0, 3).map((a) => a.player.name.split(/\s+/)[0]);
+  const resto = ausentes.length > nomes.length ? ` e mais ${ausentes.length - nomes.length}` : '';
+  // Com UMA ausência o motivo cabe, e é o motivo que evita a mensagem de
+  // telemóvel a perguntar porquê. Com três, os motivos não cabem em lado
+  // nenhum e a lista inteira está a um clique.
+  const motivo = ausentes.length === 1 && ausentes[0].note ? ` — ${ausentes[0].note}` : '';
+
+  return `
+    <button class="row-absent" type="button" data-work-event="${esc(ev.id)}"
+            title="Ver quem vem a este evento">
+      ✋ ${ausentes.length} não ${ausentes.length === 1 ? 'vem' : 'vêm'}:
+      ${esc(nomes.join(', '))}${esc(resto)}${esc(motivo)}
+    </button>`;
+}
+
 function coachTodayRow(ev, hideLocation = false) {
   const team = teamById(ev.team_id);
   const range = eventTimeRange(ev);
@@ -1874,6 +1912,7 @@ function coachTodayRow(ev, hideLocation = false) {
           ev.opponent ? 'vs ' + ev.opponent : '',
           hideLocation ? '' : (ev.location || ''),
         ].filter(Boolean).join(' · ') || '—')}</span>
+        ${absenceLine(ev)}
       </div>
       <div style="display:flex;gap:0.4rem;align-items:center;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
         ${isJogo

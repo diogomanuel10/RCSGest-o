@@ -1358,6 +1358,30 @@ button.stat-strip__item--nav:hover {
   border-color: var(--navy-300);
 }
 
+/* "Quem avisou que não vem", na linha do evento (painel do treinador). É o
+   tom de aviso e não o de perigo: uma falta avisada é informação, não uma
+   avaria — quem não avisa nada é que é o problema, e esse não tem linha.
+   A tinta é `--warn-ink` (4.5:1 no tamanho de texto); a borda e o fundo usam
+   o tom cheio, como manda a regra das duas cores de cada estado. */
+.row-absent {
+  display: block;
+  margin-top: 0.3rem;
+  padding: 0.15rem 0.45rem;
+  border: 1px solid var(--warn);
+  border-radius: 8px;
+  background: transparent;
+  font: inherit;
+  font-size: 0.8rem;
+  line-height: 1.3;
+  color: var(--warn-ink);
+  cursor: pointer;
+  text-align: left;
+  max-width: 100%;
+}
+.row-absent:hover {
+  background: var(--warn-bg);
+}
+
 /* Hero do Painel (saudação + criação rápida) */
 .page-head--hero {
   align-items: flex-start;
