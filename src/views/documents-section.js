@@ -3,7 +3,8 @@
 // Acesso: coordenador, fisioterapeuta e preparador físico.
 
 import { state, uploadPlayerDocument, deletePlayerDocument, getDocumentSignedUrl, dbErrorMessage } from '../store.js';
-import { esc } from '../ui.js';
+import { esc, triggerDownload, safeFileName } from '../ui.js';
+import { toastError } from '../toast.js';
 import { openModal } from '../modal.js';
 import { confirmDialog } from '../modal.js';
 import { DOCUMENT_TYPES, DOC_TYPE_LABEL } from '../constants.js';
@@ -46,6 +47,7 @@ export function renderDocumentsInto(container, playerId) {
                     </span>` : ''}
                   <div class="doc-card__actions">
                     <button class="btn btn--ghost btn--sm" data-doc-view="${esc(doc.storage_path)}" type="button">Ver</button>
+                    <button class="btn btn--ghost btn--sm" data-doc-get="${esc(doc.id)}" type="button">Transferir</button>
                     ${editable ? `<button class="btn btn--ghost btn--sm btn--danger" data-doc-delete="${esc(doc.id)}" type="button">Eliminar</button>` : ''}
                   </div>
                 </div>
@@ -73,6 +75,32 @@ export function renderDocumentsInto(container, playerId) {
         window.open(url, '_blank', 'noopener');
       } catch (err) {
         alert(dbErrorMessage(err));
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+
+  // Transferir documento. O nome é reconstruído a partir do ATLETA e do tipo
+  // ("CC — Ana Silva.pdf") e não é o `filename` de origem: o que sai do
+  // telemóvel de uma família chama-se `IMG_20240912_0001.jpg`, e uma pasta de
+  // inscrições com vinte desses não se lê. A extensão vem do original, que é
+  // a única parte dele que é informação.
+  container.querySelectorAll('[data-doc-get]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const doc = state.playerDocuments.find((d) => d.id === btn.dataset.docGet);
+      if (!doc) return;
+      const player = state.players.find((p) => p.id === doc.player_id);
+      const ext = (doc.filename || '').split('.').pop();
+      const nome = safeFileName(
+        `${DOC_TYPE_LABEL[doc.doc_type] || doc.doc_type} - ${player?.name || 'atleta'}`,
+        'documento'
+      ) + (ext && ext !== doc.filename ? `.${ext.toLowerCase()}` : '');
+      btn.disabled = true;
+      try {
+        triggerDownload(await getDocumentSignedUrl(doc.storage_path, { download: nome }), nome);
+      } catch (err) {
+        toastError(dbErrorMessage(err));
       } finally {
         btn.disabled = false;
       }

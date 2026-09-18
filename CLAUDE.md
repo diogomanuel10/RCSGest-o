@@ -1149,6 +1149,22 @@ separador antes de navegar (usado pelos cartões do Painel).
     ficava no bucket para sempre. A antiga só se apaga depois de a nova estar
     gravada: ao contrário, uma falha a meio deixava o atleta sem documento
     nenhum.
+  - **O que entra tem de poder SAIR.** Uma inscrição na federação faz-se com a
+    foto e a fotocópia do CC em ficheiros, e nenhum dos dois tinha por onde sair
+    da app: o CC só tinha "Ver" (abre num separador, e guardar passava a ser
+    problema do browser — num telemóvel, de um visualizador que não deixa) e a
+    foto desenha-se como FUNDO de um avatar, onde nem o "guardar imagem como"
+    lá chega. O download é o mesmo endereço assinado com `{ download }`, ou
+    seja, é o Storage a devolver `Content-Disposition: attachment` — o atributo
+    `download` de um `<a>` é ignorado quando o ficheiro vem de outra origem, que
+    é sempre o caso aqui.
+    - **O nome é reconstruído** ("CC - Ana Silva.pdf", "Foto - Ana Silva.jpg") e
+      não é o `filename` de origem: o que sai do telemóvel de uma família
+      chama-se `IMG_20240912_0001.jpg`, e uma pasta de inscrições com vinte
+      desses não se lê. Do original guarda-se a extensão, que é a única parte
+      dele que é informação.
+    - O endereço da foto assina-se por **2 minutos** e não por uma hora: é para
+      guardar agora, não para partilhar.
   - **Quem olha para a ficha vê o que falta** (`gapsLine`, no cabeçalho do
     perfil) e o Painel diz quantas estão a meio (`fichas_incompletas`, degrau
     `depois`, com os nomes no subtítulo). O trabalho aqui não é preencher — é
