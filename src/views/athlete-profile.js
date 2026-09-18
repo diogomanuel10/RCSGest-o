@@ -11,8 +11,11 @@
 // limitações ao treino (sem aceder ao detalhe clínico), além da última
 // avaliação física.
 
-import { state, regeneratePlayerQr, createInvitation, savePlayerPhoto, dbErrorMessage } from '../store.js';
-import { esc, euros } from '../ui.js';
+import {
+  state, regeneratePlayerQr, createInvitation, savePlayerPhoto,
+  playerPhotoDownloadUrl, dbErrorMessage,
+} from '../store.js';
+import { esc, euros, triggerDownload, safeFileName } from '../ui.js';
 import { confirmDialog } from '../modal.js';
 import { toastError, toastOk } from '../toast.js';
 import {
@@ -130,6 +133,7 @@ export function renderAthleteProfilePage(container, playerId, { onEdit, onBack }
           </div>
         </div>
         <div class="row" style="gap:0.4rem">
+          ${player.photo_path ? '<button class="btn btn--ghost" data-ap-photo-get type="button">Transferir foto</button>' : ''}
           <button class="btn btn--ghost" data-ap-report type="button">Ficha (imprimir)</button>
           ${onEdit ? '<button class="btn btn--primary" data-ap-edit type="button">Editar dados</button>' : ''}
         </div>
@@ -173,6 +177,24 @@ export function renderAthleteProfilePage(container, playerId, { onEdit, onBack }
       }
     });
     input.click();
+  });
+
+  // A foto desenha-se como FUNDO de um avatar, por isso o "guardar imagem
+  // como" do browser não lhe chega — sem este botão não havia forma nenhuma
+  // de a tirar da app, e ela é uma das três coisas que se juntam para uma
+  // inscrição. O endereço é assinado por 2 minutos: é para guardar agora, não
+  // para partilhar.
+  container.querySelector('[data-ap-photo-get]')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    const nome = `${safeFileName(`Foto - ${player.name}`, 'foto')}.jpg`;
+    btn.disabled = true;
+    try {
+      triggerDownload(await playerPhotoDownloadUrl(player.photo_path, nome), nome);
+    } catch (err) {
+      toastError(dbErrorMessage(err));
+    } finally {
+      btn.disabled = false;
+    }
   });
 
   container.querySelector('[data-ap-back]')?.addEventListener('click', () => onBack?.());

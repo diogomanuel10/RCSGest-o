@@ -1134,9 +1134,17 @@ separador antes de navegar (usado pelos cartões do Painel).
     mesma decisão do `set_painel_prefs` em `profiles`.
   - **A data de nascimento PREENCHE-SE, não se corrige** (o servidor recusa
     quando já lá está): é ela que decide o escalão em que a atleta joga, e
-    mudá-la é decisão do clube, na ficha, onde se vê o que se está a gravar. O
-    formulário do portal também recusa um ano diferente do que a ficha já tem —
-    o ano é o único ponto de partida que existe e é ele que calcula o escalão.
+    mudá-la é decisão do clube, na ficha, onde se vê o que se está a gravar.
+    - **Mas a DATA manda no ano, e não ao contrário.** O formulário do portal
+      chegou a recusar uma data cujo ano não batesse certo com o
+      `birth_year` da ficha, para proteger o escalão — e o que isso fazia era
+      barrar exatamente quem tinha o ano errado: a atleta lia "fala com o
+      clube" e ficava sem preencher nada, que é o problema que isto veio
+      resolver. O ano da ficha é muitas vezes um palpite de uma importação
+      antiga; a data vem do cartão de cidadão dela. O trigger
+      `players_sync_birth_year` acerta o ano a partir da data, por isso as
+      duas colunas continuam a não divergir — o que muda é qual delas é a
+      fonte.
   - **Do CC ela ESCREVE só o CC.** Vê os seus documentos todos (que o exame
     médico caduca em março é exatamente o que ela tem de saber), mas o exame e
     o seguro são documentos que o clube emite ou recebe: deixá-la substituí-los
@@ -1149,6 +1157,22 @@ separador antes de navegar (usado pelos cartões do Painel).
     ficava no bucket para sempre. A antiga só se apaga depois de a nova estar
     gravada: ao contrário, uma falha a meio deixava o atleta sem documento
     nenhum.
+  - **O que entra tem de poder SAIR.** Uma inscrição na federação faz-se com a
+    foto e a fotocópia do CC em ficheiros, e nenhum dos dois tinha por onde sair
+    da app: o CC só tinha "Ver" (abre num separador, e guardar passava a ser
+    problema do browser — num telemóvel, de um visualizador que não deixa) e a
+    foto desenha-se como FUNDO de um avatar, onde nem o "guardar imagem como"
+    lá chega. O download é o mesmo endereço assinado com `{ download }`, ou
+    seja, é o Storage a devolver `Content-Disposition: attachment` — o atributo
+    `download` de um `<a>` é ignorado quando o ficheiro vem de outra origem, que
+    é sempre o caso aqui.
+    - **O nome é reconstruído** ("CC - Ana Silva.pdf", "Foto - Ana Silva.jpg") e
+      não é o `filename` de origem: o que sai do telemóvel de uma família
+      chama-se `IMG_20240912_0001.jpg`, e uma pasta de inscrições com vinte
+      desses não se lê. Do original guarda-se a extensão, que é a única parte
+      dele que é informação.
+    - O endereço da foto assina-se por **2 minutos** e não por uma hora: é para
+      guardar agora, não para partilhar.
   - **Quem olha para a ficha vê o que falta** (`gapsLine`, no cabeçalho do
     perfil) e o Painel diz quantas estão a meio (`fichas_incompletas`, degrau
     `depois`, com os nomes no subtítulo). O trabalho aqui não é preencher — é

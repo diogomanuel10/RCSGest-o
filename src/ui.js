@@ -115,6 +115,32 @@ export function linkHost(value) {
 
 // Matiz (HSL hue 0–359) estável derivada de um id — para dar a cada equipa
 // uma cor consistente (ex.: nos eventos do calendário).
+// Guardar um ficheiro que a app já tem. É um `<a download>` e não um
+// `window.open`: um separador novo entrega a decisão ao browser (e no
+// telemóvel abre um visualizador de onde não se sai com o ficheiro), e num
+// bloqueador de pop-ups nem isso. O endereço já vem assinado com o nome —
+// aqui é só o clique.
+export function triggerDownload(url, filename) {
+  const a = document.createElement('a');
+  a.href = url;
+  if (filename) a.download = filename;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+// Nome de ficheiro a partir de texto livre (o nome de uma atleta). Tira o que
+// os sistemas de ficheiros recusam e o que parte um cabeçalho HTTP — sem
+// isto, uma barra num nome composto criava uma pasta no meio do caminho.
+export function safeFileName(text, fallback = 'ficheiro') {
+  const limpo = String(text ?? '')
+    .replace(/[\\/:*?"<>|\r\n]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return limpo || fallback;
+}
+
 export function teamHue(id) {
   const s = String(id || '');
   let h = 0;

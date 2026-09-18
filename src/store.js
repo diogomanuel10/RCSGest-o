@@ -1551,10 +1551,27 @@ export async function deletePlayerDocument(docId) {
   notify();
 }
 
-export async function getDocumentSignedUrl(storagePath) {
+// `download` transforma o mesmo endereço assinado num ficheiro guardado em vez
+// de uma página aberta: é o Storage a devolver `Content-Disposition:
+// attachment` com o nome que se lhe der. Vale a pena ser o servidor a dizê-lo
+// — do lado do cliente, o atributo `download` de um `<a>` é ignorado quando o
+// ficheiro vem de outra origem, que é sempre o caso aqui.
+export async function getDocumentSignedUrl(storagePath, { download = null } = {}) {
   const { data, error } = await supabase.storage
     .from('player-docs')
-    .createSignedUrl(storagePath, 3600);
+    .createSignedUrl(storagePath, 3600, download ? { download } : undefined);
+  if (error) throw error;
+  return data.signedUrl;
+}
+
+// O mesmo para a foto de perfil. Sem isto não havia forma NENHUMA de a tirar
+// da app: desenha-se como fundo de um avatar, por isso nem o "guardar imagem
+// como" do browser lá chega — e é uma das três coisas que o clube junta para
+// uma inscrição.
+export async function playerPhotoDownloadUrl(path, filename) {
+  const { data, error } = await supabase.storage
+    .from(PLAYER_PHOTO_BUCKET)
+    .createSignedUrl(path, 120, filename ? { download: filename } : undefined);
   if (error) throw error;
   return data.signedUrl;
 }
