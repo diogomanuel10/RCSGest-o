@@ -7781,13 +7781,18 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
    imagem — as iniciais ficam lá nesse intervalo, que é o que se via antes de
    existirem fotos. */
 .avatar-photo {
-  background-size: cover;
-  background-position: center;
   overflow: hidden;
 }
-/* Com imagem, as iniciais desaparecem sem sair do fluxo: continuam a garantir
+/* O recorte vai na classe DUPLA de propósito. Cada avatar tem a sua regra com
+   `background: …`, e esse atalho repõe o `background-size` — qualquer uma
+   delas escrita depois desta anulava o `cover` e desenhava a foto ao tamanho
+   natural dentro de um círculo de 40px. Com dois seletores, a especificidade
+   é maior do que a de qualquer classe solta, venha ela onde vier no ficheiro.
+   Com imagem, as iniciais desaparecem sem sair do fluxo: continuam a garantir
    a altura do elemento se a imagem falhar a meio. */
-.avatar-photo--set {
+.avatar-photo.avatar-photo--set {
+  background-size: cover;
+  background-position: center;
   color: transparent;
 }
 .pd-avatar-btn {
@@ -7878,6 +7883,13 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
   min-width: 0;
 }
 .portal-hero__nome { min-width: 0; }
+/* `background-color` e NÃO o atalho `background`: o atalho repõe também o
+   `background-size`, e esta regra vem depois da do `.avatar-photo` no
+   ficheiro. A foto perdia assim o `cover` e era desenhada ao tamanho
+   natural (480px) dentro de um círculo de 52 — do lado da atleta via-se um
+   pedaço ampliado do canto da imagem, que numa foto clara é um círculo
+   branco. Nos outros avatares (.pd-avatar, .player-card__avatar) o atalho
+   está escrito ACIMA e por isso não se dava por isto. */
 .portal-hero__foto {
   flex: none;
   width: 52px;
@@ -7885,7 +7897,7 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
   border-radius: 50%;
   display: grid;
   place-items: center;
-  background: var(--navy);
+  background-color: var(--navy);
   color: #fff;
   font-weight: 700;
 }
