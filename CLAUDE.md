@@ -1396,6 +1396,19 @@ separador antes de navegar (usado pelos cartões do Painel).
     próximos 7 dias **sem exercícios no plano** (uma linha de plano vazia é um
     plano por fazer), **jogos por registar** resultado, e quem **não está a
     100%** (disponibilidade, sem detalhe clínico).
+  - **Quem avisou que NÃO vem aparece na linha do evento** (`absenceLine`,
+    sobre `eventResponseSummary`). A resposta do atleta já existia e já chegava
+    por notificação — mas uma notificação lê-se uma vez, de passagem, e no dia
+    do treino a pergunta "afinal quem falta hoje?" só tinha resposta na secção
+    Presenças: o treinador tinha o aviso e não tinha a lista. Entram só os
+    "não vou" (o "vou" é o esperado e não muda nada ao treino; quem nem
+    respondeu é ruído num plantel de vinte) e a linha leva às Presenças com o
+    evento **já escolhido**. Com uma ausência só vai o MOTIVO, que é o que
+    evita a mensagem de telemóvel a perguntar porquê.
+    - **Só no painel do treinador** (`upcomingList(…, { absences: true })`):
+      é a mesma regra do `event_response_audience` — quem vai ao treino de
+      sexta é trabalho de quem o dá, e ao coordenador com dez escalões seria
+      uma linha de nomes por evento sobre treinos a que não vai.
 - **O Painel diz o que fazer, não tudo o que existe.** Tinha nove cartões de
   números e três caixas separadas a responder à mesma pergunta ("A precisar da
   tua atenção", "Documentos a expirar", "Presenças por marcar") — e o trabalho
