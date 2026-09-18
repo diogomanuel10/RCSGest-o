@@ -7772,6 +7772,125 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 }
 
 /* =========================================================================
+   Fotografia do atleta
+   =========================================================================
+   A foto entra no espaço do avatar de iniciais que já existia (.pd-avatar,
+   .player-card__avatar), por isso não traz tamanho nem forma: traz só o
+   recorte da imagem e o que fazer enquanto ela não chega. O bucket é privado
+   e os endereços assinam-se, ou seja, há sempre um intervalo entre o HTML e a
+   imagem — as iniciais ficam lá nesse intervalo, que é o que se via antes de
+   existirem fotos. */
+.avatar-photo {
+  background-size: cover;
+  background-position: center;
+  overflow: hidden;
+}
+/* Com imagem, as iniciais desaparecem sem sair do fluxo: continuam a garantir
+   a altura do elemento se a imagem falhar a meio. */
+.avatar-photo--set {
+  color: transparent;
+}
+.pd-avatar-btn {
+  position: relative;
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  line-height: 0;
+  border-radius: 50%;
+}
+.pd-avatar-btn:hover .pd-avatar,
+.pd-avatar-btn:focus-visible .pd-avatar {
+  box-shadow: 0 0 0 3px var(--accent, #c9a227);
+}
+.pd-avatar-btn__mark {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.6rem;
+  line-height: 1;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border);
+}
+.pd-hero__gaps {
+  display: inline-block;
+  margin-top: 0.25rem;
+}
+
+/* =========================================================================
+   Portal — a ficha por completar
+   =========================================================================
+   Um cartão de aviso que vive acima do "A seguir" e desaparece sozinho
+   quando os três dados estiverem preenchidos. Tem o tom de aviso (warn) e não
+   o de erro: não está nada avariado, falta uma coisa que só ela pode dar. */
+.portal-dados {
+  border-left: 4px solid var(--warn);
+  display: grid;
+  gap: 0.6rem;
+}
+.portal-dados__label {
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--warn-ink);
+}
+.portal-dados__intro {
+  margin: 0.15rem 0 0;
+  font-size: 0.9rem;
+}
+.portal-dados__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+.portal-dados__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+}
+.portal-dados__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+  flex: 1 1 12rem;
+}
+.portal-dados__text .muted { font-size: 0.85rem; }
+.portal-dados__nota { font-size: 0.8rem; margin: 0; }
+
+.portal-hero__id {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+.portal-hero__nome { min-width: 0; }
+.portal-hero__foto {
+  flex: none;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--navy);
+  color: #fff;
+  font-weight: 700;
+}
+
+/* =========================================================================
    Responsivo — telemóvel e tablet
    =========================================================================
    Esta secção vem no FIM do ficheiro de propósito. As regras de baixo são,

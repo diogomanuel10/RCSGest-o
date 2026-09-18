@@ -11,6 +11,7 @@ import {
   whatsappReady,
   kitVariantReady,
 } from '../compute.js';
+import { photoAvatarHTML, hydratePhotos } from '../player-photo.js';
 import { openModal, confirmDialog, wireDialog } from '../modal.js';
 import { toastError, toastOk } from '../toast.js';
 import { COACH_ROLE_LABEL, AVAILABILITY_LABEL } from '../constants.js';
@@ -221,6 +222,10 @@ export function renderPlanteis(container) {
   // sem equipas, o cabeçalho é o único sítio onde está e não é onde se olha.
   container.querySelector('#add-team')?.addEventListener('click', () => openTeamForm());
   wireEmptyAction(container, 'add-team', () => openTeamForm());
+
+  // As fotos entram depois do HTML: o bucket é privado e os endereços pedem-se
+  // assinados — sessenta de uma vez, numa só ida (ver `hydratePhotos`).
+  hydratePhotos(container);
 
   // Modo avaliação: liga os seus próprios eventos (filtros, decisões, aplicar).
   if (evaluating && team) {
@@ -713,8 +718,6 @@ function playerListHTML(players, teamId, canPlayers, canRemovePlayers) {
 }
 
 function playerCardHTML(p, teamId, canPlayers, canRemovePlayers) {
-  const initials = (p.name || '?')
-    .split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
   const color = positionColor(p.position);
   const age = ageLabel(p);
   return `
@@ -722,7 +725,7 @@ function playerCardHTML(p, teamId, canPlayers, canRemovePlayers) {
       <button class="player-card__main" data-player-view="${p.id}" data-team="${teamId}" type="button">
         <span class="player-card__top">
           <span class="player-card__num">${p.number ? esc(p.number) : '—'}</span>
-          <span class="player-card__avatar" aria-hidden="true">${esc(initials || '?')}</span>
+          ${photoAvatarHTML(p, 'player-card__avatar')}
           <span class="player-card__info">
             <span class="player-card__name">${esc(p.name)}</span>
             <span class="player-card__tags">

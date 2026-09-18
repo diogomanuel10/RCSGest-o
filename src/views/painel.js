@@ -41,6 +41,7 @@ import {
   myUnavailablePlayers,
   upcomingBirthdays,
   playersWithoutBirthday,
+  playersMissingData,
   birthDateReady,
   eventRoster,
 } from '../compute.js';
@@ -591,6 +592,7 @@ export const ALERT_CATALOG = [
   { key: 'presencas',       label: 'Presenças por marcar',           can: () => canEdit('attendances') },
   { key: 'aniversarios',    label: 'Aniversários no cabeçalho',      can: () => canAccess('planteis') },
   { key: 'aniversarios_falta', label: 'Datas de nascimento por preencher', can: () => canEdit('players') },
+  { key: 'fichas_incompletas', label: 'Fichas de atleta por completar', can: () => canEdit('documents') },
 ];
 
 // Catálogo dos INDICADORES (os cartões de números no topo). Mesma regra dos
@@ -862,6 +864,26 @@ function buildActions({ includePresencas = false } = {}) {
         variant: 'info',
         route: 'planteis',
         title: `${semData.length} atleta${semData.length === 1 ? '' : 's'} sem data de nascimento`,
+      });
+    }
+  }
+
+  // As fichas a meio: foto, data de nascimento e fotocópia do CC. Não é a
+  // mesma pendência das datas de nascimento acima — essa fica para quem NÃO
+  // lê documentos (o treinador), e esta responde à pergunta inteira a quem os
+  // lê. O trabalho aqui não é preencher: é saber a quem telefonar, porque os
+  // três dados estão do lado da família. Quem tem conta ligada ao portal já
+  // está a ser pedido lá.
+  if (canEdit('documents') && alertOn('fichas_incompletas') && state.players.length) {
+    const aMeio = playersMissingData();
+    if (aMeio.length) {
+      items.push({
+        urgency: 'depois',
+        variant: 'info',
+        route: 'planteis',
+        title: `${aMeio.length} ficha${aMeio.length === 1 ? '' : 's'} de atleta por completar`,
+        sub: aMeio.slice(0, 4).map((r) => r.player.name).join(', ')
+          + (aMeio.length > 4 ? ` e mais ${aMeio.length - 4}` : ''),
       });
     }
   }
