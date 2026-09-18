@@ -1463,6 +1463,31 @@ separador antes de navegar (usado pelos cartões do Painel).
     — que quem lê o painel já sabe: era uma linha inteira por pendência a dizer
     nada. Compare-se com "Erica Teixeira, Joana Rodrigues, …", que diz QUEM.
     Sem subtítulo a pendência ocupa uma linha (`.alert-item--slim`).
+  - **Uma pendência leva ao SÍTIO dela, não à secção** (`actionTarget` +
+    `wireWorkTargets`). Uma lista de trabalho onde se clica e se aterra numa
+    secção genérica devolve a quem lê o trabalho que o painel tinha acabado de
+    fazer: o painel já sabe que é a Rita e que é o treino de há três semanas, e
+    mandava procurar os dois à mão. A ordem de precisão é: a lista do grupo, a
+    ficha do atleta, o evento concreto, a secção. As quedas de comparência e o
+    "treina muito, joga pouco" abrem a FICHA (é lá que estão os números que os
+    explicam) e as presenças por marcar escolhem o treino mais ANTIGO
+    (`setSelectedEvent`) antes de navegar — abrir a secção no evento mais perto
+    de hoje deixava onde estava exatamente o que deu origem ao aviso.
+  - **A linha de grupo abre a LISTA dos N** (`openWorkGroup`), e não a secção.
+    O colapso por família resolveu a altura do cartão e criou outro problema: a
+    linha diz "7 documentos por renovar" e o detalhe — quais — só existia na
+    secção. O diálogo mostra as sete pendências com o destino de cada uma; os
+    itens vivem em `workGroups` (um `Map` do módulo, reescrito a cada
+    `collapseFamilies`) e não num atributo do DOM, porque são objetos e o HTML
+    escreve-se antes de se ligarem os eventos. É `wireDialog` e não `openModal`
+    (corpo livre, não campos), e escolher uma linha FECHA-O: o que vem a seguir
+    é outra ficha ou outra secção.
+  - **Contar não é listar.** "12 fichas por completar" e "12 atletas sem data de
+    nascimento" eram contadores com quatro nomes no subtítulo e "e mais 9" — e
+    os nove eram o trabalho. Passaram a ser uma linha por atleta com família
+    própria (`fichas`, `sem_data`): no painel continuam a ocupar uma linha, mas
+    agora ela abre a lista, e cada ficha diz O QUE lhe falta, que é o que
+    decide o telefonema.
   - **Um evento não repete o nome do seu tipo.** O crachá dizia "Treino" e o
     título ao lado dizia "Treino", em todas as linhas de todos os dias: o
     título só entra quando é diferente do rótulo do tipo. E a linha é UMA —

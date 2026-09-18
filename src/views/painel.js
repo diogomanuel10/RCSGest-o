@@ -54,6 +54,7 @@ import {
   APPOINTMENT_TYPE_BADGE,
   EPISODE_STATUS_LABEL,
   EPISODE_STATUS_BADGE,
+  PLAYER_DATA_LABEL,
 } from '../constants.js';
 import {
   canEdit, canAccess, canDecideRequests, isFisio, isPreparador, isTreinador,
@@ -214,6 +215,7 @@ export function renderPainel(container) {
   `;
 
   wireWorkCard(container, () => renderPainel(container));
+  wireWorkTargets(container);
 
   // Atalho: abre modal rápido de presenças diretamente do Painel.
   container.querySelectorAll('[data-mark-event]').forEach((btn) => {
@@ -658,6 +660,8 @@ const FAMILY_SUMMARY = {
   gap:        (n) => `${n} atletas treinam muito e jogam pouco`,
   queda:      (n) => `${n} atletas deixaram de aparecer aos treinos`,
   documentos: (n) => `${n} documentos por renovar`,
+  sem_data:   (n) => `${n} atletas sem data de nascimento`,
+  fichas:     (n) => `${n} fichas de atleta por completar`,
   // Fisioterapia
   appt_abertos:    (n) => `${n} atendimentos por fechar`,
   retorno_passado: (n) => `${n} atletas passaram a data prevista de retorno`,
@@ -695,10 +699,17 @@ function buildActions({ includePresencas = false } = {}) {
     const pend = trainingsToMark(500);
     const atrasados = pend.filter((m) => !m.isToday);
     if (pend.length) {
+      // A linha escolhe o treino ANTES de navegar, senão as Presenças abriam
+      // no evento mais perto de hoje e o de há três semanas — o que deu
+      // origem ao aviso — ficava onde estava, a meio da lista. `trainingsToMark`
+      // vem do mais recente para trás: o mais antigo é o último, e é o que já
+      // não se consegue marcar de memória.
+      const fila = atrasados.length ? atrasados : pend;
       items.push({
         urgency: atrasados.length ? 'agora' : 'semana',
         variant: atrasados.length ? 'danger' : 'warn',
         route: 'presencas',
+        event: fila[fila.length - 1].event.id,
         title: `${pend.length} treino${pend.length === 1 ? '' : 's'} com presenças por marcar`,
         sub: atrasados.length ? `${atrasados.length} já passaram sem registo` : '',
       });
@@ -756,6 +767,10 @@ function buildActions({ includePresencas = false } = {}) {
         variant: 'warn',
         family: 'queda',
         name: d.player.name,
+        // A pendência é sobre uma pessoa, e é na ficha dela que estão as
+        // presenças que a explicam. A secção Presenças é sobre um EVENTO —
+        // chegar lá obrigava a reencontrar a Rita à mão.
+        athlete: d.player.id,
         route: 'presencas',
         title: d.motivo === 'seguidas'
           ? `${d.player.name} faltou aos últimos ${d.faltasSeguidas} treinos`
@@ -810,6 +825,7 @@ function buildActions({ includePresencas = false } = {}) {
         variant: 'warn',
         family: 'gap',
         name: g.player.name,
+        athlete: g.player.id,
         route: 'planteis',
         title: `${g.player.name} treina muito e joga pouco`,
         sub: `${g.presenca}% de presenças em ${g.treinos} treinos, mas ${g.participacao}% ${unidade} em ${g.jogos} jogos${g.team ? ' — ' + teamName(g.team) : ''}.`,
@@ -857,13 +873,21 @@ function buildActions({ includePresencas = false } = {}) {
   // de bolos empurravam para fora do ecrã o atleta que está a desistir.
   // Isto fica, porque É trabalho: sem a data não há aniversário nenhum.
   if (canEdit('players') && alertOn('aniversarios_falta') && birthDateReady()) {
-    const semData = playersWithoutBirthday();
-    if (semData.length && state.players.length) {
-      items.push({
-        urgency: 'depois',
-        variant: 'info',
-        route: 'planteis',
-        title: `${semData.length} atleta${semData.length === 1 ? '' : 's'} sem data de nascimento`,
+    // Uma linha por atleta, e não um contador: "12 atletas sem data" mandava
+    // para os Plantéis sem dizer QUAIS, e a lista dos doze tinha de ser
+    // reconstruída à mão, ficha a ficha. Com família, o painel continua a
+    // mostrar uma linha só — mas ela abre a lista (ver `openWorkGroup`).
+    if (state.players.length) {
+      playersWithoutBirthday().forEach((p) => {
+        items.push({
+          urgency: 'depois',
+          variant: 'info',
+          family: 'sem_data',
+          name: p.name,
+          athlete: p.id,
+          route: 'planteis',
+          title: `${p.name} sem data de nascimento`,
+        });
       });
     }
   }
@@ -875,17 +899,21 @@ function buildActions({ includePresencas = false } = {}) {
   // três dados estão do lado da família. Quem tem conta ligada ao portal já
   // está a ser pedido lá.
   if (canEdit('documents') && alertOn('fichas_incompletas') && state.players.length) {
-    const aMeio = playersMissingData();
-    if (aMeio.length) {
+    // Também aqui é uma linha por ficha: o subtítulo dizia quatro nomes e
+    // "e mais 9", e os nove eram o trabalho. Cada linha diz O QUE falta
+    // àquela ficha (é isso que decide o telefonema) e abre a ficha.
+    playersMissingData().forEach((r) => {
       items.push({
         urgency: 'depois',
         variant: 'info',
+        family: 'fichas',
+        name: r.player.name,
+        athlete: r.player.id,
         route: 'planteis',
-        title: `${aMeio.length} ficha${aMeio.length === 1 ? '' : 's'} de atleta por completar`,
-        sub: aMeio.slice(0, 4).map((r) => r.player.name).join(', ')
-          + (aMeio.length > 4 ? ` e mais ${aMeio.length - 4}` : ''),
+        title: `Ficha de ${r.player.name} por completar`,
+        sub: `Falta: ${r.gaps.map((g) => PLAYER_DATA_LABEL[g] || g).join(', ')}`,
       });
-    }
+    });
   }
 
   return collapseFamilies(items);
@@ -994,10 +1022,22 @@ function birthdayLine() {
     </button>`;
 }
 
+// As linhas de grupo que estão desenhadas AGORA, para o diálogo de detalhe as
+// poder reabrir. Vive num módulo e não no DOM porque o item é um objeto (com
+// `athlete`, `route`, `sub`) e o painel escreve HTML antes de ligar eventos —
+// serializá-lo para um atributo era guardar o mesmo dado duas vezes.
+const workGroups = new Map();
+
 // Colapsa as famílias com muitos itens numa linha só. Guarda o item mais
-// urgente do grupo (é dele a cor e o destino) e põe os nomes no subtítulo —
-// quem precisa do detalhe abre a secção, que é onde ele mora.
+// urgente do grupo (é dele a cor e o degrau) e põe os primeiros nomes no
+// subtítulo, para se saber de quem se fala sem abrir nada.
+//
+// O detalhe deixou de morar só na secção: a linha abre um diálogo com as N
+// pendências, cada uma a levar ao sítio DELA (a ficha do atleta, o treino).
+// Mandar sete atletas para a lista de Plantéis era devolver ao coordenador o
+// trabalho que o painel tinha acabado de fazer — descobrir quais são os sete.
 function collapseFamilies(items) {
+  workGroups.clear();
   const counts = {};
   items.forEach((i) => { if (i.family) counts[i.family] = (counts[i.family] || 0) + 1; });
 
@@ -1010,19 +1050,22 @@ function collapseFamilies(items) {
     done.add(fam);
 
     const grupo = items.filter((i) => i.family === fam);
+    const titulo = (FAMILY_SUMMARY[fam] || ((n) => `${n} itens`))(grupo.length);
     // O degrau do grupo é o do item mais urgente: um documento caducado no
     // meio de quatro a expirar não pode descer para "esta semana".
     const urgency = WORK_STEPS.find((s) => grupo.some((i) => i.urgency === s.key))?.key || 'semana';
     const lead = grupo.find((i) => i.urgency === urgency) || grupo[0];
     const nomes = grupo.map((i) => i.name).filter(Boolean);
-    // O resumo perde o `athlete`: uma linha que fala de sete atletas não pode
-    // abrir a ficha de um deles. Vai para a secção, que é onde estão os sete.
+    // O resumo continua sem `athlete` — uma linha que fala de sete atletas não
+    // pode abrir a ficha de um deles. O que abre é a LISTA dos sete.
+    workGroups.set(fam, { family: fam, title: titulo, items: grupo, route: lead.route });
     out.push({
       urgency,
       variant: lead.variant,
+      group: fam,
       route: lead.route,
       finTab: lead.finTab,
-      title: (FAMILY_SUMMARY[fam] || ((n) => `${n} itens`))(grupo.length),
+      title: titulo,
       sub: nomes.length
         ? `${nomes.slice(0, 4).join(', ')}${nomes.length > 4 ? ` e mais ${nomes.length - 4}` : ''}`
         : '',
@@ -1031,15 +1074,107 @@ function collapseFamilies(items) {
   return out;
 }
 
-function actionItem({ variant, title, sub, route, plan, finTab, docAthlete, athlete, tab }) {
+// Liga os destinos de uma lista de trabalho. Está num sítio só porque os
+// quatro painéis (clube, treinador, fisio, preparador) desenham a MESMA lista
+// e cada um ligava a parte de que se lembrava: o painel do clube abria a ficha
+// de um documento mas não a de uma queda de comparência, e o do treinador nem
+// isso.
+//
+// `includeNav` fica de fora nos painéis porque lá o `data-nav` e o
+// `data-doc-athlete` já são ligados junto da faixa de números e dos
+// aniversários — ligá-los outra vez abria a ficha duas vezes. Dentro do
+// diálogo não há esse risco, e é preciso o conjunto todo.
+function wireWorkTargets(root, { tab = 'geral', includeNav = false, before = null } = {}) {
+  const go = (fn) => { before?.(); fn(); };
+
+  root.querySelectorAll('[data-work-group]').forEach((el) =>
+    el.addEventListener('click', () => openWorkGroup(el.dataset.workGroup, tab))
+  );
+  root.querySelectorAll('[data-work-athlete]').forEach((el) =>
+    el.addEventListener('click', () =>
+      go(() => openAthleteProfile(el.dataset.workAthlete, { tab: el.dataset.workTab || tab }))
+    )
+  );
+  // O evento escolhe-se ANTES de navegar: a secção lê a escolha ao desenhar,
+  // como já faziam os cartões do Calendário.
+  root.querySelectorAll('[data-work-event]').forEach((el) =>
+    el.addEventListener('click', () => go(() => {
+      setSelectedEvent(el.dataset.workEvent);
+      navTo('presencas');
+    }))
+  );
+  if (!includeNav) return;
+
+  root.querySelectorAll('[data-doc-athlete]').forEach((el) =>
+    el.addEventListener('click', () => go(() => openAthleteProfile(el.dataset.docAthlete, { tab: 'geral' })))
+  );
+  root.querySelectorAll('[data-nav]').forEach((el) =>
+    el.addEventListener('click', () => go(() => {
+      if (el.dataset.plan) openSeasonPlanning();
+      if (el.dataset.finTabOpen) openFinanceiroTab(el.dataset.finTabOpen);
+      navTo(el.dataset.nav);
+    }))
+  );
+}
+
+// O detalhe de uma linha de grupo: as N pendências que ela resume, cada uma
+// com o seu destino. É um diálogo de corpo livre, por isso usa `wireDialog` e
+// não o `openModal` (que é orientado a campos) — entra na pilha, Escape só no
+// do topo, Tab preso e foco devolvido, como todos os outros.
+//
+// Escolher uma linha FECHA o diálogo: o que vem a seguir é uma ficha de atleta
+// (outro modal) ou uma mudança de secção, e deixar este aberto por baixo
+// punha dois diálogos a falar da mesma coisa.
+function openWorkGroup(family, tab = 'geral') {
+  const grupo = workGroups.get(family);
+  if (!grupo) return;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal card" role="dialog" aria-modal="true" aria-labelledby="wg-title"
+         style="width:min(560px,96vw);max-height:90vh;display:flex;flex-direction:column">
+      <div class="modal__head">
+        <div>
+          <h2 class="section-title" id="wg-title">${esc(grupo.title)}</h2>
+          <p class="muted" style="margin:0;font-size:0.84rem">
+            Escolhe uma linha para ir direto ao que ela pede.
+          </p>
+        </div>
+        <button class="modal__close" type="button" aria-label="Fechar">&times;</button>
+      </div>
+      <div style="overflow-y:auto;flex:1">
+        <ul class="alerts-list">${grupo.items.map(actionItem).join('')}</ul>
+      </div>
+      <div class="modal__actions">
+        ${grupo.route ? `<button class="btn btn--ghost" type="button" data-nav="${esc(grupo.route)}">Abrir secção</button>` : ''}
+        <button class="btn btn--primary" type="button" id="wg-close">Fechar</button>
+      </div>
+    </div>
+  `;
+  const close = wireDialog(overlay);
+  overlay.querySelector('#wg-close').addEventListener('click', close);
+  wireWorkTargets(overlay, { tab, includeNav: true, before: close });
+}
+
+// O destino de uma linha de trabalho, por ordem de precisão: a lista do grupo,
+// a ficha do atleta, o evento concreto, e só depois a secção. Uma pendência que
+// nomeia uma pessoa ou um treino e aterra numa secção genérica devolve a quem
+// lê o trabalho de reencontrar ali o que o painel já sabia.
+function actionTarget({ group, docAthlete, athlete, tab, event, route }) {
+  if (group) return `data-work-group="${esc(group)}"`;
   // Um documento leva à FICHA do atleta e não à secção: o que se vai fazer
   // ali é renovar aquele documento, e a lista de Plantéis é mais um clique
   // pelo meio.
-  const target = docAthlete
-    ? `data-doc-athlete="${esc(docAthlete)}"`
-    : athlete
-      ? `data-work-athlete="${esc(athlete)}" data-work-tab="${esc(tab || 'geral')}"`
-      : `data-nav="${esc(route)}"`;
+  if (docAthlete) return `data-doc-athlete="${esc(docAthlete)}"`;
+  if (athlete) return `data-work-athlete="${esc(athlete)}" data-work-tab="${esc(tab || 'geral')}"`;
+  if (event) return `data-work-event="${esc(event)}"`;
+  return `data-nav="${esc(route)}"`;
+}
+
+function actionItem(item) {
+  const { variant, title, sub, plan, finTab } = item;
+  const target = actionTarget(item);
   // O subtítulo só existe quando traz DADO — nomes, datas, valores. Metade
   // deles dizia o procedimento ("Aprovar, entregar ou recusar — abrir
   // Equipamentos"), que quem lê o painel já sabe: era uma linha inteira por
@@ -1297,6 +1432,7 @@ function renderFisioPainel(container) {
 
   wireWorkCard(container, () => renderFisioPainel(container));
   wireAreaPainel(container, 'fisioterapia');
+  wireWorkTargets(container, { tab: 'fisioterapia' });
 }
 
 // Data curta e legível (dd mmm) para os subtítulos das pendências.
@@ -1326,11 +1462,6 @@ function wireAreaPainel(container, tab) {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
     });
   });
-  container.querySelectorAll('[data-work-athlete]').forEach((el) =>
-    el.addEventListener('click', () =>
-      openAthleteProfile(el.dataset.workAthlete, { tab: el.dataset.workTab || tab })
-    )
-  );
   container.querySelectorAll('[data-nav]').forEach((el) =>
     el.addEventListener('click', () => navTo(el.dataset.nav))
   );
@@ -1534,6 +1665,7 @@ function renderPreparadorPainel(container) {
 
   wireWorkCard(container, () => renderPreparadorPainel(container));
   wireAreaPainel(container, 'fisica');
+  wireWorkTargets(container, { tab: 'fisica' });
 }
 
 function gymRow(s) {
@@ -1681,6 +1813,7 @@ function renderTreinadorPainel(container) {
   `;
 
   wireWorkCard(container, () => renderTreinadorPainel(container));
+  wireWorkTargets(container);
   wireCoachPainel(container, antigos);
 }
 
