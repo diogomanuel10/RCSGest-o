@@ -115,6 +115,32 @@ export function linkHost(value) {
 
 // Matiz (HSL hue 0–359) estável derivada de um id — para dar a cada equipa
 // uma cor consistente (ex.: nos eventos do calendário).
+// Pedir UM ficheiro ao utilizador, fora de um formulário: o que se quer é um
+// gesto só (escolher a foto no telemóvel), e um modal com um campo e um botão
+// de gravar são três.
+//
+// O elemento ENTRA no documento (escondido) e só sai depois da escolha. Num
+// iPhone, um input solto pode ser recolhido pelo browser enquanto o seletor
+// está aberto, e o que volta é um ficheiro de ZERO BYTES — que o Storage
+// recusa com "no content provided", uma frase que não diz nada a quem a lê.
+export function pickFile(accept) {
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = accept;
+    input.style.position = 'fixed';
+    input.style.left = '-9999px';
+    document.body.appendChild(input);
+
+    const done = (file) => { input.remove(); resolve(file); };
+    // O `change` não dispara em quem cancela: sem isto a promessa nunca se
+    // resolvia e o elemento ficava pendurado no documento.
+    input.addEventListener('cancel', () => done(null));
+    input.addEventListener('change', () => done(input.files?.[0] || null));
+    input.click();
+  });
+}
+
 // Guardar um ficheiro que a app já tem. É um `<a download>` e não um
 // `window.open`: um separador novo entrega a decisão ao browser (e no
 // telemóvel abre um visualizador de onde não se sai com o ficheiro), e num

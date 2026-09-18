@@ -1157,6 +1157,24 @@ separador antes de navegar (usado pelos cartões do Painel).
     ficava no bucket para sempre. A antiga só se apaga depois de a nova estar
     gravada: ao contrário, uma falha a meio deixava o atleta sem documento
     nenhum.
+  - **O que chega de um telemóvel não é um ficheiro qualquer.** Três coisas
+    partiam o envio da fotocópia, e as três só se veem num iPhone real:
+    - **Zero bytes.** O seletor devolvia um ficheiro vazio — a foto ainda
+      está na iCloud e não no dispositivo, ou o input estava SOLTO (fora do
+      documento) e o browser recolheu-o enquanto o seletor estava aberto. O
+      Storage responde "no content provided", que não diz nada a quem o lê.
+      O `pickFile` (em `ui.js`, um só para a app toda) põe o input no
+      documento e só o tira depois da escolha, e o `store` recusa o ficheiro
+      vazio com uma frase que diz o que fazer.
+    - **HEIC.** As fotos de um iPhone não são JPEG, e o bucket só aceita
+      jpeg/png/webp: o envio era recusado por um formato que a pessoa não
+      escolheu nem sabe que tem. `uploadPlayerDocument` converte qualquer
+      imagem para JPEG (a 1600px — é um DOCUMENTO, tem de dar para ler o
+      número do cartão), e converte no STORE e não em cada ecrã, para o
+      portal e a ficha se comportarem da mesma maneira.
+    - **O `accept`.** Uma lista de extensões (`.jpg,.png`) deixava as fotos a
+      cinzento no seletor do iPhone — a fotocópia que a pessoa tinha para dar
+      era precisamente a que não conseguia escolher. É `image/*`.
   - **O que entra tem de poder SAIR.** Uma inscrição na federação faz-se com a
     foto e a fotocópia do CC em ficheiros, e nenhum dos dois tinha por onde sair
     da app: o CC só tinha "Ver" (abre num separador, e guardar passava a ser

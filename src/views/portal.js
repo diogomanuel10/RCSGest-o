@@ -20,7 +20,7 @@ import { getNotifications, markRead } from '../notifications.js';
 import { openModal, wireDialog, confirmDialog } from '../modal.js';
 import { saveOfflineCard } from '../offline-card.js';
 import { renderDrill } from '../tactical-court.js';
-import { esc, euros, emptyHTML } from '../ui.js';
+import { esc, euros, emptyHTML, pickFile } from '../ui.js';
 import { photoAvatarHTML, hydratePhotos } from '../player-photo.js';
 import {
   upcomingEvents,
@@ -233,20 +233,6 @@ function dadosHTML(me) {
 // Um campo de ficheiro fora de um formulário: o que se quer aqui é UM gesto
 // (escolher a foto no telemóvel), e um modal com um `type: 'file'` e um botão
 // de gravar são três. O elemento vive só o tempo da escolha.
-function pickFile(accept) {
-  return new Promise((resolve) => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = accept;
-    // O `change` não dispara em quem cancela: o elemento fica pendurado, sem
-    // consequência, e o `resolve(null)` nunca chega — por isso a promessa é
-    // resolvida também pelo `cancel`, que os browsers atuais já emitem.
-    input.addEventListener('cancel', () => resolve(null));
-    input.addEventListener('change', () => resolve(input.files?.[0] || null));
-    input.click();
-  });
-}
-
 async function fillFoto(me, container) {
   const file = await pickFile('image/*');
   if (!file) return;
@@ -290,7 +276,11 @@ function fillNascimento(me) {
 }
 
 async function fillCC(me, container) {
-  const file = await pickFile('.pdf,.jpg,.jpeg,.png,.webp');
+  // `image/*` e não uma lista de extensões: no iPhone as fotos são HEIC, e
+  // uma lista de `.jpg/.png` deixava-as a cinzento no seletor — a fotocópia
+  // que a pessoa tem para dar era precisamente a que não conseguia escolher.
+  // A conversão para JPEG faz-se depois, no `uploadPlayerDocument`.
+  const file = await pickFile('image/*,application/pdf');
   if (!file) return;
   if (file.size > 10 * 1024 * 1024) {
     toastError('O ficheiro não pode exceder 10 MB.');

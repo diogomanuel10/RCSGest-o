@@ -1495,6 +1495,36 @@ export async function upsertPlayerEval(evaluationId, playerId, values) {
 
 // --- Documentos dos atletas ----------------------------------------------
 
+// Lado maior de uma fotocópia enviada como imagem. Mais alto do que o das
+// fotos de perfil de propósito: aqui o que se guarda é um DOCUMENTO, e o que
+// interessa é conseguir ler o número do cartão.
+const DOC_IMAGE_MAX_PX = 1600;
+
+// O que vai mesmo para o bucket. Um PDF passa intacto; uma imagem é
+// convertida para JPEG — o bucket só aceita jpeg/png/webp e o que sai de um
+// iPhone é HEIC, por isso sem isto o envio era recusado por um formato que a
+// pessoa não escolheu nem sabe que tem. Se a conversão falhar (um formato que
+// o browser não sabe desenhar), segue o original: mais vale tentar enviar e
+// deixar o servidor decidir do que recusar aqui.
+async function asUploadableDoc(file) {
+  const tipo = (file.type || '').toLowerCase();
+  const nome = (file.name || '').toLowerCase();
+  const eImagem = tipo.startsWith('image/') || /\.(jpe?g|png|webp|heic|heif|gif|bmp|tiff?)$/.test(nome);
+  if (!eImagem) return file;
+
+  try {
+    const blob = await shrinkImage(file, DOC_IMAGE_MAX_PX);
+    if (!blob || !blob.size) return file;
+    // Um nome com a extensão CERTA: é dele que sai a extensão do caminho no
+    // bucket e a do ficheiro quando alguém o transfere, e um `.heic` a
+    // embrulhar um JPEG não abre em lado nenhum.
+    const base = (file.name || 'documento').replace(/\.[^.]+$/, '') || 'documento';
+    return new File([blob], `${base}.jpg`, { type: 'image/jpeg' });
+  } catch {
+    return file;
+  }
+}
+
 export async function uploadPlayerDocument(playerId, docType, file, expiresAt) {
   // "Substituir" tem de substituir mesmo: o que havia aqui era um insert, e
   // por isso a segunda fotocópia nascia como uma SEGUNDA linha do mesmo tipo.
@@ -1504,13 +1534,29 @@ export async function uploadPlayerDocument(playerId, docType, file, expiresAt) {
     (d) => d.player_id === playerId && d.doc_type === docType
   );
 
-  const ext = file.name.split('.').pop();
+  // Um ficheiro de zero bytes chega ao Storage como um pedido sem corpo e
+  // volta com "no content provided" — que não diz nada a quem está do outro
+  // lado. Acontece a sério: uma foto que ainda está na iCloud e não no
+  // telemóvel, ou uma partilha que o sistema não chegou a materializar.
+  if (!file || !file.size) {
+    throw new Error('O ficheiro chegou vazio. Se a foto estiver guardada na nuvem, abre-a primeiro na Galeria e tenta de novo.');
+  }
+
+  // Uma fotocópia tirada com um telemóvel é uma IMAGEM, e as do iPhone são
+  // HEIC — um formato que o bucket recusa (só aceita jpeg/png/webp) e que a
+  // app não pode mostrar a seguir. Converter aqui, e não em cada ecrã, é o
+  // que faz o portal e a ficha comportarem-se da mesma maneira. A 1600px uma
+  // fotocópia continua legível, e é a diferença entre 4 MB e 300 KB na rede
+  // de quem está a enviar.
+  const enviado = await asUploadableDoc(file);
+
+  const ext = (enviado.name.split('.').pop() || 'bin').toLowerCase();
   const ts = Date.now();
   const path = `${playerId}/${docType}/${ts}.${ext}`;
 
   const { error: storageErr } = await supabase.storage
     .from('player-docs')
-    .upload(path, file, { upsert: false });
+    .upload(path, enviado, { contentType: enviado.type || undefined, upsert: false });
   if (storageErr) throw storageErr;
 
   const { data, error } = await supabase
@@ -1519,7 +1565,7 @@ export async function uploadPlayerDocument(playerId, docType, file, expiresAt) {
       player_id:    playerId,
       doc_type:     docType,
       storage_path: path,
-      filename:     file.name,
+      filename:     enviado.name,
       expires_at:   expiresAt || null,
       uploaded_by:  (await supabase.auth.getUser()).data.user?.id,
     })
@@ -1658,6 +1704,12 @@ async function deletePlayerPhoto(path) {
 // escreve pela RPC — `players` não tem, nem pode ter, política de UPDATE para
 // ela (ver o porquê em `supabase/dados-atleta.sql`).
 export async function savePlayerPhoto(playerId, file) {
+  // A mesma armadilha dos documentos: um ficheiro de zero bytes (a foto que
+  // ainda está na nuvem e não no telemóvel) rebentava no `createImageBitmap`
+  // com uma mensagem do browser que ninguém sabe ler.
+  if (!file || !file.size) {
+    throw new Error('A imagem chegou vazia. Se a foto estiver guardada na nuvem, abre-a primeiro na Galeria e tenta de novo.');
+  }
   const player = state.players.find((p) => p.id === playerId);
   const anterior = player?.photo_path || null;
 

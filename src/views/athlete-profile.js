@@ -15,7 +15,7 @@ import {
   state, regeneratePlayerQr, createInvitation, savePlayerPhoto,
   playerPhotoDownloadUrl, dbErrorMessage,
 } from '../store.js';
-import { esc, euros, triggerDownload, safeFileName } from '../ui.js';
+import { esc, euros, triggerDownload, safeFileName, pickFile } from '../ui.js';
 import { confirmDialog } from '../modal.js';
 import { toastError, toastOk } from '../toast.js';
 import {
@@ -161,39 +161,15 @@ export function renderAthleteProfilePage(container, playerId, { onEdit, onBack }
   hydratePhotos(container);
 
   container.querySelector('[data-ap-photo]')?.addEventListener('click', async () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.addEventListener('change', async () => {
-      const file = input.files?.[0];
-      if (!file) return;
-      if (file.size > 12 * 1024 * 1024) { toastError('A imagem não pode exceder 12 MB.'); return; }
-      try {
-        // Sem toast próprio: a gravação passa pelo `updateRow`, e é ele que
-        // confirma com o nome da entidade (a regra dos toasts do store).
-        await savePlayerPhoto(playerId, file);
-      } catch (err) {
-        toastError(dbErrorMessage(err));
-      }
-    });
-    input.click();
-  });
-
-  // A foto desenha-se como FUNDO de um avatar, por isso o "guardar imagem
-  // como" do browser não lhe chega — sem este botão não havia forma nenhuma
-  // de a tirar da app, e ela é uma das três coisas que se juntam para uma
-  // inscrição. O endereço é assinado por 2 minutos: é para guardar agora, não
-  // para partilhar.
-  container.querySelector('[data-ap-photo-get]')?.addEventListener('click', async (e) => {
-    const btn = e.currentTarget;
-    const nome = `${safeFileName(`Foto - ${player.name}`, 'foto')}.jpg`;
-    btn.disabled = true;
+    const file = await pickFile('image/*');
+    if (!file) return;
+    if (file.size > 12 * 1024 * 1024) { toastError('A imagem não pode exceder 12 MB.'); return; }
     try {
-      triggerDownload(await playerPhotoDownloadUrl(player.photo_path, nome), nome);
+      // Sem toast próprio: a gravação passa pelo `updateRow`, e é ele que
+      // confirma com o nome da entidade (a regra dos toasts do store).
+      await savePlayerPhoto(playerId, file);
     } catch (err) {
       toastError(dbErrorMessage(err));
-    } finally {
-      btn.disabled = false;
     }
   });
 
