@@ -1382,6 +1382,59 @@ button.stat-strip__item--nav:hover {
   background: var(--warn-bg);
 }
 
+/* Aviso principal: quem não vem HOJE. É o bloco mais visível do painel do
+   treinador, acima da faixa de números — a única coisa daquele ecrã que muda
+   o que ele vai fazer daqui a duas horas. Leva a barra em `--danger` (uma
+   falta ao treino de logo já não se recupera; a de sábado ainda sim, e essa
+   fica em `--warn`, na linha da agenda), mas o fundo é o do cartão: um bloco
+   inteiro em vermelho ao cimo de todos os dias deixa de se ler ao terceiro. */
+.absent-card {
+  border-left: 4px solid var(--danger);
+  margin-bottom: 1rem;
+}
+.absent-card__title {
+  margin: 0 0 0.5rem;
+  color: var(--danger-ink);
+}
+.absent-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.absent-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  /* `min-width: 0` nos filhos, a regra das colunas de flex: sem ele uma lista
+     de nomes longa alarga o cartão e a página desliza para o lado. */
+  min-width: 0;
+}
+.absent-row:hover {
+  border-color: var(--border);
+  background: var(--surface-2);
+}
+.absent-row__when {
+  flex-shrink: 0;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.absent-row__who {
+  min-width: 0;
+}
+
 /* Hero do Painel (saudação + criação rápida) */
 .page-head--hero {
   align-items: flex-start;

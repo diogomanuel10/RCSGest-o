@@ -1401,7 +1401,26 @@ separador antes de navegar (usado pelos cartões do Painel).
   - Ficam dois blocos que existiam mas estavam a três cliques: **jogos por
     registar** resultado e quem **não está a 100%** (disponibilidade, sem
     detalhe clínico).
-  - **Quem avisou que NÃO vem aparece na linha do evento** (`absenceLine`,
+  - **Quem não vem HOJE é o aviso principal** (`absenceAlert`), no topo e
+    ACIMA da faixa de números: é a única coisa deste ecrã que muda o que o
+    treinador vai fazer daqui a duas horas, e a faixa responde a "como vai a
+    época" — ler isso antes de saber que faltam três ao treino de logo é a
+    ordem ao contrário. Numa linha pequena, numa coluna lateral a três
+    cartões de distância, a falta da Rita lia-se depois de ele já ter saído
+    de casa com o treino montado para vinte. Cada linha é um evento (podem
+    ser dois treinos no mesmo dia), com o nome INTEIRO e o motivo de cada
+    uma — aqui há espaço para os dizer — e leva às Presenças desse evento.
+    - **É só de hoje**, e por isso o cartão desaparece quase sempre: um aviso
+      permanente com a semana toda deixa de ser lido ao terceiro dia. O que é
+      de sábado continua na linha do evento em "Próximos eventos", que é onde
+      se prepara o sábado.
+    - **A barra é `--danger` e o fundo é o do cartão**: uma falta ao treino de
+      logo já não se recupera (a de sábado ainda sim, e essa fica em `--warn`
+      na linha da agenda), mas um bloco inteiro em vermelho ao cimo de todos
+      os dias deixa de se ler.
+    - **O evento de hoje não repete o aviso** na agenda: desenhá-lo nos dois
+      sítios dizia ao treinador que tinha o dobro das faltas.
+  - **Nos eventos FUTUROS o aviso é uma linha** (`absenceLine`,
     sobre `eventResponseSummary`). A resposta do atleta já existia e já chegava
     por notificação — mas uma notificação lê-se uma vez, de passagem, e no dia
     do treino a pergunta "afinal quem falta hoje?" só tinha resposta na secção
