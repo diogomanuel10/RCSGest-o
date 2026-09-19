@@ -606,8 +606,17 @@ separador antes de navegar (usado pelos cartões do Painel).
     data rebentava a ficha inteira. Pela mesma razão, o clube de exemplo
     reinsere os atletas sem a data se ela ainda não existir — vale mais um
     exemplo sem aniversários do que nenhum clube.
-  - **Quem vê o quê**: a mesma regra de `myTeams()` — o treinador vê os
-    aniversários das SUAS equipas, os papéis de âmbito de clube veem todos.
+  - **Quem vê o quê: um aniversário é do CLUBE e vê-se por inteiro.** Esteve
+    recortado pela regra de `myTeams()` (o treinador só via os das suas
+    equipas), e o que isso fazia era esconder a Carolina do treinador dos
+    infantis que a cruza no pavilhão todas as terças, e da fisio que lhe trata
+    o tornozelo. Dar os parabéns não é uma decisão técnica sobre um plantel: é
+    a coisa mais pública que um clube faz, e um clube onde só o coordenador
+    sabe que hoje é o dia de alguém não dá os parabéns a ninguém. O recorte
+    fica onde é TRABALHO: `playersWithoutBirthday` (as datas por preencher)
+    continua a usar `birthdayWorkScope()`, a regra de `myTeams()` — ver todos
+    os aniversários não é ganhar fichas dos plantéis dos outros para
+    corrigir.
 - **Total angariado** = soma do valor do nível dos patrocínios com
   `status = 'confirmado'` (Ouro 3000 / Prata 1500 / Bronze 500).
 - **Confirmar exige nível**: validado em `patrocinios.js` no `onSubmit`.
@@ -1486,11 +1495,20 @@ separador antes de navegar (usado pelos cartões do Painel).
       mesmo canal dos convites ao portal e da confirmação de tamanhos). Com
       mais do que um aniversário escolhe-se o nome no topo — o cabeçalho mostra
       três, e abrir só o primeiro mandava procurar os outros aos Plantéis.
+    - **A linha não pede `canAccess('planteis')`**: está em todos os painéis,
+      o da fisio e o do preparador incluídos. Onde a data está GUARDADA (os
+      Plantéis) não decide quem pode dar os parabéns, e a entrada do catálogo
+      de avisos (`aniversarios`) deixou de exigir a secção pela mesma razão.
     - **A mensagem é só do COORDENADOR** (`birthday-message.js`): não é uma
-      permissão de dados (o nome, o escalão e o contacto já estavam na ficha, e
-      quem vê a linha vê os Plantéis) — é sobre quem fala em nome do clube. Uma
-      mensagem assinada pelo clube, mandada por três pessoas ao mesmo
-      encarregado, deixa de ser uma mensagem do clube.
+      permissão de dados — é sobre quem fala em nome do clube. Uma mensagem
+      assinada pelo clube, mandada por três pessoas ao mesmo encarregado,
+      deixa de ser uma mensagem do clube.
+    - **O contacto segue a FICHA, não o aniversário**: ver que hoje é o dia da
+      Carolina e ter o telefone da mãe dela são duas coisas. O contacto já
+      vive na ficha, com a permissão da ficha, e esta linha não pode ser a
+      porta lateral que o entrega a quem não a pode abrir — mostra-se (com o
+      "Ver ficha") a quem já chega lá pelos Plantéis, pela Fisioterapia ou
+      pela Prep. física; aos outros fica o aniversário e mais nada.
     - **Vai para a FAMÍLIA e agradece-lhe**: nos escalões de formação quem tem
       telemóvel é o encarregado de educação, e metade do que ali se diz é para
       ele. O texto constrói-se a cada escolha — o "hoje / amanhã / no próximo
