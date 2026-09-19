@@ -10,17 +10,28 @@
 // primeiro, e num clube há duas Marias), o escalão e o contacto da família — e,
 // para o coordenador, a mensagem já escrita.
 //
-// A mensagem é SÓ do coordenador (`isCoordenador`). Não é uma permissão de
-// dados: o nome, o escalão e o contacto já estavam na ficha, e quem vê a linha
-// de aniversários vê os Plantéis. É sobre quem fala em nome do clube — uma
-// mensagem assinada pelo clube, mandada por três pessoas diferentes ao mesmo
-// encarregado, deixa de ser uma mensagem do clube.
+// **Quem faz anos vê-se no clube inteiro** — é o que o `birthdayScope()` em
+// `compute.js` diz, e é por isso que este cartão chega à fisio, ao preparador
+// e ao treinador dos infantis que cruza a Carolina todas as terças. Dar os
+// parabéns é a coisa mais pública que um clube faz.
+//
+// **A MENSAGEM é só do coordenador** (`isCoordenador`). Não é uma permissão
+// de dados — é sobre quem fala em nome do clube: uma mensagem assinada pelo
+// clube, mandada por três pessoas diferentes ao mesmo encarregado, deixa de
+// ser uma mensagem do clube.
+//
+// **O contacto segue a ficha, não o aniversário.** Ver que hoje é o dia da
+// Carolina e ter o telefone da mãe dela são duas coisas: o segundo já vive na
+// ficha, com a permissão da ficha, e esta linha não pode ser a porta lateral
+// que o entrega a quem não a pode abrir. Quem já vê os Plantéis (ou a
+// Fisioterapia, ou a Prep. física) vê-o aqui; os outros veem o aniversário e
+// mais nada.
 
 import { esc } from '../ui.js';
 import { wireDialog } from '../modal.js';
 import { toastOk, toastError } from '../toast.js';
 import { teamName } from '../compute.js';
-import { isCoordenador } from '../permissions.js';
+import { isCoordenador, canAccess } from '../permissions.js';
 import { birthdayMessage } from '../birthday-message.js';
 import { contactChannel, sendVia } from '../sizes-message.js';
 import { branding } from '../branding.js';
@@ -70,6 +81,9 @@ export function openBirthdayCard(list) {
     const { player, team } = b;
     const equipa = team ? teamName(team) : '';
     const ch = contactChannel(player.guardian_contact);
+    // Quem já chega à ficha pelos caminhos normais — é lá que o contacto
+    // vive, e é de lá que esta linha o lê.
+    const veFicha = canAccess('planteis') || canAccess('medico') || canAccess('fisica');
     // A mensagem constrói-se a cada pintura e não uma vez no arranque: o
     // "hoje / amanhã / no próximo dia 24" é do atleta escolhido, e reutilizar
     // o texto do anterior era mandar à família da Catarina a data da Carolina.
@@ -93,15 +107,15 @@ export function openBirthdayCard(list) {
         </p>
       </section>
 
-      <section class="pd-section">
-        <span class="pd-label">Contacto do encarregado</span>
-        ${player.guardian_contact
-          ? `<p style="margin:0.15rem 0 0">${esc(player.guardian_contact)}</p>`
-          : `<p class="muted" style="margin:0.15rem 0 0">
-               Esta ficha não tem contacto. Podes copiar a mensagem e mandá-la pelo
-               caminho que já usas com a família.
-             </p>`}
-      </section>
+      ${veFicha ? `
+        <section class="pd-section">
+          <span class="pd-label">Contacto do encarregado</span>
+          ${player.guardian_contact
+            ? `<p style="margin:0.15rem 0 0">${esc(player.guardian_contact)}</p>`
+            : `<p class="muted" style="margin:0.15rem 0 0">
+                 Esta ficha não tem contacto.${texto ? ' Podes copiar a mensagem e mandá-la pelo caminho que já usas com a família.' : ''}
+               </p>`}
+        </section>` : ''}
 
       ${texto ? `
         <section class="pd-section">
@@ -113,14 +127,14 @@ export function openBirthdayCard(list) {
     // As ações dependem do atleta escolhido (há contacto? é WhatsApp ou
     // email?), por isso redesenham-se com o corpo.
     overlay.querySelector('#bc-actions').innerHTML = `
-      <button class="btn btn--ghost" type="button" id="bc-ficha">Ver ficha</button>
+      ${veFicha ? '<button class="btn btn--ghost" type="button" id="bc-ficha">Ver ficha</button>' : ''}
       ${texto ? '<button class="btn btn--ghost" type="button" id="bc-copy">Copiar mensagem</button>' : ''}
       ${texto && ch
         ? `<button class="btn btn--accent" type="button" id="bc-send">Enviar por ${ch.kind === 'email' ? 'email' : 'WhatsApp'}</button>`
         : '<button class="btn btn--primary" type="button" id="bc-close">Fechar</button>'}
     `;
 
-    overlay.querySelector('#bc-ficha').addEventListener('click', () => {
+    overlay.querySelector('#bc-ficha')?.addEventListener('click', () => {
       close();
       openAthleteProfile(player.id);
     });

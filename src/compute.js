@@ -406,10 +406,24 @@ export function nextBirthday(player, from = new Date()) {
   return { date: next, days, turning: next.getFullYear() - d.getFullYear() };
 }
 
-// Atletas cujo aniversário o utilizador atual pode ver: todos para quem tem
-// âmbito de clube, só os das suas equipas para o treinador — a mesma regra de
-// `myTeams()`. Uma ficha sem equipa na cache não entra.
+// Um aniversário é do CLUBE e vê-se por inteiro, seja quem for que olhe.
+// Esteve recortado às equipas de cada um (a regra do `myTeams()`, que vale
+// para o trabalho), e o que isso fazia era esconder a Carolina do treinador
+// dos infantis que a cruza no pavilhão todas as terças. Dar os parabéns não é
+// uma decisão técnica sobre um plantel: é a coisa mais pública que um clube
+// faz, e um clube onde só o coordenador sabe que hoje é o dia de alguém não
+// dá os parabéns a ninguém. O que continua reservado é **falar em nome do
+// clube** — a mensagem de parabéns é só do coordenador (ver
+// `views/parabens.js`).
 function birthdayScope() {
+  return state.players;
+}
+
+// A lista de trabalho é outra coisa e mantém o recorte: quem ainda não tem
+// data preenchida é uma ficha para alguém corrigir, e as fichas do treinador
+// são as das SUAS equipas. Ver os aniversários de todos não é ganhar trabalho
+// sobre os plantéis dos outros.
+function birthdayWorkScope() {
   if (isClubWide()) return state.players;
   const ids = myTeamIds();
   return state.players.filter((p) => ids.has(p.team_id));
@@ -451,7 +465,7 @@ export function birthdayCalendar(teamId = null) {
 // ela, "não há aniversários esta semana" e "faltam dez datas por preencher"
 // eram indistinguíveis.
 export function playersWithoutBirthday(teamId = null) {
-  return birthdayScope()
+  return birthdayWorkScope()
     .filter((p) => (!teamId || p.team_id === teamId) && !birthDate(p))
     .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt'));
 }

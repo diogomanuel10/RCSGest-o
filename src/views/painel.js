@@ -593,7 +593,7 @@ export const ALERT_CATALOG = [
   { key: 'avaliacoes',      label: 'Avaliações de atleta por decidir', can: () => canEdit('players') },
   { key: 'documentos',      label: 'Documentos a expirar',           can: () => canEdit('documents') },
   { key: 'presencas',       label: 'Presenças por marcar',           can: () => canEdit('attendances') },
-  { key: 'aniversarios',    label: 'Aniversários no cabeçalho',      can: () => canAccess('planteis') },
+  { key: 'aniversarios',    label: 'Aniversários no cabeçalho',      can: () => true },
   { key: 'aniversarios_falta', label: 'Datas de nascimento por preencher', can: () => canEdit('players') },
   { key: 'fichas_incompletas', label: 'Fichas de atleta por completar', can: () => canEdit('documents') },
 ];
@@ -1007,7 +1007,11 @@ function statStrip(stats) {
 // atleta que está a desistir. Aqui continua a chegar a tempo — que é a única
 // coisa que um aniversário precisa de fazer.
 function birthdayLine() {
-  if (!canAccess('planteis') || !alertOn('aniversarios') || !birthDateReady()) return '';
+  // Sem `canAccess('planteis')`: o aniversário é do CLUBE e não do plantel.
+  // A fisio e o preparador, que trabalham com as mesmas atletas todas as
+  // semanas, ficavam de fora por não terem a secção onde a data está
+  // guardada — e onde a data se guarda não decide quem pode dar os parabéns.
+  if (!alertOn('aniversarios') || !birthDateReady()) return '';
   const list = upcomingBirthdays(7);
   if (!list.length) return '';
   const nomes = list.slice(0, 3).map((b) => {
@@ -1377,6 +1381,7 @@ function renderFisioPainel(container) {
       <div>
         <h1 class="section-title">${esc(greeting())}${displayName() ? ', ' + esc(displayName()) : ''}</h1>
         <p class="muted" style="margin:0;font-size:0.9rem">Departamento Médico.</p>
+        ${birthdayLine()}
       </div>
     </header>
 
@@ -1410,6 +1415,7 @@ function renderFisioPainel(container) {
   wireWorkCard(container, () => renderFisioPainel(container));
   wireAreaPainel(container, 'fisioterapia');
   wireWorkTargets(container, { tab: 'fisioterapia' });
+  wireBirthdayLine(container);
 }
 
 // Data curta e legível (dd mmm) para os subtítulos das pendências.
@@ -1615,6 +1621,7 @@ function renderPreparadorPainel(container) {
       <div>
         <h1 class="section-title">${esc(greeting())}${displayName() ? ', ' + esc(displayName()) : ''}</h1>
         <p class="muted" style="margin:0;font-size:0.9rem">Preparação Física.</p>
+        ${birthdayLine()}
       </div>
     </header>
 
@@ -1643,6 +1650,7 @@ function renderPreparadorPainel(container) {
   wireWorkCard(container, () => renderPreparadorPainel(container));
   wireAreaPainel(container, 'fisica');
   wireWorkTargets(container, { tab: 'fisica' });
+  wireBirthdayLine(container);
 }
 
 function gymRow(s) {
