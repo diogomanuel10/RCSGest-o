@@ -47,6 +47,7 @@ import {
   PHYSICAL_TEST_UNIT,
 } from '../constants.js';
 import { canAccess, canEdit, canManageUsers } from '../permissions.js';
+import { renderPhysioRequestsInto } from './physio-requests.js';
 import { photoAvatarHTML, hydratePhotos } from '../player-photo.js';
 import { PLAYER_DATA_LABEL } from '../constants.js';
 import { renderClinicalInto } from './clinical-file.js';
@@ -242,6 +243,13 @@ function renderGeral(container, playerId, _opts = {}) {
     </div>
     ${av?.limitations ? `<div class="pd-notes"><span class="pd-label">Limitações ao treino</span><p>${esc(av.limitations)}</p></div>` : ''}
 
+    <!-- Pedidos à fisioterapia. Fica logo a seguir à disponibilidade porque é
+         a outra ponta da mesma conversa: ali lê-se o que a fisio respondeu
+         sobre o atleta, aqui diz-se o que se viu no pavilhão. Quem tem o
+         separador Fisioterapia não o vê aqui — está lá, e o mesmo bloco duas
+         vezes no mesmo ecrã lê-se como dois pedidos. -->
+    ${canAccess('medico') ? '' : '<div id="ap-pedidos-fisio"></div>'}
+
     <div class="pd-grid">
       ${dataItem('Nascimento', birthLine(player))}
       ${dataItem('Nº de federado', player.federation_number)}
@@ -336,6 +344,9 @@ function renderGeral(container, playerId, _opts = {}) {
 
     ${canEdit('documents') ? '<div id="ap-docs-placeholder"></div>' : ''}
   `;
+
+  const pedidosEl = container.querySelector('#ap-pedidos-fisio');
+  if (pedidosEl) renderPhysioRequestsInto(pedidosEl, playerId);
 
   const docsEl = container.querySelector('#ap-docs-placeholder');
   if (docsEl) renderDocumentsInto(docsEl, playerId);

@@ -136,6 +136,12 @@ const EDIT_ROLES = {
   // (portal.js) e o servidor recorta-a à sua própria ficha. Decidir o pedido
   // é outra coisa e tem a sua própria porta (canDecideRequests).
   equipment_requests: ['coordenador', 'direcao', 'treinador'],
+  // Pedidos de FISIOTERAPIA: quem PEDE. O treinador é quem vê a atleta a
+  // queixar-se no pavilhão, e o coordenador entra porque em metade dos clubes
+  // é ele quem trata do plantel. A ATLETA não aparece aqui nem no portal —
+  // tudo o que diga respeito a uma queixa passa pelo treinador. Triar é outra
+  // coisa e tem a sua própria porta (canTriagePhysio).
+  physio_requests: ['coordenador', 'treinador'],
   // Documentos dos atletas: coordenador + fisioterapeuta + preparador.
   documents: ['coordenador', 'fisioterapeuta', 'preparador'],
 };
@@ -297,6 +303,13 @@ export function canMarkAttendance(ev) {
 // `guard_request_decision` no Supabase.
 export function canDecideRequests() {
   return isCoordenador() || isDirecao();
+}
+
+// Triar um pedido de fisioterapia (agendar, dispensar, fechar) é de quem
+// trata — nunca de quem pediu. Espelha o trigger `guard_physio_triage` no
+// Supabase e a política `med_rw` do resto do módulo clínico.
+export function canTriagePhysio() {
+  return isCoordenador() || isFisio();
 }
 
 // Só o coordenador gere utilizadores (papéis, vínculos e acessos).

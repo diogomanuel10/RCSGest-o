@@ -22,6 +22,7 @@ import {
   trainingsToMark,
   injuredCount,
   upcomingAppointments,
+  pendingPhysioRequests,
   apptDateTime,
   appointmentConflicts,
   activeEpisode,
@@ -55,6 +56,7 @@ import {
   EPISODE_STATUS_LABEL,
   EPISODE_STATUS_BADGE,
   PLAYER_DATA_LABEL,
+  PHYSIO_TRAINING_LABEL,
 } from '../constants.js';
 import {
   canEdit, canAccess, canDecideRequests, isFisio, isPreparador, isTreinador,
@@ -664,6 +666,7 @@ const FAMILY_SUMMARY = {
   sem_data:   (n) => `${n} atletas sem data de nascimento`,
   fichas:     (n) => `${n} fichas de atleta por completar`,
   // Fisioterapia
+  pedidos_fisio:   (n) => `${n} pedidos do treinador por triar`,
   appt_abertos:    (n) => `${n} atendimentos por fechar`,
   retorno_passado: (n) => `${n} atletas passaram a data prevista de retorno`,
   conflitos:       (n) => `${n} atendimentos chocam com treinos`,
@@ -1278,6 +1281,23 @@ function buildFisioActions() {
   const items = [];
   const hoje = localToday();
   const nome = (id) => state.players.find((p) => p.id === id)?.name || 'Atleta';
+
+  // Pedidos do treinador por triar. É o item mais urgente deste painel: do
+  // outro lado está uma atleta com uma queixa e um treinador que já avisou e
+  // está à espera. Um pedido que fica na fila sem resposta ensina-o a não
+  // voltar a pedir, e a queixa volta para o WhatsApp — que é exatamente o que
+  // este canal veio substituir. Quem está PARADO entra como 'agora'; quem
+  // continua a treinar pode esperar pela semana.
+  pendingPhysioRequests().forEach((r) => {
+    items.push({
+      urgency: r.training === 'parada' ? 'agora' : 'semana',
+      variant: r.training === 'parada' ? 'danger' : 'warn',
+      family: 'pedidos_fisio',
+      name: nome(r.player_id), athlete: r.player_id, tab: 'fisioterapia',
+      title: `Pedido do treinador sobre ${nome(r.player_id)}`,
+      sub: PHYSIO_TRAINING_LABEL[r.training] || '',
+    });
+  });
 
   // Atendimentos que já passaram e continuam "agendado": ninguém disse se se
   // realizou ou se o atleta faltou. É o equivalente clínico das presenças por

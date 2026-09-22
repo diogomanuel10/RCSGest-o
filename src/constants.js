@@ -426,6 +426,40 @@ export const AVAILABILITY_BADGE = Object.fromEntries(
   AVAILABILITY_STATUSES.map((s) => [s.key, s.badge])
 );
 
+// --- Pedidos de fisioterapia (treinador -> fisio) ---
+
+// Como a atleta está a treinar HOJE, dito por quem a vê treinar. É a única
+// coisa que o treinador classifica: não há campo de prioridade, porque a
+// prioridade real é a data que a fisio marca, e um campo à parte seria um
+// segundo dono do mesmo dado. Isto é um FACTO observável, e é ele que ordena
+// a fila da triagem.
+export const PHYSIO_TRAINING_STATES = [
+  { key: 'parada',   label: 'Não está a treinar',   badge: 'danger' },
+  { key: 'limitada', label: 'Treina com limitações', badge: 'warn' },
+  { key: 'normal',   label: 'Treina normalmente',    badge: 'muted' },
+];
+export const PHYSIO_TRAINING_LABEL = Object.fromEntries(PHYSIO_TRAINING_STATES.map((s) => [s.key, s.label]));
+export const PHYSIO_TRAINING_BADGE = Object.fromEntries(PHYSIO_TRAINING_STATES.map((s) => [s.key, s.badge]));
+// Ordem da fila: quem está parado primeiro. A data de entrada desempata.
+export const PHYSIO_TRAINING_ORDER = { parada: 0, limitada: 1, normal: 2 };
+
+// O percurso de um pedido. São quatro paragens e não mais: `novo` (a fila da
+// fisio), `agendado` (tem atendimento marcado), `fechado` (o atendimento
+// realizou-se, e o pedido fecha-se sozinho) e `dispensado` (a fisio devolveu-o,
+// com motivo). Um estado a mais aqui é mais um sítio onde uma queixa fica
+// parada sem ninguém reparar.
+export const PHYSIO_REQUEST_STATUSES = [
+  { key: 'novo',       label: 'Por triar',  badge: 'warn' },
+  { key: 'agendado',   label: 'Agendado',   badge: 'info' },
+  { key: 'fechado',    label: 'Fechado',    badge: 'ok' },
+  { key: 'dispensado', label: 'Dispensado', badge: 'muted' },
+];
+export const PHYSIO_REQUEST_STATUS_LABEL = Object.fromEntries(PHYSIO_REQUEST_STATUSES.map((s) => [s.key, s.label]));
+export const PHYSIO_REQUEST_STATUS_BADGE = Object.fromEntries(PHYSIO_REQUEST_STATUSES.map((s) => [s.key, s.badge]));
+// As paragens em que o pedido ainda está vivo — é o que impede o treinador de
+// pedir duas vezes a mesma coisa e o que a ficha do atleta mostra.
+export const PHYSIO_REQUEST_OPEN = ['novo', 'agendado'];
+
 // --- Planos de treino ---
 
 // Categorias de tarefas/blocos num plano de treino.

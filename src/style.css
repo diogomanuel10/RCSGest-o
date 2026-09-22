@@ -4398,6 +4398,22 @@ button.stat-strip__item--nav:hover {
   margin-left: auto;
 }
 
+/* Um pedido de fisioterapia na ficha do atleta e na fila de triagem. É o
+   mesmo cartão das duas, e é BLOCO e não linha: ao contrário de um
+   atendimento (uma data, um tipo, uma hora), aqui o conteúdo é uma frase
+   escrita por alguém — numa linha em flex ficava espremida a um terço da
+   largura, com os crachás a empurrá-la. */
+.preq-item {
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  font-size: 0.88rem;
+}
+.preq-item p {
+  overflow-wrap: anywhere;
+}
+
 /* Aviso de conflito de horário no formulário de atendimento */
 .appt-conflict {
   margin: 0.4rem 0;

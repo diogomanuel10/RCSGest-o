@@ -19,6 +19,7 @@ import {
   injuryStats,
   apptDateTime,
   upcomingTrainings,
+  pendingPhysioRequests,
 } from '../compute.js';
 import {
   EPISODE_STATUS_LABEL,
@@ -33,20 +34,26 @@ import { canEdit } from '../permissions.js';
 import { openModal } from '../modal.js';
 import { openAppointmentForm } from './clinical-file.js';
 import { openAthleteProfile } from './athlete-profile.js';
+import { renderPhysioRequestsBody } from './physio-requests.js';
 
-let tab = 'atletas'; // 'atletas' | 'agenda' | 'historico'
+let tab = 'atletas'; // 'atletas' | 'pedidos' | 'agenda' | 'historico'
 let search = '';
 let page = 1;
 
 export function renderMedico(container) {
   const editable = canEdit('clinical');
   const injured = injuredCount();
+  // O separador conta os que faltam triar, como os Pedidos de equipamento
+  // contam os que faltam decidir: um pedido que ninguém vê é o WhatsApp
+  // outra vez, e o número no separador é o que o impede de ficar esquecido.
+  const porTriar = state.physioRequestsReady ? pendingPhysioRequests().length : 0;
 
   container.innerHTML = `
     <header class="page-head">
       <h1 class="section-title">Departamento Médico</h1>
       <div class="cal-toggle" role="group" aria-label="Separador">
         <button class="cal-toggle__btn ${tab === 'atletas' ? 'cal-toggle__btn--active' : ''}" data-tab="atletas" type="button">Atletas</button>
+        <button class="cal-toggle__btn ${tab === 'pedidos' ? 'cal-toggle__btn--active' : ''}" data-tab="pedidos" type="button">Pedidos${porTriar ? ` (${porTriar})` : ''}</button>
         <button class="cal-toggle__btn ${tab === 'agenda' ? 'cal-toggle__btn--active' : ''}" data-tab="agenda" type="button">Agenda</button>
         <button class="cal-toggle__btn ${tab === 'historico' ? 'cal-toggle__btn--active' : ''}" data-tab="historico" type="button">Histórico</button>
       </div>
@@ -58,9 +65,13 @@ export function renderMedico(container) {
     </div>
 
     ${tab === 'atletas' ? renderAtletas(editable)
+      : tab === 'pedidos' ? '<div id="med-pedidos"></div>'
       : tab === 'agenda' ? renderAgenda(editable)
       : renderHistorico()}
   `;
+
+  const pedidosEl = container.querySelector('#med-pedidos');
+  if (pedidosEl) renderPhysioRequestsBody(pedidosEl);
 
   container.querySelectorAll('[data-tab]').forEach((b) =>
     b.addEventListener('click', () => { tab = b.dataset.tab; renderMedico(container); })
