@@ -6,10 +6,11 @@
 // atendimento (reutilizado pela agenda do Departamento Médico).
 
 import { state, createRow, updateRow, deleteRow, upsertByPlayer, dbErrorMessage } from '../store.js';
-import { esc } from '../ui.js';
+import { esc, safeUrl } from '../ui.js';
 import {
   playerEpisodes,
   episodeSessions,
+  episodeRehab,
   playerAppointments,
   appointmentConflicts,
   playerMedicalHistory,
@@ -121,6 +122,18 @@ export function renderClinicalInto(container, playerId, { editable } = {}) {
   container.querySelectorAll('[data-ep-del]').forEach((b) =>
     b.addEventListener('click', () => removeEpisode(b.dataset.epDel, rerender))
   );
+  container.querySelectorAll('[data-ep-rehab]').forEach((b) =>
+    b.addEventListener('click', () => openRehabForm({ episodeId: b.dataset.epRehab, onSaved: rerender }))
+  );
+  container.querySelectorAll('[data-rehab-edit]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const r = state.rehabExercises.find((x) => x.id === b.dataset.rehabEdit);
+      openRehabForm({ episodeId: r.episode_id, exercise: r, onSaved: rerender });
+    })
+  );
+  container.querySelectorAll('[data-rehab-del]').forEach((b) =>
+    b.addEventListener('click', () => removeRehab(b.dataset.rehabDel, rerender))
+  );
   container.querySelectorAll('[data-ep-session]').forEach((b) =>
     b.addEventListener('click', () => openSessionForm({ episodeId: b.dataset.epSession, onSaved: rerender }))
   );
@@ -144,6 +157,142 @@ export function renderClinicalInto(container, playerId, { editable } = {}) {
 function fieldBlock(label, value) {
   if (!value) return '';
   return `<div class="pd-notes"><span class="pd-label">${esc(label)}</span><p>${esc(value)}</p></div>`;
+}
+
+// --- Plano de recuperação -------------------------------------------------
+//
+// O trabalho de reabilitação decide se a atleta volta a jogar, e faz-se quase
+// todo FORA do pavilhão — em casa, sozinha, entre as sessões. Na app isso
+// vivia no "Plano de tratamento", um campo de texto escrito pela fisio para a
+// fisio: a atleta nunca o leu, porque nunca teve acesso ao episódio. O que
+// levava eram três exercícios explicados de viva voz no fim da sessão, e no
+// dia seguinte já era "era três séries ou duas?".
+//
+// Isto é a mesma estrutura que a Preparação Física já tinha para o ginásio
+// (séries, repetições) — e chega ao PORTAL dela, que é o ponto todo.
+function rehabBlockHTML(ep, editable) {
+  if (!state.rehabReady) return '';
+  const lista = episodeRehab(ep.id);
+  // Depois da alta o plano deixa de aparecer à atleta (é o RLS que o faz).
+  // Aqui continua visível — é o registo do que foi prescrito — mas diz-se, para
+  // a fisio não ficar à espera de que ela o esteja a seguir.
+  const alta = ep.status === 'alta';
+
+  return `
+    <div class="cf-section-head" style="margin-top:0.6rem">
+      <span class="pd-label">Plano de recuperação (${lista.length})</span>
+      ${editable
+        ? `<button class="btn btn--ghost btn--sm" data-ep-rehab="${ep.id}" type="button">+ Exercício</button>`
+        : ''}
+    </div>
+    ${lista.length
+      ? `<ul class="cf-session-list">${lista.map((r) => rehabLineHTML(r, editable)).join('')}</ul>
+         ${alta
+           ? '<p class="muted" style="margin:0.3rem 0 0;font-size:0.82rem">Com a alta dada, este plano já não aparece no portal da atleta.</p>'
+           : '<p class="muted" style="margin:0.3rem 0 0;font-size:0.82rem">A atleta vê isto no portal dela.</p>'}`
+      : '<p class="muted" style="margin:0.3rem 0 0">Sem exercícios prescritos.</p>'}
+  `;
+}
+
+function rehabLineHTML(r, editable) {
+  // "3 × 15" com as séries e as repetições; qualquer uma pode faltar, e o que
+  // falta não deixa buraco nenhum na linha.
+  const carga = [r.sets ? `${r.sets} ×` : '', r.reps || ''].filter(Boolean).join(' ');
+  const url = safeUrl(r.link_url);
+  return `
+    <li class="preq-item">
+      <div class="med-stats" style="margin:0 0 0.25rem">
+        <strong>${esc(r.name)}</strong>
+        ${carga ? `<span class="badge badge--info">${esc(carga)}</span>` : ''}
+        ${r.frequency ? `<span class="badge badge--muted">${esc(r.frequency)}</span>` : ''}
+      </div>
+      ${r.notes ? `<p style="margin:0">${esc(r.notes)}</p>` : ''}
+      ${url ? `<p style="margin:0.2rem 0 0"><a href="${esc(url)}" target="_blank" rel="noopener">Ver o exercício</a></p>` : ''}
+      ${editable
+        ? `<div class="row row--wrap" style="gap:0.4rem;margin-top:0.4rem">
+             <button class="btn btn--ghost btn--sm" data-rehab-edit="${r.id}" type="button">Editar</button>
+             <button class="btn btn--ghost btn--sm" data-rehab-del="${r.id}" type="button">Remover</button>
+           </div>`
+        : ''}
+    </li>
+  `;
+}
+
+// O formulário é curto de propósito: só o NOME é obrigatório. Um plano
+// escreve-se entre duas atletas, com a próxima à porta — e um formulário que
+// exige séries, repetições e frequência para gravar "mobilidade de ombro
+// todos os dias" é um formulário que se deixa para depois, e depois não há.
+function openRehabForm({ episodeId, exercise, onSaved }) {
+  const existing = exercise || null;
+  const irmaos = episodeRehab(episodeId);
+
+  openModal({
+    title: existing ? 'Editar exercício' : 'Exercício do plano',
+    submitLabel: existing ? 'Guardar' : 'Acrescentar',
+    intro: 'Isto vai para o portal da atleta, tal como o escreveres — ela lê-o em casa, dias depois de lho explicares.',
+    fields: [
+      { name: 'name', label: 'Exercício', required: true, full: true,
+        placeholder: 'ex.: Rotação externa com elástico' },
+      { name: 'sets', label: 'Séries', type: 'number', step: 1,
+        hint: 'Opcional.' },
+      { name: 'reps', label: 'Repetições',
+        placeholder: 'ex.: 15, 30 segundos, 10 de cada lado',
+        hint: 'É texto: nem tudo se conta em repetições.' },
+      { name: 'frequency', label: 'Quando', full: true,
+        placeholder: 'ex.: todos os dias, 3x por semana, antes do treino' },
+      { name: 'notes', label: 'Como se faz', type: 'textarea', full: true,
+        placeholder: 'ex.: cotovelo junto ao corpo; parar se doer no ombro',
+        hint: 'O que lhe dizes na sessão e ela não se lembra três dias depois.' },
+      { name: 'link_url', label: 'Vídeo (opcional)', full: true,
+        placeholder: 'https://…' },
+    ],
+    values: {
+      name: existing?.name || '',
+      sets: existing?.sets ?? '',
+      reps: existing?.reps || '',
+      frequency: existing?.frequency || '',
+      notes: existing?.notes || '',
+      link_url: existing?.link_url || '',
+    },
+    onSubmit: async (v) => {
+      const payload = {
+        name: v.name.trim(),
+        sets: v.sets ? Number(v.sets) : null,
+        reps: v.reps.trim() || null,
+        frequency: v.frequency.trim() || null,
+        notes: v.notes.trim() || null,
+        link_url: v.link_url.trim() || null,
+      };
+      try {
+        if (existing) {
+          await updateRow('rehab_exercises', 'rehabExercises', existing.id, payload);
+        } else {
+          // A posição é a do fim da lista: a ordem do plano é a ordem por que
+          // se escreve, e é ela que diz à atleta o que fazer primeiro.
+          await createRow('rehab_exercises', 'rehabExercises', {
+            ...payload,
+            episode_id: episodeId,
+            position: irmaos.length,
+          });
+        }
+      } catch (err) {
+        throw new Error(dbErrorMessage(err));
+      }
+      onSaved?.();
+    },
+  });
+}
+
+async function removeRehab(id, onSaved) {
+  const r = state.rehabExercises.find((x) => x.id === id);
+  const ok = await confirmDialog(`Remover "${r?.name}" do plano?`);
+  if (!ok) return;
+  try {
+    await deleteRow('rehab_exercises', 'rehabExercises', id);
+    onSaved?.();
+  } catch (err) {
+    alert(dbErrorMessage(err));
+  }
 }
 
 function episodeHTML(ep, isOpen, editable) {
@@ -178,6 +327,8 @@ function episodeHTML(ep, isOpen, editable) {
         ${fieldBlock('Plano de tratamento', ep.treatment_plan)}
         ${fieldBlock('Restrições ao treino/jogo', ep.restrictions)}
         ${fieldBlock('Evolução', ep.evolution)}
+
+        ${rehabBlockHTML(ep, editable)}
 
         <div class="cf-section-head" style="margin-top:0.6rem">
           <span class="pd-label">Sessões (${sessions.length})</span>
