@@ -33,7 +33,8 @@ function slugify(text) {
 // Exporta a encomenda de uma equipa.
 //   teamLabel  — nome da equipa (para o título/ficheiro).
 //   players    — atletas já ordenados; cada um { id, number, name }.
-//   sizesById  — mapa player_id → { nome_camisola, nome_camisola_alt, sizes }
+//   sizesById  — mapa player_id → { nome_camisola, nome_camisola_alt,
+//                confirmed_at, paid_at, sizes }
 //                onde `sizes` é { chave do artigo: tamanho }.
 //   articles   — a lista de artigos EM VIGOR no clube (compute.equipmentArticles).
 //                Vem de fora porque este módulo é um chunk à parte e não deve
@@ -46,16 +47,31 @@ export async function exportEncomendaXLSX({ teamLabel, players, sizesById, artic
   // que se leva ao fornecedor, saber que a linha ainda não foi validada pela
   // família importa mais do que qualquer tamanho dela — uma camisola
   // estampada não se troca.
+  // As colunas "Pago" e "Valor" vão a seguir a ela e à frente dos tamanhos
+  // pela mesma razão: esta folha também serve para ir cobrar, e quem a leva
+  // ao balcão procura o nome e o que falta receber — os tamanhos são a
+  // encomenda, não a cobrança. O valor é o da encomenda ao preço de HOJE; um
+  // atleta cujos artigos não tenham preço deixa a célula VAZIA e não zero,
+  // que numa folha de cálculo soma.
   const detailHeader = [
-    'Nº', 'Atleta', 'Confirmado', 'Nome Camisola', 'Nome Camisola Alt.',
+    'Nº', 'Atleta', 'Confirmado', 'Pago', 'Valor (€)', 'Nome Camisola', 'Nome Camisola Alt.',
     ...articles.map((a) => a.label),
   ];
   const detailRows = players.map((p) => {
     const s = sizesById[p.id] || {};
+    let valor = 0;
+    let priced = false;
+    articles.forEach((a) => {
+      if (!s.sizes?.[a.key] || a.price == null) return;
+      valor += a.price;
+      priced = true;
+    });
     return [
       p.number || '',
       p.name || '',
       s.confirmed_at ? new Date(s.confirmed_at).toLocaleDateString('pt-PT') : 'Não',
+      s.paid_at ? new Date(s.paid_at).toLocaleDateString('pt-PT') : 'Não',
+      priced ? valor : '',
       s.nome_camisola || '',
       s.nome_camisola_alt || '',
       ...articles.map((a) => s.sizes?.[a.key] || ''),
@@ -63,7 +79,7 @@ export async function exportEncomendaXLSX({ teamLabel, players, sizesById, artic
   });
   const wsDetail = XLSX.utils.aoa_to_sheet([detailHeader, ...detailRows]);
   wsDetail['!cols'] = [
-    { wch: 5 }, { wch: 24 }, { wch: 12 }, { wch: 18 }, { wch: 18 },
+    { wch: 5 }, { wch: 24 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 18 }, { wch: 18 },
     ...articles.map(() => ({ wch: 16 })),
   ];
 

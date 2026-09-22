@@ -120,6 +120,11 @@ export const state = {
   // linha da encomenda. Sem ela, carimbar dava erro de coluna inexistente —
   // a app oferece antes o que o servidor aceita.
   sizesConfirmReady: true,
+  // E a `pagamento-encomenda.sql`? Dá a marca de "já pagou a encomenda" na
+  // mesma linha. Sem ela, marcar dava erro de coluna inexistente e a lista de
+  // quem falta pagar não teria por onde se saber — é a mesma linha do
+  // `birthDateReady()`.
+  sizesPaidReady: true,
   playerDocuments: [],    // documentos (exame médico, seguro, CC)
   squads: [],             // convocatórias (1:1 com evento jogo)
   squadPlayers: [],       // atletas em cada convocatória
@@ -195,6 +200,7 @@ export function resetState() {
   state.equipmentRequestsReady = true;
   state.requestFlowReady = true;
   state.sizesConfirmReady = true;
+  state.sizesPaidReady = true;
   state.playerDocuments = [];
   state.squads = [];
   state.squadPlayers = [];
@@ -430,7 +436,7 @@ export async function loadAll() {
          trainingPlans, trainingPlanItems, trainingEvaluations, trainingPlayerEvals,
          playerDocuments, playerSizes, squads, squadPlayers, financialEntries, gamePlans, objectives,
          eventResponses, gameResults, gameSets, tacticalScenarios, tacticalAnswers, exercises,
-         equipmentRequests, requestFlowProbe, sizesConfirmProbe, eventPlayers, testReferences,
+         equipmentRequests, requestFlowProbe, sizesConfirmProbe, sizesPaidProbe, eventPlayers, testReferences,
          physioRequests, rehabExercises] =
     await Promise.all([
       // Multi-tenant: o RLS limita as definições ao clube do utilizador, por
@@ -502,6 +508,10 @@ export async function loadAll() {
       // Idem para `confirmacao-tamanhos.sql`. Uma tabela vazia não diz nada
       // sobre as colunas que tem, por isso pergunta-se pela coluna.
       supabase.from('player_sizes').select('player_id,confirmed_at').limit(1),
+      // E para `pagamento-encomenda.sql`, que traz a marca de pago na linha
+      // da encomenda. Sem ela, marcar dava erro de coluna inexistente — a app
+      // oferece antes o que o servidor aceita.
+      supabase.from('player_sizes').select('player_id,paid_at').limit(1),
       // Quem entra em cada evento de plantel escolhido (musculação). Tolerante
       // à migração `musculacao.sql` em falta (ver abaixo).
       supabase.from('event_players').select('*'),
@@ -588,6 +598,7 @@ export async function loadAll() {
   state.equipmentRequestsReady = !equipmentRequests.error;
   state.requestFlowReady = !equipmentRequests.error && !requestFlowProbe.error;
   state.sizesConfirmReady = !sizesConfirmProbe.error;
+  state.sizesPaidReady = !sizesPaidProbe.error;
   // Sem `pedidos-fisioterapia.sql` a fila fica vazia e os ecrãs avisam quem
   // pode resolver, em vez de impedir a app de arrancar. Para os papéis sem
   // acesso (o RLS fecha isto ao Departamento Médico e a quem pede) vem uma
@@ -2007,6 +2018,39 @@ export async function setSizesConfirmed(playerId, confirmed) {
   else state.playerSizes.push(data);
   notify();
   return data;
+}
+
+// Marca (ou desmarca) a encomenda de um ou mais atletas como paga.
+//
+// Vai em LOTE de propósito, na lógica do `setRequestsPaid`: ao balcão ninguém
+// paga a camisola e depois os calções, e num sábado de entregas passam dez
+// famílias pela mesa. Uma escrita por linha, um só toast e um só re-desenho.
+//
+// Só escreve em atletas que já tenham linha de tamanhos: quem não tem nada
+// preenchido não tem encomenda nenhuma para pagar, e criar-lhe uma linha
+// vazia para lhe carimbar um pagamento era inventar uma encomenda.
+//
+// Ao contrário da confirmação da família, isto NÃO se apaga quando os
+// tamanhos mudam (ver `pagamento-encomenda.sql`): o dinheiro foi entregue, e
+// corrigir depois um nome a estampar não o desentrega.
+export async function setSizesPaid(playerIds, paid) {
+  const ids = playerIds.filter((id) => state.playerSizes.some((s) => s.player_id === id));
+  if (!ids.length) return 0;
+  const stamp = paid ? new Date().toISOString() : null;
+  const by = paid ? (state.profile?.id || null) : null;
+  const { error } = await supabase
+    .from('player_sizes')
+    .update({ paid_at: stamp, paid_by: by, updated_at: new Date().toISOString() })
+    .in('player_id', ids);
+  if (error) throw error;
+  state.playerSizes.forEach((s) => {
+    if (ids.includes(s.player_id)) Object.assign(s, { paid_at: stamp, paid_by: by });
+  });
+  toastOk(paid
+    ? `${ids.length} encomenda${ids.length === 1 ? '' : 's'} marcada${ids.length === 1 ? '' : 's'} como paga${ids.length === 1 ? '' : 's'}.`
+    : 'Pagamento anulado.');
+  notify();
+  return ids.length;
 }
 
 // --- Pedidos de equipamento ----------------------------------------------

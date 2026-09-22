@@ -317,6 +317,7 @@ supabase/artigos-configuraveis.sql Artigos e tamanhos de equipamento definidos p
 supabase/pedidos-atleta.sql    A atleta pede equipamento do portal; decide o coordenador/direção
 supabase/circuito-pedidos.sql  Paragens de um pedido (encomendado/pronto) + o que está por pagar
 supabase/confirmacao-tamanhos.sql A família confirma número, nomes de camisola e tamanhos
+supabase/pagamento-encomenda.sql Quem já pagou a encomenda e quanto falta cobrar
 supabase/fotos-artigos.sql     Bucket público com a foto de cada artigo de equipamento
 supabase/variante-equipamento.sql Cor/modelo do equipamento por escalão (resumo dos pedidos)
 supabase/aniversarios.sql      Data de nascimento do atleta (aniversários + quem falta)
@@ -1046,6 +1047,55 @@ separador antes de navegar (usado pelos cartões do Painel).
   - Sem a migração o pisco não aparece de todo (`state.sizesConfirmReady`,
     sondado no `loadAll`): uma marca que não grava é pior do que marca
     nenhuma. A mensagem funciona à mesma — não depende de coluna nova.
+
+- **Quem já pagou a encomenda** (`supabase/pagamento-encomenda.sql`,
+  `player_sizes.paid_at`/`paid_by`, `setSizesPaid` no `store.js`): a tabela
+  das Encomendas sabia o que cada atleta veste e quanto custa encomendá-lo, e
+  não sabia quem já tinha pago. Essa metade vivia numa folha de cálculo ou num
+  caderno ao balcão, que ninguém cruzava com a lista que foi ao fornecedor — e
+  daí saía sempre o mesmo: material entregue que ninguém cobrou, e uma família
+  a pagar duas vezes porque quem recebeu na terça não era quem estava lá no
+  sábado.
+  - **É a mesma decisão do `paid_at` dos Pedidos**: uma MARCA na linha da
+    encomenda, não uma tabela de pagamentos nem um lançamento no Financeiro.
+    Ligar isto ao livro-razão é uma decisão à parte, como já acontece com o
+    preço dos artigos.
+  - **O VALOR não se guarda** (`orderCost`): é a soma dos artigos que a atleta
+    tem preenchidos, ao preço de HOJE — a mesma estimativa do resumo da
+    encomenda e do custo dos pedidos. Gravado na linha seria um segundo dono
+    do mesmo número, a discordar do resumo no dia em que o preço mudasse. Os
+    artigos sem preço contam-se à parte e **dizem-se pelo nome**: do outro
+    lado está uma família a preparar o dinheiro, e o crachá leva o "+" quando
+    o valor que mostra é menor do que o real.
+  - **Mudar um tamanho NÃO desmarca o pagamento**, ao contrário da
+    confirmação da família. Uma confirmação é sobre valores concretos e tem de
+    cair quando eles mudam; o dinheiro foi entregue, e corrigir depois uma
+    gralha no nome a estampar não o desentrega — desmarcar mandava cobrar
+    outra vez a quem já pagou, que é o erro que isto vem resolver. Por isso o
+    trigger `clear_sizes_confirmation` não lhe toca.
+  - **Só tem encomenda quem tem alguma coisa preenchida**: numa ficha em
+    branco, "Por pagar" seria uma dívida inventada — não há botão nem crachá.
+  - **Quem falta pagar é um FILTRO na lista, e não um ecrã novo**: num escalão
+    de vinte, procurar o crachá linha a linha é o trabalho que se faz com a
+    família à frente. O filtro (com o "X de Y" sempre visível, como nas outras
+    vistas) nunca toca no separador Resumo — essa é a lista que vai ao
+    fornecedor, que entrega a encomenda toda, tenha ou não sido paga.
+  - **A cobrança não é de uma equipa só**: quem trata dela tem dez escalões e
+    não abre dez separadores para saber quanto lhe falta receber. O cartão do
+    topo leva a linha do clube inteiro; a LISTA continua por equipa, porque é
+    assim que se cobra — com o escalão à frente, no pavilhão daquela tarde.
+  - **A quitação é de quem já escreve nesta tabela** (coordenador e
+    seccionista, `sizes_write`), e por isso não leva trigger de guarda. Nos
+    Pedidos era preciso um (`guard_request_decision`) porque lá a política de
+    UPDATE deixa quem PEDIU corrigir o seu pedido — incluindo uma atleta, que
+    assim se marcava como paga. Aqui ninguém de fora do secretariado escreve,
+    e é o mesmo secretariado que já dá a quitação das quotas.
+  - **No `.xlsx` vão "Pago" e "Valor"**, à frente dos tamanhos como a coluna
+    "Confirmado": esta folha também se leva ao balcão, e quem a leva procura o
+    nome e o que falta receber. Um atleta sem artigos com preço deixa a célula
+    VAZIA e não zero, que numa folha de cálculo soma.
+  - Sem a migração não aparece nada disto (`state.sizesPaidReady`, sondado no
+    `loadAll`) — é a mesma linha do `birthDateReady()`.
 
 - **Musculação: a sessão com o plantel ESCOLHIDO**
   (`supabase/musculacao.sql`, tipo de evento `musculacao`, `event_players`): a
