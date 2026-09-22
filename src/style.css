@@ -6974,6 +6974,42 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
   color: var(--text-muted);
 }
 
+/* O plano de recuperação. É uma LISTA para ler e seguir, num telemóvel, com
+   o exercício em primeiro lugar: o nome é o que ela procura ("qual era o do
+   elástico?"), e as séries e a frequência são o detalhe que vem a seguir. */
+.portal-rehab__list {
+  list-style: none;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+.portal-rehab__item {
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--ok);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+.portal-rehab__head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.portal-rehab__name { font-size: 1rem; }
+.portal-rehab__notes {
+  margin: 0.35rem 0 0;
+  font-size: var(--portal-note);
+  overflow-wrap: anywhere;
+}
+.portal-rehab__link {
+  display: inline-block;
+  margin-top: 0.35rem;
+  font-size: var(--portal-note);
+}
+
 .portal-tabs { margin-bottom: 1rem; }
 
 /* --- Secções dentro de um separador --- */

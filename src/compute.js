@@ -1474,6 +1474,24 @@ export function upcomingAppointments(limit = 8) {
     .slice(0, limit);
 }
 
+// --- Plano de recuperação -------------------------------------------------
+
+// Os exercícios de um episódio, pela ordem em que a fisio os montou.
+export function episodeRehab(episodeId) {
+  return (state.rehabExercises || [])
+    .filter((r) => r.episode_id === episodeId)
+    .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+}
+
+// O plano da própria atleta (portal). Não filtra por episódio: o RLS já só
+// lhe entrega os exercícios dos episódios EM CURSO, e por isso o plano
+// desaparece sozinho no dia da alta. Com duas lesões ao mesmo tempo — um
+// tornozelo e um ombro — os exercícios vêm todos, que é o que ela tem para
+// fazer; separá-los por lesão era pedir-lhe que percebesse a diferença.
+export function myRehabPlan() {
+  return (state.rehabExercises || []).slice().sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+}
+
 // Os atendimentos da PRÓPRIA atleta que ainda estão para vir (portal).
 // As colunas vêm da RPC com outro nome (`ap_date`/`ap_time`): `date` e `time`
 // são palavras reservadas do SQL e uma função que as devolva obriga a citar

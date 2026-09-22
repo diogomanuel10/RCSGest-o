@@ -308,6 +308,7 @@ supabase/convocatoria-simples.sql Convocatória só com convocado/não convocado
 supabase/musculacao.sql        Sessões de musculação: evento com o plantel escolhido (event_players)
 supabase/pedidos-fisioterapia.sql Pedidos de fisioterapia (treinador -> fisio) + triagem
 supabase/atendimentos-atleta.sql A atleta vê o SEU atendimento de fisioterapia (+ alta)
+supabase/plano-recuperacao.sql Exercícios de reabilitação do episódio, lidos no portal
 supabase/referencias-testes.sql Faixas de referência das avaliações físicas (por teste e sexo)
 supabase/decimais-fisicos.sql  Altura e peso com 2 casas decimais (não arredondar a medição)
 supabase/grupo-whatsapp.sql    Link do grupo de WhatsApp da equipa (guia de entrada)
@@ -2160,6 +2161,69 @@ separador antes de navegar (usado pelos cartões do Painel).
     ficha não há a quem notificar, e o formulário de atendimento avisa a fisio
     disso em vez de a deixar a contar com uma notificação que não sai. É a
     mesma honestidade do número que o `send_team_announcement` devolve.
+- **Plano de recuperação** (`supabase/plano-recuperacao.sql`, `rehab_exercises`,
+  `rehabBlockHTML` em `clinical-file.js`, `rehabHTML` em `portal.js`): o
+  trabalho de reabilitação é o que decide se a atleta volta a jogar, e faz-se
+  quase todo FORA do pavilhão — em casa, sozinha, entre as sessões. Na app
+  isso vivia no "Plano de tratamento", um campo de texto escrito pela fisio
+  para a fisio: a atleta nunca o leu, porque nunca teve acesso ao episódio. O
+  que levava eram três exercícios explicados de viva voz no fim da sessão, e
+  no dia seguinte já era "era três séries ou duas?". A Preparação Física já
+  tinha a estrutura toda para isto (séries, repetições, em `gym_exercises`) e
+  a fisioterapia não tinha nada.
+  - **Pendura no EPISÓDIO e não no atleta.** Um plano é de uma lesão concreta
+    e acaba com ela; pendurado no atleta, os exercícios do tornozelo de
+    outubro continuavam a aparecer em março, no ombro, e a lista só crescia —
+    que é a forma de deixar de ser lida. Não há `player_id`: lê-se do
+    episódio, a regra do `team_id` dos pedidos de equipamento.
+  - **Aqui a ATLETA lê a linha INTEIRA**, por uma política e não por uma RPC —
+    ao contrário do atendimento. A diferença é toda: o atendimento tem `notes`
+    que a fisio escreve para si própria, e este registo é escrito de propósito
+    para ser lido por ela. Não há coluna neste quadro que ela não deva ver.
+  - **A política cruza `clinical_episodes`, que ela não lê** — e uma
+    subconsulta dentro de uma política corre com os privilégios de quem
+    pergunta, por isso passava pelo RLS do episódio e não devolvia nada. Daí o
+    `athlete_open_episode_ids()`, `security definer`, que devolve IDS e mais
+    nada: a saída do `athlete_player_id()`.
+  - **O plano desaparece sozinho com a ALTA**, porque essa função só devolve
+    episódios sem alta. Continuar a pedir os exercícios do tornozelo a quem já
+    voltou a jogar é a forma de a lista deixar de ser levada a sério, e
+    apagá-lo à mão perdia o registo do que foi prescrito — a fisio continua a
+    vê-lo na ficha, com uma linha a dizer que a atleta já não o vê.
+  - **As séries são um número; as REPETIÇÕES são texto.** Metade do trabalho
+    de reabilitação não se conta em repetições — "30 segundos", "10 de cada
+    lado", "até sentir" — e um campo numérico obrigava a fisio a escrever a
+    verdade nas observações e um número inventado no campo.
+  - **Só o NOME é obrigatório.** Um plano escreve-se entre duas atletas, com a
+    próxima à porta: um formulário que exige séries, repetições e frequência
+    para gravar "mobilidade de ombro todos os dias" é um formulário que se
+    deixa para depois, e depois não há.
+  - **Avisa UMA vez**, no primeiro exercício do episódio. Um plano monta-se de
+    uma vez, exercício a exercício, e cinco avisos seguidos sobre a mesma
+    coisa ensinam-na a ignorar o sino. O "é o primeiro?" NÃO se responde
+    contando as linhas: num INSERT de várias linhas os gatilhos `after row`
+    correm todos no fim da instrução, com as três já lá — a contagem dava 3 em
+    todas e não saía aviso nenhum. Pergunta-se se existe alguma linha anterior
+    a esta (`(created_at, id)`), que num lote elege exatamente uma.
+  - **No portal vive no separador «Hoje»**, e não acima dos separadores como o
+    atendimento: um atendimento é um compromisso que acontece e passa, e ganha
+    o topo; um plano dura semanas, e um bloco permanente no cimo do ecrã deixa
+    de ser lido ao terceiro dia. «Hoje» é o separador que abre, por isso está
+    na primeira coisa que ela vê.
+  - **O treinador fica de fora.** O que ele precisa de saber é o que ela pode
+    e não pode fazer no treino, e isso chega-lhe pelas limitações da
+    disponibilidade — pôr-lhe o plano clínico à frente convida a que se treine
+    por cima dele.
+  - **`pruneOrphans` não filtra isto pelos episódios em cache**: a atleta lê o
+    seu plano e não lê episódio nenhum, por isso a lista dela está sempre
+    vazia e essa regra apagava-lhe o plano todo do portal. Tiram-se só os dos
+    episódios que o prune removeu mesmo (os de atletas arquivados).
+  - **Não há registo de o que ela fez** (marcar um exercício como feito). É a
+    pergunta seguinte e é outra funcionalidade: precisa de uma linha por dia e
+    por exercício, e sem isso decidido a meio não vale a pena um botão que não
+    grava nada.
+  - Sem a migração nada disto aparece (`state.rehabReady`) — a linha do
+    `birthDateReady()`.
 - **Departamento Médico / Fisioterapia**: processo clínico digital do atleta.
   - `clinical_episodes` — episódios clínicos (ex.: lesões) com `status`
     (`ativo|recuperacao|alta`), avaliação inicial, diagnóstico funcional, plano

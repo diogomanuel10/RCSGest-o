@@ -39,6 +39,7 @@ const ENTITY_LABEL = {
   exercises: 'Exercício',
   equipment_requests: 'Pedido',
   physio_requests: 'Pedido de fisioterapia',
+  rehab_exercises: 'Exercício',
 };
 
 // Etiquetas femininas — o particípio concorda em género («Equipa guardada»).
@@ -87,6 +88,14 @@ export const state = {
   // (quando, onde), nunca a leitura clínica. Vive à parte de `appointments`
   // de propósito: são duas coisas com o mesmo nome e donos diferentes.
   myAppointments: [],
+  // Exercícios do plano de recuperação, por episódio clínico. Ao contrário
+  // dos atendimentos, isto lê-se da TABELA também do lado da atleta: cada
+  // coluna aqui é escrita de propósito para ela ler (ver `rehab_read`), e por
+  // isso não precisa de RPC nem de uma segunda coleção.
+  rehabExercises: [],
+  // A migração `plano-recuperacao.sql` já correu? Sem a tabela não há onde
+  // gravar um exercício — é a mesma linha do `birthDateReady()`.
+  rehabReady: true,
   // A migração `pedidos-fisioterapia.sql` já correu? Sem a tabela não há onde
   // gravar um pedido — e um botão que dá erro é pior do que botão nenhum. É a
   // mesma linha do `birthDateReady()`.
@@ -175,6 +184,8 @@ export function resetState() {
   state.physioRequests = [];
   state.physioRequestsReady = true;
   state.myAppointments = [];
+  state.rehabExercises = [];
+  state.rehabReady = true;
   state.trainingPlans = [];
   state.trainingPlanItems = [];
   state.trainingEvaluations = [];
@@ -420,7 +431,7 @@ export async function loadAll() {
          playerDocuments, playerSizes, squads, squadPlayers, financialEntries, gamePlans, objectives,
          eventResponses, gameResults, gameSets, tacticalScenarios, tacticalAnswers, exercises,
          equipmentRequests, requestFlowProbe, sizesConfirmProbe, eventPlayers, testReferences,
-         physioRequests] =
+         physioRequests, rehabExercises] =
     await Promise.all([
       // Multi-tenant: o RLS limita as definições ao clube do utilizador, por
       // isso não filtramos por id — devolve a (única) linha do clube atual.
@@ -500,6 +511,10 @@ export async function loadAll() {
       // Pedidos de fisioterapia (o treinador avisa, a fisio tria). Tolerante
       // à migração `pedidos-fisioterapia.sql` em falta (ver abaixo).
       supabase.from('physio_requests').select('*').order('created_at', { ascending: false }),
+      // Plano de recuperação. Tolerante à migração `plano-recuperacao.sql` em
+      // falta (ver abaixo). O RLS entrega à fisio os do clube e à atleta os
+      // dos SEUS episódios em curso — a mesma consulta serve os dois.
+      supabase.from('rehab_exercises').select('*').order('position'),
     ]);
 
   for (const res of [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects, episodes, sessions, appointments,
@@ -579,6 +594,8 @@ export async function loadAll() {
   // lista vazia, sem erro — é seguro consultar.
   state.physioRequests = physioRequests.error ? [] : (physioRequests.data || []);
   state.physioRequestsReady = !physioRequests.error;
+  state.rehabExercises = rehabExercises.error ? [] : (rehabExercises.data || []);
+  state.rehabReady = !rehabExercises.error;
 
   // Coerência da cache: com pais arquivados (ex.: uma equipa), os filhos que os
   // referenciam não devem aparecer nos ecrãs ativos.
@@ -661,8 +678,18 @@ function pruneOrphans() {
   const episodeIds = new Set(
     state.clinicalEpisodes.filter((e) => playerIds.has(e.player_id)).map((e) => e.id)
   );
+  // Os episódios que ESTE prune remove (os de atletas arquivados). Calcula-se
+  // ANTES de a lista ser filtrada, senão fica sempre vazio.
+  const prunedEpisodes = new Set(
+    state.clinicalEpisodes.filter((e) => !playerIds.has(e.player_id)).map((e) => e.id)
+  );
   state.clinicalEpisodes = state.clinicalEpisodes.filter((e) => playerIds.has(e.player_id));
   state.clinicalSessions = state.clinicalSessions.filter((s) => episodeIds.has(s.episode_id));
+  // Os exercícios do plano NÃO se filtram por "o episódio está na cache": a
+  // ATLETA lê o seu plano (`rehab_read`) e não lê episódio nenhum, por isso a
+  // lista dela está sempre vazia e essa regra apagava-lhe o plano todo do
+  // portal. Tiram-se só os dos episódios que o prune removeu mesmo.
+  state.rehabExercises = state.rehabExercises.filter((r) => !prunedEpisodes.has(r.episode_id));
   state.appointments = state.appointments.filter((a) => playerIds.has(a.player_id));
   state.physicalProfiles = state.physicalProfiles.filter((p) => playerIds.has(p.player_id));
   state.medicalHistory = state.medicalHistory.filter((m) => playerIds.has(m.player_id));
@@ -1454,6 +1481,7 @@ export async function deleteRow(table, collection, id) {
   // atendimentos que lhe estavam associados (episode_id -> null).
   if (collection === 'clinicalEpisodes') {
     state.clinicalSessions = state.clinicalSessions.filter((s) => s.episode_id !== id);
+    state.rehabExercises = state.rehabExercises.filter((r) => r.episode_id !== id);
     state.appointments.forEach((a) => {
       if (a.episode_id === id) a.episode_id = null;
     });

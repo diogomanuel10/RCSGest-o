@@ -20,7 +20,7 @@ import { getNotifications, markRead } from '../notifications.js';
 import { openModal, wireDialog, confirmDialog } from '../modal.js';
 import { saveOfflineCard } from '../offline-card.js';
 import { renderDrill } from '../tactical-court.js';
-import { esc, euros, emptyHTML, pickFile } from '../ui.js';
+import { esc, euros, emptyHTML, pickFile, safeUrl } from '../ui.js';
 import { photoAvatarHTML, hydratePhotos } from '../player-photo.js';
 import {
   upcomingEvents,
@@ -41,6 +41,7 @@ import {
   playerDataGaps,
   playerPhotoReady,
   myUpcomingAppointments,
+  myRehabPlan,
 } from '../compute.js';
 import {
   EVENT_TYPE_LABEL,
@@ -180,6 +181,48 @@ export function renderPortal(container) {
 
   wire(container, me, team);
   hydratePhotos(container);
+}
+
+// --- O meu plano de recuperação -------------------------------------------
+//
+// Vive no separador «Hoje» — que é o que abre — e não acima dos separadores,
+// como o atendimento. A diferença é a duração: um atendimento é um
+// compromisso que acontece e passa, e por isso ganha o topo; um plano de
+// recuperação dura semanas, e um bloco permanente no cimo do ecrã deixa de
+// ser lido ao terceiro dia. Aqui é a primeira coisa do separador que ela
+// abre, que é tanto quanto precisa.
+//
+// Desaparece sozinho com a alta: o RLS só lhe entrega os exercícios de
+// episódios em curso.
+function rehabHTML() {
+  const plano = myRehabPlan();
+  if (!plano.length) return '';
+
+  const linha = (r) => {
+    const carga = [r.sets ? `${r.sets} ×` : '', r.reps || ''].filter(Boolean).join(' ');
+    const url = safeUrl(r.link_url);
+    return `
+      <li class="portal-rehab__item">
+        <div class="portal-rehab__head">
+          <strong class="portal-rehab__name">${esc(r.name)}</strong>
+          ${carga ? `<span class="badge badge--info">${esc(carga)}</span>` : ''}
+          ${r.frequency ? `<span class="badge badge--muted">${esc(r.frequency)}</span>` : ''}
+        </div>
+        ${r.notes ? `<p class="portal-rehab__notes">${esc(r.notes)}</p>` : ''}
+        ${url ? `<a class="portal-rehab__link" href="${esc(url)}" target="_blank" rel="noopener">Ver o exercício</a>` : ''}
+      </li>`;
+  };
+
+  return `
+    <section class="card portal-section portal-rehab">
+      <h2 class="section-title portal-section__title">O meu plano de recuperação</h2>
+      <p class="portal-section__note">
+        Os exercícios que a fisioterapia te deixou. Se algum doer, não insistas —
+        diz-lhe na próxima sessão.
+      </p>
+      <ul class="portal-rehab__list">${plano.map(linha).join('')}</ul>
+    </section>
+  `;
 }
 
 // --- A minha fisioterapia -------------------------------------------------
@@ -450,6 +493,8 @@ function hojeHTML(me, upcoming) {
   );
 
   return `
+    ${rehabHTML()}
+
     ${avisos.length ? `
     <section class="card portal-section">
       <div class="portal-section__head">
