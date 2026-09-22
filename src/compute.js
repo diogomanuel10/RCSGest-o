@@ -1474,6 +1474,22 @@ export function upcomingAppointments(limit = 8) {
     .slice(0, limit);
 }
 
+// Os atendimentos da PRÓPRIA atleta que ainda estão para vir (portal).
+// As colunas vêm da RPC com outro nome (`ap_date`/`ap_time`): `date` e `time`
+// são palavras reservadas do SQL e uma função que as devolva obriga a citar
+// tudo à volta.
+//
+// Conta o dia inteiro, e não a hora: um atendimento às 18h30 ainda é o
+// compromisso de hoje às 19h — a atleta pode estar atrasada, e é precisamente
+// aí que ela abre o telemóvel para confirmar a que horas era.
+export function myUpcomingAppointments() {
+  const hoje = localDateStr(new Date());
+  return (state.myAppointments || [])
+    .filter((a) => a.status === 'agendado' && a.ap_date >= hoje)
+    .sort((a, b) => String(a.ap_date).localeCompare(String(b.ap_date))
+      || String(a.ap_time || '').localeCompare(String(b.ap_time || '')));
+}
+
 // --- Pedidos de fisioterapia ---------------------------------------------
 
 // Pedidos de UM atleta, do mais recente para trás.

@@ -81,6 +81,12 @@ export const state = {
   gameMinutes: [],      // minutos de jogo por atleta
   availability: [],     // disponibilidade do atleta (resumo p/ treinador)
   physioRequests: [],   // pedidos de fisioterapia (treinador -> fisio)
+  // Os atendimentos DA PRÓPRIA atleta, lidos pela RPC `my_physio_appointments`
+  // e não de `physio_appointments`: o RLS clínico não lhe dá a tabela, e a
+  // linha traz as notas da fisio — o que se lhe entrega é o compromisso
+  // (quando, onde), nunca a leitura clínica. Vive à parte de `appointments`
+  // de propósito: são duas coisas com o mesmo nome e donos diferentes.
+  myAppointments: [],
   // A migração `pedidos-fisioterapia.sql` já correu? Sem a tabela não há onde
   // gravar um pedido — e um botão que dá erro é pior do que botão nenhum. É a
   // mesma linha do `birthDateReady()`.
@@ -168,6 +174,7 @@ export function resetState() {
   state.availability = [];
   state.physioRequests = [];
   state.physioRequestsReady = true;
+  state.myAppointments = [];
   state.trainingPlans = [];
   state.trainingPlanItems = [];
   state.trainingEvaluations = [];
@@ -581,9 +588,24 @@ export async function loadAll() {
   await loadArchived();
   await loadInvitations();
   await loadPlans();
+  // Depois do perfil: a RPC lê a ficha ligada à conta, e só ao atleta
+  // interessa (aos restantes papéis devolve vazio, que é o correto — a agenda
+  // clínica deles vem de `physio_appointments`).
+  await loadMyAppointments();
 
   state.loaded = true;
   notify();
+}
+
+// Os atendimentos da própria atleta. Vai pela RPC e não pela tabela: o RLS
+// clínico (`med_rw`) não lhe dá `physio_appointments`, e abrir-lho por uma
+// política entregava-lhe também as notas da fisio — uma política é por LINHA
+// e não por coluna. Sem a migração `atendimentos-atleta.sql` a chamada falha
+// e o portal segue sem a secção, em vez de não arrancar.
+export async function loadMyAppointments() {
+  if (state.profile?.role !== 'atleta') { state.myAppointments = []; return; }
+  const { data, error } = await supabase.rpc('my_physio_appointments');
+  state.myAppointments = error ? [] : (data || []);
 }
 
 // Carrega os planos de subscrição da BD. Se a tabela ainda não existir (o

@@ -40,6 +40,7 @@ import {
   playerOrder,
   playerDataGaps,
   playerPhotoReady,
+  myUpcomingAppointments,
 } from '../compute.js';
 import {
   EVENT_TYPE_LABEL,
@@ -158,6 +159,7 @@ export function renderPortal(container) {
     ${heroHTML(me, team, availability)}
     ${dadosHTML(me)}
     ${nextUpHTML(next, me)}
+    ${physioHTML()}
     ${orderHTML(playerOrder(me.id))}
 
     <div class="cal-toggle section-tabs portal-tabs" role="tablist" aria-label="Áreas da minha página">
@@ -178,6 +180,50 @@ export function renderPortal(container) {
 
   wire(container, me, team);
   hydratePhotos(container);
+}
+
+// --- A minha fisioterapia -------------------------------------------------
+//
+// Até aqui, no circuito da fisioterapia, toda a gente sabia de tudo menos a
+// pessoa de quem se estava a falar: o treinador via o pedido que fez e a data
+// marcada, a fisio via a fila — e aqui havia um crachá a dizer "Em
+// recuperação" e mais nada. O dia da consulta chegava-lhe por alguém lho
+// dizer no balneário, que é a razão de metade das faltas.
+//
+// Fica logo a seguir ao "A seguir" e ACIMA dos separadores, pela mesma razão
+// que o pôs ali: é um compromisso com hora e sítio, e um compromisso não se
+// esconde atrás de um separador. Desaparece sozinho quando não há nenhum —
+// não é um aviso permanente.
+//
+// Mostra o COMPROMISSO e nada mais. O que a fisio escreveu sobre ela — o que
+// suspeita, o que vai fazer — fica onde está: é a leitura clínica dela, feita
+// para ela, e no telemóvel, sem ninguém ao lado para a explicar, lê-se como um
+// diagnóstico. O que chega aqui é o que a atleta precisa para lá estar.
+function physioHTML() {
+  const proximos = myUpcomingAppointments();
+  if (!proximos.length) return '';
+
+  const linha = (a) => {
+    const dt = new Date(`${a.ap_date}T${(a.ap_time || '00:00').slice(0, 5)}`);
+    const horas = a.ap_time
+      ? esc(a.ap_time.slice(0, 5)) + (a.end_time ? '–' + esc(a.end_time.slice(0, 5)) : '')
+      : '';
+    return `
+      <li class="portal-fisio__item">
+        <span class="portal-fisio__when">
+          <strong>${esc(relativeDay(dt))}</strong>${horas ? ` · ${horas}` : ''}
+        </span>
+        ${a.location ? `<span class="portal-fisio__where">${esc(a.location)}</span>` : ''}
+      </li>`;
+  };
+
+  return `
+    <section class="card portal-next portal-fisio">
+      <span class="portal-next__label">Fisioterapia</span>
+      <ul class="portal-fisio__list">${proximos.slice(0, 3).map(linha).join('')}</ul>
+      <p class="portal-fisio__note">Se não puderes ir, avisa o teu treinador.</p>
+    </section>
+  `;
 }
 
 // --- A ficha por completar -----------------------------------------------
