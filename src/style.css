@@ -4318,6 +4318,13 @@ button.stat-strip__item--nav:hover {
   justify-content: space-between;
   gap: 0.6rem;
   margin-bottom: 0.4rem;
+  /* Quebra de linha: esta cabeça vive também na coluna estreita do Painel
+     (360px), onde "Não estão a 100%" e o botão ao lado não cabem na mesma
+     linha e empurravam o cartão para fora. */
+  flex-wrap: wrap;
+}
+.cf-section-head > .section-title {
+  margin-bottom: 0;
 }
 
 /* Episódios clínicos */
