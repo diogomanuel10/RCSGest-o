@@ -382,6 +382,11 @@ export function openAppointmentForm({ playerId, episodeId, appointment, context,
       </div>
       <p class="muted" style="margin-top:0">${esc(player?.name || '')}</p>
       ${context ? `<p class="modal__intro muted">${esc(context)}</p>` : ''}
+      ${player && !player.user_id ? `
+        <p class="modal__intro muted">
+          Sem conta ligada ao portal: o aviso com o dia e a hora não lhe chega.
+          Combina o atendimento com ela ou com o treinador.
+        </p>` : ''}
 
       <div class="field-grid">
         <div class="field">

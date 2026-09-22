@@ -307,6 +307,7 @@ supabase/convites-massa.sql    Convites de atleta em lote (RPC create_invitation
 supabase/convocatoria-simples.sql Convocatória só com convocado/não convocado
 supabase/musculacao.sql        Sessões de musculação: evento com o plantel escolhido (event_players)
 supabase/pedidos-fisioterapia.sql Pedidos de fisioterapia (treinador -> fisio) + triagem
+supabase/atendimentos-atleta.sql A atleta vê o SEU atendimento de fisioterapia (+ alta)
 supabase/referencias-testes.sql Faixas de referência das avaliações físicas (por teste e sexo)
 supabase/decimais-fisicos.sql  Altura e peso com 2 casas decimais (não arredondar a medição)
 supabase/grupo-whatsapp.sql    Link do grupo de WhatsApp da equipa (guia de entrada)
@@ -2123,6 +2124,42 @@ separador antes de navegar (usado pelos cartões do Painel).
     trabalho a um clique de distância.
   - Sem a migração nada disto aparece (`state.physioRequestsReady`) — é a mesma
     linha do `birthDateReady()`.
+- **A atleta vê o SEU atendimento** (`supabase/atendimentos-atleta.sql`,
+  `physioHTML` em `portal.js`): no circuito da fisioterapia toda a gente sabia
+  de tudo menos a pessoa de quem se estava a falar. O treinador via o pedido
+  que fez e a data marcada, a fisio via a fila — e no portal dela havia um
+  crachá a dizer "Em recuperação" e mais nada. O dia da consulta chegava-lhe
+  por alguém lho dizer no balneário, que é a razão de metade das faltas.
+  - **O compromisso não é dado clínico.** O que se entrega é quando, onde e
+    em que estado; o diagnóstico, a evolução e o plano ficam no `med_rw`. A
+    alta chega-lhe como FACTO ("estás apta") e não como relatório: lida num
+    telemóvel, sem ninguém ao lado para a explicar, uma alta clínica assusta
+    mais do que informa.
+  - **Lê-se por RPC (`my_physio_appointments`) e não por política de SELECT**,
+    pela razão que impediu o UPDATE de `players` no portal: uma política é por
+    LINHA e não por coluna, e a linha do atendimento leva as `notes` da fisio.
+    Abrir a linha para lhe dar a hora entregava também o resto. É `security
+    definer`, por isso filtra `org_id` à mão — a regra do `check_in_by_qr`.
+    Vive em `state.myAppointments`, à parte de `state.appointments`: são duas
+    coisas com o mesmo nome e donos diferentes.
+  - **Três avisos e mais nenhum**: marcado, alterado (data/hora/local) e
+    cancelado. Gravar uma nota clínica ou dar o atendimento como realizado não
+    muda nada do lado dela, e um aviso por cada gravação da fisio ensina-a a
+    ignorar o sino. **Nada do passado notifica** — é a regra das notificações
+    de evento — com uma exceção: o **cancelamento avisa sempre**, porque o que
+    ele pede é que ela NÃO apareça.
+  - **A alta é dela primeiro.** O treinador já era avisado
+    (`notify_trainers_clinical_alta`); a atleta, que é quem quer ouvir a
+    notícia, era a única do circuito a quem ela não chegava.
+  - **O cartão vive ACIMA dos separadores**, a seguir ao "A seguir": é um
+    compromisso com hora e sítio, e um compromisso não se esconde atrás de um
+    separador. Desaparece sozinho quando não há nenhum. A barra é `--ok` e não
+    `--warn`: isto é cuidado, não é problema — a linha da disponibilidade lá em
+    cima já diz, quando é preciso, que ela não está a 100%.
+  - **Quando o aviso NÃO vai chegar, diz-se a quem marca**: sem conta ligada à
+    ficha não há a quem notificar, e o formulário de atendimento avisa a fisio
+    disso em vez de a deixar a contar com uma notificação que não sai. É a
+    mesma honestidade do número que o `send_team_announcement` devolve.
 - **Departamento Médico / Fisioterapia**: processo clínico digital do atleta.
   - `clinical_episodes` — episódios clínicos (ex.: lesões) com `status`
     (`ativo|recuperacao|alta`), avaliação inicial, diagnóstico funcional, plano

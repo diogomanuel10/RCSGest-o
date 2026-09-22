@@ -6944,6 +6944,36 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 }
 .portal-next--vazio .portal-next__title { color: var(--text-muted); }
 
+/* A fisioterapia da atleta. Usa a moldura do "A seguir" — é um compromisso
+   com hora e sítio, e lê-se da mesma maneira — com a barra em `--ok`: é
+   cuidado, não é problema. A linha da disponibilidade lá em cima já diz, se
+   for preciso, que ela não está a 100%; este cartão diz que alguém está a
+   tratar disso. */
+.portal-fisio { border-left-color: var(--ok); }
+.portal-fisio__list {
+  list-style: none;
+  margin: 0.35rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.portal-fisio__when {
+  display: block;
+  font-size: 1.05rem;
+}
+.portal-fisio__when strong { font-weight: 700; }
+.portal-fisio__where {
+  display: block;
+  font-size: var(--portal-note);
+  color: var(--text-muted);
+}
+.portal-fisio__note {
+  margin: 0.5rem 0 0;
+  font-size: var(--portal-note);
+  color: var(--text-muted);
+}
+
 .portal-tabs { margin-bottom: 1rem; }
 
 /* --- Secções dentro de um separador --- */
