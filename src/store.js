@@ -38,6 +38,7 @@ const ENTITY_LABEL = {
   tactical_scenarios: 'Cenário',
   exercises: 'Exercício',
   equipment_requests: 'Pedido',
+  physio_requests: 'Pedido de fisioterapia',
 };
 
 // Etiquetas femininas — o particípio concorda em género («Equipa guardada»).
@@ -79,6 +80,11 @@ export const state = {
   gymAttendance: [],    // presenças nos treinos de ginásio
   gameMinutes: [],      // minutos de jogo por atleta
   availability: [],     // disponibilidade do atleta (resumo p/ treinador)
+  physioRequests: [],   // pedidos de fisioterapia (treinador -> fisio)
+  // A migração `pedidos-fisioterapia.sql` já correu? Sem a tabela não há onde
+  // gravar um pedido — e um botão que dá erro é pior do que botão nenhum. É a
+  // mesma linha do `birthDateReady()`.
+  physioRequestsReady: true,
   trainingPlans: [],      // planos de treino (1:1 com evento treino)
   trainingPlanItems: [],  // tarefas/blocos de cada plano
   trainingEvaluations: [], // avaliações pós treino (1:1 com evento treino)
@@ -160,6 +166,8 @@ export function resetState() {
   state.gymAttendance = [];
   state.gameMinutes = [];
   state.availability = [];
+  state.physioRequests = [];
+  state.physioRequestsReady = true;
   state.trainingPlans = [];
   state.trainingPlanItems = [];
   state.trainingEvaluations = [];
@@ -404,7 +412,8 @@ export async function loadAll() {
          trainingPlans, trainingPlanItems, trainingEvaluations, trainingPlayerEvals,
          playerDocuments, playerSizes, squads, squadPlayers, financialEntries, gamePlans, objectives,
          eventResponses, gameResults, gameSets, tacticalScenarios, tacticalAnswers, exercises,
-         equipmentRequests, requestFlowProbe, sizesConfirmProbe, eventPlayers, testReferences] =
+         equipmentRequests, requestFlowProbe, sizesConfirmProbe, eventPlayers, testReferences,
+         physioRequests] =
     await Promise.all([
       // Multi-tenant: o RLS limita as definições ao clube do utilizador, por
       // isso não filtramos por id — devolve a (única) linha do clube atual.
@@ -481,6 +490,9 @@ export async function loadAll() {
       // Faixas de referência das avaliações físicas. Tolerante à migração
       // `referencias-testes.sql` em falta (ver abaixo).
       supabase.from('test_references').select('*'),
+      // Pedidos de fisioterapia (o treinador avisa, a fisio tria). Tolerante
+      // à migração `pedidos-fisioterapia.sql` em falta (ver abaixo).
+      supabase.from('physio_requests').select('*').order('created_at', { ascending: false }),
     ]);
 
   for (const res of [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects, episodes, sessions, appointments,
@@ -554,6 +566,12 @@ export async function loadAll() {
   state.equipmentRequestsReady = !equipmentRequests.error;
   state.requestFlowReady = !equipmentRequests.error && !requestFlowProbe.error;
   state.sizesConfirmReady = !sizesConfirmProbe.error;
+  // Sem `pedidos-fisioterapia.sql` a fila fica vazia e os ecrãs avisam quem
+  // pode resolver, em vez de impedir a app de arrancar. Para os papéis sem
+  // acesso (o RLS fecha isto ao Departamento Médico e a quem pede) vem uma
+  // lista vazia, sem erro — é seguro consultar.
+  state.physioRequests = physioRequests.error ? [] : (physioRequests.data || []);
+  state.physioRequestsReady = !physioRequests.error;
 
   // Coerência da cache: com pais arquivados (ex.: uma equipa), os filhos que os
   // referenciam não devem aparecer nos ecrãs ativos.
@@ -648,6 +666,10 @@ function pruneOrphans() {
   state.playerSizes = state.playerSizes.filter((s) => playerIds.has(s.player_id));
   // Pedidos de equipamento: só de atletas ativos.
   state.equipmentRequests = state.equipmentRequests.filter((r) => playerIds.has(r.player_id));
+  // Pedidos de fisioterapia: só de atletas ativos. Um pedido sobre uma atleta
+  // arquivada a meio da época ficava na fila da fisio para sempre, sobre
+  // alguém que já não está no clube.
+  state.physioRequests = state.physioRequests.filter((r) => playerIds.has(r.player_id));
 
   // Convocatórias: só para jogos ativos e atletas ativos.
   state.squads = state.squads.filter((s) => eventIds.has(s.event_id));
@@ -1295,6 +1317,8 @@ function cleanupPlayerClinical(playerId) {
   state.availability = state.availability.filter((a) => a.player_id !== playerId);
   // Pedidos de equipamento do atleta apagado (cascade na BD).
   state.equipmentRequests = state.equipmentRequests.filter((r) => r.player_id !== playerId);
+  // Pedidos de fisioterapia do atleta apagado (cascade na BD).
+  state.physioRequests = state.physioRequests.filter((r) => r.player_id !== playerId);
 }
 
 // Arquiva (soft-delete) um registo: marca-o como inativo em vez de apagar, para
@@ -1410,6 +1434,15 @@ export async function deleteRow(table, collection, id) {
     state.clinicalSessions = state.clinicalSessions.filter((s) => s.episode_id !== id);
     state.appointments.forEach((a) => {
       if (a.episode_id === id) a.episode_id = null;
+    });
+  }
+  // Apagar um atendimento liberta o pedido de fisioterapia que o marcou
+  // (appointment_id -> null na BD). Sem isto a cache continuava a apontar
+  // para um atendimento que já não existe, e o pedido dizia "marcado" sobre
+  // uma marcação que desapareceu — a saída é "Devolver à fila".
+  if (collection === 'appointments') {
+    state.physioRequests.forEach((r) => {
+      if (r.appointment_id === id) r.appointment_id = null;
     });
   }
   // Apagar um treino de ginásio leva os exercícios e as presenças (cascade).
@@ -1968,6 +2001,41 @@ export async function decideEquipmentRequest(id, status, note = null) {
   };
   if (note != null) payload.decision_note = note.trim() || null;
   return updateRow('equipment_requests', 'equipmentRequests', id, payload);
+}
+
+// --- Pedidos de fisioterapia ---------------------------------------------
+//
+// O treinador avisa, a fisio tria. `requested_by` é obrigatório do lado do
+// servidor (a política de INSERT exige `= auth.uid()`): é ele que decide, mais
+// tarde, quem recebe a resposta e quem pode corrigir o pedido.
+export async function createPhysioRequest(values) {
+  return createRow('physio_requests', 'physioRequests', {
+    ...values,
+    requested_by: state.profile?.id || null,
+  });
+}
+
+// Tria um pedido: agenda-o (com o atendimento marcado), devolve-o com motivo
+// ou fecha-o à mão. Guarda quem triou e quando — um pedido que muda de estado
+// sozinho, sem dono nem data, não responde à única pergunta que se lhe faz um
+// mês depois: "quem viu isto?". O servidor recusa a escrita a quem pediu
+// (trigger `guard_physio_triage`).
+//
+// A `triage_note` só se escreve quando vem alguma: fechar um pedido não pode
+// apagar o motivo escrito noutra paragem.
+export async function triagePhysioRequest(id, status, { note = null, appointmentId, episodeId } = {}) {
+  const payload = {
+    status,
+    triaged_by: state.profile?.id || null,
+    triaged_at: new Date().toISOString(),
+  };
+  if (note != null) payload.triage_note = note.trim() || null;
+  if (appointmentId !== undefined) payload.appointment_id = appointmentId;
+  // O episódio só viaja quando o atendimento traz um: a fisio pode marcar sem
+  // abrir episódio nenhum, e nesse caso escrever `null` por cima apagaria o
+  // que ela ligou antes.
+  if (episodeId) payload.episode_id = episodeId;
+  return updateRow('physio_requests', 'physioRequests', id, payload);
 }
 
 // Marca (ou desmarca) o pedido como pago. É uma quitação e não um lançamento

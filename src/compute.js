@@ -10,6 +10,7 @@ import {
   DEFAULT_EQUIPMENT_ARTICLES,
   isPickedEvent,
   TEST_REFERENCES, TEST_REFERENCE_LEVELS,
+  PHYSIO_REQUEST_OPEN, PHYSIO_TRAINING_ORDER,
 } from './constants.js';
 
 // Tipos de documento que deviam ter data de validade (exame médico, seguro…).
@@ -1471,6 +1472,35 @@ export function upcomingAppointments(limit = 8) {
     .filter((a) => a.status === 'agendado' && apptDateTime(a) >= now)
     .sort((a, b) => apptDateTime(a) - apptDateTime(b))
     .slice(0, limit);
+}
+
+// --- Pedidos de fisioterapia ---------------------------------------------
+
+// Pedidos de UM atleta, do mais recente para trás.
+export function playerPhysioRequests(playerId) {
+  return state.physioRequests
+    .filter((r) => r.player_id === playerId)
+    .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+}
+
+// O pedido ainda vivo de um atleta (por triar ou já agendado), se houver.
+// É o que impede o treinador de pedir duas vezes a mesma coisa: sem isto, uma
+// queixa que demora duas semanas a resolver-se acaba com três pedidos iguais
+// na fila, e a fisio passa a triar duplicados em vez de atletas.
+export function openPhysioRequest(playerId) {
+  return playerPhysioRequests(playerId).find((r) => PHYSIO_REQUEST_OPEN.includes(r.status)) || null;
+}
+
+// A fila da triagem: o que está por ver, com quem está parado à frente. A
+// data de entrada desempata — entre duas atletas paradas, a que espera há
+// mais tempo vai primeiro.
+export function pendingPhysioRequests() {
+  return state.physioRequests
+    .filter((r) => r.status === 'novo')
+    .sort((a, b) =>
+      (PHYSIO_TRAINING_ORDER[a.training] ?? 9) - (PHYSIO_TRAINING_ORDER[b.training] ?? 9)
+      || String(a.created_at || '').localeCompare(String(b.created_at || ''))
+    );
 }
 
 // Deteta treinos/jogos da equipa do atleta que se sobrepõem ao intervalo de um

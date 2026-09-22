@@ -16,6 +16,7 @@ import {
   playerAvailability,
 } from '../compute.js';
 import { openModal, confirmDialog, wireDialog } from '../modal.js';
+import { renderPhysioRequestsInto } from './physio-requests.js';
 import {
   EPISODE_STATUSES,
   EPISODE_STATUS_LABEL,
@@ -61,6 +62,11 @@ export function renderClinicalInto(container, playerId, { editable } = {}) {
       ${av?.limitations ? `<div class="pd-notes"><span class="pd-label">Limitações ao treino</span><p>${esc(av.limitations)}</p></div>` : ''}
     </div>
 
+    <!-- O que o treinador avisou. Fica ACIMA da história clínica porque é a
+         razão por que esta ficha está aberta: quem chega aqui pela fila ou
+         pelo Painel tem de ler a queixa antes de decidir o que fazer com ela. -->
+    <div id="cf-pedidos"></div>
+
     <div class="pd-section">
       <div class="cf-section-head">
         <span class="pd-label">História clínica</span>
@@ -95,6 +101,9 @@ export function renderClinicalInto(container, playerId, { editable } = {}) {
         : '<p class="muted" style="margin:0.3rem 0 0">Sem atendimentos marcados.</p>'}
     </div>
   `;
+
+  const pedidosEl = container.querySelector('#cf-pedidos');
+  if (pedidosEl) renderPhysioRequestsInto(pedidosEl, playerId);
 
   // Expande/colapsa episódios localmente (sem perder estado entre re-render
   // não é crítico aqui — todos começam abertos).
@@ -350,7 +359,11 @@ function openSessionForm({ episodeId, onSaved }) {
 }
 
 // Formulário de atendimento, com aviso de conflito com treinos/jogos da equipa.
-export function openAppointmentForm({ playerId, episodeId, appointment, onSaved }) {
+// `context` é uma frase que viaja com o formulário — hoje, a queixa que o
+// treinador escreveu no pedido que se está a agendar. Sem ela, a fisio
+// escolhia a data com o motivo fora do ecrã, que é precisamente o que decide
+// se aquilo é para amanhã ou para a semana que vem.
+export function openAppointmentForm({ playerId, episodeId, appointment, context, onSaved }) {
   const existing = appointment || null;
   const player = state.players.find((p) => p.id === playerId);
   const episodes = playerEpisodes(playerId);
@@ -368,6 +381,7 @@ export function openAppointmentForm({ playerId, episodeId, appointment, onSaved 
         <button class="modal__close" type="button" aria-label="Fechar">&times;</button>
       </div>
       <p class="muted" style="margin-top:0">${esc(player?.name || '')}</p>
+      ${context ? `<p class="modal__intro muted">${esc(context)}</p>` : ''}
 
       <div class="field-grid">
         <div class="field">
@@ -468,10 +482,14 @@ export function openAppointmentForm({ playerId, episodeId, appointment, onSaved 
     btn.disabled = true;
     btn.textContent = 'A guardar…';
     try {
-      if (existing) await updateRow('physio_appointments', 'appointments', existing.id, payload);
-      else await createRow('physio_appointments', 'appointments', payload);
+      // O atendimento gravado viaja para quem abriu o formulário: quem o abriu
+      // a partir de um pedido de fisioterapia precisa do id para lhe ligar o
+      // pedido, e sem isso teria de o ir procurar à cache pela data.
+      const saved = existing
+        ? await updateRow('physio_appointments', 'appointments', existing.id, payload)
+        : await createRow('physio_appointments', 'appointments', payload);
       close();
-      onSaved?.();
+      onSaved?.(saved);
     } catch (err) {
       errEl.textContent = dbErrorMessage(err);
       errEl.classList.remove('hidden');

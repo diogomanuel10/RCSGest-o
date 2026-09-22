@@ -282,7 +282,8 @@ src/
     athlete-profile.js  Perfil do Atleta (modal unificado com separadores)
     avaliacao.js        Vista Avaliação de plantel (Mantém/Sai/Pendente)
     saude.js            Vista Saúde & Física (orquestra Médico + Prep. Física)
-    medico.js           Separador Fisioterapia (atletas + agenda + histórico de lesões)
+    medico.js           Separador Fisioterapia (atletas + pedidos + agenda + histórico)
+    physio-requests.js  Pedidos de fisioterapia (o treinador avisa, a fisio tria)
     clinical-file.js    Área de Fisioterapia do perfil (episódios, sessões, atendimentos)
     preparacao.js       Separador Prep. física (atletas + musculação + periodização + mapa de jogos)
     physical-file.js    Área de Prep. física do perfil (dados físicos, avaliações, controlo)
@@ -305,6 +306,7 @@ supabase/qrcode-presencas.sql  Presenças por QR: token do atleta + RPCs de chec
 supabase/convites-massa.sql    Convites de atleta em lote (RPC create_invitations_bulk)
 supabase/convocatoria-simples.sql Convocatória só com convocado/não convocado
 supabase/musculacao.sql        Sessões de musculação: evento com o plantel escolhido (event_players)
+supabase/pedidos-fisioterapia.sql Pedidos de fisioterapia (treinador -> fisio) + triagem
 supabase/referencias-testes.sql Faixas de referência das avaliações físicas (por teste e sexo)
 supabase/decimais-fisicos.sql  Altura e peso com 2 casas decimais (não arredondar a medição)
 supabase/grupo-whatsapp.sql    Link do grupo de WhatsApp da equipa (guia de entrada)
@@ -2033,6 +2035,72 @@ separador antes de navegar (usado pelos cartões do Painel).
     ou `canAccess('fisica')` as secções nem são construídas. Imprimir não pode
     ser uma porta lateral para dados reservados.
   - São chunks à parte, carregados só quando alguém pede o relatório.
+- **Pedidos de fisioterapia** (`supabase/pedidos-fisioterapia.sql`,
+  `views/physio-requests.js`): a app sabia dizer ao treinador o que a fisio
+  decidiu — a disponibilidade do atleta, no perfil — e não sabia dizer à fisio
+  o que o treinador viu. "A Rita queixa-se do ombro" saía da app para o
+  WhatsApp, onde não há fila, não há estado e não há resposta: quem avisou
+  nunca soube se alguém viu, e quem trata não tinha lista nenhuma para
+  trabalhar. É o mesmo buraco que os Pedidos de equipamento taparam do outro
+  lado do clube, e o desenho é o mesmo.
+  - **Quem PEDE não é quem TRIA.** O treinador avisa (nas suas equipas) e o
+    coordenador também — em metade dos clubes é ele quem trata do plantel. A
+    fisio decide. Não é separação de UI: a política de UPDATE deixa o treinador
+    corrigir o SEU pedido enquanto ninguém lhe pegou, e era isso, sozinho, que
+    lhe deixava escrever `status='agendado'` e apontar para um atendimento —
+    o trigger `guard_physio_triage` fecha-o, na lógica do
+    `guard_request_decision`.
+  - **A ATLETA não pede.** Tudo o que seja uma queixa passa pelo treinador, que
+    é quem a vê treinar. A regra dos equipamentos ("quem veste a roupa é quem
+    sabe que ela não serve") não se transporta para aqui: uma queixa de saúde
+    escrita por uma miúda de catorze anos, sem ninguém por perto, é outra coisa
+    — e o treinador está no pavilhão com ela.
+  - **Não há campo de prioridade.** A prioridade real é a data que a fisio
+    marca, e um campo à parte seria um segundo dono do mesmo dado. O que o
+    treinador declara é um FACTO que observa — se a atleta treina, treina
+    limitada ou está parada (`training`) — e é isso que ordena a fila, com a
+    data de entrada a desempatar.
+  - **Três perguntas e mais nenhuma** (o que se passa, desde quando, como está
+    a treinar). Quem preenche isto está no pavilhão, no telemóvel, com o treino
+    a decorrer: um formulário com zona do corpo, tipo de dor e escala de 1 a 10
+    responde-se ao calhas, e uma queixa classificada ao calhas ajuda a decidir
+    menos do que uma frase escrita por quem viu. O diagnóstico é da fisio, e
+    o formulário di-lo.
+  - **Um pedido vivo por atleta**: sem isso, uma queixa que demora duas semanas
+    a resolver-se acaba com três pedidos iguais na fila, e a fisio passa a
+    triar duplicados em vez de atletas.
+  - **Agendar é marcar o atendimento** — não há um segundo ecrã de agenda,
+    porque a agenda já é a agenda. A triagem abre o `openAppointmentForm` que
+    já existia, com o atleta escolhido, e liga o pedido ao que sair de lá.
+    Quando o atendimento passa a "realizado", o pedido **fecha-se sozinho**
+    (trigger): um segundo passo manual para dizer a mesma coisa é um passo que
+    se esquece, e a fila enche-se de pedidos já resolvidos até deixar de ser
+    lida. "Devolver à fila" é a saída para o atendimento cancelado — sem ela,
+    um pedido agendado cujo atendimento desapareceu ficava agendado para
+    sempre, fora da fila e sem ninguém a olhar para ele.
+  - **Dispensar PEDE motivo**, como a recusa de um equipamento: um pedido
+    devolvido em silêncio volta como o mesmo pedido na semana seguinte e, pior,
+    ensina o treinador a não voltar a pedir — que é como isto volta todo para o
+    telemóvel. Por isso há notificação nos dois sentidos.
+  - **O pedido NÃO é dado clínico; o que nasce dele é.** É o que o treinador
+    viu, escrito por quem não é clínico — e o episódio, o diagnóstico e o plano
+    continuam reservados ao `med_rw`, com a fisio a decidir se existem (o
+    `episode_id` do pedido nasce sempre nulo). A leitura fica-se pelo autor (as
+    suas equipas), pela fisio e pelo coordenador: a direção, o seccionista e o
+    leitura ficam de fora de propósito, porque uma lista que toda a gente vê
+    deixa de ser um sítio onde se escreve o que a Rita tem no ombro.
+  - **A notificação não leva a queixa.** O corpo diz o nome e como a atleta
+    está a treinar, e nada mais: uma notificação aparece no ecrã bloqueado de
+    um telemóvel, muitas vezes à frente de outras pessoas. Quem a abre está na
+    app, autenticado, e lê o pedido inteiro.
+  - **O pedido aparece onde se trabalha**: na ficha do atleta (acima da
+    história clínica — é a razão por que aquela ficha está aberta), no
+    separador Pedidos do Departamento Médico com o contador dos que faltam
+    triar, e no Painel da fisio, onde quem está PARADO entra no degrau `agora`.
+    Na ficha, quem tem o separador Fisioterapia não o vê também no Geral: o
+    mesmo bloco duas vezes no mesmo ecrã lê-se como dois pedidos.
+  - Sem a migração nada disto aparece (`state.physioRequestsReady`) — é a mesma
+    linha do `birthDateReady()`.
 - **Departamento Médico / Fisioterapia**: processo clínico digital do atleta.
   - `clinical_episodes` — episódios clínicos (ex.: lesões) com `status`
     (`ativo|recuperacao|alta`), avaliação inicial, diagnóstico funcional, plano
