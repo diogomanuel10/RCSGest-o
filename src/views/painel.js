@@ -23,6 +23,8 @@ import {
   injuredCount,
   upcomingAppointments,
   pendingPhysioRequests,
+  myOpenPhysioRequests,
+  clubHasFisio,
   apptDateTime,
   appointmentConflicts,
   activeEpisode,
@@ -57,9 +59,11 @@ import {
   EPISODE_STATUS_BADGE,
   PLAYER_DATA_LABEL,
   PHYSIO_TRAINING_LABEL,
+  PHYSIO_REQUEST_STATUS_LABEL,
+  PHYSIO_REQUEST_STATUS_BADGE,
 } from '../constants.js';
 import {
-  canEdit, canAccess, canDecideRequests, isFisio, isPreparador, isTreinador,
+  canEdit, canAccess, canDecideRequests, canTriagePhysio, isFisio, isPreparador, isTreinador,
   canManageUsers, canManageSettings,
 } from '../permissions.js';
 import { openQuickAttendance } from './presencas.js';
@@ -67,6 +71,8 @@ import { openTrainingPlan } from './training-plan.js';
 import { openEventForm, openRecurrentTrainings } from './calendario.js';
 import { openSponsorForm } from './patrocinios.js';
 import { openFinanceiroTab } from './financeiro.js';
+import { openSaudeTab } from './saude.js';
+import { openMedicoTab } from './medico.js';
 import { openAthleteProfile } from './athlete-profile.js';
 import { wireDialog } from '../modal.js';
 import { setSelectedEvent } from './presencas.js';
@@ -237,6 +243,9 @@ export function renderPainel(container) {
       if (el.dataset.plan) openSeasonPlanning();
       // Escolher o separador ANTES de navegar: a secção lê-o ao desenhar.
       if (el.dataset.finTabOpen) openFinanceiroTab(el.dataset.finTabOpen);
+      // A fila de triagem vive num separador do Departamento Médico: sem isto
+      // o aviso largava quem tria na lista de atletas, a um clique do trabalho.
+      if (el.dataset.medTabOpen) { openSaudeTab('medico'); openMedicoTab(el.dataset.medTabOpen); }
       navTo(el.dataset.nav);
     });
   });
@@ -589,6 +598,8 @@ export const ALERT_CATALOG = [
   { key: 'recrutamento',    label: 'Prospetos prontos a inscrever',  can: () => canEdit('prospects') },
   { key: 'equipamentos',    label: 'Equipamento em mau estado',      can: () => canEdit('equipment') },
   { key: 'pedidos_equipamento', label: 'Pedidos de equipamento por decidir', can: () => canDecideRequests() },
+  // Só a quem a fila é mesmo: ver `clubHasFisio` no corpo do aviso.
+  { key: 'pedidos_fisio',   label: 'Pedidos de fisioterapia por triar', can: () => canTriagePhysio() },
   { key: 'objetivos',       label: 'Objetivos em risco',             can: () => canAccess('objetivos') },
   { key: 'gap_treino_jogo', label: 'Treina muito, joga pouco',       can: () => canAccess('planteis') },
   { key: 'queda_presencas', label: 'Quedas de comparência',          can: () => canAccess('presencas') },
@@ -748,6 +759,26 @@ function buildActions({ includePresencas = false } = {}) {
   // Pedidos de equipamento à espera de decisão. É "agora" porque do outro lado
   // está uma pessoa à espera — e um pedido esquecido ensina o treinador (ou a
   // atleta) a não voltar a pedir, que é o que o módulo veio resolver.
+  // Pedidos de fisioterapia por triar. No painel do coordenador só aparecem
+  // quando o clube NÃO tem fisioterapeuta com conta — nesse caso é ele quem
+  // tria, e sem isto a fila ficava num separador que ninguém abre. Com fisio,
+  // a fila é dela (e está no painel dela): dá-la também ao coordenador era
+  // pôr-lhe o trabalho de outra pessoa à frente todos os dias.
+  if (canTriagePhysio() && !clubHasFisio() && alertOn('pedidos_fisio')) {
+    const fila = pendingPhysioRequests();
+    if (fila.length) {
+      const parados = fila.filter((r) => r.training === 'parada').length;
+      items.push({
+        urgency: parados ? 'agora' : 'semana',
+        variant: parados ? 'danger' : 'warn',
+        route: 'saude',
+        medTab: 'pedidos',
+        title: `${fila.length} pedido${fila.length === 1 ? '' : 's'} de fisioterapia por triar`,
+        sub: parados ? `${parados} com a atleta parada` : '',
+      });
+    }
+  }
+
   if (canDecideRequests() && alertOn('pedidos_equipamento')) {
     const n = state.equipmentRequests.filter((r) => r.status === 'pendente').length;
     if (n > 0) {
@@ -1087,6 +1118,7 @@ function collapseFamilies(items) {
       group: fam,
       route: lead.route,
       finTab: lead.finTab,
+      medTab: lead.medTab,
       title: titulo,
       sub: nomes.length
         ? `${nomes.slice(0, 4).join(', ')}${nomes.length > 4 ? ` e mais ${nomes.length - 4}` : ''}`
@@ -1134,6 +1166,9 @@ function wireWorkTargets(root, { tab = 'geral', includeNav = false, before = nul
     el.addEventListener('click', () => go(() => {
       if (el.dataset.plan) openSeasonPlanning();
       if (el.dataset.finTabOpen) openFinanceiroTab(el.dataset.finTabOpen);
+      // A fila de triagem vive num separador do Departamento Médico: sem isto
+      // o aviso largava quem tria na lista de atletas, a um clique do trabalho.
+      if (el.dataset.medTabOpen) { openSaudeTab('medico'); openMedicoTab(el.dataset.medTabOpen); }
       navTo(el.dataset.nav);
     }))
   );
@@ -1195,7 +1230,7 @@ function actionTarget({ group, docAthlete, athlete, tab, event, route }) {
 }
 
 function actionItem(item) {
-  const { variant, title, sub, plan, finTab } = item;
+  const { variant, title, sub, plan, finTab, medTab } = item;
   const target = actionTarget(item);
   // O subtítulo só existe quando traz DADO — nomes, datas, valores. Metade
   // deles dizia o procedimento ("Aprovar, entregar ou recusar — abrir
@@ -1206,7 +1241,8 @@ function actionItem(item) {
     <li>
       <button class="alert-item alert-item--${variant} alert-item--nav${sub ? '' : ' alert-item--slim'}" ${target}${
         plan ? ' data-plan="1"' : ''
-      }${finTab ? ` data-fin-tab-open="${finTab}"` : ''} type="button">
+      }${finTab ? ` data-fin-tab-open="${finTab}"` : ''}${
+        medTab ? ` data-med-tab-open="${medTab}"` : ''} type="button">
         <span class="alert-item__dot" aria-hidden="true"></span>
         <span class="alert-item__text">
           <strong class="alert-item__title">${esc(title)}</strong>
@@ -1788,10 +1824,7 @@ function renderTreinadorPainel(container) {
           <ul class="mark-list">${today.map((e) => coachTodayRow(e, !!sharedLocation(today))).join('')}</ul>
         </section>` : ''}
 
-        ${limitados.length ? `<section class="card">
-          <h2 class="section-title upcoming-card__title">Não estão a 100%</h2>
-          <ul class="today-list">${limitados.slice(0, 8).map(limitedRow).join('')}</ul>
-        </section>` : ''}
+        ${healthCard(limitados)}
 
         <section class="card">
           <h2 class="section-title upcoming-card__title">Próximos eventos</h2>
@@ -1949,10 +1982,83 @@ function resultRow(ev) {
   `;
 }
 
-// Linha de "Não estão a 100%". Abre a ficha do atleta (separador Geral) — o
-// treinador vê o resumo da disponibilidade e as limitações, nunca o detalhe
-// clínico.
-function limitedRow({ player, av }) {
+// "Quem não está a 100%" passou a responder à pergunta inteira. Mostrava só o
+// que a FISIO tinha escrito (a disponibilidade), e por isso a atleta que o
+// treinador acabou de avisar não aparecia em lado nenhum: fica "apta" até
+// alguém lhe tocar, e do lado dele o pedido desaparecia no momento em que era
+// enviado. As duas listas são a mesma lista — quem não está bem — vistas de
+// pontas diferentes.
+//
+// O botão de pedir vive aqui, e não no cabeçalho do painel: é ao olhar para
+// esta lista que se repara em quem falta avisar. O cartão fica mesmo quando
+// não há ninguém — é a coluna de consulta, onde os cartões são permanentes, e
+// um botão que só aparece nos dias maus não está lá no dia em que se precisa
+// dele.
+function healthCard(limitados) {
+  const pedidos = state.physioRequestsReady ? myOpenPhysioRequests() : [];
+  const canAsk = canEdit('physio_requests');
+  if (!limitados.length && !pedidos.length && !canAsk) return '';
+
+  // Um atleta com pedido E com disponibilidade tocada aparece UMA vez, na
+  // linha da disponibilidade (que é a informação mais recente sobre ele) com
+  // o estado do pedido ao lado. Duas linhas do mesmo nome liam-se como dois
+  // problemas.
+  const comAviso = new Set(limitados.map((x) => x.player.id));
+  const reqByPlayer = new Map(pedidos.map((x) => [x.player.id, x.request]));
+  const soPedido = pedidos.filter((x) => !comAviso.has(x.player.id));
+
+  const linhas = [
+    ...limitados.slice(0, 8).map((x) => limitedRow(x, reqByPlayer.get(x.player.id))),
+    ...soPedido.slice(0, 8).map(requestedRow),
+  ];
+
+  return `
+    <section class="card">
+      <div class="cf-section-head">
+        <h2 class="section-title upcoming-card__title">Não estão a 100%</h2>
+        ${canAsk ? '<button class="btn btn--ghost btn--sm" id="painel-pedir-fisio" type="button">Pedir fisioterapia</button>' : ''}
+      </div>
+      ${linhas.length
+        ? `<ul class="today-list">${linhas.join('')}</ul>`
+        : '<p class="muted" style="margin:0.3rem 0 0">Está toda a gente disponível.</p>'}
+    </section>
+  `;
+}
+
+// O estado do pedido, para pôr ao lado do nome: "Por triar" ou a data marcada.
+// A data é o que responde à pergunta do treinador — "já foi vista?" — e um
+// crachá a dizer só "Agendado" deixava-a por responder.
+function physioBadge(req) {
+  if (!req) return '';
+  if (req.status === 'agendado') {
+    const ap = state.appointments.find((a) => a.id === req.appointment_id);
+    if (ap?.date) return `<span class="badge badge--info">Fisio ${esc(dataCurta(ap.date))}</span>`;
+  }
+  return `<span class="badge badge--${PHYSIO_REQUEST_STATUS_BADGE[req.status] || 'muted'}">${
+    esc(PHYSIO_REQUEST_STATUS_LABEL[req.status] || req.status)}</span>`;
+}
+
+// Atleta com pedido em curso mas ainda sem disponibilidade tocada: para o
+// treinador, o que interessa é que já avisou e em que ficou.
+function requestedRow({ player, request }) {
+  const team = teamById(player.team_id);
+  return `
+    <li class="today-item today-item--link" data-open-athlete="${player.id}" role="button" tabindex="0">
+      <span class="today-item__time">${physioBadge(request)}</span>
+      <div class="today-item__body">
+        <span class="today-item__title">${esc(player.name)}</span>
+        <span class="muted today-item__meta">${esc([
+          team ? teamName(team) : '',
+          request.complaint,
+        ].filter(Boolean).join(' · '))}</span>
+      </div>
+    </li>
+  `;
+}
+
+// Abre a ficha do atleta (separador Geral) — o treinador vê o resumo da
+// disponibilidade e as limitações, nunca o detalhe clínico.
+function limitedRow({ player, av }, req) {
   const team = teamById(player.team_id);
   return `
     <li class="today-item today-item--link" data-open-athlete="${player.id}" role="button" tabindex="0">
@@ -1960,6 +2066,7 @@ function limitedRow({ player, av }) {
         <span class="badge badge--${AVAILABILITY_BADGE[av.status] || 'muted'}">
           ${esc(AVAILABILITY_LABEL[av.status] || av.status)}
         </span>
+        ${physioBadge(req)}
       </span>
       <div class="today-item__body">
         <span class="today-item__title">${esc(player.name)}</span>
@@ -1973,6 +2080,13 @@ function limitedRow({ player, av }) {
 }
 
 function wireCoachPainel(container) {
+  // Pedir fisioterapia a partir do painel. O formulário deixa escolher o
+  // atleta (aqui não há ficha aberta), e o re-desenho vem do store — a linha
+  // nova aparece no cartão de onde se carregou.
+  container.querySelector('#painel-pedir-fisio')?.addEventListener('click', async () => {
+    const { openPhysioRequestForm } = await import('./physio-requests.js');
+    openPhysioRequestForm();
+  });
   container.querySelectorAll('[data-mark-event]').forEach((btn) =>
     btn.addEventListener('click', () => openQuickAttendance(btn.dataset.markEvent))
   );
@@ -1992,6 +2106,9 @@ function wireCoachPainel(container) {
     el.addEventListener('click', () => {
       if (el.dataset.plan) openSeasonPlanning();
       if (el.dataset.finTabOpen) openFinanceiroTab(el.dataset.finTabOpen);
+      // A fila de triagem vive num separador do Departamento Médico: sem isto
+      // o aviso largava quem tria na lista de atletas, a um clique do trabalho.
+      if (el.dataset.medTabOpen) { openSaudeTab('medico'); openMedicoTab(el.dataset.medTabOpen); }
       navTo(el.dataset.nav);
     })
   );

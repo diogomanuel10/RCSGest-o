@@ -1491,6 +1491,31 @@ export function openPhysioRequest(playerId) {
   return playerPhysioRequests(playerId).find((r) => PHYSIO_REQUEST_OPEN.includes(r.status)) || null;
 }
 
+// Os pedidos ainda vivos no ÂMBITO de quem olha — as equipas do treinador, o
+// clube inteiro para os outros papéis. É o que o painel do treinador precisa
+// de mostrar: a Rita já foi avisada à fisio e está à espera, mesmo que a
+// disponibilidade dela ainda diga "apto" (a fisio ainda não lhe tocou).
+export function myOpenPhysioRequests() {
+  const ids = myTeamIds();
+  const byId = Object.fromEntries(state.players.map((p) => [p.id, p]));
+  return state.physioRequests
+    .filter((r) => PHYSIO_REQUEST_OPEN.includes(r.status))
+    .map((r) => ({ request: r, player: byId[r.player_id] }))
+    .filter((x) => x.player && (isClubWide() || ids.has(x.player.team_id)))
+    .sort((a, b) =>
+      (PHYSIO_TRAINING_ORDER[a.request.training] ?? 9) - (PHYSIO_TRAINING_ORDER[b.request.training] ?? 9)
+    );
+}
+
+// O clube tem fisioterapeuta com conta? Só o coordenador carrega `profiles`,
+// e é ele quem faz a pergunta: num clube sem fisio é ELE quem tria, e a fila
+// tem de lhe aparecer no painel. Com fisio, a fila é dela — pôr-lha ao
+// coordenador era dar-lhe o trabalho de outra pessoa todos os dias. É a
+// mesma regra do `team_trainer_user_ids` nas respostas a eventos.
+export function clubHasFisio() {
+  return (state.profiles || []).some((p) => p.role === 'fisioterapeuta');
+}
+
 // A fila da triagem: o que está por ver, com quem está parado à frente. A
 // data de entrada desempata — entre duas atletas paradas, a que espera há
 // mais tempo vai primeiro.

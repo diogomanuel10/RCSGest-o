@@ -40,6 +40,14 @@ let tab = 'atletas'; // 'atletas' | 'pedidos' | 'agenda' | 'historico'
 let search = '';
 let page = 1;
 
+// Deixa outra vista abrir esta área já no separador certo — o Painel usa-o
+// para levar quem tria directamente à fila, em vez de o largar na lista de
+// atletas com o trabalho a um clique de distância. É a porta do `openSaudeTab`
+// uma camada abaixo.
+export function openMedicoTab(key) {
+  tab = key;
+}
+
 export function renderMedico(container) {
   const editable = canEdit('clinical');
   const injured = injuredCount();

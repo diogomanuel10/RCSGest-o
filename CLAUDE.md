@@ -2099,6 +2099,28 @@ separador antes de navegar (usado pelos cartões do Painel).
     triar, e no Painel da fisio, onde quem está PARADO entra no degrau `agora`.
     Na ficha, quem tem o separador Fisioterapia não o vê também no Geral: o
     mesmo bloco duas vezes no mesmo ecrã lê-se como dois pedidos.
+  - **No Painel do treinador entra pelo cartão que já existia.** "Não estão a
+    100%" mostrava só o que a FISIO tinha escrito (`athlete_availability`), e
+    por isso a atleta que o treinador acabou de avisar não aparecia em lado
+    nenhum: fica "apta" até alguém lhe tocar, e do lado dele o pedido
+    desaparecia no momento em que era enviado. São a mesma lista — quem não
+    está bem — vista das duas pontas, e por isso é um cartão só: quem tem
+    pedido E disponibilidade tocada ocupa UMA linha (duas liam-se como dois
+    problemas), com o estado do pedido ao lado. O crachá diz a DATA marcada e
+    não só "Agendado", que é o que responde à pergunta dele: já foi vista?
+  - **O botão "Pedir fisioterapia" vive nesse cartão** e não no cabeçalho do
+    Painel: é ao olhar para esta lista que se repara em quem falta avisar. O
+    cartão fica mesmo com o plantel todo disponível — é a coluna de consulta,
+    onde os cartões são permanentes, e um botão que só aparece nos dias maus
+    não está lá no dia em que se precisa dele.
+  - **Ao coordenador a fila só aparece quando é dele** (`clubHasFisio`): num
+    clube sem fisioterapeuta com conta é ele quem tria, e sem o aviso a fila
+    ficava num separador que ninguém abre; com fisio, a fila é dela — dá-la
+    também ao coordenador era pôr-lhe o trabalho de outra pessoa à frente
+    todos os dias. É a mesma regra do `team_trainer_user_ids` nas respostas a
+    eventos. O aviso leva ao SEPARADOR da fila (`medTab`, na lógica do
+    `finTab`) e não à secção: largá-lo na lista de atletas era deixar o
+    trabalho a um clique de distância.
   - Sem a migração nada disto aparece (`state.physioRequestsReady`) — é a mesma
     linha do `birthDateReady()`.
 - **Departamento Médico / Fisioterapia**: processo clínico digital do atleta.
