@@ -2443,6 +2443,47 @@ button.stat-strip__item--nav:hover {
   font-weight: 600;
 }
 .cal-grid__ev--context { opacity: 0.55; }
+/* Agenda no Google Calendar (link de subscrição). */
+.sync-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.sync-url {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+.sync-url input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+}
+.sync-facts {
+  margin: 0.9rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.86rem;
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.sync-danger { justify-content: flex-start; }
+
+/* A atleta avisou que não pode ir a um atendimento. */
+.appt-cant {
+  font-size: 0.82rem;
+  color: var(--warn-ink);
+  font-weight: 500;
+}
+.appt-cant-intro {
+  color: var(--warn-ink);
+  background: var(--warn-bg);
+  border-left: 3px solid var(--warn);
+  padding: 0.5rem 0.7rem;
+  border-radius: var(--radius-xs);
+}
 
 @media (max-width: 820px) {
   .event-row {
@@ -7298,6 +7339,8 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
    rápido de ler do que um contorno mais escuro. */
 .portal-resp__btn--vou.is-active     { background: var(--ok-bg);     border-color: var(--ok);     color: var(--ok-ink); }
 .portal-resp__btn--nao_vou.is-active { background: var(--danger-bg); border-color: var(--danger); color: var(--danger-ink); }
+.portal-resp__btn--nao_posso.is-active { background: var(--warn-bg); border-color: var(--warn); color: var(--warn-ink); }
+.portal-fisio .portal-resp { margin-top: 0.45rem; }
 .portal-resp-note {
   margin: 0.4rem 0 0;
   font-size: var(--portal-meta);

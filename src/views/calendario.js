@@ -10,6 +10,8 @@ import { eventDateTime, eventTimeRange, teamById, teamName, escalaoColor, gameRe
          eventPlayerIds, eventRoster, appointmentConflicts } from '../compute.js';
 import { openModal, confirmDialog, wireDialog } from '../modal.js';
 import { openAthleteProfile } from './athlete-profile.js';
+import { openAppointmentForm, apptResponseHTML } from './clinical-file.js';
+import { openCalendarSync } from './agenda-sync.js';
 import { findPlanForEvent, openGamePlanForEvent } from './plano-jogo.js';
 import { openTrainingPlan } from './training-plan.js';
 import {
@@ -69,6 +71,8 @@ function apptToEvent(a) {
     end_time: null,
     team_id: player ? player.team_id : null,
     location: a.location,
+    athleteResponse: a.athlete_response || null,
+    athleteNote: a.athlete_note || null,
   };
 }
 
@@ -151,7 +155,10 @@ export function renderCalendario(container) {
             <button class="cal-toggle__btn ${focus ? 'cal-toggle__btn--active' : ''}" data-focus="on" type="button" aria-pressed="${focus}">🩺 Atendimentos</button>
             <button class="cal-toggle__btn ${!focus ? 'cal-toggle__btn--active' : ''}" data-focus="off" type="button" aria-pressed="${!focus}">Tudo</button>
           </div>` : ''}
-        <button class="btn btn--ghost" id="export-ics" type="button" title="Adicionar ao Google/Apple Calendar">⤓ .ics</button>
+        ${showAppts && state.calendarFeedReady
+          ? '<button class="btn btn--ghost" id="calendar-sync" type="button" title="Ver os atendimentos no Google Calendar ou no iPhone, sempre atualizados">📆 Google Calendar</button>'
+          : ''}
+        <button class="btn btn--ghost" id="export-ics" type="button" title="Descarregar os eventos (sem atendimentos) num ficheiro .ics">⤓ .ics</button>
         ${editable ? `
           <button class="btn btn--ghost" id="add-recurrent" type="button">↺ Recorrentes</button>
           <button class="btn btn--accent" id="add-event" type="button">+ Evento</button>
@@ -172,6 +179,7 @@ export function renderCalendario(container) {
   wireEmptyAction(container, 'add-event', () => openForm());
   container.querySelector('#add-recurrent')?.addEventListener('click', () => openRecurrentModal());
   container.querySelector('#export-ics')?.addEventListener('click', () => exportICS(events));
+  container.querySelector('#calendar-sync')?.addEventListener('click', () => openCalendarSync());
   container.querySelectorAll('[data-focus]').forEach((b) => b.addEventListener('click', () => {
     apptFocus = b.dataset.focus === 'on';
     renderCalendario(container);
@@ -205,6 +213,7 @@ export function renderCalendario(container) {
   );
   container.querySelectorAll('[data-new-day]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); openForm(null, b.dataset.newDay); }));
   container.querySelectorAll('[data-appt]').forEach((b) => b.addEventListener('click', () => openAthleteProfile(b.dataset.appt, { tab: 'fisioterapia' })));
+  container.querySelectorAll('[data-appt-resched]').forEach((b) => b.addEventListener('click', () => reschedule(b.dataset.apptResched)));
   container.querySelectorAll('[data-plan-event]').forEach((b) => b.addEventListener('click', () => {
     const ev = state.events.find((e) => e.id === b.dataset.planEvent);
     if (ev) { openGamePlanForEvent(ev); navTo('plano-jogo'); }
@@ -389,9 +398,10 @@ function renderGrid(allEvents, editable, focus) {
                         const time = ev.time ? ev.time.slice(0, 5) : '';
                         const full = ['Fisioterapia', APPOINTMENT_TYPE_LABEL[ev.apptType] || '', ev.title, time]
                           .filter(Boolean).join(' · ');
+                        const icon = ev.athleteResponse === 'nao_posso' && ev.status === 'agendado' ? '⚠' : '🩺';
                         return `
-                      <div class="cal-grid__ev" style="background:hsl(275 60% 93%);border-left:3px solid hsl(275 55% 52%);color:#1f2937" title="${esc(full)}">
-                        ${time ? `<span class="cal-grid__ev-time">${esc(time)}</span> ` : ''}🩺 ${esc(ev.title.slice(0, 14))}${ev.title.length > 14 ? '…' : ''}
+                      <div class="cal-grid__ev" style="background:hsl(275 60% 93%);border-left:3px solid hsl(275 55% 52%);color:#1f2937" title="${esc(full)}${icon === '⚠' ? ' · Não pode' : ''}">
+                        ${time ? `<span class="cal-grid__ev-time">${esc(time)}</span> ` : ''}${icon} ${esc(ev.title.slice(0, 14))}${ev.title.length > 14 ? '…' : ''}
                       </div>`;
                       }
                       const evTeam = teamById(ev.team_id);
@@ -432,7 +442,8 @@ function weekChip(ev, focus) {
   const time = ev.time && /^\d{2}:\d{2}/.test(ev.time) ? ev.time.slice(0, 5) : '';
   if (ev._appt) {
     const label = ev.title || 'Atendimento';
-    return `<div class="cal-grid__ev" style="background:hsl(275 60% 93%);border-left:3px solid hsl(275 55% 52%);color:#1f2937" title="Fisioterapia · ${esc(label)}">${time ? `<span class="cal-grid__ev-time">${esc(time)}</span> ` : ''}🩺 ${esc(label)}</div>`;
+    const cant = ev.athleteResponse === 'nao_posso' && ev.status === 'agendado';
+    return `<div class="cal-grid__ev" style="background:hsl(275 60% 93%);border-left:3px solid hsl(275 55% 52%);color:#1f2937" title="Fisioterapia · ${esc(label)}${cant ? ' · Não pode' : ''}">${time ? `<span class="cal-grid__ev-time">${esc(time)}</span> ` : ''}${cant ? '⚠' : '🩺'} ${esc(label)}</div>`;
   }
   const evTeam = teamById(ev.team_id);
   const label = evTeam ? teamName(evTeam) : (ev.title || EVENT_TYPE_LABEL[ev.type] || '');
@@ -676,6 +687,7 @@ function openDayModal(dateStr, editable) {
   overlay.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => { close(); remove(b.dataset.del); }));
   overlay.querySelectorAll('[data-squad]').forEach((b) => b.addEventListener('click', () => { close(); openSquad(b.dataset.squad); }));
   overlay.querySelectorAll('[data-appt]').forEach((b) => b.addEventListener('click', () => { close(); openAthleteProfile(b.dataset.appt, { tab: 'fisioterapia' }); }));
+  overlay.querySelectorAll('[data-appt-resched]').forEach((b) => b.addEventListener('click', () => { close(); reschedule(b.dataset.apptResched); }));
   overlay.querySelectorAll('[data-plan-event]').forEach((b) => b.addEventListener('click', () => {
     const ev = state.events.find((e) => e.id === b.dataset.planEvent);
     if (ev) { close(); openGamePlanForEvent(ev); navTo('plano-jogo'); }
@@ -685,6 +697,13 @@ function openDayModal(dateStr, editable) {
     close();
     openTrainingPlan(id);
   }));
+}
+
+// Remarcar um atendimento de quem avisou que não pode — o formulário do
+// atendimento, já com ele aberto.
+function reschedule(apptId) {
+  const a = state.appointments.find((x) => x.id === apptId);
+  if (a) openAppointmentForm({ playerId: a.player_id, appointment: a });
 }
 
 // Linha (vista Lista) de um atendimento de fisioterapia. Só de leitura — abre
@@ -698,6 +717,7 @@ function apptEventRow(ev, isPast) {
     ev.location ? esc(ev.location) : '',
   ].filter(Boolean).join(' · ');
   const clashes = apptClashes(ev);
+  const cantCome = ev.status === 'agendado' && ev.athleteResponse === 'nao_posso';
 
   return `
     <div class="event-row ${isPast ? 'event-row--past' : ''}" style="border-left:4px solid hsl(275 55% 52%);padding-left:0.7rem">
@@ -709,6 +729,7 @@ function apptEventRow(ev, isPast) {
         <div class="event-row__title">
           <span class="badge" style="margin-right:0.4rem;background:hsl(275 60% 94%);color:hsl(275 45% 35%)">🩺 ${esc(APPOINTMENT_TYPE_LABEL[ev.apptType] || 'Fisioterapia')}</span>${esc(ev.title)}
           <span class="muted" style="margin-left:0.4rem;font-size:0.82rem">${esc(APPOINTMENT_STATUS_LABEL[ev.status] || ev.status)}</span>
+          ${apptResponseHTML({ status: ev.status, athlete_response: ev.athleteResponse, athlete_note: ev.athleteNote })}
         </div>
         ${meta ? `<span class="event-row__meta">${meta}</span>` : ''}
         ${clashes.length && !isPast
@@ -716,6 +737,9 @@ function apptEventRow(ev, isPast) {
           : ''}
       </div>
       <div class="cell-actions">
+        ${cantCome && !isPast && canEdit('appointments')
+          ? `<button class="btn btn--ghost btn--sm" data-appt-resched="${ev.id.slice(5)}" type="button">Remarcar</button>`
+          : ''}
         <button class="btn btn--ghost btn--sm" data-appt="${ev.playerId}" type="button">Ficha clínica</button>
       </div>
     </div>

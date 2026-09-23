@@ -6,7 +6,7 @@
 //
 // Modelo: clube único, dados partilhados — não há filtros por utilizador.
 
-import { supabase } from './supabase.js';
+import { supabase, supabaseUrl } from './supabase.js';
 import { applyBranding } from './branding.js';
 import { toastOk } from './toast.js';
 import { DEFAULT_EQUIPMENT_ARTICLES } from './constants.js';
@@ -88,6 +88,13 @@ export const state = {
   // (quando, onde), nunca a leitura clínica. Vive à parte de `appointments`
   // de propósito: são duas coisas com o mesmo nome e donos diferentes.
   myAppointments: [],
+  // A `resposta-atendimento.sql` já correu? Dá à atleta o "vou / não posso"
+  // do atendimento. Sem ela a RPC não existe, e um botão que só dá erro é
+  // pior do que o aviso de antes ("avisa o teu treinador").
+  apptResponseReady: true,
+  // A `calendario-subscricao.sql` já correu? Sem a tabela não há link de
+  // subscrição a gerar, e o botão "Google Calendar" não aparece.
+  calendarFeedReady: true,
   // Exercícios do plano de recuperação, por episódio clínico. Ao contrário
   // dos atendimentos, isto lê-se da TABELA também do lado da atleta: cada
   // coluna aqui é escrita de propósito para ela ler (ver `rehab_read`), e por
@@ -189,6 +196,8 @@ export function resetState() {
   state.physioRequests = [];
   state.physioRequestsReady = true;
   state.myAppointments = [];
+  state.apptResponseReady = true;
+  state.calendarFeedReady = true;
   state.rehabExercises = [];
   state.rehabReady = true;
   state.trainingPlans = [];
@@ -454,7 +463,7 @@ export async function loadAll() {
          playerDocuments, playerSizes, squads, squadPlayers, financialEntries, gamePlans, objectives,
          eventResponses, gameResults, gameSets, tacticalScenarios, tacticalAnswers, exercises,
          equipmentRequests, requestFlowProbe, sizesConfirmProbe, sizesPaidProbe, eventPlayers, testReferences,
-         physioRequests, rehabExercises] =
+         physioRequests, rehabExercises, apptResponseProbe, calendarFeedProbe] =
     await Promise.all([
       // Multi-tenant: o RLS limita as definições ao clube do utilizador, por
       // isso não filtramos por id — devolve a (única) linha do clube atual.
@@ -542,6 +551,13 @@ export async function loadAll() {
       // falta (ver abaixo). O RLS entrega à fisio os do clube e à atleta os
       // dos SEUS episódios em curso — a mesma consulta serve os dois.
       supabase.from('rehab_exercises').select('*').order('position'),
+      // Sonda de `resposta-atendimento.sql`: pergunta-se pela COLUNA. À
+      // atleta o RLS devolve uma lista vazia (sem erro) se ela existir, e
+      // erro se não existir — serve a todos os papéis.
+      supabase.from('physio_appointments').select('id,athlete_response').limit(1),
+      // Sonda de `calendario-subscricao.sql`. A tabela não tem políticas, por
+      // isso responde sempre vazia — só falha se não existir.
+      supabase.from('calendar_feeds').select('user_id').limit(1),
     ]);
 
   for (const res of [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects, episodes, sessions, appointments,
@@ -624,6 +640,8 @@ export async function loadAll() {
   state.physioRequestsReady = !physioRequests.error;
   state.rehabExercises = rehabExercises.error ? [] : (rehabExercises.data || []);
   state.rehabReady = !rehabExercises.error;
+  state.apptResponseReady = !apptResponseProbe.error;
+  state.calendarFeedReady = !calendarFeedProbe.error;
 
   // Coerência da cache: com pais arquivados (ex.: uma equipa), os filhos que os
   // referenciam não devem aparecer nos ecrãs ativos.
@@ -651,6 +669,52 @@ export async function loadMyAppointments() {
   if (state.profile?.role !== 'atleta') { state.myAppointments = []; return; }
   const { data, error } = await supabase.rpc('my_physio_appointments');
   state.myAppointments = error ? [] : (data || []);
+}
+
+// A atleta responde a um atendimento de fisioterapia: 'vou' ou 'nao_posso'
+// (com o que quiser dizer à fisio — quando pode, por exemplo). Vai pela RPC
+// porque ela não tem a tabela (ver `respond_to_appointment`); o que volta é
+// só a resposta, e é isso que se acerta na lista dela.
+export async function respondToAppointment(appointmentId, response, note = null) {
+  const { data, error } = await supabase.rpc('respond_to_appointment', {
+    p_appointment_id: appointmentId,
+    p_response: response,
+    p_note: note,
+  });
+  if (error) throw error;
+  const a = state.myAppointments.find((x) => x.id === data.id);
+  if (a) {
+    a.athlete_response = data.athlete_response;
+    a.athlete_note = data.athlete_note;
+  }
+  notify();
+  return data;
+}
+
+// --- Agenda no Google Calendar (link de subscrição) ----------------------
+//
+// O link é o endereço da Edge Function `calendar-feed` com o token de quem o
+// gerou. O token é a credencial — quem tem o link lê a agenda —, por isso só
+// existe depois de alguém o pedir, e troca-se num clique.
+export function calendarFeedUrl(token) {
+  return token && supabaseUrl ? `${supabaseUrl}/functions/v1/calendar-feed?t=${encodeURIComponent(token)}` : '';
+}
+
+export async function getCalendarFeed() {
+  const { data, error } = await supabase.rpc('my_calendar_feed');
+  if (error) throw error;
+  return data || null;
+}
+
+export async function rotateCalendarFeed() {
+  const { data, error } = await supabase.rpc('rotate_calendar_feed');
+  if (error) throw error;
+  return data;
+}
+
+export async function revokeCalendarFeed() {
+  const { error } = await supabase.rpc('revoke_calendar_feed');
+  if (error) throw error;
 }
 
 // Carrega os planos de subscrição da BD. Se a tabela ainda não existir (o
