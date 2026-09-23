@@ -2293,6 +2293,13 @@ separador antes de navegar (usado pelos cartões do Painel).
     um atendimento se sobrepõe a um treino/jogo da equipa do atleta.
   - Editável por quem tem `canEdit('clinical')` / `canEdit('appointments')`
     (coordenador e fisioterapeuta), em linha com o RLS `med_rw`.
+  - **No Calendário, a fisio vê os atendimentos em primeiro plano** (toggle
+    "🩺 Atendimentos · Tudo", ligado por omissão para o `fisioterapeuta`). Os
+    treinos continuam lá — é por eles que se decide a hora de um atendimento —
+    mas como CONTEXTO: uma linha por dia ("No mesmo dia: 18:30 Iniciadas F ·
+    …"), e o que coincide com a equipa da atleta vem a âmbar
+    (`appointmentConflicts`, que antes só se via a quem marcava). Quatro
+    treinos por noite com o mesmo peso de uma consulta enterravam a consulta.
 - **Preparação Física**: gestão do preparador físico (e coordenador).
   - `physical_profiles` (1:1 atleta) — altura, peso, mão dominante; o IMC é
     calculado (`compute.bmi`). `medical_history` (1:1) — limitações, lesões,
