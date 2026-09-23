@@ -156,6 +156,22 @@ outra aplicação.
 > sozinha a quem esteja nessa situação. No Android funciona no browser e
 > instalada.
 
+### Agenda da fisioterapia no Google Calendar
+
+Opcional. Deixa a fisio (e o coordenador) subscrever os atendimentos no
+Google Calendar ou no calendário do iPhone, sempre atualizados.
+
+1. Corre `supabase/calendario-subscricao.sql` no SQL Editor.
+2. Publica a função **sem** verificação de JWT (quem a chama é o Google, que
+   não tem sessão na app — a credencial é o token do link):
+
+   ```bash
+   supabase functions deploy calendar-feed --no-verify-jwt
+   supabase secrets set APP_URL=https://o-teu-site   # opcional: link para a app em cada atendimento
+   ```
+
+3. Na app: Saúde → Fisioterapia → Agenda (ou Calendário) → **📆 Google Calendar**.
+
 ## 5. Publicar no Vercel
 
 A app é um site estático (Vite), por isso assenta bem no Vercel.

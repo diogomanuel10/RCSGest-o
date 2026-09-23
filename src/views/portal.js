@@ -11,7 +11,7 @@
 // garante que o atleta só recebe os seus próprios dados.
 
 import {
-  state, respondToEvent, saveTacticalAnswer, dbErrorMessage,
+  state, respondToEvent, respondToAppointment, saveTacticalAnswer, dbErrorMessage,
   createEquipmentRequests, deleteRow, articlePhotoUrl,
   savePlayerPhoto, saveMyPlayerData, uploadPlayerDocument,
 } from '../store.js';
@@ -246,17 +246,34 @@ function physioHTML() {
   const proximos = myUpcomingAppointments();
   if (!proximos.length) return '';
 
+  // A resposta vai direta à fisio (`respond_to_appointment`). Antes a única
+  // saída era "avisa o teu treinador", que avisava a fisio se se lembrasse —
+  // e a fisio ficava à espera, e a atleta levava uma falta por ter avisado.
+  const canAnswer = state.apptResponseReady;
   const linha = (a) => {
-    const dt = new Date(`${a.ap_date}T${(a.ap_time || '00:00').slice(0, 5)}`);
+    const dt = new Date(`${a.ap_date}T${(a.ap_time || '23:59').slice(0, 5)}`);
     const horas = a.ap_time
       ? esc(a.ap_time.slice(0, 5)) + (a.end_time ? '–' + esc(a.end_time.slice(0, 5)) : '')
       : '';
+    const aberto = canAnswer && dt > new Date();
+    const resp = a.athlete_response || '';
     return `
       <li class="portal-fisio__item">
         <span class="portal-fisio__when">
           <strong>${esc(relativeDay(dt))}</strong>${horas ? ` · ${horas}` : ''}
         </span>
         ${a.location ? `<span class="portal-fisio__where">${esc(a.location)}</span>` : ''}
+        ${aberto ? `
+          <div class="portal-resp" data-appt="${esc(a.id)}">
+            ${APPT_RESPONSES.map((r) => `
+              <button type="button"
+                class="portal-resp__btn portal-resp__btn--${r.key}${resp === r.key ? ' is-active' : ''}"
+                data-appt-response="${r.key}" data-appt="${esc(a.id)}"
+                aria-pressed="${resp === r.key}">${esc(r.label)}</button>`).join('')}
+          </div>` : ''}
+        ${resp === 'nao_posso'
+          ? `<p class="portal-resp-note">Avisaste que não podes${a.athlete_note ? `: “${esc(a.athlete_note)}”` : '.'} A fisio vai remarcar.</p>`
+          : ''}
       </li>`;
   };
 
@@ -264,7 +281,9 @@ function physioHTML() {
     <section class="card portal-next portal-fisio">
       <span class="portal-next__label">Fisioterapia</span>
       <ul class="portal-fisio__list">${proximos.slice(0, 3).map(linha).join('')}</ul>
-      <p class="portal-fisio__note">Se não puderes ir, avisa o teu treinador.</p>
+      <p class="portal-fisio__note">${canAnswer
+        ? 'Se não puderes ir, carrega em “Não posso” — a fisio é avisada logo.'
+        : 'Se não puderes ir, avisa o teu treinador.'}</p>
     </section>
   `;
 }
@@ -998,6 +1017,9 @@ function wire(container, me, team) {
     }
   });
 
+  container.querySelectorAll('[data-appt-response]').forEach((btn) => {
+    btn.addEventListener('click', () => onRespondAppointment(btn));
+  });
   container.querySelectorAll('[data-response]').forEach((btn) => {
     btn.addEventListener('click', () => onRespond(btn));
   });
@@ -1077,6 +1099,58 @@ function onRespond(btn) {
   row?.querySelectorAll('button').forEach((b) => { b.disabled = true; });
   respondToEvent(eventId, response, null)
     .then(() => toastOk('Resposta enviada. O teu treinador já sabe.'))
+    .catch((err) => {
+      toastError(dbErrorMessage(err));
+      row?.querySelectorAll('button').forEach((b) => { b.disabled = false; });
+    });
+}
+
+// As duas respostas a um atendimento. Como nos eventos, não há "ainda não
+// sei": ficar por responder já o diz.
+const APPT_RESPONSES = [
+  { key: 'vou', label: 'Vou' },
+  { key: 'nao_posso', label: 'Não posso' },
+];
+
+// Responder a um atendimento. O "não posso" pede QUANDO pode — é o que deixa
+// a fisio remarcar de uma vez, em vez de trocar três mensagens para achar
+// uma hora. Não é obrigatório: um aviso sem alternativa continua a ser
+// melhor do que a fisio à espera.
+function onRespondAppointment(btn) {
+  const id = btn.dataset.appt;
+  const response = btn.dataset.apptResponse;
+  const ok = () => toastOk(response === 'nao_posso'
+    ? 'Aviso enviado. A fisio vai remarcar.'
+    : 'Confirmado. Até lá!');
+
+  if (response === 'nao_posso') {
+    openModal({
+      title: 'Não posso ir à fisioterapia',
+      submitLabel: 'Avisar a fisio',
+      fields: [{
+        name: 'note',
+        label: 'Quando podes?',
+        type: 'textarea',
+        full: true,
+        placeholder: 'ex.: quinta depois das 18h, ou sábado de manhã',
+        hint: 'Opcional, mas ajuda a fisio a marcar outra hora que te dê jeito.',
+      }],
+      onSubmit: async (values) => {
+        try {
+          await respondToAppointment(id, 'nao_posso', (values.note || '').trim() || null);
+        } catch (err) {
+          throw new Error(dbErrorMessage(err));
+        }
+        ok();
+      },
+    });
+    return;
+  }
+
+  const row = btn.closest('.portal-resp');
+  row?.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+  respondToAppointment(id, response, null)
+    .then(ok)
     .catch((err) => {
       toastError(dbErrorMessage(err));
       row?.querySelectorAll('button').forEach((b) => { b.disabled = false; });

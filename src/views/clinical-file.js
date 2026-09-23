@@ -364,6 +364,19 @@ function sessionLineHTML(s, editable) {
     </li>`;
 }
 
+// O que a atleta respondeu ao atendimento (`resposta-atendimento.sql`). Só
+// conta enquanto está agendado: depois de realizado, a resposta é história e
+// o estado já diz o que aconteceu. O "não pode" leva o que ela escreveu —
+// é o que deixa remarcar de uma vez.
+export function apptResponseHTML(a) {
+  if (!a || a.status !== 'agendado' || !a.athlete_response) return '';
+  if (a.athlete_response === 'vou') {
+    return '<span class="badge badge--ok" title="A atleta confirmou">✓ Confirmou</span>';
+  }
+  return `<span class="badge badge--warn">⚠ Não pode</span>${a.athlete_note
+    ? ` <span class="appt-cant">“${esc(a.athlete_note)}”</span>` : ''}`;
+}
+
 function apptLineHTML(a, editable) {
   const when = `${fmtDate(a.date)}${a.time ? ' · ' + esc(a.time.slice(0, 5)) : ''}`;
   return `
@@ -371,6 +384,7 @@ function apptLineHTML(a, editable) {
       <span class="cf-appt-row__when">${when}</span>
       <span class="badge badge--${APPOINTMENT_TYPE_BADGE[a.type] || 'muted'}">${esc(APPOINTMENT_TYPE_LABEL[a.type] || a.type)}</span>
       <span class="badge badge--${APPOINTMENT_STATUS_BADGE[a.status] || 'muted'}">${esc(APPOINTMENT_STATUS_LABEL[a.status] || a.status)}</span>
+      ${apptResponseHTML(a)}
       ${a.notes ? `<span class="muted cf-appt-row__notes">${esc(a.notes)}</span>` : ''}
       ${editable
         ? `<span class="cell-actions">
@@ -537,6 +551,11 @@ export function openAppointmentForm({ playerId, episodeId, appointment, context,
         <p class="modal__intro muted">
           Sem conta ligada ao portal: o aviso com o dia e a hora não lhe chega.
           Combina o atendimento com ela ou com o treinador.
+        </p>` : ''}
+      ${existing?.status === 'agendado' && existing.athlete_response === 'nao_posso' ? `
+        <p class="modal__intro appt-cant-intro">
+          ⚠ A atleta avisou que não pode${existing.athlete_note ? `: “${esc(existing.athlete_note)}”` : '.'}
+          Muda o dia ou a hora e ela é avisada da nova, para voltar a responder.
         </p>` : ''}
 
       <div class="field-grid">

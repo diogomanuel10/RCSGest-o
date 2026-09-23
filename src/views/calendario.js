@@ -7,9 +7,11 @@ import { openResultModal } from './resultado.js';
 import { esc, emptyHTML, wireEmptyAction } from '../ui.js';
 import { toastError } from '../toast.js';
 import { eventDateTime, eventTimeRange, teamById, teamName, escalaoColor, gameResult, gameSetsOf,
-         eventPlayerIds, eventRoster } from '../compute.js';
+         eventPlayerIds, eventRoster, appointmentConflicts } from '../compute.js';
 import { openModal, confirmDialog, wireDialog } from '../modal.js';
 import { openAthleteProfile } from './athlete-profile.js';
+import { openAppointmentForm, apptResponseHTML } from './clinical-file.js';
+import { openCalendarSync } from './agenda-sync.js';
 import { findPlanForEvent, openGamePlanForEvent } from './plano-jogo.js';
 import { openTrainingPlan } from './training-plan.js';
 import {
@@ -22,7 +24,7 @@ import {
   WEEKDAYS,
   isPickedEvent,
 } from '../constants.js';
-import { canEdit, canAccess, canEditEvent } from '../permissions.js';
+import { canEdit, canAccess, canEditEvent, isFisio } from '../permissions.js';
 
 // Tipos que este utilizador pode criar. O coordenador cria tudo; o preparador
 // físico cria musculação e mais nada — e a musculação só existe depois de a
@@ -69,6 +71,8 @@ function apptToEvent(a) {
     end_time: null,
     team_id: player ? player.team_id : null,
     location: a.location,
+    athleteResponse: a.athlete_response || null,
+    athleteNote: a.athlete_note || null,
   };
 }
 
@@ -98,6 +102,13 @@ function openSquad(eventId) {
 }
 
 const filters = { type: '', team: '' };
+// Foco nos atendimentos: a fisio precisa de saber que há treino às 18:30 —
+// é o que decide a hora a que marca —, mas o calendário do clube tem quatro
+// treinos por noite e cada um ocupava tanto como a consulta da Beatriz. Com
+// foco, os atendimentos são as linhas e os eventos do clube passam a CONTEXTO:
+// uma linha por dia, com o que colide com a atleta assinalado. `null` = o que
+// o papel pede (ligado para a fisio, desligado para o coordenador).
+let apptFocus = null;
 let calView = 'lista'; // 'lista' | 'semana' | 'grelha'
 let gridMonth = new Date(); // mês exibido na grelha
 let weekRef = new Date();   // qualquer dia da semana exibida na vista Semana
@@ -126,6 +137,9 @@ export function renderCalendario(container) {
 
   const future = events.filter((e) => eventDateTime(e) >= now);
   const past = events.filter((e) => eventDateTime(e) < now);
+  // Com um tipo escolhido no filtro a pergunta já foi feita — o foco só
+  // arruma a vista "Todos".
+  const focus = showAppts && !filters.type && (apptFocus ?? isFisio());
 
   container.innerHTML = `
     <header class="page-head">
@@ -136,7 +150,15 @@ export function renderCalendario(container) {
           <button class="cal-toggle__btn ${calView === 'semana' ? 'cal-toggle__btn--active' : ''}" id="view-semana" type="button">▤ Semana</button>
           <button class="cal-toggle__btn ${calView === 'grelha' ? 'cal-toggle__btn--active' : ''}" id="view-grelha" type="button">▦ Mês</button>
         </div>
-        <button class="btn btn--ghost" id="export-ics" type="button" title="Adicionar ao Google/Apple Calendar">⤓ .ics</button>
+        ${showAppts && !filters.type ? `
+          <div class="cal-toggle" role="group" aria-label="O que destacar">
+            <button class="cal-toggle__btn ${focus ? 'cal-toggle__btn--active' : ''}" data-focus="on" type="button" aria-pressed="${focus}">🩺 Atendimentos</button>
+            <button class="cal-toggle__btn ${!focus ? 'cal-toggle__btn--active' : ''}" data-focus="off" type="button" aria-pressed="${!focus}">Tudo</button>
+          </div>` : ''}
+        ${showAppts && state.calendarFeedReady
+          ? '<button class="btn btn--ghost" id="calendar-sync" type="button" title="Ver os atendimentos no Google Calendar ou no iPhone, sempre atualizados">📆 Google Calendar</button>'
+          : ''}
+        <button class="btn btn--ghost" id="export-ics" type="button" title="Descarregar os eventos (sem atendimentos) num ficheiro .ics">⤓ .ics</button>
         ${editable ? `
           <button class="btn btn--ghost" id="add-recurrent" type="button">↺ Recorrentes</button>
           <button class="btn btn--accent" id="add-event" type="button">+ Evento</button>
@@ -146,10 +168,10 @@ export function renderCalendario(container) {
 
     ${
       calView === 'grelha'
-        ? renderGrid(events, editable)
+        ? renderGrid(events, editable, focus)
         : calView === 'semana'
-          ? renderWeek(events, editable)
-          : renderLista(events, future, past, editable, showAppts)
+          ? renderWeek(events, editable, focus)
+          : renderLista(events, future, past, editable, showAppts, focus)
     }
   `;
 
@@ -157,6 +179,11 @@ export function renderCalendario(container) {
   wireEmptyAction(container, 'add-event', () => openForm());
   container.querySelector('#add-recurrent')?.addEventListener('click', () => openRecurrentModal());
   container.querySelector('#export-ics')?.addEventListener('click', () => exportICS(events));
+  container.querySelector('#calendar-sync')?.addEventListener('click', () => openCalendarSync());
+  container.querySelectorAll('[data-focus]').forEach((b) => b.addEventListener('click', () => {
+    apptFocus = b.dataset.focus === 'on';
+    renderCalendario(container);
+  }));
   container.querySelector('#view-lista').addEventListener('click', () => { calView = 'lista'; renderCalendario(container); });
   container.querySelector('#view-semana').addEventListener('click', () => { calView = 'semana'; renderCalendario(container); });
   container.querySelector('#view-grelha').addEventListener('click', () => { calView = 'grelha'; renderCalendario(container); });
@@ -186,6 +213,7 @@ export function renderCalendario(container) {
   );
   container.querySelectorAll('[data-new-day]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); openForm(null, b.dataset.newDay); }));
   container.querySelectorAll('[data-appt]').forEach((b) => b.addEventListener('click', () => openAthleteProfile(b.dataset.appt, { tab: 'fisioterapia' })));
+  container.querySelectorAll('[data-appt-resched]').forEach((b) => b.addEventListener('click', () => reschedule(b.dataset.apptResched)));
   container.querySelectorAll('[data-plan-event]').forEach((b) => b.addEventListener('click', () => {
     const ev = state.events.find((e) => e.id === b.dataset.planEvent);
     if (ev) { openGamePlanForEvent(ev); navTo('plano-jogo'); }
@@ -200,7 +228,12 @@ export function renderCalendario(container) {
   });
 }
 
-function renderLista(events, future, past, editable, showAppts) {
+function renderLista(events, future, past, editable, showAppts, focus) {
+  const nAppts = events.filter((e) => e._appt).length;
+  const count = focus
+    ? `${nAppts} atendimento${nAppts === 1 ? '' : 's'}`
+    : `${events.length} evento${events.length === 1 ? '' : 's'}`;
+  const rows = (list, isPast) => (focus ? focusRows(list, isPast) : list.map((e) => eventRow(e, isPast, editable)).join(''));
   return `
     <section class="card">
       <div class="filters">
@@ -219,11 +252,11 @@ function renderLista(events, future, past, editable, showAppts) {
             ${state.teams.map((t) => `<option value="${t.id}" ${filters.team === t.id ? 'selected' : ''}>${esc(teamName(t))}</option>`).join('')}
           </select>
         </div>
-        <span class="filters__count muted">${events.length} evento${events.length === 1 ? '' : 's'}</span>
+        <span class="filters__count muted">${count}</span>
       </div>
       ${events.length
-        ? `${future.length ? `<h3 class="cal-group">Próximos</h3>${future.map((e) => eventRow(e, false, editable)).join('')}` : ''}
-           ${past.length ? `<h3 class="cal-group cal-group--past">Passados</h3>${past.map((e) => eventRow(e, true, editable)).join('')}` : ''}`
+        ? `${future.length ? `<h3 class="cal-group">Próximos</h3>${rows(future, false)}` : ''}
+           ${past.length ? `<h3 class="cal-group cal-group--past">Passados</h3>${rows(past, true)}` : ''}`
         : state.events.length
           // Sem eventos NENHUNS é um clube a começar; sem eventos NESTE filtro
           // é um filtro apertado. A mesma frase para os dois casos mandava
@@ -237,7 +270,63 @@ function renderLista(events, future, past, editable, showAppts) {
   `;
 }
 
-function renderGrid(allEvents, editable) {
+// Rótulo curto de um evento do clube na linha de contexto: hora e equipa. O
+// tipo só entra quando não é treino — numa noite de quatro treinos, escrever
+// "Treino" quatro vezes não diz nada.
+function contextLabel(ev) {
+  const team = teamById(ev.team_id);
+  const who = team ? teamName(team) : (ev.title || EVENT_TYPE_LABEL[ev.type] || '');
+  const kind = ev.type !== 'treino' ? `${EVENT_TYPE_LABEL[ev.type] || ev.type} ` : '';
+  const time = ev.time ? `${ev.time.slice(0, 5)} ` : '';
+  return `${time}${kind}${who}${ev.opponent ? ` vs ${ev.opponent}` : ''}`;
+}
+
+// A vista Lista com foco nos atendimentos: por dia, os atendimentos como
+// linhas inteiras e o resto numa linha de contexto. Dias sem atendimento
+// ficam numa linha só (e abrem o detalhe do dia); nos passados nem isso —
+// o treino de há três semanas já não decide hora nenhuma.
+function focusRows(list, isPast) {
+  const byDay = new Map();
+  list.forEach((e) => {
+    if (!byDay.has(e.date)) byDay.set(e.date, []);
+    byDay.get(e.date).push(e);
+  });
+  return [...byDay.entries()].map(([date, evs]) => {
+    const appts = evs.filter((e) => e._appt);
+    const others = evs.filter((e) => !e._appt);
+    if (!appts.length) return isPast ? '' : daySummaryRow(date, others);
+    const clash = new Set(appts.flatMap((a) => apptClashes(a).map((c) => c.id)));
+    return appts.map((a) => apptEventRow(a, isPast)).join('')
+      + (others.length ? contextLine(others, clash, 'No mesmo dia') : '');
+  }).join('');
+}
+
+function contextLine(evs, clash, lead) {
+  return `<p class="cal-context">${esc(lead)}: ${evs.map((e) => {
+    const conflict = clash.has(e.id);
+    return `<span class="cal-context__item${conflict ? ' cal-context__item--clash' : ''}"${conflict ? ' title="Coincide com um atendimento"' : ''}>${conflict ? '⚠ ' : ''}${esc(contextLabel(e))}</span>`;
+  }).join('<span aria-hidden="true"> · </span>')}</p>`;
+}
+
+function daySummaryRow(date, evs) {
+  const dt = new Date(`${date}T00:00:00`);
+  const dateStr = dt.toLocaleDateString('pt-PT', { weekday: 'short', day: '2-digit', month: 'short' });
+  return `
+    <div class="cal-daysum" data-day="${date}" role="button" tabindex="0" title="Ver o dia">
+      <span class="cal-daysum__date">${esc(dateStr)}</span>
+      ${contextLine(evs, new Set(), `${evs.length} evento${evs.length === 1 ? '' : 's'}`)}
+    </div>`;
+}
+
+// Treinos/jogos da equipa da atleta que se sobrepõem ao atendimento — o
+// conflito que o formulário já mostrava a quem MARCA, e que aqui fica à vista
+// de quem olha para a semana.
+function apptClashes(ev) {
+  if (ev.status !== 'agendado') return [];
+  return appointmentConflicts(ev.playerId, ev.date, ev.time, null);
+}
+
+function renderGrid(allEvents, editable, focus) {
   const year = gridMonth.getFullYear();
   const month = gridMonth.getMonth(); // 0-indexed
   const today = new Date();
@@ -261,6 +350,9 @@ function renderGrid(allEvents, editable) {
     if (!evMap[d]) evMap[d] = [];
     evMap[d].push(ev);
   });
+  // Com foco, os atendimentos vêm primeiro na célula: senão ficavam atrás do
+  // "+N mais", escondidos por quatro treinos.
+  if (focus) Object.values(evMap).forEach((l) => l.sort((a, b) => (b._appt ? 1 : 0) - (a._appt ? 1 : 0)));
 
   // Build cell array
   const cells = [];
@@ -306,9 +398,10 @@ function renderGrid(allEvents, editable) {
                         const time = ev.time ? ev.time.slice(0, 5) : '';
                         const full = ['Fisioterapia', APPOINTMENT_TYPE_LABEL[ev.apptType] || '', ev.title, time]
                           .filter(Boolean).join(' · ');
+                        const icon = ev.athleteResponse === 'nao_posso' && ev.status === 'agendado' ? '⚠' : '🩺';
                         return `
-                      <div class="cal-grid__ev" style="background:hsl(275 60% 93%);border-left:3px solid hsl(275 55% 52%);color:#1f2937" title="${esc(full)}">
-                        ${time ? `<span class="cal-grid__ev-time">${esc(time)}</span> ` : ''}🩺 ${esc(ev.title.slice(0, 14))}${ev.title.length > 14 ? '…' : ''}
+                      <div class="cal-grid__ev" style="background:hsl(275 60% 93%);border-left:3px solid hsl(275 55% 52%);color:#1f2937" title="${esc(full)}${icon === '⚠' ? ' · Não pode' : ''}">
+                        ${time ? `<span class="cal-grid__ev-time">${esc(time)}</span> ` : ''}${icon} ${esc(ev.title.slice(0, 14))}${ev.title.length > 14 ? '…' : ''}
                       </div>`;
                       }
                       const evTeam = teamById(ev.team_id);
@@ -320,7 +413,7 @@ function renderGrid(allEvents, editable) {
                         .filter(Boolean).join(' · ');
                       // Cor pelo escalão da equipa (unificada). Sem equipa, cor do tipo.
                       const color = evTeam ? escalaoColor(evTeam.escalao) : null;
-                      const colorClass = color ? 'cal-grid__ev--team' : `badge--${EVENT_TYPE_BADGE[ev.type] || 'muted'}`;
+                      const colorClass = (color ? 'cal-grid__ev--team' : `badge--${EVENT_TYPE_BADGE[ev.type] || 'muted'}`) + (focus ? ' cal-grid__ev--context' : '');
                       const styleAttr = color ? ` style="${eventChipStyle(color)}"` : '';
                       return `
                       <div class="cal-grid__ev ${colorClass}"${styleAttr} title="${esc(full)}">
@@ -345,22 +438,23 @@ function startOfWeek(d) {
 }
 
 // Um "chip" de evento na vista Semana (reutiliza o estilo da grelha).
-function weekChip(ev) {
+function weekChip(ev, focus) {
   const time = ev.time && /^\d{2}:\d{2}/.test(ev.time) ? ev.time.slice(0, 5) : '';
   if (ev._appt) {
     const label = ev.title || 'Atendimento';
-    return `<div class="cal-grid__ev" style="background:hsl(275 60% 93%);border-left:3px solid hsl(275 55% 52%);color:#1f2937" title="Fisioterapia · ${esc(label)}">${time ? `<span class="cal-grid__ev-time">${esc(time)}</span> ` : ''}🩺 ${esc(label)}</div>`;
+    const cant = ev.athleteResponse === 'nao_posso' && ev.status === 'agendado';
+    return `<div class="cal-grid__ev" style="background:hsl(275 60% 93%);border-left:3px solid hsl(275 55% 52%);color:#1f2937" title="Fisioterapia · ${esc(label)}${cant ? ' · Não pode' : ''}">${time ? `<span class="cal-grid__ev-time">${esc(time)}</span> ` : ''}${cant ? '⚠' : '🩺'} ${esc(label)}</div>`;
   }
   const evTeam = teamById(ev.team_id);
   const label = evTeam ? teamName(evTeam) : (ev.title || EVENT_TYPE_LABEL[ev.type] || '');
   const color = evTeam ? escalaoColor(evTeam.escalao) : null;
-  const cls = color ? 'cal-grid__ev cal-grid__ev--team' : `cal-grid__ev badge--${EVENT_TYPE_BADGE[ev.type] || 'muted'}`;
+  const cls = (color ? 'cal-grid__ev cal-grid__ev--team' : `cal-grid__ev badge--${EVENT_TYPE_BADGE[ev.type] || 'muted'}`) + (focus ? ' cal-grid__ev--context' : '');
   const style = color ? ` style="${eventChipStyle(color)}"` : '';
   const full = [EVENT_TYPE_LABEL[ev.type] || ev.type, label, time, ev.opponent ? `vs ${ev.opponent}` : ''].filter(Boolean).join(' · ');
   return `<div class="${cls}"${style} title="${esc(full)}">${time ? `<span class="cal-grid__ev-time">${esc(time)}</span> ` : ''}${esc(label)}</div>`;
 }
 
-function renderWeek(allEvents, editable) {
+function renderWeek(allEvents, editable, focus) {
   const monday = startOfWeek(weekRef);
   const todayStr = toLocalISO(new Date());
   const DOW = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
@@ -395,7 +489,7 @@ function renderWeek(allEvents, editable) {
               ${editable ? `<button class="cal-grid__add" data-new-day="${day.dateStr}" type="button" title="Novo evento">+</button>` : ''}
             </div>
             <div class="cal-week__events">
-              ${list.length ? list.map(weekChip).join('') : '<span class="cal-week__empty">—</span>'}
+              ${list.length ? list.map((ev) => weekChip(ev, focus)).join('') : '<span class="cal-week__empty">—</span>'}
             </div>
           </div>`;
       }).join('')}
@@ -472,8 +566,14 @@ function eventRow(ev, isPast, editable) {
     day: '2-digit',
     month: 'short',
   });
+  // O crachá já diz o tipo: repeti-lo no título ("Treino Treino") não diz
+  // nada. Sem título próprio, o título passa a ser a equipa — que é o que
+  // distingue os quatro treinos da mesma noite.
+  const typeLabel = EVENT_TYPE_LABEL[ev.type] || ev.type;
+  const ownTitle = ev.title && ev.title !== typeLabel ? ev.title : '';
+  const heading = ownTitle || (team ? teamName(team) : typeLabel || 'Evento');
   const meta = [
-    team ? teamName(team) : '',
+    team && ownTitle ? esc(teamName(team)) : '',
     ev.opponent ? `vs ${esc(ev.opponent)}` : '',
     ev.location ? esc(ev.location) : '',
   ]
@@ -517,7 +617,7 @@ function eventRow(ev, isPast, editable) {
       </div>
       <div class="event-row__main">
         <div class="event-row__title">
-          <span class="badge badge--${EVENT_TYPE_BADGE[ev.type] || 'muted'}" style="margin-right:0.4rem">${esc(EVENT_TYPE_LABEL[ev.type] || ev.type)}</span>${esc(ev.title || EVENT_TYPE_LABEL[ev.type] || 'Evento')}
+          <span class="badge badge--${EVENT_TYPE_BADGE[ev.type] || 'muted'}" style="margin-right:0.4rem">${esc(typeLabel)}</span>${esc(heading)}
         </div>
         ${meta ? `<span class="event-row__meta">${meta}</span>` : ''}
         ${resultBadge(ev)}
@@ -587,6 +687,7 @@ function openDayModal(dateStr, editable) {
   overlay.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => { close(); remove(b.dataset.del); }));
   overlay.querySelectorAll('[data-squad]').forEach((b) => b.addEventListener('click', () => { close(); openSquad(b.dataset.squad); }));
   overlay.querySelectorAll('[data-appt]').forEach((b) => b.addEventListener('click', () => { close(); openAthleteProfile(b.dataset.appt, { tab: 'fisioterapia' }); }));
+  overlay.querySelectorAll('[data-appt-resched]').forEach((b) => b.addEventListener('click', () => { close(); reschedule(b.dataset.apptResched); }));
   overlay.querySelectorAll('[data-plan-event]').forEach((b) => b.addEventListener('click', () => {
     const ev = state.events.find((e) => e.id === b.dataset.planEvent);
     if (ev) { close(); openGamePlanForEvent(ev); navTo('plano-jogo'); }
@@ -596,6 +697,13 @@ function openDayModal(dateStr, editable) {
     close();
     openTrainingPlan(id);
   }));
+}
+
+// Remarcar um atendimento de quem avisou que não pode — o formulário do
+// atendimento, já com ele aberto.
+function reschedule(apptId) {
+  const a = state.appointments.find((x) => x.id === apptId);
+  if (a) openAppointmentForm({ playerId: a.player_id, appointment: a });
 }
 
 // Linha (vista Lista) de um atendimento de fisioterapia. Só de leitura — abre
@@ -608,6 +716,8 @@ function apptEventRow(ev, isPast) {
     team ? teamName(team) : '',
     ev.location ? esc(ev.location) : '',
   ].filter(Boolean).join(' · ');
+  const clashes = apptClashes(ev);
+  const cantCome = ev.status === 'agendado' && ev.athleteResponse === 'nao_posso';
 
   return `
     <div class="event-row ${isPast ? 'event-row--past' : ''}" style="border-left:4px solid hsl(275 55% 52%);padding-left:0.7rem">
@@ -619,10 +729,17 @@ function apptEventRow(ev, isPast) {
         <div class="event-row__title">
           <span class="badge" style="margin-right:0.4rem;background:hsl(275 60% 94%);color:hsl(275 45% 35%)">🩺 ${esc(APPOINTMENT_TYPE_LABEL[ev.apptType] || 'Fisioterapia')}</span>${esc(ev.title)}
           <span class="muted" style="margin-left:0.4rem;font-size:0.82rem">${esc(APPOINTMENT_STATUS_LABEL[ev.status] || ev.status)}</span>
+          ${apptResponseHTML({ status: ev.status, athlete_response: ev.athleteResponse, athlete_note: ev.athleteNote })}
         </div>
         ${meta ? `<span class="event-row__meta">${meta}</span>` : ''}
+        ${clashes.length && !isPast
+          ? `<span class="cal-clash">⚠ Coincide com ${esc(clashes.map(contextLabel).join(', '))}</span>`
+          : ''}
       </div>
       <div class="cell-actions">
+        ${cantCome && !isPast && canEdit('appointments')
+          ? `<button class="btn btn--ghost btn--sm" data-appt-resched="${ev.id.slice(5)}" type="button">Remarcar</button>`
+          : ''}
         <button class="btn btn--ghost btn--sm" data-appt="${ev.playerId}" type="button">Ficha clínica</button>
       </div>
     </div>

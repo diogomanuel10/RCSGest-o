@@ -679,6 +679,7 @@ const FAMILY_SUMMARY = {
   // Fisioterapia
   pedidos_fisio:   (n) => `${n} pedidos do treinador por triar`,
   appt_abertos:    (n) => `${n} atendimentos por fechar`,
+  appt_nao_pode:   (n) => `${n} atletas não podem ir ao atendimento`,
   retorno_passado: (n) => `${n} atletas passaram a data prevista de retorno`,
   conflitos:       (n) => `${n} atendimentos chocam com treinos`,
   sem_previsao:    (n) => `${n} episódios sem previsão de retorno`,
@@ -1334,6 +1335,22 @@ function buildFisioActions() {
       sub: PHYSIO_TRAINING_LABEL[r.training] || '',
     });
   });
+
+  // A atleta avisou que não pode ir (`resposta-atendimento.sql`). Entra em
+  // 'agora' porque o relógio corre contra a fisio: cada dia que o atendimento
+  // fica por remarcar é um dia de tratamento perdido, e na hora marcada ela
+  // estaria à espera de alguém que já disse que não vem. O subtítulo é o que
+  // a atleta escreveu — quase sempre, quando PODE.
+  state.appointments
+    .filter((a) => a.status === 'agendado' && a.athlete_response === 'nao_posso' && a.date >= hoje)
+    .forEach((a) => {
+      items.push({
+        urgency: 'agora', variant: 'warn', family: 'appt_nao_pode',
+        name: nome(a.player_id), athlete: a.player_id, tab: 'fisioterapia',
+        title: `${nome(a.player_id)} não pode a ${dataCurta(a.date)}${a.time ? ` às ${a.time.slice(0, 5)}` : ''}`,
+        sub: a.athlete_note ? `“${a.athlete_note}”` : '',
+      });
+    });
 
   // Atendimentos que já passaram e continuam "agendado": ninguém disse se se
   // realizou ou se o atleta faltou. É o equivalente clínico das presenças por

@@ -289,6 +289,7 @@ src/
     physical-file.js    Área de Prep. física do perfil (dados físicos, avaliações, controlo)
     referencias.js      Editor das faixas de referência das avaliações físicas
     calendario.js       Vista Calendário
+    agenda-sync.js      Link de subscrição da agenda da fisio (Google/iPhone)
     presencas.js        Quem vem a um evento: presenças (treino) ou convocatória (jogo)
     portal.js           Portal do atleta (a sua página pessoal, mobile-first)
     quiosque.js         Modo quiosque: câmara à entrada regista presenças por QR
@@ -308,6 +309,8 @@ supabase/convocatoria-simples.sql Convocatória só com convocado/não convocado
 supabase/musculacao.sql        Sessões de musculação: evento com o plantel escolhido (event_players)
 supabase/pedidos-fisioterapia.sql Pedidos de fisioterapia (treinador -> fisio) + triagem
 supabase/atendimentos-atleta.sql A atleta vê o SEU atendimento de fisioterapia (+ alta)
+supabase/resposta-atendimento.sql A atleta responde ao atendimento (vou / não posso)
+supabase/calendario-subscricao.sql Token do link de subscrição da agenda (Edge Function calendar-feed)
 supabase/plano-recuperacao.sql Exercícios de reabilitação do episódio, lidos no portal
 supabase/referencias-testes.sql Faixas de referência das avaliações físicas (por teste e sexo)
 supabase/decimais-fisicos.sql  Altura e peso com 2 casas decimais (não arredondar a medição)
@@ -2217,6 +2220,60 @@ separador antes de navegar (usado pelos cartões do Painel).
     ficha não há a quem notificar, e o formulário de atendimento avisa a fisio
     disso em vez de a deixar a contar com uma notificação que não sai. É a
     mesma honestidade do número que o `send_team_announcement` devolve.
+- **A atleta responde ao atendimento** (`supabase/resposta-atendimento.sql`,
+  RPC `respond_to_appointment`): o aviso só ia num sentido. Se a hora não lhe
+  dava, a única saída era "avisa o teu treinador", que avisava a fisio por
+  WhatsApp se se lembrasse — e a fisio ficava à espera, e a atleta levava uma
+  falta por ter avisado.
+  - **Duas respostas, como nos eventos**: "Vou" e "Não posso". O "não posso"
+    pede QUANDO pode (opcional): é o que deixa remarcar de uma vez em vez de
+    trocar três mensagens.
+  - **A resposta é uma coluna do atendimento** (`athlete_response`,
+    `athlete_note`) e não uma tabela: um atendimento é de uma atleta só.
+    Escreve-se só pela RPC — ela não tem a tabela (`med_rw`), e é `security
+    definer`, por isso filtra `org_id` à mão. Aceita até à hora marcada, como
+    o jogo: aqui do outro lado está uma pessoa só, que ganha sempre com o aviso.
+  - **A resposta é DELA**: o `med_rw` deixa a fisio gravar a linha inteira, e
+    um formulário que reenviasse tudo apagava ou inventava a resposta. O
+    trigger `guard_appointment_response` repõe as colunas em qualquer escrita
+    que não venha da RPC (reverte em silêncio — a fisio não tentou mexer
+    nelas).
+  - **Remarcar limpa a resposta**: "não posso" era sobre aquela hora. Mudar o
+    dia ou a hora apaga-a, e a notificação de alteração pede-lhe que responda
+    outra vez.
+  - **Só o "não posso" notifica** (e o "afinal posso", que desfaz um aviso a
+    meio de ser tratado). Ao contrário dos eventos, o "vou" não gasta o sino:
+    é UMA atleta, e o ✓ fica à vista na agenda. Vai à fisioterapeuta e, num
+    clube sem fisio com conta, ao coordenador — a regra do `clubHasFisio`.
+  - **Onde a fisio vê**: crachá na agenda, na ficha e no Calendário (⚠ nos
+    chips), com "Remarcar" ali mesmo; no formulário do atendimento, o aviso
+    com o que ela escreveu; e no Painel da fisio no degrau `agora` — cada dia
+    por remarcar é um dia de tratamento perdido.
+  - Sem a migração o portal volta ao "avisa o teu treinador"
+    (`state.apptResponseReady`).
+- **A agenda da fisio no Google Calendar** (`supabase/calendario-subscricao.sql`,
+  Edge Function `calendar-feed`, `views/agenda-sync.js`): um link de
+  SUBSCRIÇÃO, não um `.ics` descarregado — uma fotografia não sabe quando um
+  atendimento muda ou é cancelado, e a fisio ficava com duas agendas a dizer
+  coisas diferentes.
+  - **O token É a credencial** (o Google não tem sessão): longo, de uma
+    pessoa, só nasce quando alguém o pede (abrir o diálogo não o cria), troca-se
+    e desliga-se num clique. `calendar_feeds` não tem políticas — só as RPCs
+    tocam na linha de quem chama.
+  - **A função corre com a chave de serviço, por isso verifica tudo à mão e a
+    CADA pedido**: papel (coordenador/fisio), clube ativo, plano com `medico`,
+    e `org_id` em todas as consultas. O link sobrevive a uma mudança de papel e
+    tem de deixar de dar agenda com ela. Todas as recusas são o mesmo 404:
+    distingui-las dizia a quem adivinha tokens quais existem.
+  - **Vai só o que caberia num post-it na porta do gabinete**: tipo, dia, hora,
+    local e o nome abreviado ("Beatriz S."). Nem notas, nem episódio: o
+    calendário vive numa conta fora do clube. O "⚠ Não pode" vai à cabeça do
+    título, porque é o que pede ação.
+  - **O atraso do Google diz-se no ecrã** (de algumas horas até um dia): sem
+    isso, a primeira mudança que não aparece no telemóvel lê-se como avaria.
+    Para a mudança em cima da hora continuam as notificações.
+  - Publica-se com `--no-verify-jwt` (ver README). Sem a migração o botão não
+    aparece (`state.calendarFeedReady`).
 - **Plano de recuperação** (`supabase/plano-recuperacao.sql`, `rehab_exercises`,
   `rehabBlockHTML` em `clinical-file.js`, `rehabHTML` em `portal.js`): o
   trabalho de reabilitação é o que decide se a atleta volta a jogar, e faz-se
@@ -2293,6 +2350,13 @@ separador antes de navegar (usado pelos cartões do Painel).
     um atendimento se sobrepõe a um treino/jogo da equipa do atleta.
   - Editável por quem tem `canEdit('clinical')` / `canEdit('appointments')`
     (coordenador e fisioterapeuta), em linha com o RLS `med_rw`.
+  - **No Calendário, a fisio vê os atendimentos em primeiro plano** (toggle
+    "🩺 Atendimentos · Tudo", ligado por omissão para o `fisioterapeuta`). Os
+    treinos continuam lá — é por eles que se decide a hora de um atendimento —
+    mas como CONTEXTO: uma linha por dia ("No mesmo dia: 18:30 Iniciadas F ·
+    …"), e o que coincide com a equipa da atleta vem a âmbar
+    (`appointmentConflicts`, que antes só se via a quem marcava). Quatro
+    treinos por noite com o mesmo peso de uma consulta enterravam a consulta.
 - **Preparação Física**: gestão do preparador físico (e coordenador).
   - `physical_profiles` (1:1 atleta) — altura, peso, mão dominante; o IMC é
     calculado (`compute.bmi`). `medical_history` (1:1) — limitações, lesões,

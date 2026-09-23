@@ -18,6 +18,10 @@ function cleanEnv(value) {
 const url = cleanEnv(import.meta.env.VITE_SUPABASE_URL);
 const anonKey = cleanEnv(import.meta.env.VITE_SUPABASE_ANON_KEY);
 
+// O endereço do projeto, já limpo — as Edge Functions vivem por baixo dele
+// (ex.: o link de subscrição do calendário).
+export const supabaseUrl = url.replace(/\/+$/, '');
+
 // `true` apenas quando ambas as variáveis estão preenchidas (após limpeza).
 export const isConfigured = Boolean(url && anonKey);
 

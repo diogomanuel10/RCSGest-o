@@ -32,8 +32,9 @@ import {
 } from '../constants.js';
 import { canEdit } from '../permissions.js';
 import { openModal } from '../modal.js';
-import { openAppointmentForm } from './clinical-file.js';
+import { openAppointmentForm, apptResponseHTML } from './clinical-file.js';
 import { openAthleteProfile } from './athlete-profile.js';
+import { openCalendarSync } from './agenda-sync.js';
 import { renderPhysioRequestsBody } from './physio-requests.js';
 
 let tab = 'atletas'; // 'atletas' | 'pedidos' | 'agenda' | 'historico'
@@ -98,9 +99,19 @@ export function renderMedico(container) {
   }
 
   container.querySelector('#med-add-appt')?.addEventListener('click', () => pickAthleteThenAppt(container));
+  container.querySelector('#med-sync')?.addEventListener('click', () => openCalendarSync());
   wireAthleteButtons(container);
   container.querySelectorAll('[data-appt-file]').forEach((b) =>
     b.addEventListener('click', () => openAthleteProfile(b.dataset.apptFile, { tab: 'fisioterapia' }))
+  );
+  // Remarcar direto da agenda: quem avisou que não pode é trabalho desta
+  // lista, e mandar a fisio abrir a ficha para achar o atendimento era um
+  // desvio de três cliques para mudar uma hora.
+  container.querySelectorAll('[data-appt-resched]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const a = state.appointments.find((x) => x.id === b.dataset.apptResched);
+      if (a) openAppointmentForm({ playerId: a.player_id, appointment: a });
+    })
   );
 }
 
@@ -251,7 +262,10 @@ function renderAgenda(editable) {
       <section class="card">
         <div class="cf-section-head">
           <h2 class="section-title" style="margin:0">Atendimentos</h2>
-          ${editable ? '<button class="btn btn--accent btn--sm" id="med-add-appt" type="button">+ Atendimento</button>' : ''}
+          <div class="row" style="gap:0.4rem;flex-wrap:wrap">
+            ${state.calendarFeedReady ? '<button class="btn btn--ghost btn--sm" id="med-sync" type="button">📆 Google Calendar</button>' : ''}
+            ${editable ? '<button class="btn btn--accent btn--sm" id="med-add-appt" type="button">+ Atendimento</button>' : ''}
+          </div>
         </div>
         ${future.length
           ? `<h3 class="cal-group">Próximos</h3>${future.map(apptRowHTML).join('')}`
@@ -288,8 +302,12 @@ function apptRowHTML(a) {
           <span class="badge badge--${APPOINTMENT_TYPE_BADGE[a.type] || 'muted'}" style="margin-right:0.4rem">${esc(APPOINTMENT_TYPE_LABEL[a.type] || a.type)}</span>
           <button class="player-link" data-appt-file="${a.player_id}" type="button">${esc(player?.name || 'Atleta')}</button>
           <span class="badge badge--${APPOINTMENT_STATUS_BADGE[a.status] || 'muted'}" style="margin-left:0.4rem">${esc(APPOINTMENT_STATUS_LABEL[a.status] || a.status)}</span>
+          ${apptResponseHTML(a)}
         </div>
         <span class="event-row__meta">${team ? esc(teamName(team)) : ''}${a.location ? ' · ' + esc(a.location) : ''}</span>
+        ${a.status === 'agendado' && a.athlete_response === 'nao_posso' && canEdit('appointments')
+          ? `<button class="btn btn--ghost btn--sm" data-appt-resched="${a.id}" type="button" style="align-self:flex-start">Remarcar</button>`
+          : ''}
       </div>
     </div>
   `;
