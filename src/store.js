@@ -429,6 +429,23 @@ export async function adminDeleteUser(userId) {
 }
 
 // --- Carregamento inicial -------------------------------------------------
+// O Supabase (PostgREST) devolve no máximo 1000 linhas por pedido, e corta
+// em SILÊNCIO — sem erro, sem aviso. As tabelas que crescem com a época
+// (presenças, quotas, respostas…) passam essa marca ao fim de poucas semanas
+// e, sem ordem, o que fica de fora são as linhas mais recentes: foi assim que
+// as presenças marcadas pelos treinadores deixaram de aparecer a quem recarregava
+// a app. Estas vão buscar-se por páginas, com ordem estável (o `id` desempata).
+const PAGE_ROWS = 1000;
+async function selectAll(build) {
+  const rows = [];
+  for (let from = 0; ; from += PAGE_ROWS) {
+    const { data, error } = await build().order('id').range(from, from + PAGE_ROWS - 1);
+    if (error) return { data: null, error };
+    rows.push(...(data || []));
+    if (!data || data.length < PAGE_ROWS) return { data: rows, error: null };
+  }
+}
+
 // Vai buscar todas as tabelas em paralelo. Lança erro se alguma falhar.
 export async function loadAll() {
   const [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects, episodes, sessions, appointments,
@@ -448,9 +465,9 @@ export async function loadAll() {
       supabase.from('teams').select('*').is('archived_at', null).order('created_at'),
       supabase.from('players').select('*').is('archived_at', null).order('number'),
       supabase.from('sponsors').select('*').is('archived_at', null).order('name'),
-      supabase.from('events').select('*').is('archived_at', null).order('date'),
-      supabase.from('attendances').select('*'),
-      supabase.from('quotas').select('*'),
+      selectAll(() => supabase.from('events').select('*').is('archived_at', null).order('date')),
+      selectAll(() => supabase.from('attendances').select('*')),
+      selectAll(() => supabase.from('quotas').select('*')),
       supabase.from('equipment').select('*').order('name'),
       supabase.from('team_coaches').select('*'),
       supabase.from('prospects').select('*').is('archived_at', null).order('created_at'),
@@ -461,26 +478,26 @@ export async function loadAll() {
       supabase.from('physio_appointments').select('*').order('date'),
       supabase.from('physical_profiles').select('*'),
       supabase.from('medical_history').select('*'),
-      supabase.from('physical_tests').select('*').order('date', { ascending: false }),
+      selectAll(() => supabase.from('physical_tests').select('*').order('date', { ascending: false })),
       supabase.from('training_phases').select('*').order('start_date'),
       supabase.from('mesocycles').select('*').order('start_date'),
       supabase.from('gym_sessions').select('*').order('date'),
       supabase.from('gym_exercises').select('*').order('position'),
-      supabase.from('gym_attendance').select('*'),
-      supabase.from('game_minutes').select('*'),
+      selectAll(() => supabase.from('gym_attendance').select('*')),
+      selectAll(() => supabase.from('game_minutes').select('*')),
       supabase.from('athlete_availability').select('*'),
       // Planos de treino e avaliações pós treino.
       supabase.from('training_plans').select('*').order('created_at'),
       supabase.from('training_plan_items').select('*').order('position'),
       supabase.from('training_evaluations').select('*').order('created_at'),
-      supabase.from('training_player_evals').select('*'),
+      selectAll(() => supabase.from('training_player_evals').select('*')),
       // Documentos dos atletas.
       supabase.from('player_documents').select('*'),
       // Tamanhos de equipamento.
       supabase.from('player_sizes').select('*'),
       // Convocatórias.
       supabase.from('squads').select('*'),
-      supabase.from('squad_players').select('*'),
+      selectAll(() => supabase.from('squad_players').select('*')),
       // Gestão financeira.
       supabase.from('financial_entries').select('*').order('date', { ascending: false }),
       // Planos de jogo.
@@ -489,13 +506,13 @@ export async function loadAll() {
       supabase.from('objectives').select('*').order('created_at'),
       // Respostas do atleta aos eventos (convocatórias e treinos). Se a
       // migração `comunicacao.sql` ainda não correu, fica vazio (ver abaixo).
-      supabase.from('event_responses').select('*'),
+      selectAll(() => supabase.from('event_responses').select('*')),
       // Resultados de jogo (final + parciais). Tolerante à migração em falta.
       supabase.from('game_results').select('*'),
       supabase.from('game_sets').select('*').order('set_number'),
       // Decisão tática. Tolerante à migração em falta (ver abaixo).
       supabase.from('tactical_scenarios').select('*').order('created_at', { ascending: false }),
-      supabase.from('tactical_answers').select('*'),
+      selectAll(() => supabase.from('tactical_answers').select('*')),
       // Biblioteca de exercícios. Tolerante à migração em falta (ver abaixo).
       supabase.from('exercises').select('*').order('name'),
       // Pedidos de equipamento. Tolerante à migração em falta (ver abaixo).
@@ -514,7 +531,7 @@ export async function loadAll() {
       supabase.from('player_sizes').select('player_id,paid_at').limit(1),
       // Quem entra em cada evento de plantel escolhido (musculação). Tolerante
       // à migração `musculacao.sql` em falta (ver abaixo).
-      supabase.from('event_players').select('*'),
+      selectAll(() => supabase.from('event_players').select('*')),
       // Faixas de referência das avaliações físicas. Tolerante à migração
       // `referencias-testes.sql` em falta (ver abaixo).
       supabase.from('test_references').select('*'),

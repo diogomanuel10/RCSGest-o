@@ -365,6 +365,12 @@ browser desfaz o último passo e os links são partilháveis.
 - `state` — objeto em memória com `settings`, `coaches`, `teams`, `players`,
   `sponsors`, `events` e `loaded`.
 - `loadAll()` — vai buscar tudo ao Supabase em paralelo (uma vez).
+  **O Supabase devolve no máximo 1000 linhas por pedido e corta sem erro.**
+  As tabelas que crescem com a época (presenças, quotas, respostas, eventos,
+  minutos de jogo…) vão por `selectAll()`, que pagina com ordem estável.
+  Sem isso, a meio de setembro as presenças mais recentes deixaram de
+  aparecer a quem recarregava a app. Uma tabela nova que cresça por evento ou
+  por atleta entra nessa lista.
 - `createRow / updateRow / deleteRow` — operações genéricas que atualizam o
   Supabase **e** a cache local, e depois notificam.
 - `saveSettings`.
