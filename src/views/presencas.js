@@ -689,7 +689,6 @@ function renderSummary(container, tabBar) {
         <div>
           <h1 class="section-title">Presenças</h1>
           <p class="muted" style="margin:0;font-size:0.88rem">Registo de presenças nos treinos</p>
-        ${isPicked ? '<p class="muted" style="margin:0.15rem 0 0;font-size:0.82rem">Sessão de musculação — só os atletas deste horário.</p>' : ''}
         </div>
       </header>
       ${tabBar}
@@ -749,7 +748,6 @@ function renderSummary(container, tabBar) {
       <div>
         <h1 class="section-title">Presenças</h1>
         <p class="muted" style="margin:0;font-size:0.88rem">Registo de presenças nos treinos</p>
-        ${isPicked ? '<p class="muted" style="margin:0.15rem 0 0;font-size:0.82rem">Sessão de musculação — só os atletas deste horário.</p>' : ''}
       </div>
     </header>
 
