@@ -36,7 +36,7 @@ let tab = 'tamanhos'; // 'tamanhos' | 'resumo'
 // com a família à frente, ao balcão. O filtro nunca toca no separador
 // Resumo: essa é a lista que vai ao fornecedor, e o fornecedor entrega a
 // encomenda toda, tenha ou não sido paga.
-let filtro = 'todos'; // 'todos' | 'por_pagar' | 'por_confirmar' | 'sem_tamanhos'
+let filtro = 'todos'; // 'todos' | 'por_pagar' | 'pagos' | 'por_confirmar' | 'sem_tamanhos'
 
 // Corpo do separador "Encomendas" (renderizado pelo orquestrador Equipamentos).
 export function renderEncomendasBody(container) {
@@ -86,6 +86,7 @@ export function renderEncomendasBody(container) {
             <select id="enc-filtro">
               <option value="todos" ${filtro === 'todos' ? 'selected' : ''}>Todos</option>
               ${state.sizesPaidReady ? `<option value="por_pagar" ${filtro === 'por_pagar' ? 'selected' : ''}>Por pagar</option>` : ''}
+              ${state.sizesPaidReady ? `<option value="pagos" ${filtro === 'pagos' ? 'selected' : ''}>Pagos</option>` : ''}
               ${state.sizesConfirmReady ? `<option value="por_confirmar" ${filtro === 'por_confirmar' ? 'selected' : ''}>Por confirmar</option>` : ''}
               <option value="sem_tamanhos" ${filtro === 'sem_tamanhos' ? 'selected' : ''}>Sem tamanhos</option>
             </select>
@@ -408,6 +409,7 @@ const FILTER_LABELS = {
 
 const EMPTY_BY_FILTER = {
   por_pagar: 'Está tudo cobrado nesta equipa.',
+  pagos: 'Ainda ninguém pagou a encomenda nesta equipa.',
   por_confirmar: 'Todas as famílias desta equipa já confirmaram.',
   sem_tamanhos: 'Todos os atletas desta equipa já têm tamanhos preenchidos.',
 };
@@ -415,6 +417,7 @@ const EMPTY_BY_FILTER = {
 function matchesFilter(player, articles) {
   const row = sizesRow(player.id);
   if (filtro === 'por_pagar') return hasOrder(player.id) && !row.paid_at;
+  if (filtro === 'pagos') return !!row.paid_at;
   if (filtro === 'por_confirmar') return !row.confirmed_at;
   if (filtro === 'sem_tamanhos') return !hasOrder(player.id);
   return true;
