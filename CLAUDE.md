@@ -1089,6 +1089,9 @@ separador antes de navegar (usado pelos cartões do Painel).
     família à frente. O filtro (com o "X de Y" sempre visível, como nas outras
     vistas) nunca toca no separador Resumo — essa é a lista que vai ao
     fornecedor, que entrega a encomenda toda, tenha ou não sido paga.
+    O filtro "Pagos" é o avesso — quem já pagou, para responder "a Ana já
+    pagou?" sem percorrer a lista; nos Pedidos há o mesmo par no seletor
+    Estado ("Por pagar" / "Pagos", este só com `state.requestFlowReady`).
   - **A cobrança não é de uma equipa só**: quem trata dela tem dez escalões e
     não abre dez separadores para saber quanto lhe falta receber. O cartão do
     topo leva a linha do clube inteiro; a LISTA continua por equipa, porque é

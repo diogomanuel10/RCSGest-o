@@ -39,7 +39,7 @@ import {
 } from '../constants.js';
 
 // Filtros e paginação são estado de UI: vivem no módulo, não na base de dados.
-let statusFilter = 'abertos'; // 'abertos' | chave de estado | 'todos'
+let statusFilter = 'abertos'; // 'abertos' | chave de estado | 'por_pagar' | 'pagos' | 'todos'
 let teamFilter = '';
 let page = 1;
 // Três leituras dos MESMOS pedidos, porque são três momentos do mesmo
@@ -115,6 +115,7 @@ export function renderPedidosBody(container) {
     // que alguém tem de fazer alguma coisa.
     if (statusFilter === 'abertos') return r.status === 'pendente' || REQUEST_IN_FLIGHT.includes(r.status);
     if (statusFilter === 'por_pagar') return isBillable(r);
+    if (statusFilter === 'pagos') return !!r.paid_at;
     return r.status === statusFilter;
   });
   const pg = paginate(rows, page, PAGE_SIZE);
@@ -136,6 +137,7 @@ export function renderPedidosBody(container) {
             <option value="abertos" ${statusFilter === 'abertos' ? 'selected' : ''}>Por resolver</option>
             ${REQUEST_STATUSES.map((s) => `<option value="${s.key}" ${statusFilter === s.key ? 'selected' : ''}>${esc(s.label)}</option>`).join('')}
             <option value="por_pagar" ${statusFilter === 'por_pagar' ? 'selected' : ''}>Por pagar</option>
+            ${state.requestFlowReady ? `<option value="pagos" ${statusFilter === 'pagos' ? 'selected' : ''}>Pagos</option>` : ''}
             <option value="todos" ${statusFilter === 'todos' ? 'selected' : ''}>Todos</option>
           </select>
         </div>
