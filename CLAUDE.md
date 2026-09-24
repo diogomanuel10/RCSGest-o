@@ -326,6 +326,7 @@ supabase/variante-equipamento.sql Cor/modelo do equipamento por escalão (resumo
 supabase/aniversarios.sql      Data de nascimento do atleta (aniversários + quem falta)
 supabase/dados-atleta.sql      Foto de perfil + a atleta completa a sua ficha (foto, data, CC)
 supabase/remover-utilizadores.sql Eliminar contas do clube (RPC delete_org_member)
+supabase/desempenho-rls.sql      RLS avaliado uma vez por consulta (arranque mais rápido)
 supabase/portal-atleta.sql     Portal: o atleta lê a sua própria disponibilidade
 supabase/comunicacao.sql       Respostas do atleta a eventos + avisos do clube
 supabase/notificacoes-atleta.sql Notificações para o atleta (agenda + convocatória)
@@ -374,6 +375,18 @@ browser desfaz o último passo e os links são partilháveis.
   Sem isso, a meio de setembro as presenças mais recentes deixaram de
   aparecer a quem recarregava a app. Uma tabela nova que cresça por evento ou
   por atleta entra nessa lista.
+  **O arranque não pode ser uma fila de idas à rede.** O perfil, os convites
+  e os planos vão no MESMO lote das tabelas; só os arquivados e a agenda da
+  atleta esperam pelo perfil (dependem do papel), e vão os dois lado a lado.
+  O `loadProfile` lê o id da sessão local (`getSession`) e não do servidor
+  de autenticação (`getUser`). Eram nove esperas em série depois do lote —
+  cada uma um ping inteiro, num telemóvel com rede de pavilhão.
+  **Do lado do servidor**, as políticas chamavam `current_org_id()` e
+  `app_role()` por LINHA (cada chamada, uma consulta a `profiles`): com as
+  presenças de uma época, isso crescia semana a semana.
+  `supabase/desempenho-rls.sql` embrulha-as em `(select …)` para serem
+  avaliadas uma vez por consulta — volta a correr-se depois de uma migração
+  nova que crie políticas.
 - `createRow / updateRow / deleteRow` — operações genéricas que atualizam o
   Supabase **e** a cache local, e depois notificam.
 - `saveSettings`.

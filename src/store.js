@@ -252,26 +252,33 @@ function notify() {
 // de todos os perfis (para a gestão de utilizadores). O RLS garante que um
 // não-coordenador só recebe o seu próprio perfil.
 export async function loadProfile() {
-  const { data: userData } = await supabase.auth.getUser();
-  const userId = userData?.user?.id;
+  // `getSession()` lê a sessão guardada no dispositivo; o `getUser()` que aqui
+  // esteve ia ao servidor de autenticação só para saber o id — uma ida à rede
+  // em série à frente de tudo o resto, duas vezes em cada arranque. Confiar no
+  // id local é seguro: quem decide o que cada um lê é o RLS, com o token.
+  const { data: sessionData } = await supabase.auth.getSession();
+  const userId = sessionData?.session?.user?.id;
   if (!userId) return;
 
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .order('email');
+  // O perfil e o "sou admin da plataforma?" não dependem um do outro.
+  const [{ data, error }, { data: padmin }] = await Promise.all([
+    supabase.from('profiles').select('*').order('email'),
+    supabase.from('platform_admins').select('user_id').limit(1),
+  ]);
   if (error) throw error;
+  state.isPlatformAdmin = Array.isArray(padmin) && padmin.length > 0;
 
   const all = data || [];
   state.profiles = all;
   state.profile = all.find((p) => p.id === userId) || { id: userId, role: 'leitura', org_id: null };
 
-  await loadOrgContext();
+  await loadOrg();
 }
 
-// Carrega a organização (clube) do utilizador atual e se é admin da plataforma.
+// Carrega a organização (clube) do utilizador atual.
 // A app usa isto para o gate de subscrição (trial/suspenso) e o onboarding.
-export async function loadOrgContext() {
+// (O "é admin da plataforma?" vem no `loadProfile`, em paralelo com o perfil.)
+async function loadOrg() {
   const orgId = state.profile?.org_id || null;
   if (orgId) {
     const { data } = await supabase
@@ -283,12 +290,6 @@ export async function loadOrgContext() {
   } else {
     state.org = null;
   }
-  // Admin da plataforma: a policy só devolve linhas a quem for admin.
-  const { data: padmin } = await supabase
-    .from('platform_admins')
-    .select('user_id')
-    .limit(1);
-  state.isPlatformAdmin = Array.isArray(padmin) && padmin.length > 0;
 }
 
 // A organização atual pode usar a app? (ativa, ou trial por expirar).
@@ -465,6 +466,13 @@ export async function loadAll() {
          equipmentRequests, requestFlowProbe, sizesConfirmProbe, sizesPaidProbe, eventPlayers, testReferences,
          physioRequests, rehabExercises, apptResponseProbe, calendarFeedProbe] =
     await Promise.all([
+      // O perfil, os convites e os planos não dependem das tabelas do clube:
+      // vão no mesmo lote em vez de esperarem por ele, uma ida de cada vez.
+      // (O resultado fica em `state`; não entra na lista desestruturada.)
+      loadProfile(),
+      loadInvitations(),
+      loadPlans(),
+    ].concat([
       // Multi-tenant: o RLS limita as definições ao clube do utilizador, por
       // isso não filtramos por id — devolve a (única) linha do clube atual.
       supabase.from('settings').select('*').limit(1).maybeSingle(),
@@ -558,7 +566,7 @@ export async function loadAll() {
       // Sonda de `calendario-subscricao.sql`. A tabela não tem políticas, por
       // isso responde sempre vazia — só falha se não existir.
       supabase.from('calendar_feeds').select('user_id').limit(1),
-    ]);
+    ])).then((all) => all.slice(3));
 
   for (const res of [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects, episodes, sessions, appointments,
                      physProfiles, medHistory, physTests, phases, mesocycles, gymSessions, gymExercises, gymAttendance, gameMinutes, availability,
@@ -647,14 +655,11 @@ export async function loadAll() {
   // referenciam não devem aparecer nos ecrãs ativos.
   pruneOrphans();
 
-  await loadProfile();
-  await loadArchived();
-  await loadInvitations();
-  await loadPlans();
-  // Depois do perfil: a RPC lê a ficha ligada à conta, e só ao atleta
-  // interessa (aos restantes papéis devolve vazio, que é o correto — a agenda
-  // clínica deles vem de `physio_appointments`).
-  await loadMyAppointments();
+  // Depois do perfil (ambos decidem pelo papel), mas um ao lado do outro: a
+  // RPC lê a ficha ligada à conta, e só ao atleta interessa (aos restantes
+  // papéis devolve vazio, que é o correto — a agenda clínica deles vem de
+  // `physio_appointments`); os arquivados são só do coordenador.
+  await Promise.all([loadArchived(), loadMyAppointments()]);
 
   state.loaded = true;
   notify();
