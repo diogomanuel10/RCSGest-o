@@ -259,6 +259,7 @@ src/
   join-guide.js         Guia de entrada no portal: passos comuns + mensagem do escalão
   birthday-message.js   Mensagem de parabéns à família (cartão de aniversário)
   sizes-message.js      Mensagem à família para confirmar os dados da encomenda
+  encomenda-fornecedor-xlsx.js Folha da encomenda no formato do fornecedor (ExcelJS lazy)
   join-poster.js        Cartaz A4 do guia de entrada (QR da app + QR do grupo)
   player-photo.js       Foto de perfil nos avatares (endereços assinados em lote)
   offline-card.js       Cartão QR guardado no dispositivo (ecrã de recurso sem rede)
@@ -1056,6 +1057,21 @@ separador antes de navegar (usado pelos cartões do Painel).
   - Sem a migração o pisco não aparece de todo (`state.sizesConfirmReady`,
     sondado no `loadAll`): uma marca que não grava é pior do que marca
     nenhuma. A mensagem funciona à mesma — não depende de coluna nova.
+
+- **A folha do fornecedor** (`encomenda-fornecedor-xlsx.js`, botão "Folha do
+  fornecedor" nas Encomendas): a exportação normal é a folha de TRABALHO do
+  clube (confirmado, pago, valor); o fornecedor quer a dele — uma secção por
+  escalão, uma linha por camisola a estampar (kit, nº, nome, tamanhos), e era
+  copiada à mão da app para o modelo dele, que é onde um "S" passa a "M".
+  - **É do clube inteiro** (todas as equipas num ficheiro): é uma encomenda só.
+    Atletas sem nada preenchido ficam de fora, e as colunas de tamanho são só
+    os artigos que alguém tem preenchidos.
+  - **A camisola alternativa com outro nome (ou tamanho) sai numa linha
+    própria** logo a seguir, e o número entra na nota "N.B." do fim — é o que o
+    fornecedor lê para não estampar o nome errado. Com o mesmo nome é uma linha
+    só ("Equipamento Principal e Camisola alternativa").
+  - **Usa o ExcelJS e não o SheetJS**: o modelo tem cores e células unidas, e a
+    versão livre do SheetJS não escreve estilos. Carrega-se só ao clicar.
 
 - **Quem já pagou a encomenda** (`supabase/pagamento-encomenda.sql`,
   `player_sizes.paid_at`/`paid_by`, `setSizesPaid` no `store.js`): a tabela
