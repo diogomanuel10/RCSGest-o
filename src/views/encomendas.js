@@ -25,6 +25,7 @@ import { openModal } from '../modal.js';
 import { toastOk, toastError } from '../toast.js';
 import { canEdit } from '../permissions.js';
 import { exportEncomendaXLSX } from '../encomendas-xlsx.js';
+import { exportFornecedorXLSX } from '../encomenda-fornecedor-xlsx.js';
 import { branding } from '../branding.js';
 import { sizesMessage, contactChannel, sendVia } from '../sizes-message.js';
 
@@ -92,6 +93,7 @@ export function renderEncomendasBody(container) {
             </select>
           </div>` : ''}
         <button class="btn btn--ghost btn--sm" id="enc-export" type="button" style="margin-left:auto" title="Exportar a encomenda desta equipa">⬇ Exportar Excel</button>
+        <button class="btn btn--ghost btn--sm" id="enc-export-fornecedor" type="button" title="Todas as equipas, no formato da folha do fornecedor (kit, nº, nome e tamanhos por escalão)">⬇ Folha do fornecedor</button>
       </div>
     </div>
 
@@ -106,6 +108,9 @@ export function renderEncomendasBody(container) {
   });
   container.querySelector('#enc-export').addEventListener('click', (e) => {
     handleExport(e.currentTarget, team, players);
+  });
+  container.querySelector('#enc-export-fornecedor').addEventListener('click', (e) => {
+    handleFornecedorExport(e.currentTarget, teams);
   });
   container.querySelector('#enc-filtro')?.addEventListener('change', (e) => {
     filtro = e.target.value;
@@ -643,6 +648,52 @@ async function handleExport(btn, team, players) {
     btn.disabled = false;
     btn.textContent = original;
   }
+}
+
+// A folha do fornecedor é do clube INTEIRO, uma secção por escalão: é uma
+// encomenda só, e o fornecedor não recebe dez ficheiros. Os atletas sem nada
+// preenchido ficam de fora — uma linha em branco na folha dele é uma
+// pergunta que ele tem de fazer de volta.
+async function handleFornecedorExport(btn, teams) {
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'A exportar…';
+  try {
+    const sizesById = {};
+    const groups = teams.map((t) => ({
+      teamLabel: teamName(t),
+      players: state.players.filter((p) => p.team_id === t.id).sort(byNumber),
+    }));
+    groups.forEach((g) => g.players.forEach((p) => {
+      const row = state.playerSizes.find((s) => s.player_id === p.id) || {};
+      sizesById[p.id] = {
+        nome_camisola: row.nome_camisola,
+        nome_camisola_alt: row.nome_camisola_alt,
+        sizes: playerSizes(p.id),
+      };
+    }));
+    const n = await exportFornecedorXLSX({
+      clubLabel: branding().club_name || 'clube',
+      groups,
+      sizesById,
+      articles: equipmentArticles(),
+    });
+    if (!n) toastError('Ainda não há tamanhos nem nomes preenchidos para exportar.');
+  } catch (err) {
+    toastError(dbErrorMessage(err) || 'Não foi possível gerar o ficheiro.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+}
+
+function byNumber(a, b) {
+  const na = parseInt(a.number, 10);
+  const nb = parseInt(b.number, 10);
+  if (!isNaN(na) && !isNaN(nb)) return na - nb;
+  if (!isNaN(na)) return -1;
+  if (!isNaN(nb)) return 1;
+  return (a.name || '').localeCompare(b.name || '');
 }
 
 // ---------------------------------------------------------------------------
