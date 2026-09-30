@@ -174,6 +174,24 @@ export function renderAthleteProfilePage(container, playerId, { onEdit, onBack }
     }
   });
 
+  // A foto desenha-se como FUNDO de um avatar, por isso o "guardar imagem
+  // como" do browser não lhe chega — sem este botão não havia forma nenhuma
+  // de a tirar da app, e ela é uma das três coisas que se juntam para uma
+  // inscrição. O endereço é assinado por 2 minutos: é para guardar agora, não
+  // para partilhar.
+  container.querySelector('[data-ap-photo-get]')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    const nome = `${safeFileName(`Foto - ${player.name}`, 'foto')}.jpg`;
+    btn.disabled = true;
+    try {
+      triggerDownload(await playerPhotoDownloadUrl(player.photo_path, nome), nome);
+    } catch (err) {
+      toastError(dbErrorMessage(err));
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
   container.querySelector('[data-ap-back]')?.addEventListener('click', () => onBack?.());
   container.querySelector('[data-ap-edit]')?.addEventListener('click', () => onEdit?.());
   // Ficha imprimível: só inclui as secções que quem a gera já podia ver na
