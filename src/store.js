@@ -147,6 +147,11 @@ export const state = {
   // que é exatamente o contrário do que ele é. Sem a migração, o tipo nem
   // aparece nos formulários: é a mesma linha do `birthDateReady()`.
   musculacaoReady: true,
+  // Datas & iniciativas (marketing do clube, só o coordenador). Sem a
+  // migração `marketing.sql` o ecrã mostra o catálogo e diz que gravar ainda
+  // não é possível — a mesma linha do `birthDateReady()`.
+  marketingItems: [],
+  marketingReady: true,
   gameResults: [],        // resultado final de cada jogo (sets)
   gameSets: [],           // parciais de cada set
   financialEntries: [],   // receitas e despesas do clube
@@ -226,6 +231,8 @@ export function resetState() {
   state.tacticalAnswers = [];
   state.objectives = [];
   state.exercises = [];
+  state.marketingItems = [];
+  state.marketingReady = true;
   state.profile = null;
   state.profiles = [];
   state.org = null;
@@ -463,7 +470,7 @@ export async function loadAll() {
          playerDocuments, playerSizes, squads, squadPlayers, financialEntries, gamePlans, objectives,
          eventResponses, gameResults, gameSets, tacticalScenarios, tacticalAnswers, exercises,
          equipmentRequests, requestFlowProbe, sizesConfirmProbe, sizesPaidProbe, eventPlayers, testReferences,
-         physioRequests, rehabExercises, apptResponseProbe, calendarFeedProbe] =
+         physioRequests, rehabExercises, apptResponseProbe, calendarFeedProbe, marketingItems] =
     await Promise.all([
       // Multi-tenant: o RLS limita as definições ao clube do utilizador, por
       // isso não filtramos por id — devolve a (única) linha do clube atual.
@@ -558,6 +565,9 @@ export async function loadAll() {
       // Sonda de `calendario-subscricao.sql`. A tabela não tem políticas, por
       // isso responde sempre vazia — só falha se não existir.
       supabase.from('calendar_feeds').select('user_id').limit(1),
+      // Datas & iniciativas. Só o coordenador lê (RLS): aos outros papéis
+      // vem vazio, sem erro. Tolerante à migração `marketing.sql` em falta.
+      supabase.from('marketing_items').select('*').order('date'),
     ]);
 
   for (const res of [settings, coaches, teams, players, sponsors, events, attendances, quotas, equipment, teamCoaches, prospects, episodes, sessions, appointments,
@@ -642,6 +652,8 @@ export async function loadAll() {
   state.rehabReady = !rehabExercises.error;
   state.apptResponseReady = !apptResponseProbe.error;
   state.calendarFeedReady = !calendarFeedProbe.error;
+  state.marketingItems = marketingItems.error ? [] : (marketingItems.data || []);
+  state.marketingReady = !marketingItems.error;
 
   // Coerência da cache: com pais arquivados (ex.: uma equipa), os filhos que os
   // referenciam não devem aparecer nos ecrãs ativos.
