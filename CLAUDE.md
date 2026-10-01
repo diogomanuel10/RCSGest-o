@@ -261,6 +261,7 @@ src/
   sizes-message.js      Mensagem à família para confirmar os dados da encomenda
   encomenda-fornecedor-xlsx.js Folha da encomenda no formato do fornecedor (ExcelJS lazy)
   join-poster.js        Cartaz A4 do guia de entrada (QR da app + QR do grupo)
+  marketing-dates.js    Catálogo de datas para as redes sociais (fixas + móveis)
   player-photo.js       Foto de perfil nos avatares (endereços assinados em lote)
   offline-card.js       Cartão QR guardado no dispositivo (ecrã de recurso sem rede)
   tactical-court.js     Campo em SVG + exercício de decisão (todas as posições)
@@ -303,6 +304,7 @@ src/
     nova-epoca.js       Assistente de viragem de época (só coordenador)
     utilizadores.js     Vista Utilizadores (gestão de papéis — só coordenador)
     arquivados.js       Vista Arquivados (registos inativos + repor — só coordenador)
+    marketing.js        Datas & iniciativas para as redes sociais (só coordenador)
 supabase/schema.sql     Tabelas, índices, RLS e dados iniciais (correr no Supabase)
 supabase/qrcode-presencas.sql  Presenças por QR: token do atleta + RPCs de check-in
 supabase/convites-massa.sql    Convites de atleta em lote (RPC create_invitations_bulk)
@@ -338,6 +340,7 @@ supabase/painel-avisos.sql     Limiares do clube + avisos escolhidos por utiliza
 supabase/resumo-semanal.sql    Resumo semanal (notificação + push) e limiares de queda
 supabase/web-push.sql          Web Push: trigger em notifications -> Edge Function send-push
 supabase/dados-exemplo.sql     Marca do clube de exemplo (settings.demo_seed)
+supabase/marketing.sql         Datas & iniciativas do clube (iniciativas, datas próprias, ocultas)
 public/                 Ficheiros estáticos (modelo-atletas-rumia.xlsx)
 ```
 
@@ -2087,6 +2090,36 @@ separador antes de navegar (usado pelos cartões do Painel).
     existe e o utilizador entra na mesma — vazio é mau, preso é pior.
   - Limpar é do coordenador, nas Definições → Estrutura.
 
+- **Datas & iniciativas** (`supabase/marketing.sql`, `marketing-dates.js`,
+  `views/marketing.js`): quem trata das redes sociais de um clube é quase
+  sempre o coordenador, entre tudo o resto, e as datas que dão uma boa
+  publicação (Outubro Rosa, Dia da Mãe, São Martinho, o aniversário do
+  voleibol) passavam sem se dar por elas.
+  - **O catálogo vive no CÓDIGO, não na base de dados**: é o mesmo para todos
+    os clubes e algumas datas mudam todos os anos (Carnaval e Páscoa pela
+    Páscoa, o Dia da Mãe é o 1.º domingo de maio, a Black Friday segue a 4.ª
+    quinta de novembro). Como linhas, alguém teria de as reescrever em cada
+    janeiro. As chaves (`key`) ficam nas iniciativas: não se mudam.
+  - **O que é do clube é UMA tabela** (`marketing_items`, com `kind`):
+    `iniciativa` (o que se vai fazer, com notas e estado ideia → planeada →
+    publicada; ligada a uma data por `date_key` ou solta), `data` (uma data
+    própria que se repete todos os anos — o aniversário do clube) e `oculta`
+    (uma data do catálogo que o clube não quer ver). Ocultar e não apagar: o
+    catálogo é do código, a escolha é do clube.
+  - **Uma iniciativa liga-se à ocorrência mais PERTO da sua data**
+    (`occurrenceFor`), e não à do mesmo ano: o post de Ano Novo sai a 31 de
+    dezembro.
+  - **Só o coordenador** (RLS `mk_coord`, entrada na barra com
+    `can: isCoordenador`): é o plano de comunicação a meio de ser escrito, e
+    uma lista que toda a gente vê deixa de ser um sítio onde se escrevem ideias.
+  - **O Painel do coordenador avisa** (`marketingPending`, aviso `marketing`):
+    datas em destaque (⭐) ou do clube nos próximos 7 dias sem iniciativa
+    (degrau `semana` — ainda vai a tempo) e iniciativas cujo dia chegou e não
+    estão publicadas (degrau `agora`). Uma data que já passou sem nada não se
+    assinala: já não há nada a fazer por ela. Um período a decorrer (o mês
+    inteiro do Outubro Rosa) só conta no dia em que começa.
+  - Sem a migração o ecrã mostra o catálogo e diz que falta correr o SQL
+    (`state.marketingReady`) — a linha do `birthDateReady()`.
 - **Avaliação de plantel**: `players.review_status` ∈ `pendente|mantem|sai`
   (omissão `pendente`). A vista `avaliacao.js` deixa o coordenador/treinador
   decidir, por equipa, quem fica na próxima época, com contadores. Não apaga

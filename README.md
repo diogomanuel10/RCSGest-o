@@ -69,7 +69,8 @@ As permissões são impostas pela base de dados (RLS), não só pela interface.
    `pagamento-encomenda.sql` (quem já pagou a sua encomenda e quem falta)
    e `painel-avisos.sql` (limiares do clube + avisos por utilizador),
    `dados-exemplo.sql` (clube de demonstração para quem se regista),
-   `web-push.sql` (notificações no telemóvel — ver secção 5) e
+   `web-push.sql` (notificações no telemóvel — ver secção 5),
+   `marketing.sql` (datas e iniciativas para as redes sociais) e
    `eliminar-clubes.sql` (eliminar clubes e contas no painel da plataforma).
    Todos são seguros de re-executar.
 4. Em **Authentication → Sign In / Providers**, garante que

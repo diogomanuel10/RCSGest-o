@@ -64,8 +64,9 @@ import {
 } from '../constants.js';
 import {
   canEdit, canAccess, canDecideRequests, canTriagePhysio, isFisio, isPreparador, isTreinador,
-  canManageUsers, canManageSettings,
+  canManageUsers, canManageSettings, isCoordenador,
 } from '../permissions.js';
+import { marketingPending } from './marketing.js';
 import { openQuickAttendance } from './presencas.js';
 import { openTrainingPlan } from './training-plan.js';
 import { openEventForm, openRecurrentTrainings } from './calendario.js';
@@ -609,6 +610,7 @@ export const ALERT_CATALOG = [
   { key: 'aniversarios',    label: 'Aniversários no cabeçalho',      can: () => true },
   { key: 'aniversarios_falta', label: 'Datas de nascimento por preencher', can: () => canEdit('players') },
   { key: 'fichas_incompletas', label: 'Fichas de atleta por completar', can: () => canEdit('documents') },
+  { key: 'marketing',       label: 'Datas e iniciativas das redes sociais', can: () => isCoordenador() },
 ];
 
 // Catálogo dos INDICADORES (os cartões de números no topo). Mesma regra dos
@@ -676,6 +678,8 @@ const FAMILY_SUMMARY = {
   documentos: (n) => `${n} documentos por renovar`,
   sem_data:   (n) => `${n} atletas sem data de nascimento`,
   fichas:     (n) => `${n} fichas de atleta por completar`,
+  marketing_datas:    (n) => `${n} datas desta semana sem iniciativa`,
+  marketing_publicar: (n) => `${n} iniciativas por publicar`,
   // Fisioterapia
   pedidos_fisio:   (n) => `${n} pedidos do treinador por triar`,
   appt_abertos:    (n) => `${n} atendimentos por fechar`,
@@ -948,6 +952,33 @@ function buildActions({ includePresencas = false } = {}) {
         route: 'planteis',
         title: `Ficha de ${r.player.name} por completar`,
         sub: `Falta: ${r.gaps.map((g) => PLAYER_DATA_LABEL[g] || g).join(', ')}`,
+      });
+    });
+  }
+
+  // Datas & iniciativas (redes sociais): só ao coordenador, que é quem as
+  // tem. Uma data da semana sem nada preparado ainda vai a tempo; uma
+  // iniciativa cujo dia chegou e não foi publicada é para hoje.
+  if (isCoordenador() && alertOn('marketing') && state.marketingReady) {
+    const { semIniciativa, porPublicar, relative } = marketingPending();
+    porPublicar.forEach((it) => {
+      items.push({
+        urgency: 'agora',
+        variant: 'warn',
+        family: 'marketing_publicar',
+        name: it.title,
+        route: 'marketing',
+        title: `Por publicar: ${it.title}`,
+      });
+    });
+    semIniciativa.forEach((o) => {
+      items.push({
+        urgency: 'semana',
+        variant: 'info',
+        family: 'marketing_datas',
+        name: o.label,
+        route: 'marketing',
+        title: `${o.label} (${relative(o)}) sem iniciativa`,
       });
     });
   }
