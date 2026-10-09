@@ -173,6 +173,37 @@ Google Calendar ou no calendário do iPhone, sempre atualizados.
 
 3. Na app: Saúde → Fisioterapia → Agenda (ou Calendário) → **📆 Google Calendar**.
 
+## 4b. Fotos para o Google Drive (opcional)
+
+A secção **Fotos** tira fotos (ou escolhe-as da galeria) e envia-as logo para
+uma pasta no Google Drive de quem está ligado. No fim há um só link para
+partilhar. A Rumia não guarda as fotos.
+
+1. Em <https://console.cloud.google.com/> cria (ou escolhe) um projeto e ativa
+   a **Google Drive API** (APIs e serviços → Biblioteca).
+2. **Ecrã de consentimento OAuth**: tipo *Externo*, nome da app, o teu email.
+   Em *Âmbitos* acrescenta `.../auth/drive.file` (não precisa de verificação
+   do Google). Enquanto a app estiver em *Teste*, junta em *Utilizadores de
+   teste* as contas Google que vão enviar fotos — ou carrega em *Publicar*.
+3. **Credenciais → Criar credenciais → ID de cliente OAuth → Aplicação Web.**
+   Em *Origens JavaScript autorizadas* põe o endereço da app
+   (`https://o-teu-site.vercel.app` e `http://localhost:5173`).
+4. Copia o ID de cliente para o `.env` (e para as variáveis do Vercel) e
+   volta a publicar:
+
+   ```
+   VITE_GOOGLE_CLIENT_ID=1234567890-abc.apps.googleusercontent.com
+   ```
+
+O âmbito `drive.file` só dá acesso às pastas e ficheiros que a própria app
+criou — a app não vê o resto do Drive. Por isso cada pessoa envia para o SEU
+Drive: para juntar tudo numa pasta só, quem tira as fotos liga-se com a conta
+Google onde elas devem ficar.
+
+Sem o ID de cliente a secção funciona na mesma: escolhem-se as fotos e o botão
+**Partilhar** abre a folha de partilha do telemóvel, onde o Drive aparece como
+destino.
+
 ## 5. Publicar no Vercel
 
 A app é um site estático (Vite), por isso assenta bem no Vercel.

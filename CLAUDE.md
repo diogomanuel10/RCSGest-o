@@ -260,6 +260,7 @@ src/
   birthday-message.js   Mensagem de parabéns à família (cartão de aniversário)
   sizes-message.js      Mensagem à família para confirmar os dados da encomenda
   encomenda-fornecedor-xlsx.js Folha da encomenda no formato do fornecedor (ExcelJS lazy)
+  drive-photos.js       Fotos para o Google Drive (OAuth GIS, pasta, envio resumable)
   join-poster.js        Cartaz A4 do guia de entrada (QR da app + QR do grupo)
   marketing-dates.js    Catálogo de datas para as redes sociais (fixas + móveis)
   player-photo.js       Foto de perfil nos avatares (endereços assinados em lote)
@@ -305,6 +306,7 @@ src/
     utilizadores.js     Vista Utilizadores (gestão de papéis — só coordenador)
     arquivados.js       Vista Arquivados (registos inativos + repor — só coordenador)
     marketing.js        Datas & iniciativas para as redes sociais (só coordenador)
+    fotos.js            Fotos: câmara/galeria → pasta no Google Drive de quem as tira
 supabase/schema.sql     Tabelas, índices, RLS e dados iniciais (correr no Supabase)
 supabase/qrcode-presencas.sql  Presenças por QR: token do atleta + RPCs de check-in
 supabase/convites-massa.sql    Convites de atleta em lote (RPC create_invitations_bulk)
@@ -2120,6 +2122,28 @@ separador antes de navegar (usado pelos cartões do Painel).
     inteiro do Outubro Rosa) só conta no dia em que começa.
   - Sem a migração o ecrã mostra o catálogo e diz que falta correr o SQL
     (`state.marketingReady`) — a linha do `birthDateReady()`.
+- **Fotos para o Google Drive** (`drive-photos.js`, `views/fotos.js`,
+  `VITE_GOOGLE_CLIENT_ID`): no dia de uma apresentação ou de um torneio as
+  fotos ficavam espalhadas por dez telemóveis e pediam-se depois, uma a uma,
+  por WhatsApp. A secção Fotos tira a foto e envia-a logo para uma pasta no
+  Drive; no fim há UM link.
+  - **A Rumia não guarda as fotos.** Vão para o Drive de quem está ligado ao
+    Google — é para partilhar, e o Drive já faz isso; no Storage do clube eram
+    centenas de megabytes por evento.
+  - **Âmbito `drive.file`**: a app só vê as pastas e ficheiros que ELA criou,
+    e o Google não obriga a verificar. A troca é que não se envia para uma
+    pasta criada por outra pessoa — cada um envia para o seu Drive.
+  - **O token vive em memória** (uma hora) e nunca no dispositivo nem na base
+    de dados. O id da pasta guarda-se por nome em `localStorage`, para a
+    segunda sessão do dia cair na mesma pasta.
+  - **Envio "resumable"** por XHR: o multipart está limitado a 5 MB (uma foto
+    de telemóvel passa disso) e o `fetch` não diz quanto já subiu.
+  - **Uma foto não falha em silêncio**: cada miniatura diz se chegou, e as que
+    falharam têm "Tentar de novo". A fila é em memória porque as fotos já
+    estão na galeria — perdê-la não perde foto nenhuma.
+  - Sem `VITE_GOOGLE_CLIENT_ID` a secção funciona na mesma: o botão
+    "Partilhar" abre a folha de partilha do telemóvel (Web Share), onde o
+    Drive aparece como destino.
 - **Avaliação de plantel**: `players.review_status` ∈ `pendente|mantem|sai`
   (omissão `pendente`). A vista `avaliacao.js` deixa o coordenador/treinador
   decidir, por equipa, quem fica na próxima época, com contadores. Não apaga

@@ -17,7 +17,7 @@ import {
 import { toastOk, toastError } from '../toast.js';
 import { renderOnboarding } from './onboarding.js';
 import { renderSubscriptionBlocked } from './subscription-blocked.js';
-import { canManageSettings, canManageUsers, canRestore, canAccess, isCoordenador, ROLE_LABEL } from '../permissions.js';
+import { canManageSettings, canManageUsers, canRestore, canAccess, isCoordenador, isAtleta, ROLE_LABEL } from '../permissions.js';
 import { teamName } from '../compute.js';
 import {
   loadNotifications, getNotifications, getUnreadCount,
@@ -42,6 +42,7 @@ import { renderFinanceiro, openFinanceiroTab } from './financeiro.js';
 import { renderPlanoJogo } from './plano-jogo.js';
 import { renderTreino, openTreinoTab } from './treino.js';
 import { renderMarketing } from './marketing.js';
+import { renderFotos } from './fotos.js';
 import { renderAdmin } from './admin.js';
 import { renderAthleteProfilePage, registerProfileOpener } from './athlete-profile.js';
 
@@ -68,6 +69,7 @@ const ICONS = {
   'plano-jogo': `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>`,
   exercicios: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M9 7h7"/><path d="M9 11h5"/></svg>`,
   marketing: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg>`,
+  fotos: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>`,
   admin: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 8.5 8 11 4.6-2.5 8-6 8-11V5l-8-3z"/><path d="M9 12l2 2 4-4"/></svg>`,
 };
 
@@ -113,6 +115,12 @@ const NAV = [
   { key: 'marketing',    label: 'Datas & iniciativas', icon: ICONS.marketing, render: renderMarketing, group: 'admin',
     alias: 'marketing redes sociais instagram facebook publicações datas comemorativas outubro rosa',
     can: isCoordenador },
+  // Fotos: vão para o Google Drive de quem as tira (a app não as guarda), por
+  // isso não há dados do clube em jogo — só fica de fora o atleta, que tem o
+  // seu portal e mais nada.
+  { key: 'fotos',        label: 'Fotos',         icon: ICONS.fotos,        render: renderFotos,         group: 'admin',
+    alias: 'fotografias câmara google drive apresentação galeria',
+    can: () => !isAtleta() },
 ];
 
 const FOOTER = [
