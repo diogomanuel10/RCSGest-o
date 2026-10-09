@@ -173,18 +173,26 @@ Google Calendar ou no calendário do iPhone, sempre atualizados.
 
 3. Na app: Saúde → Fisioterapia → Agenda (ou Calendário) → **📆 Google Calendar**.
 
-## 4b. Fotos para o Google Drive (opcional)
+## 4b. Fotos do clube para o Google Drive
 
-A secção **Fotos** tira fotos (ou escolhe-as da galeria) e envia-as logo para
-uma pasta no Google Drive de quem está ligado. No fim há um só link para
-partilhar. A Rumia não guarda as fotos.
+A secção **Fotos** deixa **toda a gente** (atletas, treinadores, direção…)
+tirar fotos ou escolhê-las da galeria. As fotos vão para o **álbum do clube**
+e o coordenador passa-as, com um botão, para uma pasta no **seu** Google
+Drive. Cada foto sai do álbum assim que chega ao Drive. Os atletas entram
+pelo botão **📷 Fotos** na sua página.
+
+**Passo 1 — o álbum (obrigatório):** corre `supabase/fotos-clube.sql` no SQL
+Editor do Supabase. Cria o bucket privado `club-photos`: todos os membros do
+clube enviam, e só o coordenador vê e apaga.
+
+**Passo 2 — o Google Drive (para o coordenador passar as fotos):**
 
 1. Em <https://console.cloud.google.com/> cria (ou escolhe) um projeto e ativa
    a **Google Drive API** (APIs e serviços → Biblioteca).
 2. **Ecrã de consentimento OAuth**: tipo *Externo*, nome da app, o teu email.
    Em *Âmbitos* acrescenta `.../auth/drive.file` (não precisa de verificação
-   do Google). Enquanto a app estiver em *Teste*, junta em *Utilizadores de
-   teste* as contas Google que vão enviar fotos — ou carrega em *Publicar*.
+   do Google). Em *Utilizadores de teste* junta a conta Google do
+   coordenador (só ele se liga ao Google).
 3. **Credenciais → Criar credenciais → ID de cliente OAuth → Aplicação Web.**
    Em *Origens JavaScript autorizadas* põe o endereço da app
    (`https://o-teu-site.vercel.app` e `http://localhost:5173`).
@@ -196,13 +204,10 @@ partilhar. A Rumia não guarda as fotos.
    ```
 
 O âmbito `drive.file` só dá acesso às pastas e ficheiros que a própria app
-criou — a app não vê o resto do Drive. Por isso cada pessoa envia para o SEU
-Drive: para juntar tudo numa pasta só, quem tira as fotos liga-se com a conta
-Google onde elas devem ficar.
+criou — a app não vê o resto do teu Drive.
 
-Sem o ID de cliente a secção funciona na mesma: escolhem-se as fotos e o botão
-**Partilhar** abre a folha de partilha do telemóvel, onde o Drive aparece como
-destino.
+Sem o passo 2 as fotos ficam guardadas no álbum, à espera. Sem o passo 1 o
+botão **Partilhar** abre a folha de partilha do telemóvel (Drive, WhatsApp…).
 
 ## 5. Publicar no Vercel
 

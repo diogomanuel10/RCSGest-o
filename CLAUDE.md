@@ -306,7 +306,7 @@ src/
     utilizadores.js     Vista Utilizadores (gestão de papéis — só coordenador)
     arquivados.js       Vista Arquivados (registos inativos + repor — só coordenador)
     marketing.js        Datas & iniciativas para as redes sociais (só coordenador)
-    fotos.js            Fotos: câmara/galeria → pasta no Google Drive de quem as tira
+    fotos.js            Fotos: toda a gente envia para o álbum; o coordenador passa-o ao Drive
 supabase/schema.sql     Tabelas, índices, RLS e dados iniciais (correr no Supabase)
 supabase/qrcode-presencas.sql  Presenças por QR: token do atleta + RPCs de check-in
 supabase/convites-massa.sql    Convites de atleta em lote (RPC create_invitations_bulk)
@@ -342,6 +342,7 @@ supabase/painel-avisos.sql     Limiares do clube + avisos escolhidos por utiliza
 supabase/resumo-semanal.sql    Resumo semanal (notificação + push) e limiares de queda
 supabase/web-push.sql          Web Push: trigger em notifications -> Edge Function send-push
 supabase/dados-exemplo.sql     Marca do clube de exemplo (settings.demo_seed)
+supabase/fotos-clube.sql       Álbum do clube (bucket club-photos: todos enviam, o coordenador lê)
 supabase/marketing.sql         Datas & iniciativas do clube (iniciativas, datas próprias, ocultas)
 public/                 Ficheiros estáticos (modelo-atletas-rumia.xlsx)
 ```
@@ -2122,28 +2123,37 @@ separador antes de navegar (usado pelos cartões do Painel).
     inteiro do Outubro Rosa) só conta no dia em que começa.
   - Sem a migração o ecrã mostra o catálogo e diz que falta correr o SQL
     (`state.marketingReady`) — a linha do `birthDateReady()`.
-- **Fotos para o Google Drive** (`drive-photos.js`, `views/fotos.js`,
-  `VITE_GOOGLE_CLIENT_ID`): no dia de uma apresentação ou de um torneio as
-  fotos ficavam espalhadas por dez telemóveis e pediam-se depois, uma a uma,
-  por WhatsApp. A secção Fotos tira a foto e envia-a logo para uma pasta no
-  Drive; no fim há UM link.
-  - **A Rumia não guarda as fotos.** Vão para o Drive de quem está ligado ao
-    Google — é para partilhar, e o Drive já faz isso; no Storage do clube eram
-    centenas de megabytes por evento.
-  - **Âmbito `drive.file`**: a app só vê as pastas e ficheiros que ELA criou,
-    e o Google não obriga a verificar. A troca é que não se envia para uma
-    pasta criada por outra pessoa — cada um envia para o seu Drive.
-  - **O token vive em memória** (uma hora) e nunca no dispositivo nem na base
-    de dados. O id da pasta guarda-se por nome em `localStorage`, para a
-    segunda sessão do dia cair na mesma pasta.
-  - **Envio "resumable"** por XHR: o multipart está limitado a 5 MB (uma foto
-    de telemóvel passa disso) e o `fetch` não diz quanto já subiu.
+- **Fotos do clube → Drive do coordenador** (`supabase/fotos-clube.sql`,
+  `drive-photos.js`, `views/fotos.js`, `VITE_GOOGLE_CLIENT_ID`): no dia de uma
+  apresentação ou de um torneio as fotos ficavam espalhadas por dez telemóveis
+  e pediam-se depois, uma a uma, por WhatsApp. A secção Fotos tira a foto e
+  envia-a; no fim há UM link, o da pasta do Drive.
+  - **Toda a gente envia, atletas incluídos.** Para o atleta é uma página de
+    passagem: entra pelo botão "📷 Fotos" do portal, e a rota tem `extra: true`
+    para não contar como segundo sítio no `soloChrome` (senão ganhava barra
+    lateral e pesquisa só por causa disto).
+  - **Há uma paragem pelo meio: o álbum** (bucket privado `club-photos`,
+    `<org_id>/<ficheiro>`). O Google só deixa a app escrever no Drive de quem
+    está ligado (`drive.file`: a app só vê o que ELA criou, e o Google não
+    obriga a verificar), por isso um atleta não pode escrever na pasta do
+    coordenador. Quem tira envia para o álbum; o coordenador carrega em
+    "Enviar para o meu Drive" e cada foto sobe e SAI do álbum — que é uma
+    caixa de passagem e não uma galeria, para não encher o Storage. Só sai
+    depois de estar no Drive: ao contrário, uma falha a meio perdia a foto.
+  - **Quem envia não lê o álbum**: só o coordenador lê e apaga (as fotos dos
+    outros, muitas de menores, não são para toda a gente antes de alguém as
+    escolher). O isolamento entre clubes é a pasta de topo do caminho.
+  - **O nome do ficheiro diz quando e quem** ("2026-10-10 18.32.05 Ana Silva
+    k3f9.jpg"), em ASCII porque o Storage recusa acentos nas chaves.
+  - **O token do Google vive em memória** (uma hora); o id da pasta guarda-se
+    por nome em `localStorage`. O envio para o Drive é "resumable" (o
+    multipart está limitado a 5 MB).
   - **Uma foto não falha em silêncio**: cada miniatura diz se chegou, e as que
     falharam têm "Tentar de novo". A fila é em memória porque as fotos já
     estão na galeria — perdê-la não perde foto nenhuma.
-  - Sem `VITE_GOOGLE_CLIENT_ID` a secção funciona na mesma: o botão
-    "Partilhar" abre a folha de partilha do telemóvel (Web Share), onde o
-    Drive aparece como destino.
+  - Sem a migração o envio cai para a folha de partilha do telemóvel (Web
+    Share, onde o Drive e o WhatsApp aparecem); sem `VITE_GOOGLE_CLIENT_ID` as
+    fotos ficam no álbum à espera.
 - **Avaliação de plantel**: `players.review_status` ∈ `pendente|mantem|sai`
   (omissão `pendente`). A vista `avaliacao.js` deixa o coordenador/treinador
   decidir, por equipa, quem fica na próxima época, com contadores. Não apaga

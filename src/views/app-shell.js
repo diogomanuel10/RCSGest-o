@@ -115,12 +115,13 @@ const NAV = [
   { key: 'marketing',    label: 'Datas & iniciativas', icon: ICONS.marketing, render: renderMarketing, group: 'admin',
     alias: 'marketing redes sociais instagram facebook publicações datas comemorativas outubro rosa',
     can: isCoordenador },
-  // Fotos: vão para o Google Drive de quem as tira (a app não as guarda), por
-  // isso não há dados do clube em jogo — só fica de fora o atleta, que tem o
-  // seu portal e mais nada.
+  // Fotos: toda a gente do clube envia para o álbum, atletas incluídos. Para o
+  // atleta é uma página de passagem (`solo: false`): entra pelo botão do
+  // portal e não conta como "segundo sítio" — senão ganhava barra lateral,
+  // hambúrguer e pesquisa só por causa disto (ver `soloChrome`).
   { key: 'fotos',        label: 'Fotos',         icon: ICONS.fotos,        render: renderFotos,         group: 'admin',
-    alias: 'fotografias câmara google drive apresentação galeria',
-    can: () => !isAtleta() },
+    alias: 'fotografias câmara google drive apresentação galeria álbum',
+    can: () => true, extra: true },
 ];
 
 const FOOTER = [
@@ -508,7 +509,7 @@ export async function renderAppShell(root, session) {
   }
 
   function refreshChrome() {
-    soloRoute = allRoutes().filter(routeAllowed).length <= 1;
+    soloRoute = allRoutes().filter((r) => !(r.extra && isAtleta()) && routeAllowed(r)).length <= 1;
     soloChrome(soloRoute);
 
     root.querySelectorAll('[data-route]').forEach((btn) => {

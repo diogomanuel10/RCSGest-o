@@ -437,9 +437,12 @@ function heroHTML(me, team, availability) {
   // percorrer as quotas todas até ao fim. Está no cimo e está sempre — em
   // qualquer separador — que é o mesmo lugar que o cartão QR tem no cimo do
   // telemóvel de quem entra no pavilhão.
-  const pedir = requestableArticles().length
+  const pedir = (requestableArticles().length
     ? '<button class="btn btn--primary btn--sm portal-hero__cta" id="portal-pedir" type="button">Pedir equipamento</button>'
-    : '';
+    : '')
+    // As fotos de um evento (a apresentação, um torneio) vão para o álbum do
+    // clube — ver views/fotos.js.
+    + '<a class="btn btn--ghost btn--sm portal-hero__cta" href="#/fotos">📷 Fotos</a>';
 
   return `
     <header class="portal-hero">
