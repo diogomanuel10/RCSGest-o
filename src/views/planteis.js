@@ -18,6 +18,7 @@ import { COACH_ROLE_LABEL, AVAILABILITY_LABEL } from '../constants.js';
 import { canEdit, canDelete, canAccess, isCoordenador, canManageUsers } from '../permissions.js';
 import { planLimit, currentPlan } from '../plans.js';
 import { parsePlayersFile, downloadPlayersTemplate } from '../players-xlsx.js';
+import { parsePastedPlayers, PASTE_REQUIRED } from '../players-paste.js';
 import { openAthleteProfile } from './athlete-profile.js';
 import { evaluationHTML, wireEvaluation } from './avaliacao.js';
 import { openPortalInvites } from './convites-portal.js';
@@ -141,6 +142,7 @@ export function renderPlanteis(container) {
       <h1 class="section-title">Plantéis</h1>
       <div class="page-head__actions">
         ${canEval ? modeToggleHTML(mode) : ''}
+        ${canPlayers && myTeams.length && !evaluating ? '<button class="btn btn--ghost" id="paste-players" type="button">Importar atletas</button>' : ''}
         ${canTeams ? '<button class="btn btn--accent" id="add-team" type="button">+ Equipa</button>' : ''}
       </div>
     </header>
@@ -221,6 +223,7 @@ export function renderPlanteis(container) {
   // + Equipa está no cabeçalho nos dois modos, e também no estado vazio —
   // sem equipas, o cabeçalho é o único sítio onde está e não é onde se olha.
   container.querySelector('#add-team')?.addEventListener('click', () => openTeamForm());
+  container.querySelector('#paste-players')?.addEventListener('click', () => openPasteImport());
   wireEmptyAction(container, 'add-team', () => openTeamForm());
 
   // As fotos entram depois do HTML: o bucket é privado e os endereços pedem-se
@@ -916,6 +919,116 @@ function importPlayers(teamId) {
     }
   });
   input.click();
+}
+
+// Importar atletas do clube colando texto: cada linha diz o seu escalão, por
+// isso entra o clube inteiro de uma vez (ver `players-paste.js`). A
+// pré-visualização é o passo que importa — mostra para que equipa vai cada
+// linha ANTES de gravar, e as linhas com erro ficam de fora sem fazer falhar
+// as outras: num clube de 150, rebentar tudo por um escalão mal escrito
+// obrigava a procurar a linha e a colar outra vez.
+function openPasteImport() {
+  const teams = scopedTeams();
+  const sample = [
+    PASTE_REQUIRED.join('\t'),
+    `Maria Silva\t${positions()[0] || 'Distribuidor'}\t${teams[0]?.escalao || 'Juniores'}`,
+    `Joana Costa\t${positions()[1] || 'Central'}\t${teams.slice(0, 2).map((t) => t.escalao).join(' | ') || 'Juniores | Seniores'}`,
+  ].join('\n');
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal card" role="dialog" aria-modal="true" aria-labelledby="pi-title" style="width:min(760px,96vw)">
+      <div class="modal__head">
+        <h2 class="section-title" id="pi-title">Importar atletas</h2>
+        <button class="modal__close" type="button" aria-label="Fechar">&times;</button>
+      </div>
+      <p class="muted" style="margin:0 0 0.4rem">
+        <strong>Formato.</strong> Cabeçalhos obrigatórios: <strong>Nome</strong>, <strong>Posição</strong>,
+        <strong>Escalões</strong>. Para vários escalões usa <code>|</code>. O separador de colunas é
+        detetado automaticamente (tab, <code>;</code> ou <code>,</code>).
+      </p>
+      <p class="muted" style="margin:0 0 0.6rem;font-size:0.85rem">
+        Um atleta fica na equipa do primeiro escalão; os restantes ficam escritos nas observações da ficha.
+        Escalões existentes: ${teams.map((t) => esc(t.escalao)).join(', ')}.
+      </p>
+      <div class="field">
+        <label for="pi-text">Colar aqui (com a linha do cabeçalho)</label>
+        <textarea id="pi-text" rows="8" spellcheck="false" placeholder="${esc(sample)}"
+                  style="font-family:ui-monospace,monospace;font-size:0.85rem"></textarea>
+      </div>
+      <div id="pi-preview" aria-live="polite"></div>
+      <div class="modal__actions">
+        <button class="btn btn--ghost" id="pi-cancel" type="button">Cancelar</button>
+        <button class="btn btn--accent" id="pi-go" type="button" disabled>Importar</button>
+      </div>
+    </div>
+  `;
+  const close = wireDialog(overlay, { initialFocus: '#pi-text' });
+  const textEl = overlay.querySelector('#pi-text');
+  const preview = overlay.querySelector('#pi-preview');
+  const goBtn = overlay.querySelector('#pi-go');
+  overlay.querySelector('#pi-cancel').addEventListener('click', close);
+  let ready = [];
+
+  const SEP_LABEL = { '\t': 'tab', ';': 'ponto e vírgula', ',': 'vírgula' };
+
+  function paint() {
+    const parsed = parsePastedPlayers(textEl.value, teams, {
+      existing: state.players,
+      positions: positions(),
+    });
+    ready = parsed.rows.filter((r) => r.player).map((r) => r.player);
+    goBtn.disabled = !ready.length;
+    goBtn.textContent = ready.length ? `Importar ${ready.length} atleta${ready.length === 1 ? '' : 's'}` : 'Importar';
+
+    if (parsed.error) {
+      preview.innerHTML = `<p class="badge badge--danger" style="margin:0.5rem 0">${esc(parsed.error)}</p>`;
+      return;
+    }
+    if (!parsed.rows.length) {
+      preview.innerHTML = textEl.value.trim()
+        ? '<p class="muted" style="margin:0.5rem 0">Só há o cabeçalho — falta colar os atletas por baixo.</p>'
+        : '';
+      return;
+    }
+    const bad = parsed.rows.length - ready.length;
+    preview.innerHTML = `
+      <p class="muted" style="margin:0.6rem 0 0.4rem">
+        Separador: ${esc(SEP_LABEL[parsed.separator] || parsed.separator)} ·
+        <strong>${ready.length}</strong> pronto${ready.length === 1 ? '' : 's'}${bad ? ` · <strong>${bad}</strong> com erro (ficam de fora)` : ''}
+      </p>
+      <div class="table-wrap scroll-x" style="max-height:300px;overflow-y:auto">
+        <table>
+          <thead><tr><th>Linha</th><th>Nome</th><th>Posição</th><th>Equipa</th><th>Estado</th></tr></thead>
+          <tbody>
+            ${parsed.rows.map((r) => `
+              <tr>
+                <td>${r.line}</td>
+                <td>${esc(r.name || '—')}</td>
+                <td>${esc(r.position || '—')}</td>
+                <td>${r.team ? esc(r.team.escalao) : '—'}${r.extra.length ? `<br><span class="muted" style="font-size:0.8rem">+ ${esc(r.extra.map((t) => t.escalao).join(', '))} (nas observações)</span>` : ''}</td>
+                <td>${r.error
+                  ? `<span class="badge badge--danger">${esc(r.error)}</span>`
+                  : '<span class="badge badge--ok">OK</span>'}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  textEl.addEventListener('input', paint);
+  goBtn.addEventListener('click', async () => {
+    if (!ready.length) return;
+    goBtn.disabled = true;
+    try {
+      await createRows('players', 'players', ready);
+      close();
+    } catch (err) {
+      goBtn.disabled = false;
+      toastError(dbErrorMessage(err));
+    }
+  });
 }
 
 async function removeTeam(id, container) {

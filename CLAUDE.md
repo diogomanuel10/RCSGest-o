@@ -251,6 +251,7 @@ src/
   modal.js              Modal de formulário reutilizável + diálogo de confirmação
   style.css             Design system completo (tokens + componentes)
   players-xlsx.js       Importar atletas de .xlsx + gerar modelo (SheetJS lazy)
+  players-paste.js      Importar atletas do clube colando texto (Nome, Posição, Escalões)
   demo-data.js          Clube de exemplo: semear e limpar (marca em settings.demo_seed)
   push.js               Web Push: subscrever o dispositivo, iOS/instalação, logout
   qrcode.js             Cartões QR: gerar, ler pela câmara, traduzir (libs lazy)
@@ -1314,6 +1315,20 @@ separador antes de navegar (usado pelos cartões do Painel).
   as colunas por cabeçalho (Nome, Número, Ano de nascimento, Posição; aceita
   variações). Linhas sem nome são ignoradas. Insere em lote via `createRows`.
   O modelo descarrega-se por "Descarregar modelo" (ou de `public/`).
+- **Importar atletas do clube colando texto** (`players-paste.js`, botão
+  "Importar atletas" no cabeçalho dos Plantéis): o `.xlsx` é por equipa, e
+  carregar um clube de dez escalões eram dez ficheiros. Aqui é a LINHA que diz
+  o escalão. Cabeçalhos obrigatórios **Nome, Posição, Escalões** (as outras
+  colunas do modelo são aceites); vários escalões separam-se por `|`; o
+  separador das colunas (tab, `;` ou `,`) deteta-se no cabeçalho.
+  - **Um atleta continua a ter UMA equipa**: fica na do primeiro escalão e os
+    outros vão para as observações ("Também joga em: …"). Uma ficha por
+    escalão duplicava a atleta (quotas, presenças, cartão QR); escolher em
+    silêncio perdia o dado.
+  - **Pré-visualiza antes de gravar** e as linhas com erro (escalão que não
+    existe, dois plantéis com o mesmo escalão, atleta já no plantel) ficam de
+    fora sem fazer falhar as outras. Só aceita as equipas de quem importa
+    (`scopedTeams`).
 - **Presenças por QR (modo quiosque)**: cada atleta tem um `players.qr_token`
   (ver `supabase/qrcode-presencas.sql`). Um tablet à entrada fica em modo
   quiosque (`quiosque.js`, aberto das Presenças) com a câmara ligada; o atleta

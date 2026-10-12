@@ -20,7 +20,7 @@ export const PLAYER_COLUMNS = [
 
 // Normaliza um cabeçalho (minúsculas, sem acentos, sem espaços extra) para
 // conseguir mapear variações como "Numero", "Nº" ou "Ano".
-function normalize(text) {
+export function normalize(text) {
   return String(text || '')
     .trim()
     .toLowerCase()
@@ -29,7 +29,7 @@ function normalize(text) {
 }
 
 // Mapeia o cabeçalho do ficheiro para o campo interno do atleta.
-function fieldForHeader(header) {
+export function fieldForHeader(header) {
   const h = normalize(header);
   if (h === 'nome') return 'name';
   if (h === 'numero' || h === 'no' || h === 'n' || h === '#') return 'number';
@@ -48,7 +48,7 @@ function fieldForHeader(header) {
 // data (`Date`, com `cellDates`) e texto escrito à mão em dd/mm/aaaa ou
 // aaaa-mm-dd. O que não for reconhecido fica vazio: uma data mal lida põe o
 // aniversário no dia errado, e aí mais valia não haver data nenhuma.
-function isoDate(cell) {
+export function isoDate(cell) {
   if (cell === undefined || cell === null || cell === '') return null;
   const pad = (n) => String(n).padStart(2, '0');
   if (cell instanceof Date && !Number.isNaN(cell.getTime())) {
