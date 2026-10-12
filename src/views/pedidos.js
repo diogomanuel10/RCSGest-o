@@ -16,7 +16,8 @@
 // escolher.
 
 import {
-  state, createEquipmentRequest, decideEquipmentRequest, setRequestPaid, setRequestsPaid,
+  state, createEquipmentRequest, decideEquipmentRequest, decideEquipmentRequests,
+  setRequestPaid, setRequestsPaid,
   updateRow, deleteRow, dbErrorMessage,
 } from '../store.js';
 import { esc, emptyHTML, euros, paginate, paginationHTML, wirePagination, wireEmptyAction, PAGE_SIZE } from '../ui.js';
@@ -41,7 +42,12 @@ import {
 // Filtros e paginação são estado de UI: vivem no módulo, não na base de dados.
 let statusFilter = 'abertos'; // 'abertos' | chave de estado | 'por_pagar' | 'pagos' | 'todos'
 let teamFilter = '';
+let articleFilter = '';
 let page = 1;
+// Pedidos escolhidos para uma ação em lote. Com duzentas linhas, marcar a
+// caixa das meias como chegada pedido a pedido era o ecrã inteiro a clicar
+// "Chegou ao clube" — e a meio perdia-se a conta de quais já foram.
+const selected = new Set();
 // Três leituras dos MESMOS pedidos, porque são três momentos do mesmo
 // trabalho e nenhuma serve para o outro: decidir (Lista, pedido a pedido),
 // comprar (Resumo, "quantas M no total") e ENTREGAR (Por atleta, "o que é que
@@ -109,6 +115,7 @@ export function renderPedidosBody(container) {
 
   const rows = all.filter((r) => {
     if (teamFilter && playerById[r.player_id]?.team_id !== teamFilter) return false;
+    if (articleFilter && r.article !== articleFilter) return false;
     if (statusFilter === 'todos') return true;
     // "Por resolver" é tudo o que ainda não chegou ao fim: por decidir e a
     // percorrer o circuito. É o filtro de origem porque é a única lista em
@@ -120,6 +127,18 @@ export function renderPedidosBody(container) {
   });
   const pg = paginate(rows, page, PAGE_SIZE);
 
+  // A seleção só vale para o que está à vista no filtro: um pedido escolhido
+  // e depois escondido por outro filtro seria mudado sem ninguém o ver.
+  const rowIds = new Set(rows.map((r) => r.id));
+  [...selected].forEach((id) => { if (!rowIds.has(id)) selected.delete(id); });
+  const bulk = canDecide && mode === 'lista' && rows.length;
+
+  // Artigos que existem nos pedidos (não no catálogo): filtrar por um artigo
+  // sem pedidos é um filtro que só dá listas vazias.
+  const articleKeys = [...new Set(all.map((r) => r.article))]
+    .map((key) => ({ key, label: key === 'outro' ? 'Outro artigo' : configuredArticleLabel(key) }))
+    .sort((a, b) => a.label.localeCompare(b.label, 'pt'));
+
   container.innerHTML = `
     <div class="card" style="margin-bottom:1rem">
       <div class="filters" style="margin:0;padding:0;background:none;border:none;align-items:flex-end">
@@ -129,6 +148,14 @@ export function renderPedidosBody(container) {
             <select id="req-team">
               <option value="">Todas</option>
               ${teams.map((t) => `<option value="${t.id}" ${t.id === teamFilter ? 'selected' : ''}>${esc(teamName(t))}</option>`).join('')}
+            </select>
+          </div>` : ''}
+        ${articleKeys.length > 1 ? `
+          <div>
+            <label for="req-article">Artigo</label>
+            <select id="req-article">
+              <option value="">Todos</option>
+              ${articleKeys.map((a) => `<option value="${esc(a.key)}" ${a.key === articleFilter ? 'selected' : ''}>${esc(a.label)}</option>`).join('')}
             </select>
           </div>` : ''}
         <div>
@@ -195,11 +222,15 @@ export function renderPedidosBody(container) {
     ${mode === 'resumo' ? summaryHTML(rows, playerById) : ''}
     ${mode === 'atleta' ? byPlayerHTML(rows, playerById) : ''}
 
+    ${bulk ? bulkBarHTML(rows, pg.items) : ''}
+
     ${mode === 'lista' && rows.length
       ? `<div class="card" style="padding:0;overflow-x:auto">
           <table class="data-table">
             <thead>
               <tr>
+                ${bulk ? `<th style="width:36px"><input type="checkbox" id="req-sel-page" aria-label="Selecionar os desta página"
+                     ${pg.items.length && pg.items.every((r) => selected.has(r.id)) ? 'checked' : ''} /></th>` : ''}
                 <th>Atleta</th>
                 <th>Artigo</th>
                 <th>Tam.</th>
@@ -211,7 +242,7 @@ export function renderPedidosBody(container) {
               </tr>
             </thead>
             <tbody>
-              ${pg.items.map((r) => rowHTML(r, playerById[r.player_id], canDecide)).join('')}
+              ${pg.items.map((r) => rowHTML(r, playerById[r.player_id], canDecide, bulk)).join('')}
             </tbody>
           </table>
          </div>
@@ -232,6 +263,38 @@ export function renderPedidosBody(container) {
     teamFilter = e.target.value;
     page = 1;
     renderPedidosBody(container);
+  });
+  container.querySelector('#req-article')?.addEventListener('change', (e) => {
+    articleFilter = e.target.value;
+    page = 1;
+    renderPedidosBody(container);
+  });
+  container.querySelectorAll('[data-sel]').forEach((cb) =>
+    cb.addEventListener('change', () => {
+      if (cb.checked) selected.add(cb.dataset.sel);
+      else selected.delete(cb.dataset.sel);
+      renderPedidosBody(container);
+    })
+  );
+  container.querySelector('#req-sel-page')?.addEventListener('change', (e) => {
+    pg.items.forEach((r) => (e.target.checked ? selected.add(r.id) : selected.delete(r.id)));
+    renderPedidosBody(container);
+  });
+  container.querySelector('#req-sel-all')?.addEventListener('click', () => {
+    rows.forEach((r) => selected.add(r.id));
+    renderPedidosBody(container);
+  });
+  container.querySelector('#req-sel-none')?.addEventListener('click', () => {
+    selected.clear();
+    renderPedidosBody(container);
+  });
+  container.querySelectorAll('[data-bulk]').forEach((b) =>
+    b.addEventListener('click', () => bulkDecide(b.dataset.bulk.split(','), b.dataset.status))
+  );
+  container.querySelector('#req-bulk-paid')?.addEventListener('click', (e) => {
+    const ids = e.currentTarget.dataset.ids.split(',');
+    ids.forEach((id) => selected.delete(id));
+    payAllOf(ids);
   });
   container.querySelector('#req-mode')?.addEventListener('change', (e) => {
     mode = e.target.value;
@@ -442,6 +505,7 @@ function byPlayerHTML(rows, playerById) {
         paid: 0,   // já entregue em dinheiro
         missing: 0,
         unpaidIds: [],
+        readyIds: [],
       });
     }
     const g = byPlayer.get(key);
@@ -454,6 +518,9 @@ function byPlayerHTML(rows, playerById) {
     // Só entra no "marcar tudo como pago" o que já é cobrável (`isBillable`):
     // um pedido que ainda pode ser recusado não se cobra.
     if (isBillable(r)) g.unpaidIds.push(r.id);
+    // O que se pode entregar já: é o passo seguinte do pedido (o que está
+    // pronto a levantar). Um pedido ainda no fornecedor não se entrega.
+    if (nextSteps(r).some((st) => st.status === 'entregue')) g.readyIds.push(r.id);
   });
 
   // Equipas por nome; dentro de cada uma, as atletas por nome.
@@ -469,6 +536,7 @@ function byPlayerHTML(rows, playerById) {
   const owed = [...byPlayer.values()].reduce((n, g) => n + g.owed, 0);
   const paid = [...byPlayer.values()].reduce((n, g) => n + g.paid, 0);
   const canPay = canDecideRequests() && state.requestFlowReady;
+  const canDeliver = canDecideRequests();
 
   return `
     <div class="card enc-budget" style="margin-bottom:1rem">
@@ -486,6 +554,7 @@ function byPlayerHTML(rows, playerById) {
     ${teamList.map((t) => {
       const tOwed = t.players.reduce((n, p) => n + p.owed, 0);
       const tIds = t.players.flatMap((p) => p.unpaidIds);
+      const tReady = t.players.flatMap((p) => p.readyIds);
       return `
         <details class="group" ${teamList.length === 1 ? 'open' : ''}>
           <summary class="group__head">
@@ -496,13 +565,18 @@ function byPlayerHTML(rows, playerById) {
             </span>
           </summary>
           <div style="padding:0.9rem">
-            ${canPay && tIds.length > 1 ? `
-              <button class="btn btn--ghost btn--sm" data-pay-player="${esc(tIds.join(','))}" type="button"
-                      style="margin-bottom:0.8rem">
-                Marcar a equipa toda como paga (${tIds.length})
-              </button>` : ''}
+            <div class="row row--wrap" style="gap:0.5rem;margin-bottom:0.8rem">
+              ${canDeliver && tReady.length > 1 ? `
+                <button class="btn btn--ghost btn--sm" data-bulk="${esc(tReady.join(','))}" data-status="entregue" type="button">
+                  Entregar tudo o que está pronto (${tReady.length})
+                </button>` : ''}
+              ${canPay && tIds.length > 1 ? `
+                <button class="btn btn--ghost btn--sm" data-pay-player="${esc(tIds.join(','))}" type="button">
+                  Marcar a equipa toda como paga (${tIds.length})
+                </button>` : ''}
+            </div>
             <div class="enc-resumo-grid enc-resumo-grid--wide">
-              ${t.players.map((g) => playerCardHTML(g, playerById, canPay)).join('')}
+              ${t.players.map((g) => playerCardHTML(g, playerById, canPay, canDeliver)).join('')}
             </div>
           </div>
         </details>`;
@@ -511,7 +585,7 @@ function byPlayerHTML(rows, playerById) {
 }
 
 // O cartão de UMA atleta: o que leva, o que já pagou e o que fica a dever.
-function playerCardHTML(g, playerById, canPay) {
+function playerCardHTML(g, playerById, canPay, canDeliver) {
   return `
     <div class="card enc-resumo-card">
       <h3 class="enc-resumo-title" style="text-transform:none;letter-spacing:0">
@@ -538,6 +612,8 @@ function playerCardHTML(g, playerById, canPay) {
               ${cost != null ? ` · ${esc(euros(cost))}` : ' · sem preço'}
               ${req.paid_at ? ' · <strong>pago</strong>' : ''}
             </p>
+            ${canDeliver && g.readyIds.includes(req.id) ? `
+              <button class="btn btn--ghost btn--sm" data-bulk="${req.id}" data-status="entregue" type="button">Entregue</button>` : ''}
             ${canPay && isBillable(req) ? `
               <button class="btn btn--ghost btn--sm" data-paid="${req.id}" data-paid-to="1" type="button">Marcar pago</button>` : ''}
           </li>
@@ -551,6 +627,10 @@ function playerCardHTML(g, playerById, canPay) {
         ${g.paid && g.owed ? `· ${esc(euros(g.paid))} já pagos` : ''}
         ${g.missing ? `· <span class="enc-resumo-unit">${g.missing} sem preço</span>` : ''}
       </p>
+      ${canDeliver && g.readyIds.length > 1 ? `
+        <button class="btn btn--ghost btn--sm" data-bulk="${esc(g.readyIds.join(','))}" data-status="entregue" type="button">
+          Entregar tudo (${g.readyIds.length})
+        </button>` : ''}
       ${canPay && g.unpaidIds.length > 1 ? `
         <button class="btn btn--ghost btn--sm" data-pay-player="${esc(g.unpaidIds.join(','))}" type="button">
           Marcar tudo como pago (${g.unpaidIds.length})
@@ -605,7 +685,65 @@ function requesterLabel(uid) {
   return profile?.email || '—';
 }
 
-function rowHTML(req, player, canDecide) {
+// O passo seguinte de um pedido, para quem decide. Sem a migração do
+// circuito só se pode confirmar e entregar — o servidor recusa as paragens
+// novas, e um botão que dá erro é pior do que não existir.
+function nextSteps(req) {
+  if (state.requestFlowReady) return REQUEST_NEXT_STEPS[req.status] || [];
+  if (req.status === 'pendente') return [{ status: 'aprovado', label: 'Confirmar' }];
+  if (req.status === 'aprovado') return [{ status: 'entregue', label: 'Entregue ao atleta' }];
+  return [];
+}
+
+// Etiqueta do botão em lote: o NOME da paragem de destino, não o do passo —
+// "Chegou ao clube" e "Já está no clube" são o mesmo destino vindo de sítios
+// diferentes, e numa seleção mista são um botão só.
+const BULK_LABEL = {
+  aprovado: 'Confirmar',
+  encomendado: 'Encomendados ao fornecedor',
+  pronto: 'Prontos a levantar',
+  entregue: 'Entregues',
+};
+
+// Barra de ações em lote. Cada botão aplica a paragem SÓ aos escolhidos para
+// os quais ela é o passo seguinte — a regra da linha não cai por se escolher
+// muitos de uma vez: um pedido por decidir no meio de uma seleção "entregar"
+// não salta o fornecedor. O número no botão diz a quantos se aplica.
+function bulkBarHTML(rows, pageItems) {
+  const sel = rows.filter((r) => selected.has(r.id));
+  const byTarget = new Map();
+  sel.forEach((r) => nextSteps(r).forEach((st) => {
+    if (!byTarget.has(st.status)) byTarget.set(st.status, []);
+    byTarget.get(st.status).push(r.id);
+  }));
+  const payIds = state.requestFlowReady ? sel.filter(isBillable).map((r) => r.id) : [];
+  const allSelected = sel.length === rows.length;
+
+  return `
+    <div class="card" style="margin-bottom:0.8rem;padding:0.7rem 0.9rem;position:sticky;top:0;z-index:5">
+      <div class="row row--wrap" style="gap:0.5rem;align-items:center">
+        <strong>${sel.length ? `${sel.length} selecionado${sel.length !== 1 ? 's' : ''}` : 'Nenhum selecionado'}</strong>
+        <span class="muted" style="font-size:0.85rem">de ${rows.length} no filtro</span>
+        ${!allSelected ? `<button class="btn btn--link btn--sm" id="req-sel-all" type="button">Selecionar os ${rows.length}</button>` : ''}
+        ${sel.length ? '<button class="btn btn--link btn--sm" id="req-sel-none" type="button">Limpar</button>' : ''}
+        ${sel.length ? `
+          <span style="flex-basis:100%;height:0"></span>
+          ${[...byTarget.entries()].map(([status, ids]) => `
+            <button class="btn btn--ghost btn--sm" data-bulk="${esc(ids.join(','))}" data-status="${status}" type="button">
+              ${esc(BULK_LABEL[status] || REQUEST_STATUS_LABEL[status] || status)} (${ids.length})
+            </button>`).join('')}
+          ${payIds.length ? `
+            <button class="btn btn--ghost btn--sm" id="req-bulk-paid" data-ids="${esc(payIds.join(','))}" type="button">
+              Marcar pagos (${payIds.length})
+            </button>` : ''}
+          ${!byTarget.size && !payIds.length
+            ? '<span class="muted" style="font-size:0.85rem">Nenhum passo em comum para os escolhidos.</span>' : ''}` : (pageItems.length
+          ? '<span class="muted" style="font-size:0.85rem">Escolhe os pedidos na lista — dica: filtra por artigo e estado (ex.: Meias · Encomendado) quando chega uma caixa.</span>' : '')}
+      </div>
+    </div>`;
+}
+
+function rowHTML(req, player, canDecide, bulk) {
   const badge = REQUEST_STATUS_BADGE[req.status] || 'muted';
   const label = REQUEST_STATUS_LABEL[req.status] || req.status;
   // Editar/cancelar é de quem pediu, e só enquanto ninguém decidiu — depois
@@ -617,15 +755,12 @@ function rowHTML(req, player, canDecide) {
   // "entregue" sem nunca ter passado pelo fornecedor. Sem a migração do
   // circuito, só se pode confirmar, recusar e entregar — o servidor recusa as
   // paragens novas, e um botão que dá erro é pior do que não existir.
-  const steps = canDecide
-    ? (REQUEST_NEXT_STEPS[req.status] || [])
-        .filter((st) => state.requestFlowReady || st.status === 'aprovado' || st.status === 'entregue')
-    : [];
-  const fallbackEntrega = canDecide && !state.requestFlowReady && req.status === 'aprovado'
-    ? [{ status: 'entregue', label: 'Entregue ao atleta' }] : [];
+  const steps = canDecide ? nextSteps(req) : [];
 
   return `
     <tr>
+      ${bulk ? `<td><input type="checkbox" data-sel="${req.id}" aria-label="Selecionar ${esc(player?.name || 'pedido')}"
+            ${selected.has(req.id) ? 'checked' : ''} /></td>` : ''}
       <td>
         <span class="enc-player-name">${esc(player?.name || 'Atleta removido')}</span>
         ${player ? `<span class="muted" style="display:block;font-size:0.8rem">${esc(teamName(state.teams.find((t) => t.id === player.team_id)) || '')}</span>` : ''}
@@ -654,7 +789,7 @@ function rowHTML(req, player, canDecide) {
         ${req.decision_note ? `<span class="muted" style="display:block;font-size:0.8rem">${esc(req.decision_note)}</span>` : ''}
       </td>
       <td class="cell-actions">
-        ${[...steps, ...fallbackEntrega].map((st) => `
+        ${steps.map((st) => `
           <button class="btn btn--ghost btn--sm" data-decide="${req.id}" data-status="${st.status}" type="button">${esc(st.label)}</button>`).join('')}
         ${canDecide && req.status === 'pendente' ? `
           <button class="btn btn--danger btn--sm" data-decide="${req.id}" data-status="recusado" type="button">Recusar</button>` : ''}
@@ -708,6 +843,28 @@ async function decide(id, status) {
   try {
     await decideEquipmentRequest(id, status);
   } catch (err) {
+    alert(dbErrorMessage(err));
+  }
+}
+
+async function bulkDecide(ids, status) {
+  const list = ids.filter(Boolean);
+  if (!list.length) return;
+  // A entrega e a confirmação são o que avisa as famílias: com muitos de uma
+  // vez, um clique enganado eram trinta notificações erradas.
+  if (list.length > 1) {
+    const ok = await confirmDialog(
+      `Marcar ${list.length} pedidos como «${BULK_LABEL[status] || REQUEST_STATUS_LABEL[status]}»? Cada atleta recebe o aviso.`
+    );
+    if (!ok) return;
+  }
+  // Sai da seleção ANTES de gravar: a gravação re-desenha o ecrã, e um
+  // pedido que já mudou de paragem não deve ficar escolhido para a seguinte.
+  list.forEach((id) => selected.delete(id));
+  try {
+    await decideEquipmentRequests(list, status);
+  } catch (err) {
+    list.forEach((id) => selected.add(id));
     alert(dbErrorMessage(err));
   }
 }

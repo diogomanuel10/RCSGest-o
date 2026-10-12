@@ -2190,6 +2190,32 @@ export async function decideEquipmentRequest(id, status, note = null) {
   return updateRow('equipment_requests', 'equipmentRequests', id, payload);
 }
 
+// Vários pedidos para a MESMA paragem, de uma vez: chegou a caixa das meias e
+// são trinta pedidos a passar a "pronto", ou é sábado de entregas e o escalão
+// inteiro leva o material. Linha a linha eram trinta cliques e trinta toasts
+// numa operação que é uma só (a lógica do `setRequestsPaid`). A escrita é uma
+// só, mas os gatilhos são por linha — cada atleta continua a receber o SEU
+// aviso, e o `guard_request_decision` continua a valer para cada pedido.
+export async function decideEquipmentRequests(ids, status) {
+  if (!ids.length) return 0;
+  const payload = {
+    status,
+    decided_by: state.profile?.id || null,
+    decided_at: new Date().toISOString(),
+  };
+  const { error } = await supabase
+    .from('equipment_requests')
+    .update(payload)
+    .in('id', ids);
+  if (error) throw error;
+  state.equipmentRequests.forEach((r) => {
+    if (ids.includes(r.id)) Object.assign(r, payload);
+  });
+  toastOk(`${ids.length} pedido${ids.length === 1 ? '' : 's'} atualizado${ids.length === 1 ? '' : 's'}.`);
+  notify();
+  return ids.length;
+}
+
 // --- Pedidos de fisioterapia ---------------------------------------------
 //
 // O treinador avisa, a fisio tria. `requested_by` é obrigatório do lado do
