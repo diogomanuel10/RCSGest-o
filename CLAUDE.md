@@ -756,6 +756,19 @@ separador antes de navegar (usado pelos cartões do Painel).
       por linha mas um só toast e um só re-desenho, na lógica do
       `closeAttendanceSessions`), no cartão da vista «Por atleta»: ao balcão
       ninguém paga as meias e depois o blusão.
+  - **As paragens também se dão EM LOTE** (`decideEquipmentRequests` no
+    `store.js`, caixas de seleção na Lista, só para quem decide): com
+    duzentos pedidos, a caixa das meias que chegou eram trinta cliques em
+    "Chegou ao clube", linha a linha, a perder a conta a meio. Filtra-se
+    (há filtro por **Artigo**), escolhe-se a página ou "os N do filtro", e a
+    barra mostra um botão por paragem de destino com a quantos se aplica.
+    **A regra do passo seguinte não cai**: cada botão só mexe nos escolhidos
+    para os quais aquela paragem é o passo seguinte, por isso um pedido por
+    decidir no meio de uma seleção "entregar" não salta o fornecedor. Uma
+    escrita só, mas os gatilhos são por linha — cada atleta recebe o seu
+    aviso, e por isso um lote de mais de um pede confirmação. A recusa fica
+    de fora: pede motivo, e o motivo é de cada pedido. Na vista «Por atleta»
+    há "Entregar tudo" por atleta e por equipa, ao lado da quitação.
   - **A recusa pede motivo** e viaja de volta por notificação: uma recusa sem
     explicação volta como o mesmo pedido na semana seguinte. Pelo mesmo motivo
     há notificação nos dois sentidos — pedido novo para quem decide, decisão
