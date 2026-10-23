@@ -1009,6 +1009,31 @@ export async function createRows(table, collection, rows) {
   return data;
 }
 
+// Jogos importados do site da federação: os novos numa só inserção e os
+// remarcados (a federação mudou o dia ou a hora) uma escrita cada — mas um só
+// toast e um só re-desenho, que o gesto é um só. Devolve `{ created, updated }`.
+export async function importGames(rows, updates) {
+  let created = [];
+  if (rows.length) {
+    const { data, error } = await supabase.from('events').insert(rows).select();
+    if (error) throw error;
+    created = data;
+    state.events.push(...data);
+  }
+  for (const { id, values } of updates) {
+    const { data, error } = await supabase.from('events').update(values).eq('id', id).select().single();
+    if (error) throw error;
+    const i = state.events.findIndex((e) => e.id === id);
+    if (i !== -1) state.events[i] = data;
+  }
+  const parts = [];
+  if (created.length) parts.push(`${created.length} jogo${created.length === 1 ? '' : 's'} importado${created.length === 1 ? '' : 's'}`);
+  if (updates.length) parts.push(`${updates.length} atualizado${updates.length === 1 ? '' : 's'}`);
+  if (parts.length) toastOk(`${parts.join(', ')}.`);
+  notify();
+  return { created: created.length, updated: updates.length };
+}
+
 // Registo de presença por leitura do cartão QR (modo quiosque).
 // Toda a decisão é do servidor (RPC `check_in_by_qr`): que treino, se conta
 // como presente ou atraso, e se o atleta é mesmo daquela equipa e clube. Aqui

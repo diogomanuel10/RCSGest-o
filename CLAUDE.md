@@ -260,6 +260,7 @@ src/
   birthday-message.js   Mensagem de parabéns à família (cartão de aniversário)
   sizes-message.js      Mensagem à família para confirmar os dados da encomenda
   encomenda-fornecedor-xlsx.js Folha da encomenda no formato do fornecedor (ExcelJS lazy)
+  federation-games.js   Lê os jogos colados do site da federação (data, equipas, hora, pavilhão)
   join-poster.js        Cartaz A4 do guia de entrada (QR da app + QR do grupo)
   marketing-dates.js    Catálogo de datas para as redes sociais (fixas + móveis)
   player-photo.js       Foto de perfil nos avatares (endereços assinados em lote)
@@ -291,6 +292,7 @@ src/
     physical-file.js    Área de Prep. física do perfil (dados físicos, avaliações, controlo)
     referencias.js      Editor das faixas de referência das avaliações físicas
     calendario.js       Vista Calendário
+    importar-jogos.js   Importar jogos do site da federação (colar + pré-visualizar)
     agenda-sync.js      Link de subscrição da agenda da fisio (Google/iPhone)
     presencas.js        Quem vem a um evento: presenças (treino) ou convocatória (jogo)
     portal.js           Portal do atleta (a sua página pessoal, mobile-first)
@@ -1425,6 +1427,28 @@ separador antes de navegar (usado pelos cartões do Painel).
   - A gravação é automática e **silenciosa** (`saveScenario` no `store.js`,
     exceção deliberada à regra dos toasts): montar um cenário são dezenas de
     escritas em segundos, e um aviso por gesto tornava o ecrã ilegível.
+- **Importar jogos da federação** (`federation-games.js`,
+  `views/importar-jogos.js`, botão "Federação" no Calendário, só quem edita
+  eventos): o calendário dos jogos já existe no site da federação
+  (portugalvoleibol.com) e era copiado à mão, jogo a jogo, para a app.
+  - **Copia-se e cola-se, não se vai buscar.** O site não tem API nem
+    exportação, e não autoriza pedidos do browser de outra origem; um leitor
+    do HTML no servidor parte-se no dia em que o site muda, sem ninguém dar
+    por isso até faltar um jogo. Colar a tabela funciona em qualquer página
+    com jogos, e o leitor não conhece colunas: cada jogo é uma DATA seguida
+    de duas equipas, com hora, jornada, resultado e pavilhão quando lá
+    estiverem (tabela, cartão de várias linhas ou lista agrupada por dia).
+  - **A página tem a competição INTEIRA**: só entram os jogos onde aparece o
+    nome do clube (guardado no dispositivo, como a vista dos Plantéis), e
+    diz-se quantos ficaram de fora — com o nome mal escrito, "nenhum jogo"
+    sem esse número parecia o site vazio. Visitado primeiro = jogo em casa.
+  - **Mostra-se sempre antes de gravar**, e importar outra vez não duplica:
+    mesmo dia + mesmo adversário é "já no calendário"; mudou a hora, ou o
+    dia na mesma jornada, é "remarcado" e ATUALIZA o evento — é para isso
+    que se volta a colar a página quando a federação remarca. Os jogos já
+    jogados nascem desmarcados: cada evento novo avisa os atletas.
+  - Não há coluna casa/fora em `events`: vai no título ("Jornada 3 · Fora").
+    O resultado lido não é gravado — regista-se no ecrã do resultado.
 - **Resultados de jogo** (`supabase/resultados.sql`): `game_results` (final em
   sets, na perspetiva do clube) + `game_sets` (parciais). Quem regista é o
   **treinador**, depois do jogo — e é por isso que o resultado NÃO vive em

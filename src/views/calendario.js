@@ -14,6 +14,7 @@ import { openAppointmentForm, apptResponseHTML } from './clinical-file.js';
 import { openCalendarSync } from './agenda-sync.js';
 import { findPlanForEvent, openGamePlanForEvent } from './plano-jogo.js';
 import { openTrainingPlan } from './training-plan.js';
+import { openImportGames } from './importar-jogos.js';
 import {
   EVENT_TYPES,
   EVENT_TYPE_LABEL,
@@ -161,6 +162,7 @@ export function renderCalendario(container) {
         <button class="btn btn--ghost" id="export-ics" type="button" title="Descarregar os eventos (sem atendimentos) num ficheiro .ics">⤓ .ics</button>
         ${editable ? `
           <button class="btn btn--ghost" id="add-recurrent" type="button">↺ Recorrentes</button>
+          ${canEdit('events') ? '<button class="btn btn--ghost" id="import-games" type="button" title="Copiar os jogos do site da federação para o calendário">⤓ Federação</button>' : ''}
           <button class="btn btn--accent" id="add-event" type="button">+ Evento</button>
         ` : ''}
       </div>
@@ -178,6 +180,7 @@ export function renderCalendario(container) {
   container.querySelector('#add-event')?.addEventListener('click', () => openForm());
   wireEmptyAction(container, 'add-event', () => openForm());
   container.querySelector('#add-recurrent')?.addEventListener('click', () => openRecurrentModal());
+  container.querySelector('#import-games')?.addEventListener('click', () => openImportGames());
   container.querySelector('#export-ics')?.addEventListener('click', () => exportICS(events));
   container.querySelector('#calendar-sync')?.addEventListener('click', () => openCalendarSync());
   container.querySelectorAll('[data-focus]').forEach((b) => b.addEventListener('click', () => {
