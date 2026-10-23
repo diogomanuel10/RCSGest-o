@@ -77,6 +77,11 @@ function classify(g, teamId) {
       };
     }
   }
+  // A federação deixa no calendário o jogo de quem desistiu, mas ele não se
+  // joga: importá-lo era pôr a equipa à espera de um adversário que não vem.
+  if (g.forfeit) {
+    return { kind: 'desistencia', note: g.forfeit === 'adversario' ? 'o adversário desistiu' : 'o clube desistiu' };
+  }
   return { kind: g.date < todayISO() ? 'passado' : 'novo' };
 }
 
@@ -85,6 +90,7 @@ const KIND_BADGE = {
   passado: ['muted', 'Já jogado'],
   remarcado: ['warn', 'Remarcado'],
   existe: ['muted', 'Já no calendário'],
+  desistencia: ['muted', 'Desistência'],
 };
 
 export function openImportGames() {
@@ -115,7 +121,7 @@ export function openImportGames() {
         <div class="field">
           <label for="fed-club">Nome do clube no site <span class="field__req" title="Obrigatório">*</span></label>
           <input type="text" id="fed-club" value="${esc(readClubName() || branding().club_name || '')}" aria-describedby="fed-club-hint" />
-          <p class="field__hint muted" id="fed-club-hint">Basta parte do nome (ex.: "Senhora da Hora"). Vários, separados por vírgula.</p>
+          <p class="field__hint muted" id="fed-club-hint">Basta a parte que só o clube tem no nome — uma palavra que outra equipa também tenha traz os jogos dela. Vários, separados por vírgula.</p>
         </div>
       </div>
       <div class="field field--full">
@@ -194,6 +200,7 @@ export function openImportGames() {
       <p class="muted" style="margin:0.25rem 0 0.5rem">
         ${items.length} jogo${items.length === 1 ? '' : 's'} do clube
         ${counts.existe ? ` · ${counts.existe} já no calendário` : ''}
+        ${counts.desistencia ? ` · ${counts.desistencia} com desistência (não se jogam)` : ''}
         ${counts.remarcado ? ` · ${counts.remarcado} com nova data ou hora` : ''}
         ${skipped ? ` · ${skipped} de outras equipas deixado${skipped === 1 ? '' : 's'} de fora` : ''}
       </p>

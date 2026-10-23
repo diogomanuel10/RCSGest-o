@@ -125,18 +125,35 @@ const NOISE = new Set([
   'resultados', 'local', 'pavilhao', 'jogo', 'jogos', 'equipa', 'equipas',
   'competicao', 'ver', 'detalhes', 'live', 'ao vivo', 'ficha de jogo', 'vs', 'x',
   'adiado', 'a definir', 'por definir', 'sets', 'set', 'classificacao', 'calendario',
-  'h', 'de',
+  'h', 'de', 'nao oficial', 'oficial', 'em curso', 'terminado', 'agendado',
 ]);
 
-// Testa-se sobre o nome SEM acentos: com eles, o `\b` do JavaScript parte as
-// palavras no "õ" e o "es" de "Leixões" passava por uma escola.
-const LOCATION_RE = /pavilh|\bpav\b|ginasio|complexo|multiusos|polidesportiv|\barena\b|\bnave\b|centro desportivo|escola secund/;
+// Um pavilhão reconhece-se pelo nome — mas só serve para DESEMPATAR, porque há
+// equipas com "Escola Secundária" no nome e pavilhões que são só "Esc. Sec.
+// Latino Coelho". Testa-se sobre o nome SEM acentos: com eles, o `\b` do
+// JavaScript parte as palavras no "õ" e o "es" de "Leixões" passava por uma
+// escola.
+const LOCATION_RE = /pavilh|\bpav\b|ginasio|complexo|multiusos|polidesportiv|\barena\b|\bnave\b|centro desportivo|\besc\b/;
+const looksLoc = (c) => LOCATION_RE.test(normName(c));
 
-function cellsOf(text) {
+// "Associação X desistiu": o jogo não se realiza. Guarda-se QUEM desistiu,
+// que a mesma equipa volta a aparecer na linha seguinte como adversária.
+const FORFEIT_RE = /\s+(desistiu|desist[eê]ncia|falta de compar[eê]ncia)\s*$/i;
+
+// Uma linha com data ou hora pode ser o jogo inteiro ("15:00  A - B  Pav."), e
+// aí o " - " separa as equipas. Numa linha sozinha não: "VCB - VOLEI CLUBE DE
+// BRAGA" é UMA equipa, e partida em duas o jogo ficava sem adversário.
+function cellsOf(text, inline) {
+  const sep = text.includes('\t') ? /\t/
+    : inline ? /\s{2,}|\s[-–|]\s|\s(?:vs\.?|x)\s/i
+      : /\s{2,}/;
   return text
-    .split(/\t|\s{2,}|\s[-–|]\s|\s(?:vs\.?|x)\s/i)
+    .split(sep)
     .map((c) => c.replace(/^[\s,;:·•|()-]+|[\s,;:·•|()-]+$/g, '').trim())
-    .filter((c) => c.length >= 2 && !/^\d+$/.test(c) && !NOISE.has(normName(c)));
+    .filter((c) => c.length >= 2
+      && !/^#?\d+$/.test(c) // nº do jogo
+      && !/^\d+\s*[-–]\s*\d+$/.test(c) // parcial de um set
+      && !NOISE.has(normName(c)));
 }
 
 function parseLine(line, season) {
@@ -147,14 +164,54 @@ function parseLine(line, season) {
   ({ jornada, rest } = takeJornada(rest));
   ({ result, rest } = takeResult(rest));
   rest = rest.replace(WEEKDAY_RE, ' ');
-  const teams = [];
-  const locations = [];
-  for (const c of cellsOf(rest)) (LOCATION_RE.test(normName(c)) ? locations : teams).push(c);
-  return { date, time, jornada, result, teams, locations };
+  const cells = [];
+  const forfeits = [];
+  for (const c of cellsOf(rest, !!(date || time))) {
+    if (FORFEIT_RE.test(c)) forfeits.push(c.replace(FORFEIT_RE, '').trim());
+    else cells.push(c);
+  }
+  return { date, time, jornada, result, cells, forfeits };
 }
 
-// Texto colado → jogos em bruto: `{ date, time, jornada, result, teams[],
-// locations[] }`. Só sai um jogo com data e pelo menos duas equipas.
+// Um cartão de jogo acaba quando já tem as duas equipas e o pavilhão (ou as
+// duas equipas e nada com cara de pavilhão por onde esperar). Depois disso, o
+// que vier — um título de competição, "Não oficial" — não pode passar por
+// equipa.
+function isFull(b) {
+  if (!b.card) return b.cells.length >= 2;
+  const venues = b.cells.filter(looksLoc).length;
+  return b.cells.length >= 3 || (venues > 0 && b.cells.length - venues >= 2);
+}
+
+// Células de um jogo → as duas equipas (visitado primeiro) e o pavilhão. No
+// cartão do site o pavilhão vem ANTES das equipas; numa tabela, depois.
+function resolve(b) {
+  const cells = b.cells;
+  if (cells.length < 2) return null;
+  let location = '';
+  let teams = cells;
+  if (cells.length >= 3) {
+    const first = looksLoc(cells[0]);
+    const last = looksLoc(cells[cells.length - 1]);
+    const venueFirst = first || (!last && b.card);
+    location = venueFirst ? cells[0] : cells[cells.length - 1];
+    teams = venueFirst ? cells.slice(1) : cells.slice(0, -1);
+  } else if (cells.some(looksLoc)) {
+    return null; // um pavilhão e uma equipa só não é um jogo
+  }
+  return {
+    date: b.date,
+    time: b.time,
+    jornada: b.jornada,
+    result: b.result,
+    teams: teams.slice(0, 2),
+    location,
+    forfeit: b.forfeits[0] || null,
+  };
+}
+
+// Texto colado → jogos em bruto: `{ date, time, jornada, result, teams[2],
+// location, forfeit }`. Só sai um jogo com data e duas equipas.
 export function parseGamesText(text, { season } = {}) {
   const blocks = [];
   let cur = null;
@@ -162,7 +219,17 @@ export function parseGamesText(text, { season } = {}) {
   let ctxJornada = null;
 
   const open = (f, date) => {
-    cur = { ...f, date, jornada: f.jornada ?? ctxJornada, teams: [...f.teams], locations: [...f.locations] };
+    cur = {
+      date,
+      time: f.time,
+      jornada: f.jornada ?? ctxJornada,
+      result: f.result,
+      // A linha da data sem mais nada é o topo de um CARTÃO (a página do site);
+      // com as equipas lá dentro é uma linha de tabela.
+      card: !f.cells.length,
+      cells: [...f.cells],
+      forfeits: [...f.forfeits],
+    };
     blocks.push(cur);
   };
 
@@ -172,7 +239,7 @@ export function parseGamesText(text, { season } = {}) {
     const f = parseLine(line, season);
 
     // "3.ª Jornada" sozinho numa linha é um título de secção.
-    if (f.jornada && !f.date && !f.teams.length && !f.time) {
+    if (f.jornada && !f.date && !f.cells.length && !f.time) {
       ctxJornada = f.jornada;
       cur = null;
       continue;
@@ -183,42 +250,43 @@ export function parseGamesText(text, { season } = {}) {
       continue;
     }
     if (!cur && !ctxDate) continue; // cabeçalho antes do primeiro jogo
-    const full = cur && cur.teams.length >= 2;
-    if ((!cur || full) && f.teams.length && (f.time || f.teams.length >= 2)) {
+    const full = cur && isFull(cur);
+    if ((!cur || full) && f.cells.length && (f.time || f.cells.length >= 2)) {
       // Outro jogo debaixo do mesmo dia.
       open(f, ctxDate);
       continue;
     }
     if (!cur) continue;
-    // Continuação do cartão do jogo atual. Depois de ter as duas equipas, o
-    // que vier é pavilhão, hora ou resultado — um título de competição que
-    // apareça a seguir não pode passar por equipa.
     cur.time ??= f.time;
     cur.result ??= f.result;
     cur.jornada ??= f.jornada;
-    if (!full) cur.teams.push(...f.teams);
-    cur.locations.push(...f.locations);
+    cur.forfeits.push(...f.forfeits);
+    if (!full) cur.cells.push(...f.cells);
   }
 
-  return blocks.filter((b) => b.date && b.teams.length >= 2);
+  return blocks.map(resolve).filter(Boolean);
 }
 
 // Jogo em bruto → jogo do clube: quem é o adversário e se é em casa. O
 // visitado vem primeiro em todas as tabelas de competição. Devolve `null`
 // quando o clube não está no jogo (a página tem a competição INTEIRA).
 export function toClubGame(game, isClub) {
-  const i = game.teams.findIndex(isClub);
-  if (i === -1) return null;
-  const others = game.teams.filter((t, j) => j !== i && !isClub(t));
-  if (!others.length) return null;
-  const opponent = i === 0 ? others[0] : (game.teams[i - 1] && !isClub(game.teams[i - 1]) ? game.teams[i - 1] : others[0]);
+  const [a, b] = game.teams;
+  const home = isClub(a);
+  if (!home && !isClub(b)) return null;
+  const opponent = home ? b : a;
+  if (isClub(opponent)) return null;
   return {
     date: game.date,
     time: game.time,
     jornada: game.jornada,
     result: game.result,
-    home: i === 0,
+    home,
     opponent,
-    location: game.locations[0] || '',
+    location: game.location,
+    // Quem desistiu, se alguém: o jogo fica no calendário da federação mas não
+    // se joga — e um treinador que o importe espera por um adversário que não
+    // vem.
+    forfeit: game.forfeit ? (sameTeam(game.forfeit, opponent) ? 'adversario' : 'clube') : null,
   };
 }

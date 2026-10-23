@@ -1438,6 +1438,13 @@ separador antes de navegar (usado pelos cartões do Painel).
     com jogos, e o leitor não conhece colunas: cada jogo é uma DATA seguida
     de duas equipas, com hora, jornada, resultado e pavilhão quando lá
     estiverem (tabela, cartão de várias linhas ou lista agrupada por dia).
+    No cartão do site o pavilhão vem ANTES das equipas e numa tabela vem
+    depois; o nome do pavilhão só desempata, porque há equipas com "Escola
+    Secundária" no nome e pavilhões que são só "Esc. Sec. …". Um " - " só
+    separa equipas numa linha com data ou hora — sozinho, "VCB - Volei Clube
+    de Braga" é uma equipa.
+  - **Desistências não se importam por omissão**: o site deixa o jogo de quem
+    desistiu no calendário ("X desistiu"), mas ele não se joga.
   - **A página tem a competição INTEIRA**: só entram os jogos onde aparece o
     nome do clube (guardado no dispositivo, como a vista dos Plantéis), e
     diz-se quantos ficaram de fora — com o nome mal escrito, "nenhum jogo"
