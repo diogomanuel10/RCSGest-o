@@ -8315,6 +8315,7 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 .scout-lineup__h { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
 .scout-lineup__p { font-family: var(--font-title); font-weight: 700; font-size: 1.1rem; text-align: center; min-width: 1.6rem; }
 .scout-lineup select { min-height: 44px; min-width: 0; width: 100%; }
+.scout-lineup__lib { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; font-size: 0.78rem; }
 .scout-lineup input[type="checkbox"] { width: 22px; height: 22px; }
 
 .scout-selline { display: flex; justify-content: space-between; align-items: center; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 0.7rem; }

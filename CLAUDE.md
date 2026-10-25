@@ -1490,6 +1490,12 @@ separador antes de navegar (usado pelos cartões do Painel).
     treinador não pode criar) também se scouta, só não preenche resultado.
   - **A líbero** entra no lugar das atletas marcadas nas zonas 5, 6 e 1, e
     sai quando é a vez delas servirem (`positions()` em `scout-engine.js`).
+    **Pode haver duas** (`libero` + `liberoDef`, `activeLibero()`): a de
+    receção joga quando o adversário serve e a de defesa quando servimos nós —
+    é como muitas equipas de formação as usam. A de defesa é opcional; sem
+    ela, `libero` serve as duas fases, que é também como se leem os jogos
+    gravados antes de existir a segunda. Escolher só a de defesa passa-a a
+    `libero`: uma líbero sozinha é a única, chame-se o campo como se chamar.
   - **Quem**: o treinador nas suas equipas e o coordenador escrevem; a
     direção lê (RLS `gsc_*`). Não é secção configurável: é a ferramenta do
     próprio treinador no banco, como os Pedidos (`roleCanAccess`). O atleta
