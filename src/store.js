@@ -170,6 +170,12 @@ export const state = {
   // na área "Arquivados" para consultar e repor. As coleções normais (acima)
   // contêm apenas registos ativos.
   archived: { teams: [], players: [], coaches: [], sponsors: [], events: [], prospects: [] },
+  // Scout ao vivo: só os RESUMOS (sem as ações), carregados quando se abre a
+  // secção Scout e não no arranque — as ações de uma época inteira são
+  // megabytes que mais nenhum ecrã usa. `null` = ainda não carregado.
+  scouts: null,
+  // A migração `scout.sql` já correu? Mesma linha do `birthDateReady()`.
+  scoutsReady: true,
   loaded: false,
 };
 
@@ -197,6 +203,8 @@ export function resetState() {
   state.gymExercises = [];
   state.gymAttendance = [];
   state.gameMinutes = [];
+  state.scouts = null;
+  state.scoutsReady = true;
   state.availability = [];
   state.physioRequests = [];
   state.physioRequestsReady = true;
@@ -1129,6 +1137,87 @@ async function reloadGameData(eventId) {
   state.gameResults = state.gameResults.filter((r) => r.event_id !== eventId);
   if (res.data) state.gameResults.push(res.data);
   state.gameSets = state.gameSets.filter((s) => s.event_id !== eventId).concat(sets.data || []);
+}
+
+// --- Scout ao vivo -------------------------------------------------------
+//
+// Uma linha por jogo scoutado (`game_scouts`, ver supabase/scout.sql), com a
+// sequência de ações em `data` e uma cópia pequena para a lista em `summary`.
+
+const SCOUT_LIST_COLUMNS = 'id, team_id, event_id, opponent, game_date, competition, status, summary, created_by, updated_at';
+
+// Lista (sem as ações) de todos os jogos scoutados que o utilizador pode ver.
+// O RLS já recorta o treinador às suas equipas.
+export async function loadScouts() {
+  const { data, error } = await supabase
+    .from('game_scouts')
+    .select(SCOUT_LIST_COLUMNS)
+    .order('game_date', { ascending: false })
+    .limit(1000);
+  if (error) {
+    // Tabela por criar: a secção explica o passo em falta em vez de rebentar.
+    if (error.code === '42P01' || /game_scouts/.test(error.message || '')) {
+      state.scoutsReady = false;
+      state.scouts = [];
+      notify();
+      return state.scouts;
+    }
+    throw error;
+  }
+  state.scoutsReady = true;
+  state.scouts = data || [];
+  notify();
+  return state.scouts;
+}
+
+// As ações de um jogo (ou de vários, para os totais da época).
+export async function loadScoutData(ids) {
+  const list = Array.isArray(ids) ? ids : [ids];
+  if (!list.length) return [];
+  const { data, error } = await supabase.from('game_scouts').select('*').in('id', list);
+  if (error) throw error;
+  return data || [];
+}
+
+export async function createScout(values) {
+  const { data, error } = await supabase.from('game_scouts').insert(values).select().single();
+  if (error) throw error;
+  const { data: _omit, ...row } = data;
+  state.scouts = [row, ...(state.scouts || []).filter((r) => r.id !== row.id)];
+  notify();
+  return data;
+}
+
+// Gravação do jogo a decorrer, SEM toast e SEM notify — exceção deliberada,
+// como em `saveScenario`: marca-se uma ação a cada dois segundos, e um aviso
+// (ou um re-desenho global) por toque tornava o ecrã de jogo inutilizável. O
+// estado da gravação mostra-se no próprio ecrã de jogo.
+export async function saveScoutData(id, patch) {
+  const { data, error } = await supabase
+    .from('game_scouts')
+    .update({ ...patch, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select(SCOUT_LIST_COLUMNS)
+    .single();
+  if (error) throw error;
+  if (state.scouts) {
+    const i = state.scouts.findIndex((r) => r.id === id);
+    if (i !== -1) state.scouts[i] = data;
+  }
+  return data;
+}
+
+export async function deleteScout(id) {
+  const { error } = await supabase.from('game_scouts').delete().eq('id', id);
+  if (error) throw error;
+  if (state.scouts) state.scouts = state.scouts.filter((r) => r.id !== id);
+  toastOk('Scout apagado.');
+  notify();
+}
+
+// Depois de o ecrã de jogo fechar: a lista volta a desenhar-se com o que ficou.
+export function notifyScouts() {
+  notify();
 }
 
 // --- Comunicação clube <-> atleta ---------------------------------------

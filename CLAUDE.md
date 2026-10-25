@@ -268,6 +268,8 @@ src/
   report-sheet.js       Folha A4 imprimível: janela, estilos e blocos comuns
   athlete-report.js     Ficha do atleta imprimível (usa report-sheet)
   game-report.js        Resumo pós-jogo imprimível (usa report-sheet)
+  scout-engine.js       Scout ao vivo: lógica pura (marcador, rotação, líbero, estatísticas)
+  scout-export.js       Scout: Excel (.xlsx, SheetJS lazy) e folha A4 do jogo/época
   assets/logo.svg       Logótipo do clube (emblema SVG)
   views/
     config-help.js      Ecrã quando faltam as variáveis do Supabase
@@ -296,6 +298,7 @@ src/
     portal.js           Portal do atleta (a sua página pessoal, mobile-first)
     quiosque.js         Modo quiosque: câmara à entrada regista presenças por QR
     resultado.js        Registo do resultado de um jogo (parciais + participação)
+    scout.js            Scout ao vivo: secção (jogos por equipa, época) + ecrã de jogo
     treino.js           Secção Treino (separadores Exercícios + Decisão Tática)
     tatica.js           Decisão Tática (cenários por posição; atleta responde no portal)
     exercicios.js       Biblioteca de exercícios do clube (+ escolher da biblioteca)
@@ -334,6 +337,7 @@ supabase/comunicacao.sql       Respostas do atleta a eventos + avisos do clube
 supabase/notificacoes-atleta.sql Notificações para o atleta (agenda + convocatória)
 supabase/resultados.sql        Resultado dos jogos (final + parciais) e pontos jogados
 supabase/tatica.sql            Decisão Tática: cenários de leitura de jogo + respostas
+supabase/scout.sql             Scout ao vivo: uma linha por jogo, ações em jsonb (RLS por equipa)
 supabase/exercicios.sql        Biblioteca de exercícios (tabela + ligação ao plano de treino)
 supabase/plano-links.sql       Ligações (URL) no plano de treino, nos blocos e na biblioteca
 supabase/painel-avisos.sql     Limiares do clube + avisos escolhidos por utilizador
@@ -1446,6 +1450,55 @@ separador antes de navegar (usado pelos cartões do Painel).
     fez. Quando há registo de alguém, quem não tem linha é porque não jogou. Os
     pontos de um atleta são ainda limitados ao total do jogo — mais do que isso é
     engano de digitação (validado também no ecrã de registo).
+- **Scout ao vivo** (`supabase/scout.sql`, `scout-engine.js`, `scout-export.js`,
+  `views/scout.js`): durante o jogo o treinador toca na atleta e na ação
+  (receção, passe, ataque, serviço, bloco, defesa, com a qualidade `# + − / =`
+  do DataVolley) e a app conta o marcador, roda a equipa e mete a líbero.
+  Substitui a folha de Google Sheets com Apps Script que cada escalão copiava
+  por jogo — com plantel escrito à mão, arquivo num Drive com link público e
+  dados que nunca se cruzavam com o resto do clube.
+  - **O jogo é a sequência de ações, e só ela se guarda** (`game_scouts.data`).
+    Marcador, rotação, quem está em campo e estatísticas derivam dela em
+    `scout-engine.js` (lógica pura, sem DOM). Guardar totais ao lado era ter
+    dois donos para o mesmo número, e o "anular última" passava a desfazer
+    contas em vários sítios. Uma linha por ação eram ~600 escritas por jogo,
+    cada uma à espera de rede no pavilhão.
+  - **`summary` é uma cópia para a LISTA** (parciais, sets, formação inicial
+    do 1º set) — a secção não descarrega as ações de uma época para mostrar
+    uma lista. Nunca é fonte de verdade; reescreve-se a cada gravação.
+  - **As ações não vão no `loadAll`**: `state.scouts` (`null` até se abrir a
+    secção) só tem os resumos. As ações de um jogo carregam-se ao abri-lo, e
+    as da época ao pedir os totais.
+  - **O roster é uma CÓPIA no início do jogo** (`data.roster`): o jogo é um
+    registo histórico, e uma atleta que mude de número ou saia do clube não
+    pode reescrever o que se jogou — a mesma razão de o plano de treino copiar
+    da biblioteca em vez de referenciar.
+  - **A gravação é silenciosa e com cópia no dispositivo** (`saveScoutData`,
+    exceção deliberada como o `saveScenario`): marca-se uma ação a cada dois
+    segundos. Cada toque vai primeiro para o `localStorage`
+    (`rumia-scout:<id>`) e sobe à nuvem com um atraso curto, uma escrita de
+    cada vez; sem rede, o placard diz "Sem rede: guardado no dispositivo" e
+    volta a tentar quando a rede volta. Ao reabrir, a cópia do dispositivo
+    ganha se for mais recente. O jogo em curso fica marcado no dispositivo
+    (`rumia-scout-active`) e a secção oferece "Retomar".
+  - **Liga-se a um jogo do calendário** (botão "Scout" na linha do jogo, no
+    próprio dia — durante o aquecimento acerta-se a formação). Ao terminar, os
+    parciais vão para `game_sets` (o trigger reconta o final) e os **pontos
+    jogados** de cada atleta para `game_minutes.points`, contados pela
+    rotação: estava em campo quando o ponto acabou. É a mesma medida do
+    registo manual, mas exata. Um particular fora do calendário (que o
+    treinador não pode criar) também se scouta, só não preenche resultado.
+  - **A líbero** entra no lugar das atletas marcadas nas zonas 5, 6 e 1, e
+    sai quando é a vez delas servirem (`positions()` em `scout-engine.js`).
+  - **Quem**: o treinador nas suas equipas e o coordenador escrevem; a
+    direção lê (RLS `gsc_*`). Não é secção configurável: é a ferramenta do
+    próprio treinador no banco, como os Pedidos (`roleCanAccess`). O atleta
+    não lê o scout — "3 erros de receção" sem o contexto do jogo é uma nota,
+    e quem a explica é o treinador.
+  - **Exportação**: a folha A4 (`openSheet`, como o resumo pós-jogo; o PDF
+    sai da janela de impressão) e o Excel com tudo — Jogos, Atletas (época),
+    Atleta x Jogo e Ações, uma por linha — porque quem quer cruzar a época
+    numa tabela dinâmica precisa das ações em bruto e não só dos totais.
 - **Biblioteca de exercícios** (`supabase/exercicios.sql`, `views/exercicios.js`):
   o plano de treino escrevia-se de raiz todas as semanas. A biblioteca guarda
   cada exercício UMA vez e o plano passa a ser uma escolha ("Da biblioteca" no
