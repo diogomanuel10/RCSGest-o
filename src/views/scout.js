@@ -28,6 +28,7 @@ import { toastOk, toastError, toastInfo } from '../toast.js';
 import {
   ACT, COLS, ROWS, SYM, QN, MAX_SETS, emptyData, derive, court, setWinner, setsWon, hasPoints,
   partials, summarize, pointsPlayed, teamSummary, playerRows, findPlayer, numOf, fmtPct,
+  activeCols, usedCols, OPTIONAL_COLS,
 } from '../scout-engine.js';
 
 // --- Estado local da secção -------------------------------------------------
@@ -415,7 +416,8 @@ async function startScout(values) {
 
 function summaryOf(data) {
   const s1 = data.sets[0];
-  return { ...summarize(data), base: { lineup: s1.lineup, libero: s1.libero, liberoDef: s1.liberoDef || null, liberoFor: s1.liberoFor } };
+  // As ações escolhidas vão na base: o jogo seguinte da equipa começa com as mesmas.
+  return { ...summarize(data), base: { lineup: s1.lineup, libero: s1.libero, liberoDef: s1.liberoDef || null, liberoFor: s1.liberoFor, cols: data.cols || null } };
 }
 
 // Do botão "Scout" de um jogo no Calendário: abre o scout desse jogo ou cria-o.
@@ -527,15 +529,28 @@ function setFilterHTML(data, cur) {
   </div>`;
 }
 
+// Grupos da tabela por ação — só entram os das ações que se marcaram.
+const STAT_GROUPS = [
+  ['SERVICE', 'Serviço', (s) => [s.srv, s.ace, fmtPct(s.effS)], ['Tot', 'Ace', 'Ef.']],
+  ['RECEPTION', 'Receção', (s) => [s.rec, fmtPct(s.posR), fmtPct(s.perfR)], ['Tot', 'Pos', 'Perf']],
+  ['ATTACK', 'Ataque', (s) => [s.atk, s.kill, fmtPct(s.effA)], ['Tot', 'Pto', 'Ef.']],
+  ['BLOCK', 'Bloco', (s) => [s.blkT, s.blk], ['Tot', 'Pto']],
+  ['DEFENSE', 'Defesa', (s) => [s.def, fmtPct(s.posD)], ['Tot', 'Pos']],
+  ['SETTING', 'Passe', (s) => [s.pas, fmtPct(s.posP)], ['Tot', 'Pos']],
+];
+
 function statsBlock(datas, f, { multi = false, played = {} } = {}) {
   const ts = teamSummary(datas, f);
   const rows = playerRows(datas, f);
+  const used = usedCols(datas);
+  const groups = STAT_GROUPS.filter(([k]) => used.has(k));
   const min = multi ? 10 : 3;
   const bar = (parts) => {
     const s = parts.reduce((a, p) => a + p[0], 0) || 1;
     return `<div class="scout-bar">${parts.map(([v, c]) => `<span style="width:${(v / s) * 100}%;background:${c}"></span>`).join('')}</div>`;
   };
-  const rank = (title, key, kind, minKey) => {
+  const rank = (title, key, kind, minKey, col) => {
+    if (col && !used.has(col)) return '';
     const list = rows
       .filter((r) => r.s[key] != null && (kind === 'n' ? r.s[key] > 0 : r.s[minKey] >= min))
       .sort((a, b) => b.s[key] - a.s[key]).slice(0, 3);
@@ -556,22 +571,16 @@ function statsBlock(datas, f, { multi = false, played = {} } = {}) {
         <span class="muted scout-kpi__legend">dos pontos ganhos vieram de ações nossas</span></div>
     </div>
     <div class="scout-ranks">
-      ${rank('Pontos', 'pts', 'n')}${rank('Eficácia de ataque', 'effA', 'p', 'atk')}${rank('Ases', 'ace', 'n')}
-      ${rank('Receção positiva', 'posR', 'p', 'rec')}${rank('Pontos de bloco', 'blk', 'n')}${rank('Defesa positiva', 'posD', 'p', 'def')}
+      ${rank('Pontos', 'pts', 'n')}${rank('Eficácia de ataque', 'effA', 'p', 'atk', 'ATTACK')}${rank('Ases', 'ace', 'n', null, 'SERVICE')}
+      ${rank('Receção positiva', 'posR', 'p', 'rec', 'RECEPTION')}${rank('Pontos de bloco', 'blk', 'n', null, 'BLOCK')}${rank('Defesa positiva', 'posD', 'p', 'def', 'DEFENSE')}
     </div>
     ${rows.length ? `<div class="table-wrap"><table class="no-stack scout-table">
       <thead><tr><th rowspan="2">Atleta</th>${multi ? '<th rowspan="2">Jogos</th>' : ''}<th rowspan="2" title="Pontos em que esteve em campo">Pts jog.</th><th rowspan="2">Pts</th><th rowspan="2">Erros</th>
-        <th colspan="3" class="scout-table__grp">Serviço</th><th colspan="3" class="scout-table__grp">Receção</th><th colspan="3" class="scout-table__grp">Ataque</th>
-        <th colspan="2" class="scout-table__grp">Bloco</th><th colspan="2" class="scout-table__grp">Defesa</th><th colspan="2" class="scout-table__grp">Passe</th></tr>
-        <tr><th class="scout-table__gl">Tot</th><th>Ace</th><th>Ef.</th><th class="scout-table__gl">Tot</th><th>Pos</th><th>Perf</th><th class="scout-table__gl">Tot</th><th>Pto</th><th>Ef.</th>
-        <th class="scout-table__gl">Tot</th><th>Pto</th><th class="scout-table__gl">Tot</th><th>Pos</th><th class="scout-table__gl">Tot</th><th>Pos</th></tr></thead>
+        ${groups.map(([, l, , h]) => `<th colspan="${h.length}" class="scout-table__grp">${l}</th>`).join('')}</tr>
+        <tr>${groups.map(([, , , h]) => h.map((x, i) => `<th${i ? '' : ' class="scout-table__gl"'}>${x}</th>`).join('')).join('')}</tr></thead>
       <tbody>${rows.map(({ id, p, s, j }) => `<tr>
         <td>${esc(`${p.num} · ${p.name}`)}</td>${multi ? `<td>${j}</td>` : ''}<td>${played[id] || 0}</td><td><strong>${s.pts}</strong></td><td>${s.errs}</td>
-        <td class="scout-table__gl">${s.srv}</td><td>${s.ace}</td><td>${fmtPct(s.effS)}</td>
-        <td class="scout-table__gl">${s.rec}</td><td>${fmtPct(s.posR)}</td><td>${fmtPct(s.perfR)}</td>
-        <td class="scout-table__gl">${s.atk}</td><td>${s.kill}</td><td>${fmtPct(s.effA)}</td>
-        <td class="scout-table__gl">${s.blkT}</td><td>${s.blk}</td><td class="scout-table__gl">${s.def}</td><td>${fmtPct(s.posD)}</td>
-        <td class="scout-table__gl">${s.pas}</td><td>${fmtPct(s.posP)}</td></tr>`).join('')}</tbody></table></div>`
+        ${groups.map(([, , cells]) => cells(s).map((v, i) => `<td${i ? '' : ' class="scout-table__gl"'}>${v}</td>`).join('')).join('')}</tr>`).join('')}</tbody></table></div>`
       : `<p class="muted">Sem ações registadas${f === 'all' ? '' : ' neste set'}.</p>`}
     <p class="muted scout-footnote">Pts jog. = pontos em que a atleta estava em campo · Ef. serviço = (ases − erros) ÷ total · Ef. ataque = (pontos − erros − bloqueados) ÷ total · Pos. = (# + +) ÷ total${multi ? ' · rankings de percentagem com pelo menos 10 ações' : ''}</p>`;
 }
@@ -1056,8 +1065,14 @@ export function openScoutLive(row, { view = false } = {}) {
       return `<li><span class="scout-q scout-q--${q}">${e.t === 'OPPONENT' ? '◦' : SYM[e.q]}</span><span class="scout-log__wh">${who}</span><span class="scout-log__sc">${sc}</span></li>`;
     }).join('') || '<li><span></span><span class="muted">Ainda sem ações neste set.</span><span></span></li>';
 
-    const head = COLS.map(([, l, s]) => `<div class="scout-ch"><span class="scout-ch__l">${l}</span><span class="scout-ch__s">${s}</span></div>`).join('');
-    const body = ROWS.map((r) => COLS.map(([k]) => {
+    // Só as colunas escolhidas para este jogo, e só as linhas que ainda têm
+    // algum botão (sem Ataque, a linha "/ bloqueado" fica vazia e sai).
+    const act = activeCols(D());
+    const cols = COLS.filter(([k]) => act.includes(k));
+    const has = (k, r) => (k === 'OPPONENT' ? r === 'PERFECT' || r === 'ERROR' : r in ACT[k].q);
+    const rows = ROWS.filter((r) => cols.some(([k]) => has(k, r)));
+    const head = cols.map(([, l, s]) => `<div class="scout-ch"><span class="scout-ch__l">${l}</span><span class="scout-ch__s">${s}</span></div>`).join('');
+    const body = rows.map((r) => cols.map(([k]) => {
       let q = r;
       let txt = '';
       if (k === 'OPPONENT') {
@@ -1097,9 +1112,10 @@ export function openScoutLive(row, { view = false } = {}) {
             <span class="cell-actions">
               ${canWrite && pts && ui.sel && d.lineup.includes(ui.sel) ? `<button class="btn btn--ghost" type="button" data-subout="${esc(ui.sel)}">Substituir</button>` : ''}
               <button class="btn btn--ghost" type="button" data-undo ${canWrite ? '' : 'disabled'}>Anular última</button>
+              ${canWrite ? `<button class="btn btn--ghost" type="button" data-cols title="Escolher que ações marcar neste jogo">Ações (${cols.length - 1})</button>` : ''}
             </span>
           </div>
-          <div class="scout-agrid">${head}${body}</div>
+          <div class="scout-agrid" style="grid-template-columns:repeat(${cols.length}, minmax(0, 1fr))">${head}${body}</div>
           <div class="scout-legend">
             <span><code>#</code> perfeito</span><span><code>+</code> bom</span><span><code>−</code> fraco</span><span><code>/</code> bloqueado</span><span><code>=</code> erro</span>
             <span><i class="scout-dot" style="background:var(--ok)"></i>ponto nosso</span><span><i class="scout-dot" style="background:var(--danger)"></i>ponto do adversário</span>
@@ -1172,6 +1188,7 @@ export function openScoutLive(row, { view = false } = {}) {
     on('[data-finish]', 'click', finish);
     on('[data-goset]', 'click', (e) => { D().cur = Number(e.currentTarget.dataset.goset); ui.sel = null; if (canWrite) touch(); paint(); });
     on('[data-lineup]', 'click', () => openLineup());
+    on('[data-cols]', 'click', openCols);
     on('[data-subout]', 'click', (e) => openLineup({ out: e.currentTarget.dataset.subout }));
     on('details[data-toggle]', 'toggle', (e) => { ui.logOpen = e.currentTarget.open; });
     on('[data-set]', 'click', (e) => { ui.statSet = e.currentTarget.dataset.set; paint(); });
@@ -1180,6 +1197,50 @@ export function openScoutLive(row, { view = false } = {}) {
     on('[data-copy]', 'click', copySummary);
   }
 
+
+  // --- Que ações marcar -------------------------------------------------------
+  // Escolhe-se por JOGO (`data.cols`) e o jogo seguinte da equipa herda a
+  // escolha. Desligar uma ação a meio não apaga o que já se marcou nela: os
+  // botões saem, os registos ficam nas estatísticas.
+  function colsHTML() {
+    const on = activeCols(D());
+    const dis = canWrite ? '' : 'disabled';
+    return `<fieldset class="scout-cols">
+      <legend>Ações a marcar neste jogo</legend>
+      <div class="scout-cols__list">
+        ${OPTIONAL_COLS.map((k) => `<label class="scout-cols__opt"><input type="checkbox" data-col="${k}" ${on.includes(k) ? 'checked' : ''} ${dis}> ${esc(ACT[k].l)}</label>`).join('')}
+        <label class="scout-cols__opt scout-cols__opt--fixed"><input type="checkbox" checked disabled> Adversário <span class="muted">(sempre)</span></label>
+      </div>
+      <p class="muted scout-footnote">Menos ações, menos botões no ecrã — dá para marcar sozinho no banco. Os próximos jogos desta equipa começam com esta escolha.</p>
+    </fieldset>`;
+  }
+  function wireCols(root, rerender) {
+    root.querySelectorAll('[data-col]').forEach((el) => el.addEventListener('change', () => {
+      if (!canWrite) return;
+      const picked = [...root.querySelectorAll('[data-col]:checked')].map((x) => x.dataset.col);
+      if (!picked.length) { toastInfo('Escolhe pelo menos uma ação.'); rerender(); return; }
+      D().cols = OPTIONAL_COLS.filter((k) => picked.includes(k));
+      touch(); paint(); rerender();
+    }));
+  }
+  function openCols() {
+    const ov = document.createElement('div');
+    ov.className = 'modal-overlay';
+    ov.innerHTML = `
+      <div class="modal card" role="dialog" aria-modal="true" aria-labelledby="sc-cols-title">
+        <div class="modal__head">
+          <h2 class="section-title" id="sc-cols-title">Ações a marcar</h2>
+          <button class="modal__close" type="button" aria-label="Fechar">&times;</button>
+        </div>
+        <div class="scout-cols-body"></div>
+        <div class="modal__actions"><button class="btn btn--primary" type="button" data-done>Feito</button></div>
+      </div>`;
+    const body = ov.querySelector('.scout-cols-body');
+    const render = () => { body.innerHTML = colsHTML().replace('<legend>Ações a marcar neste jogo</legend>', ''); wireCols(body, render); };
+    render();
+    const closeDlg = wireDialog(ov, { initialFocus: '[data-done]' });
+    ov.querySelector('[data-done]').addEventListener('click', closeDlg);
+  }
 
   // --- Formação (modal) -------------------------------------------------------
   // A formação vive num modal e não no ecrã de jogo: acerta-se no aquecimento e
@@ -1239,6 +1300,7 @@ export function openScoutLive(row, { view = false } = {}) {
         <span class="cal-toggle"><button class="cal-toggle__btn ${set.firstServer === 'OUR' ? 'cal-toggle__btn--active' : ''}" type="button" data-fs="OUR" aria-pressed="${set.firstServer === 'OUR'}" ${dis}>${our}</button>
         <button class="cal-toggle__btn ${set.firstServer === 'THEIR' ? 'cal-toggle__btn--active' : ''}" type="button" data-fs="THEIR" aria-pressed="${set.firstServer === 'THEIR'}" ${dis}>${their}</button></span></div>` : ''}
       ${subs}
+      ${si === 0 && !pts ? colsHTML() : ''}
       <p class="muted scout-footnote">${pts
         ? 'As posições de partida já não mudam: o set começou. Para trocar uma atleta usa a substituição.'
         : 'Posição 1 = zona de serviço. A líbero entra nas zonas 5, 6 e 1 no lugar das atletas marcadas (nunca a servir). Com duas, a de receção joga quando o adversário serve e a de defesa quando servimos nós.'}</p>`;
@@ -1246,6 +1308,7 @@ export function openScoutLive(row, { view = false } = {}) {
 
   function wireLineup(root) {
     const on = (sel, ev, fn) => root.querySelectorAll(sel).forEach((el) => el.addEventListener(ev, fn));
+    wireCols(root, () => lineupDlg?.render());
     on('[data-fs]', 'click', (e) => {
       if (!canWrite) return;
       if (hasPoints(D(), D().cur)) { toastInfo('Este set já tem pontos.'); return; }
