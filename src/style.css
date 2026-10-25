@@ -8316,6 +8316,18 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 .scout-lineup__p { font-family: var(--font-title); font-weight: 700; font-size: 1.1rem; text-align: center; min-width: 1.6rem; }
 .scout-lineup select { min-height: 44px; min-width: 0; width: 100%; }
 .scout-lineup__lib { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; font-size: 0.78rem; }
+.scout-lineup__name { min-height: 44px; display: flex; align-items: center; font-weight: 500; }
+.scout-lineup-btn { align-self: flex-start; }
+.scout-lineup-modal { max-height: 92vh; display: flex; flex-direction: column; }
+.scout-lineup-body { overflow-y: auto; display: flex; flex-direction: column; gap: 0.9rem; padding-bottom: 0.2rem; }
+.scout-lineup-body .scout-lineup { margin-top: 0; }
+.scout-firstserve .cal-toggle__btn { min-height: 44px; }
+.scout-subs { border-top: 1px solid var(--border); padding-top: 0.8rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.scout-subs h3 { margin: 0; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+.scout-subs__form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 0.6rem; align-items: end; }
+.scout-subs__form .field { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; font-size: 0.8rem; }
+.scout-subs__form select, .scout-subs__form .btn { min-height: 44px; width: 100%; }
+@media (max-width: 560px) { .scout-subs__form { grid-template-columns: minmax(0, 1fr); } }
 .scout-lineup input[type="checkbox"] { width: 22px; height: 22px; }
 
 .scout-selline { display: flex; justify-content: space-between; align-items: center; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 0.7rem; }
@@ -8371,7 +8383,6 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
   .scout-live .o-banner { order: 1; }
   .scout-live .o-court { order: 2; }
   .scout-live .o-actions { order: 3; }
-  .scout-live .o-lineup { order: 4; }
   .scout-live .o-buttons { order: 5; }
   .scout-live .o-sets { order: 6; }
   .scout-live .o-log { order: 7; }

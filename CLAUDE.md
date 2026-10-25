@@ -1488,6 +1488,17 @@ separador antes de navegar (usado pelos cartões do Painel).
     rotação: estava em campo quando o ponto acabou. É a mesma medida do
     registo manual, mas exata. Um particular fora do calendário (que o
     treinador não pode criar) também se scouta, só não preenche resultado.
+  - **A formação vive num MODAL** e não no ecrã de jogo: acerta-se no
+    aquecimento e entre sets, e durante o rally o ecrã é do campo e das ações.
+    Abre sozinho quando o set ainda não tem formação ou quem serve. Antes do
+    1.º ponto do set mudam-se as posições à vontade; depois disso as posições
+    de partida ficam fixas e trocar uma atleta é uma **substituição** — um
+    formulário "Sai / Entra" (ou o botão "Substituir" ao lado da atleta
+    selecionada), que entra na sequência de ações (`t: 'SUB'`). Mudar a
+    posição de partida a meio do set reescrevia a rotação de todos os pontos
+    já jogados, e com eles os pontos jogados de cada atleta. O modal conta as
+    substituições do set contra as 6 do regulamento, mas não bloqueia: na
+    formação as regras de substituição variam por escalão.
   - **A líbero** entra no lugar das atletas marcadas nas zonas 5, 6 e 1, e
     sai quando é a vez delas servirem (`positions()` em `scout-engine.js`).
     **Pode haver duas** (`libero` + `liberoDef`, `activeLibero()`): a de
