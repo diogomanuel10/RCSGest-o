@@ -11,7 +11,8 @@
 //     v: 1,
 //     roster: [{ id, num, name }],       // cópia do plantel no início do jogo
 //     sets: [{ lineup: [6 ids],          // posição inicial 1..6 (1 = zona de serviço)
-//              libero, liberoFor: [ids], // quem a líbero substitui na zona de defesa
+//              libero, liberoDef,        // líbero de receção (ou única) e de defesa (opcional)
+//              liberoFor: [ids],         // quem a líbero substitui na zona de defesa
 //              firstServer: 'OUR'|'THEIR'|null }],
 //     events: [{ set, t, q, pid, ts }    // ação de uma atleta (ou do adversário)
 //            | { set, t: 'SUB', out, in, ts }],
@@ -56,6 +57,7 @@ export function emptyData(roster, base = {}) {
     sets: [{
       lineup: lineup.slice(0, 6),
       libero: ok(base.libero) ? base.libero : null,
+      liberoDef: ok(base.liberoDef) && base.liberoDef !== base.libero ? base.liberoDef : null,
       liberoFor: (base.liberoFor || []).filter(ok),
       firstServer: null,
     }],
@@ -67,17 +69,27 @@ export function emptyData(roster, base = {}) {
 export const pointTo = (e) => (e.t === 'SUB' ? 'NO' : (ACT[e.t]?.q[e.q] || 'NO'));
 const posOf = (slot, rot) => (((slot - rot) % 6) + 6) % 6 + 1;
 
+// Que líbero está em campo neste rally. Há equipas com DUAS: a de receção
+// entra quando o adversário serve (é a fase em que se recebe) e a de defesa
+// quando servimos nós. Com uma só, `libero` serve as duas fases — que é também
+// como ficam os jogos gravados antes de existir a segunda.
+export function activeLibero(set, srv) {
+  if (srv === 'OUR' && set.liberoDef) return set.liberoDef;
+  return set.libero || null;
+}
+
 // Quem está em cada posição (1..6) com esta formação, rotação e serviço. A
 // líbero entra no lugar das atletas marcadas quando estas estão na zona de
 // defesa — exceto na posição 1 quando servimos nós, porque a líbero não serve.
 function positions(set, lineup, rot, srv) {
   const pos = new Array(6).fill(null);
+  const libero = activeLibero(set, srv);
   lineup.forEach((pid, slot) => {
     const p = posOf(slot, rot);
     let show = pid;
     let lib = false;
-    if (pid && set.libero && set.liberoFor.includes(pid) && BACK_ROW.includes(p) && !(p === 1 && srv === 'OUR')) {
-      show = set.libero;
+    if (pid && libero && set.liberoFor.includes(pid) && BACK_ROW.includes(p) && !(p === 1 && srv === 'OUR')) {
+      show = libero;
       lib = true;
     }
     pos[p - 1] = { pid: show, base: pid, lib, slot };
@@ -256,7 +268,7 @@ export function playerRows(games, f = 'all') {
       let p = null;
       for (const g of games) { p = findPlayer(g, id); if (p) break; }
       const j = games.filter((g) => g.events.some((e) => e.pid === id || e.in === id)
-        || g.sets.some((s) => s.lineup.includes(id) || s.libero === id)).length;
+        || g.sets.some((s) => s.lineup.includes(id) || s.libero === id || s.liberoDef === id)).length;
       return { id, p, s: playerStats(c[id]), j };
     })
     .filter((r) => r.p)

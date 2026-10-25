@@ -339,7 +339,7 @@ async function startScout(values) {
 
 function summaryOf(data) {
   const s1 = data.sets[0];
-  return { ...summarize(data), base: { lineup: s1.lineup, libero: s1.libero, liberoFor: s1.liberoFor } };
+  return { ...summarize(data), base: { lineup: s1.lineup, libero: s1.libero, liberoDef: s1.liberoDef || null, liberoFor: s1.liberoFor } };
 }
 
 // Do botão "Scout" de um jogo no Calendário: abre o scout desse jogo ou cria-o.
@@ -623,7 +623,7 @@ export function openScoutLive(row) {
     }
     const prev = curSet();
     const d = derive(D(), D().cur);
-    D().sets.push({ lineup: d.lineup.slice(), libero: prev.libero, liberoFor: prev.liberoFor.slice(), firstServer: null });
+    D().sets.push({ lineup: d.lineup.slice(), libero: prev.libero, liberoDef: prev.liberoDef || null, liberoFor: prev.liberoFor.slice(), firstServer: null });
     D().cur = D().sets.length - 1;
     ui.sel = null; ui.lineupOpen = true; touch(); paint();
   }
@@ -632,7 +632,7 @@ export function openScoutLive(row) {
     const set = curSet();
     const d = derive(D(), D().cur);
     if (pid && d.lineup.includes(pid) && d.lineup[slot] !== pid) { toastInfo(`${pname(pid)} já está na formação.`); paint(); return; }
-    if (pid && pid === set.libero) { toastInfo('A líbero não entra na formação base: escolhe-a no campo "Líbero".'); paint(); return; }
+    if (pid && (pid === set.libero || pid === set.liberoDef)) { toastInfo('Uma líbero não entra na formação base: escolhe-a nos campos de líbero.'); paint(); return; }
     if (!hasPoints(D(), D().cur)) set.lineup[slot] = pid;
     else {
       if (!pid) { paint(); return; }
@@ -772,7 +772,7 @@ export function openScoutLive(row) {
     const lineupRows = d.lineup.map((pid, slot) => `
       <span class="scout-lineup__p">${slot + 1}</span>
       <select id="sc-slot-${slot}" data-slot="${slot}" aria-label="Posição inicial ${slot + 1}" ${canWrite ? '' : 'disabled'}>${opts(pid, !pts || !pid)}</select>
-      <input type="checkbox" id="sc-lib-${slot}" data-libfor="${esc(pid || '')}" ${pid && set.liberoFor.includes(pid) ? 'checked' : ''} ${!pid || !set.libero || !canWrite ? 'disabled' : ''} aria-label="Troca com a líbero">`).join('');
+      <input type="checkbox" id="sc-lib-${slot}" data-libfor="${esc(pid || '')}" ${pid && set.liberoFor.includes(pid) ? 'checked' : ''} ${!pid || !(set.libero || set.liberoDef) || !canWrite ? 'disabled' : ''} aria-label="Troca com a líbero">`).join('');
 
     return `<div class="scout-grid">
       <div class="scout-col">
@@ -787,13 +787,17 @@ export function openScoutLive(row) {
           <div class="scout-lineup">
             <span class="scout-lineup__h">Pos.</span><span class="scout-lineup__h">Atleta</span><span class="scout-lineup__h">Líbero</span>
             ${lineupRows}
-            <span class="scout-lineup__p">L</span>
-            <select id="sc-libero" data-libero aria-label="Líbero" ${canWrite ? '' : 'disabled'}>${opts(set.libero, true)}</select><span></span>
+            <span class="scout-lineup__p" title="Líbero de receção">L</span>
+            <label class="scout-lineup__lib"><span class="muted">Líbero de receção${set.liberoDef ? '' : ' (ou única)'}</span>
+              <select id="sc-libero" data-libero="libero" ${canWrite ? '' : 'disabled'}>${opts(set.libero, true)}</select></label><span></span>
+            <span class="scout-lineup__p" title="Líbero de defesa">L2</span>
+            <label class="scout-lineup__lib"><span class="muted">Líbero de defesa (opcional)</span>
+              <select id="sc-libero-def" data-libero="liberoDef" ${canWrite ? '' : 'disabled'}>${opts(set.liberoDef, true)}</select></label><span></span>
           </div>
           ${set.firstServer && !pts ? `<div class="cell-actions" style="margin-top:0.7rem"><span class="muted">Começa a servir:</span>
             <span class="cal-toggle"><button class="cal-toggle__btn ${set.firstServer === 'OUR' ? 'cal-toggle__btn--active' : ''}" type="button" data-fs="OUR" aria-pressed="${set.firstServer === 'OUR'}">${our}</button>
             <button class="cal-toggle__btn ${set.firstServer === 'THEIR' ? 'cal-toggle__btn--active' : ''}" type="button" data-fs="THEIR" aria-pressed="${set.firstServer === 'THEIR'}">${their}</button></span></div>` : ''}
-          <p class="muted scout-footnote">${pts ? 'Com o set em curso, mudar uma posição regista uma substituição.' : 'Posição inicial 1 = zona de serviço. A líbero entra nas zonas 5, 6 e 1 no lugar das atletas marcadas (nunca a servir).'}</p>
+          <p class="muted scout-footnote">${pts ? 'Com o set em curso, mudar uma posição regista uma substituição.' : 'Posição inicial 1 = zona de serviço. A líbero entra nas zonas 5, 6 e 1 no lugar das atletas marcadas (nunca a servir). Com duas, a de receção joga quando o adversário serve e a de defesa quando servimos nós.'}</p>
         </details>
         <div class="cell-actions o-buttons">
           <button class="btn btn--ghost" type="button" data-newset ${D().sets.length >= MAX_SETS || !canWrite ? 'disabled' : ''}>Novo set</button>
@@ -890,9 +894,15 @@ export function openScoutLive(row) {
     });
     on('[data-slot]', 'change', (e) => changeSlot(Number(e.currentTarget.dataset.slot), e.currentTarget.value || null));
     on('[data-libero]', 'change', (e) => {
+      const field = e.currentTarget.dataset.libero; // 'libero' (receção) | 'liberoDef' (defesa)
+      const other = field === 'libero' ? 'liberoDef' : 'libero';
       const id = e.currentTarget.value || null;
       if (id && derive(D(), D().cur).lineup.includes(id)) { toastInfo('Essa atleta já está na formação.'); paint(); return; }
-      curSet().libero = id; touch(); paint();
+      if (id && curSet()[other] === id) { toastInfo('Essa atleta já é a outra líbero.'); paint(); return; }
+      curSet()[field] = id;
+      // Só a de defesa, sem a de receção, é a mesma coisa que uma líbero única.
+      if (!curSet().libero && curSet().liberoDef) { curSet().libero = curSet().liberoDef; curSet().liberoDef = null; }
+      touch(); paint();
     });
     on('[data-libfor]', 'change', (e) => {
       const id = e.currentTarget.dataset.libfor;
