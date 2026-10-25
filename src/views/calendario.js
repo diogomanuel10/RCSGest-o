@@ -7,7 +7,7 @@ import { openResultModal } from './resultado.js';
 import { esc, emptyHTML, wireEmptyAction } from '../ui.js';
 import { toastError } from '../toast.js';
 import { eventDateTime, eventTimeRange, teamById, teamName, escalaoColor, gameResult, gameSetsOf,
-         eventPlayerIds, eventRoster, appointmentConflicts } from '../compute.js';
+         eventPlayerIds, eventRoster, appointmentConflicts, isMyEvent } from '../compute.js';
 import { openModal, confirmDialog, wireDialog } from '../modal.js';
 import { openAthleteProfile } from './athlete-profile.js';
 import { openAppointmentForm, apptResponseHTML } from './clinical-file.js';
@@ -208,6 +208,17 @@ export function renderCalendario(container) {
         openGameReport(b.dataset.report);
       } catch (err) {
         toastError(err.message || 'Não foi possível gerar o resumo.');
+      }
+    })
+  );
+  // Scout ao vivo do jogo: abre o que já existe ou começa um (chunk à parte).
+  container.querySelectorAll('[data-scout]').forEach((b) =>
+    b.addEventListener('click', async () => {
+      try {
+        const { openScoutForEvent } = await import('./scout.js');
+        openScoutForEvent(b.dataset.scout);
+      } catch (err) {
+        toastError(err.message || 'Não foi possível abrir o scout.');
       }
     })
   );
@@ -633,6 +644,7 @@ function eventRow(ev, isPast, editable) {
         ${showTraining ? `<button class="btn btn--ghost btn--sm" data-training-plan="${ev.id}" type="button">${hasTraining ? 'Plano ✓' : 'Preparar treino'}</button>` : ''}
         ${canSquad ? `<button class="btn btn--ghost btn--sm" data-squad="${ev.id}" type="button">Convocar</button>` : ''}
         ${canResult(ev) ? `<button class="btn btn--ghost btn--sm" data-result="${ev.id}" type="button">${gameResult(ev.id) ? 'Resultado ✓' : 'Registar resultado'}</button>` : ''}
+        ${canScout(ev) ? `<button class="btn btn--ghost btn--sm" data-scout="${ev.id}" type="button">Scout</button>` : ''}
         ${ev.type === 'jogo' && gameResult(ev.id) ? `<button class="btn btn--ghost btn--sm" data-report="${ev.id}" type="button">Resumo</button>` : ''}
         ${canEditThis
           ? `<button class="btn btn--ghost btn--sm" data-edit="${ev.id}" type="button">Editar</button>
@@ -1158,6 +1170,17 @@ function canResult(ev) {
     && ev.type === 'jogo'
     && ev.team_id
     && eventDateTime(ev) <= new Date();
+}
+
+// Scout ao vivo: no DIA do jogo e não só depois da hora marcada (é durante o
+// aquecimento que se acerta a formação), e só nas equipas de quem marca — o
+// RLS recusaria a gravação de um jogo de outra equipa.
+function canScout(ev) {
+  return canEdit('game_scouts')
+    && ev.type === 'jogo'
+    && ev.team_id
+    && isMyEvent(ev)
+    && ev.date <= new Date().toISOString().slice(0, 10);
 }
 
 // Resultado na linha do evento: o marcador em sets e, se houver parciais, os

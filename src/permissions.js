@@ -119,6 +119,9 @@ const EDIT_ROLES = {
   // Resultado do jogo (final + parciais + participação): quem regista é o
   // treinador, depois do jogo — alinhado com as políticas de `game_results`.
   game_results: ['coordenador', 'treinador'],
+  // Scout ao vivo: quem marca é o treinador (nas suas equipas — RLS) ou o
+  // coordenador. A direção lê, mas não marca.
+  game_scouts: ['coordenador', 'treinador'],
   // Cenários de decisão tática: coordenador e treinador (nas suas equipas — RLS).
   // O atleta responde no portal, não constrói.
   tactical: ['coordenador', 'treinador'],
@@ -253,6 +256,11 @@ function roleCanAccess(key) {
   // uma secção configurável: é a ferramenta do próprio treinador, e dar-lha
   // ou não não é uma escolha que faça sentido pôr ao coordenador.
   if (key === 'pedidos') return role === 'treinador';
+  // Scout ao vivo: é a ferramenta do próprio treinador no banco, como os
+  // Pedidos — não faz sentido o coordenador ter de lha dar equipa a equipa
+  // (e um treinador sem ela voltava à folha de Excel). Coordenador e direção
+  // já passaram acima; os outros papéis não leem scouts (RLS `gsc_read`).
+  if (key === 'scout') return role === 'treinador';
   // Objetivos / KPIs: visíveis a toda a equipa técnica (não ao atleta, já
   // tratado acima). Transparência para todos; edição só do coordenador.
   if (key === 'objetivos') return true;
