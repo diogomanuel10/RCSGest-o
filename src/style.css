@@ -8356,6 +8356,11 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 .scout-ab--hit { animation: scout-hit 0.4s ease-out; }
 @keyframes scout-hit { 0% { transform: scale(0.92); } 60% { transform: scale(1.05); } 100% { transform: none; } }
 .scout-blank { height: 54px; }
+.scout-cols { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0.6rem 0.8rem 0.4rem; margin: 0.9rem 0 0; }
+.scout-cols legend { font-weight: 600; padding: 0 0.3rem; }
+.scout-cols__list { display: flex; flex-wrap: wrap; gap: 0.3rem 1rem; }
+.scout-cols__opt { display: inline-flex; align-items: center; gap: 0.4rem; min-height: 36px; cursor: pointer; }
+.scout-cols__opt--fixed { cursor: default; }
 .scout-legend { display: flex; flex-wrap: wrap; gap: 0.3rem 0.9rem; margin-top: 0.7rem; font-size: 0.78rem; color: var(--text-muted); }
 .scout-legend code { font-weight: 700; color: var(--text); }
 .scout-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 0.3rem; vertical-align: middle; }
@@ -9112,3 +9117,6 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
     overflow-wrap: anywhere;
   }
 }
+
+/* Scout: escolha das ações a marcar (alvo de toque, ver «Alvos de toque»). */
+@media (hover: none) { .scout-cols__opt { min-height: 44px; } }

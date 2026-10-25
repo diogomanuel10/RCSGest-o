@@ -1521,6 +1521,21 @@ separador antes de navegar (usado pelos cartões do Painel).
     rotação: estava em campo quando o ponto acabou. É a mesma medida do
     registo manual, mas exata. Um particular fora do calendário (que o
     treinador não pode criar) também se scouta, só não preenche resultado.
+  - **Escolhe-se que ações marcar, por jogo** (`data.cols`, `activeCols()` em
+    `scout-engine.js`): sozinho no banco, marcar bloco e defesa a cada rally é
+    a forma de falhar o resto, e um scout "de receção e ataque" é um scout
+    legítimo. A escolha aparece no modal de formação do 1.º set e no botão
+    "Ações" do ecrã de jogo, e vai no `summary.base`: o jogo seguinte da
+    equipa começa com a mesma. O **Adversário fica sempre** — é por ele que
+    entram os pontos que não são de nenhuma atleta nossa, e sem ele o
+    marcador deixava de bater certo. Desligar uma ação a meio do jogo **não
+    apaga** o que já se marcou nela: os botões saem, os registos ficam.
+    - **As estatísticas mostram só as ações marcadas** (`usedCols`: as
+      escolhidas em algum jogo + as que têm registos), no ecrã e na folha A4:
+      "Bloco 0" num jogo em que não se scoutou bloco lê-se como "não fez
+      nenhum bloco". O **Excel leva sempre todas** — serve para cruzar jogos
+      numa tabela dinâmica, e aí as colunas têm de ser as mesmas em todos.
+    - Jogos sem escolha gravada (os de antes disto) marcam todas.
   - **A formação vive num MODAL** e não no ecrã de jogo: acerta-se no
     aquecimento e entre sets, e durante o rally o ecrã é do campo e das ações.
     Abre sozinho quando o set ainda não tem formação ou quem serve. Antes do

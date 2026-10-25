@@ -40,6 +40,29 @@ export const COLS = [
   ['OTHER', 'Outros', 'Out'], ['OPPONENT', 'Adversário', 'Adv'],
 ];
 export const ROWS = ['PERFECT', 'OK', 'BAD', 'BLOCKED', 'ERROR'];
+
+// Que ações se marcam NESTE jogo (`data.cols`). Nem todos os jogos se scoutam
+// por inteiro: sozinho no banco, marcar bloco e defesa a cada rally é a forma
+// de falhar o resto. O Adversário fica sempre — é por ele que entram os pontos
+// que não são de ninguém nosso, e sem ele o marcador deixava de bater certo.
+// Sem escolha gravada (jogos de antes disto) marcam-se todas.
+export const FIXED_COL = 'OPPONENT';
+export const OPTIONAL_COLS = COLS.map(([k]) => k).filter((k) => k !== FIXED_COL);
+export function activeCols(data) {
+  const chosen = Array.isArray(data?.cols) ? OPTIONAL_COLS.filter((k) => data.cols.includes(k)) : OPTIONAL_COLS;
+  return [...(chosen.length ? chosen : OPTIONAL_COLS), FIXED_COL];
+}
+// As ações que entram nas estatísticas: as escolhidas em algum dos jogos E as
+// que têm registos — desligar uma coluna a meio do jogo não apaga o que já se
+// marcou nela.
+export function usedCols(datas) {
+  const set = new Set();
+  for (const d of datas) {
+    activeCols(d).forEach((k) => set.add(k));
+    (d.events || []).forEach((e) => { if (e.t !== 'SUB') set.add(e.t); });
+  }
+  return set;
+}
 // Notação de qualidade do DataVolley — a que os treinadores já leem.
 export const SYM = { PERFECT: '#', OK: '+', BAD: '−', BLOCKED: '/', ERROR: '=' };
 export const QN = { PERFECT: 'Perfeito', OK: 'Bom', BAD: 'Fraco', BLOCKED: 'Bloqueado', ERROR: 'Erro' };
@@ -63,6 +86,7 @@ export function emptyData(roster, base = {}) {
     }],
     events: [],
     cur: 0,
+    ...(Array.isArray(base.cols) ? { cols: OPTIONAL_COLS.filter((k) => base.cols.includes(k)) } : {}),
   };
 }
 

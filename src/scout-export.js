@@ -8,7 +8,7 @@
 
 import {
   ACT, SYM, QN, derive, partials, setsWon, teamSummary, playerRows, pointsPlayed,
-  findPlayer, pointTo, fmtPct,
+  findPlayer, pointTo, fmtPct, usedCols,
 } from './scout-engine.js';
 import { openSheet, section, stat, empty } from './report-sheet.js';
 import { esc, safeFileName } from './ui.js';
@@ -153,19 +153,30 @@ export async function exportSeasonXlsx(teamLabel, games) {
 
 // --- Folha A4 -----------------------------------------------------------
 
+// A folha leva só as ações que se marcaram (como o ecrã): uma coluna de
+// "Blk 0" num jogo em que não se scoutou bloco lê-se como "não fez nenhum".
+// O Excel leva-as todas — é para cruzar jogos, e as colunas têm de ser as mesmas.
+const SHEET_COLS = [
+  ['SERVICE', ['Serv.', 'Ace', 'Ef. S'], (s) => [s.srv, s.ace, fmtPct(s.effS)]],
+  ['RECEPTION', ['Rec.', 'Pos.'], (s) => [s.rec, fmtPct(s.posR)]],
+  ['ATTACK', ['Atq.', 'Pto', 'Ef. A'], (s) => [s.atk, s.kill, fmtPct(s.effA)]],
+  ['BLOCK', ['Blk'], (s) => [s.blk]],
+  ['DEFENSE', ['Def. +'], (s) => [fmtPct(s.posD)]],
+];
+
 function athleteTable(datas, played, multi) {
   const rows = playerRows(datas);
   if (!rows.length) return empty('Sem ações registadas.');
+  const used = usedCols(datas);
+  const cols = SHEET_COLS.filter(([k]) => used.has(k));
+  const td = (v) => `<td style="text-align:right">${v}</td>`;
   return `<table class="rp-table">
     <thead><tr><th style="text-align:left">Atleta</th>${multi ? '<th>J</th>' : ''}<th>Pts jog.</th><th>Pts</th><th>Erros</th>
-      <th>Serv.</th><th>Ace</th><th>Ef. S</th><th>Rec.</th><th>Pos.</th><th>Atq.</th><th>Pto</th><th>Ef. A</th><th>Blk</th><th>Def. +</th></tr></thead>
+      ${cols.map(([, h]) => h.map((x) => `<th>${x}</th>`).join('')).join('')}</tr></thead>
     <tbody>${rows.map(({ id, p, s, j }) => `<tr>
-      <td>${esc(`${p.num} ${p.name}`)}</td>${multi ? `<td style="text-align:right">${j}</td>` : ''}
-      <td style="text-align:right">${played[id] || 0}</td><td style="text-align:right"><b>${s.pts}</b></td><td style="text-align:right">${s.errs}</td>
-      <td style="text-align:right">${s.srv}</td><td style="text-align:right">${s.ace}</td><td style="text-align:right">${fmtPct(s.effS)}</td>
-      <td style="text-align:right">${s.rec}</td><td style="text-align:right">${fmtPct(s.posR)}</td>
-      <td style="text-align:right">${s.atk}</td><td style="text-align:right">${s.kill}</td><td style="text-align:right">${fmtPct(s.effA)}</td>
-      <td style="text-align:right">${s.blk}</td><td style="text-align:right">${fmtPct(s.posD)}</td></tr>`).join('')}</tbody></table>`;
+      <td>${esc(`${p.num} ${p.name}`)}</td>${multi ? td(j) : ''}
+      ${td(played[id] || 0)}<td style="text-align:right"><b>${s.pts}</b></td>${td(s.errs)}
+      ${cols.map(([, , f]) => f(s).map(td).join('')).join('')}</tr>`).join('')}</tbody></table>`;
 }
 
 function origem(ts) {
