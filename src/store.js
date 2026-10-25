@@ -1144,7 +1144,7 @@ async function reloadGameData(eventId) {
 // Uma linha por jogo scoutado (`game_scouts`, ver supabase/scout.sql), com a
 // sequência de ações em `data` e uma cópia pequena para a lista em `summary`.
 
-const SCOUT_LIST_COLUMNS = 'id, team_id, event_id, opponent, game_date, competition, status, summary, created_by, updated_at';
+const SCOUT_LIST_COLUMNS = 'id, team_id, event_id, opponent, game_date, competition, status, summary, created_by, updated_at, writer_device, writer_name, writer_at';
 
 // Lista (sem as ações) de todos os jogos scoutados que o utilizador pode ver.
 // O RLS já recorta o treinador às suas equipas.
@@ -1192,19 +1192,96 @@ export async function createScout(values) {
 // como em `saveScenario`: marca-se uma ação a cada dois segundos, e um aviso
 // (ou um re-desenho global) por toque tornava o ecrã de jogo inutilizável. O
 // estado da gravação mostra-se no próprio ecrã de jogo.
-export async function saveScoutData(id, patch) {
-  const { data, error } = await supabase
+//
+// Só grava quem tem o jogo (`writer_device`): um dispositivo a quem passaram a
+// marcação à frente recebe `{ lost: true }` em vez de reescrever as ações que o
+// outro marcou entretanto. É o servidor a decidir, e não o aviso em tempo real
+// — esse pode não chegar (rede do pavilhão), a condição no UPDATE chega sempre.
+export async function saveScoutData(id, patch, device) {
+  const now = new Date().toISOString();
+  let q = supabase
     .from('game_scouts')
-    .update({ ...patch, updated_at: new Date().toISOString() })
-    .eq('id', id)
-    .select(SCOUT_LIST_COLUMNS)
-    .single();
+    .update({ ...patch, updated_at: now, writer_at: now })
+    .eq('id', id);
+  if (device) q = q.eq('writer_device', device);
+  const { data, error } = await q.select(SCOUT_LIST_COLUMNS).maybeSingle();
   if (error) throw error;
+  if (!data) return { lost: true };
   if (state.scouts) {
     const i = state.scouts.findIndex((r) => r.id === id);
     if (i !== -1) state.scouts[i] = data;
   }
   return data;
+}
+
+// --- Um dispositivo a marcar de cada vez -----------------------------------
+//
+// Dois telemóveis a gravar o mesmo jogo é o último a gravar a apagar as ações
+// do outro, sem aviso. Por isso o jogo tem DONO: o dispositivo que o está a
+// marcar (`writer_device`, um id aleatório guardado no próprio dispositivo — o
+// mesmo treinador no telemóvel e no tablet são dois donos possíveis), com quem
+// é (`writer_name`) e o último sinal de vida (`writer_at`).
+
+// Fica com a marcação, se estiver livre, já for deste dispositivo, ou for de
+// `prev` — o dono que quem chama aceitou substituir (perguntou-se antes). Se
+// entretanto outro a tiver, devolve null: quem volta da falta de rede com uma
+// tentativa antiga não a tira a quem ficou com ela depois.
+export async function claimScout(id, device, name, prev) {
+  const allowed = ['writer_device.is.null', `writer_device.eq.${device}`];
+  if (prev && prev !== device) allowed.push(`writer_device.eq.${prev}`);
+  const { data, error } = await supabase
+    .from('game_scouts')
+    .update({ writer_device: device, writer_name: name, writer_at: new Date().toISOString() })
+    .eq('id', id)
+    .or(allowed.join(','))
+    .select(SCOUT_LIST_COLUMNS)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  if (state.scouts) {
+    const i = state.scouts.findIndex((r) => r.id === id);
+    if (i !== -1) state.scouts[i] = data;
+  }
+  return data;
+}
+
+// Larga a marcação ao sair — só se ainda for deste dispositivo.
+export async function releaseScout(id, device) {
+  await supabase.from('game_scouts')
+    .update({ writer_device: null, writer_at: null })
+    .eq('id', id).eq('writer_device', device);
+}
+
+// Sinal de vida enquanto o ecrã está aberto sem toques (intervalo, time-out):
+// sem isto, um jogo parado dois minutos parecia abandonado a quem o abrisse.
+export async function scoutHeartbeat(id, device) {
+  const { data, error } = await supabase.from('game_scouts')
+    .update({ writer_at: new Date().toISOString() })
+    .eq('id', id).eq('writer_device', device)
+    .select('id').maybeSingle();
+  if (error) throw error;
+  return !!data;
+}
+
+// O carimbo do jogo, sem as ações: o "ver ao vivo" pergunta isto de tempos a
+// tempos e só descarrega o jogo inteiro quando mudou.
+export async function loadScoutStamp(id) {
+  const { data, error } = await supabase.from('game_scouts')
+    .select('id, status, updated_at, writer_device, writer_name, writer_at')
+    .eq('id', id).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+// Alterações a um jogo em tempo real (Supabase Realtime; o RLS de leitura
+// aplica-se). Devolve a função que desliga.
+export function subscribeScout(id, onChange) {
+  const ch = supabase
+    .channel(`scout-${id}`)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'game_scouts', filter: `id=eq.${id}` },
+      (payload) => onChange(payload.eventType, payload.new || null))
+    .subscribe();
+  return () => { supabase.removeChannel(ch); };
 }
 
 export async function deleteScout(id) {

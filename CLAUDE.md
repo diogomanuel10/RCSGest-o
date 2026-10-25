@@ -1488,6 +1488,32 @@ separador antes de navegar (usado pelos cartões do Painel).
     última tentativa. Ao reabrir, a cópia do dispositivo ganha se for mais
     recente. O jogo em curso fica marcado no dispositivo
     (`rumia-scout-active`) e a secção oferece "Retomar".
+  - **Um dispositivo marca de cada vez; os outros veem ao vivo.** Dois
+    telemóveis a gravar o mesmo jogo era o último a gravar a apagar o que o
+    outro marcou, sem aviso. O jogo tem DONO (`writer_device`, um id aleatório
+    do dispositivo em `rumia-device-id`; `writer_name`; `writer_at`, o último
+    sinal de vida, carimbado com a hora do SERVIDOR por trigger — relógios de
+    telemóveis desacertados davam "sem sinal" a um jogo a decorrer). O dono é
+    o dispositivo e não a pessoa: o mesmo treinador com telemóvel e tablet
+    abertos são dois a gravar por cima um do outro.
+    - **Quem decide é o servidor**: cada gravação vai com `where
+      writer_device = <o meu>`, e um dispositivo a quem tiraram o jogo vê a
+      gravação recusada mesmo que o aviso em tempo real não lhe tenha chegado
+      (rede do pavilhão). Aí passa a ver e apaga a cópia local — senão, ao
+      reabrir, ganhava à nuvem e reescrevia o que o outro marcou.
+    - **Quem chega pergunta-se** ("Continuar", "Retomar", botão do
+      calendário): "Ver ao vivo" ou "Passar a marcar aqui", com o último sinal
+      do outro à vista. Não há expiração automática: um jogo parado há dois
+      minutos tanto é bateria morta como um time-out longo, e quem decide é
+      quem está no pavilhão. Passar a marcar só tira o jogo ao dono que se viu
+      na pergunta (`claimScout(…, prev)`): quem volta da falta de rede com uma
+      tentativa antiga não o rouba a quem ficou com ele entretanto.
+    - **Ver ao vivo** é o mesmo ecrã em só leitura: Realtime (`game_scouts` na
+      publicação `supabase_realtime`, o RLS de leitura aplica-se) e, como
+      recurso, uma pergunta leve a cada 10 s pelo carimbo — só descarrega as
+      ações quando ele mudou. Quem marca manda um sinal de vida a cada 20 s
+      sem toques, e larga o jogo ao sair, mas só DEPOIS de a última gravação
+      subir.
   - **Liga-se a um jogo do calendário** (botão "Scout" na linha do jogo, no
     próprio dia — durante o aquecimento acerta-se a formação). Ao terminar, os
     parciais vão para `game_sets` (o trigger reconta o final) e os **pontos
