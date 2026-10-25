@@ -510,7 +510,7 @@ export function openScoutLive(row) {
   if (g.status === 'em_curso') LS.set(ACTIVE_KEY, g.id);
 
   const ui = {
-    sel: null, tab: 'jogo', statSet: 'all', lineupOpen: null, logOpen: window.matchMedia('(min-width: 700px)').matches,
+    sel: null, tab: 'jogo', statSet: 'all', logOpen: window.matchMedia('(min-width: 700px)').matches,
     sync: 'ok', hit: null,
   };
   let saveTimer = null;
@@ -573,7 +573,7 @@ export function openScoutLive(row) {
     if (!canWrite) return;
     const set = curSet();
     if (!set.firstServer) { toastInfo('Indica primeiro quem começa a servir.'); return; }
-    if (derive(D(), D().cur).lineup.some((x) => !x)) { toastInfo('Completa a formação (6 atletas) antes de marcar.'); ui.lineupOpen = true; paint(); return; }
+    if (derive(D(), D().cur).lineup.some((x) => !x)) { toastInfo('Completa a formação (6 atletas) antes de marcar.'); openLineup(); return; }
     if (t !== 'OPPONENT' && !ui.sel) {
       toastInfo('Toca primeiro na atleta (ou usa as teclas 1–6).');
       const c = overlay.querySelector('.scout-court');
@@ -625,21 +625,27 @@ export function openScoutLive(row) {
     const d = derive(D(), D().cur);
     D().sets.push({ lineup: d.lineup.slice(), libero: prev.libero, liberoDef: prev.liberoDef || null, liberoFor: prev.liberoFor.slice(), firstServer: null });
     D().cur = D().sets.length - 1;
-    ui.sel = null; ui.lineupOpen = true; touch(); paint();
+    ui.sel = null; touch(); paint(); openLineup();
   }
 
   function changeSlot(slot, pid) {
     const set = curSet();
     const d = derive(D(), D().cur);
-    if (pid && d.lineup.includes(pid) && d.lineup[slot] !== pid) { toastInfo(`${pname(pid)} já está na formação.`); paint(); return; }
-    if (pid && (pid === set.libero || pid === set.liberoDef)) { toastInfo('Uma líbero não entra na formação base: escolhe-a nos campos de líbero.'); paint(); return; }
+    if (pid && d.lineup.includes(pid) && d.lineup[slot] !== pid) { toastInfo(`${pname(pid)} já está na formação.`); lineupDlg?.render(); return; }
+    if (pid && (pid === set.libero || pid === set.liberoDef)) { toastInfo('Uma líbero não entra na formação base: escolhe-a nos campos de líbero.'); lineupDlg?.render(); return; }
     if (!hasPoints(D(), D().cur)) set.lineup[slot] = pid;
     else {
-      if (!pid) { paint(); return; }
+      if (!pid) { lineupDlg?.render(); return; }
       D().events.push({ set: D().cur, t: 'SUB', out: d.lineup[slot], in: pid, ts: Date.now() });
-      toastInfo('Substituição registada.');
+      toastInfo(`Substituição: sai ${pname(d.lineup[slot])}, entra ${pname(pid)}.`);
+      if (ui.sel === d.lineup[slot]) ui.sel = null;
     }
-    touch(); paint();
+    changed();
+  }
+
+  // Depois de mudar a formação: grava, redesenha o ecrã de jogo e o modal.
+  function changed() {
+    touch(); paint(); lineupDlg?.render();
   }
 
   async function finish() {
@@ -683,6 +689,7 @@ export function openScoutLive(row) {
   }
 
   function close() {
+    lineupDlg?.close();
     clearTimeout(saveTimer);
     if (ui.sync !== 'ok' || saving) flush();
     window.removeEventListener('online', onOnline);
@@ -727,14 +734,13 @@ export function openScoutLive(row) {
     const pts = hasPoints(D(), si);
     const our = esc(team ? teamName(team) : 'Nós');
     const their = esc(g.opponent || 'Adversário');
-    const roster = D().roster.slice().sort((a, b) => numOf(a) - numOf(b));
-    const opts = (selId, allowEmpty) => `${allowEmpty ? '<option value="">—</option>' : ''}${roster.map((p) => `<option value="${esc(p.id)}" ${p.id === selId ? 'selected' : ''}>${esc(`${p.num} · ${p.name}`)}</option>`).join('')}`;
-    const open = ui.lineupOpen ?? (!set.firstServer || set.lineup.some((x) => !x));
+    const subsN = D().events.filter((e) => e.set === si && e.t === 'SUB').length;
+    const needsSetup = !set.firstServer || d.lineup.some((x) => !x);
 
     let banner = '';
-    if (!set.firstServer) {
-      banner = `<div class="scout-banner scout-banner--warn o-banner"><span>Quem começa a servir no ${si + 1}º set?</span>
-        <span class="cal-toggle"><button class="cal-toggle__btn" type="button" data-fs="OUR">${our}</button><button class="cal-toggle__btn" type="button" data-fs="THEIR">${their}</button></span></div>`;
+    if (needsSetup) {
+      banner = `<div class="scout-banner scout-banner--warn o-banner"><span>${d.lineup.some((x) => !x) ? `Define a formação e quem serve no ${si + 1}º set.` : `Quem começa a servir no ${si + 1}º set?`}</span>
+        ${canWrite ? '<button class="btn btn--primary btn--sm" type="button" data-lineup>Definir formação</button>' : ''}</div>`;
     } else if (w) {
       banner = `<div class="scout-banner scout-banner--${w === 'OUR' ? 'win' : 'lose'} o-banner"><span>${w === 'OUR' ? 'Set ganho' : 'Set perdido'} ${d.our}–${d.their}</span>
         <span class="cell-actions">${D().sets.length < MAX_SETS ? '<button class="btn btn--primary btn--sm" type="button" data-newset>Novo set</button>' : ''}<button class="btn btn--ghost btn--sm" type="button" data-finish>Fim de jogo</button></span></div>`;
@@ -769,10 +775,6 @@ export function openScoutLive(row) {
 
     const order = [4, 3, 2, 5, 6, 1];
     const selP = ui.sel ? P(ui.sel) : null;
-    const lineupRows = d.lineup.map((pid, slot) => `
-      <span class="scout-lineup__p">${slot + 1}</span>
-      <select id="sc-slot-${slot}" data-slot="${slot}" aria-label="Posição inicial ${slot + 1}" ${canWrite ? '' : 'disabled'}>${opts(pid, !pts || !pid)}</select>
-      <input type="checkbox" id="sc-lib-${slot}" data-libfor="${esc(pid || '')}" ${pid && set.liberoFor.includes(pid) ? 'checked' : ''} ${!pid || !(set.libero || set.liberoDef) || !canWrite ? 'disabled' : ''} aria-label="Troca com a líbero">`).join('');
 
     return `<div class="scout-grid">
       <div class="scout-col">
@@ -781,24 +783,8 @@ export function openScoutLive(row) {
           <div class="scout-net"><span>REDE</span></div>
           <div class="scout-court">${order.map((n) => `<div class="scout-spot${[1, 5, 6].includes(n) ? ' scout-spot--back' : ''}">${tile(pos[n - 1], n, n === 1 && d.srv === 'OUR')}</div>`).join('')}</div>
           <div class="scout-status"><span>Rotação <strong>${d.rot + 1}</strong></span><span>Serviço: <strong>${set.firstServer ? (d.srv === 'OUR' ? our : their) : '—'}</strong></span><span class="muted scout-kbd">Teclas 1–6 · Z anula</span></div>
+          <button class="btn btn--ghost scout-lineup-btn" type="button" data-lineup>${pts ? 'Formação · substituições' : 'Formação e líberos'}${subsN ? ` <span class="badge badge--info">${subsN} subst.</span>` : ''}</button>
         </section>
-        <details class="card o-lineup" ${open ? 'open' : ''} data-toggle="lineup">
-          <summary class="scout-summary">Formação do ${si + 1}º set${pts ? ' · substituições' : ''}</summary>
-          <div class="scout-lineup">
-            <span class="scout-lineup__h">Pos.</span><span class="scout-lineup__h">Atleta</span><span class="scout-lineup__h">Líbero</span>
-            ${lineupRows}
-            <span class="scout-lineup__p" title="Líbero de receção">L</span>
-            <label class="scout-lineup__lib"><span class="muted">Líbero de receção${set.liberoDef ? '' : ' (ou única)'}</span>
-              <select id="sc-libero" data-libero="libero" ${canWrite ? '' : 'disabled'}>${opts(set.libero, true)}</select></label><span></span>
-            <span class="scout-lineup__p" title="Líbero de defesa">L2</span>
-            <label class="scout-lineup__lib"><span class="muted">Líbero de defesa (opcional)</span>
-              <select id="sc-libero-def" data-libero="liberoDef" ${canWrite ? '' : 'disabled'}>${opts(set.liberoDef, true)}</select></label><span></span>
-          </div>
-          ${set.firstServer && !pts ? `<div class="cell-actions" style="margin-top:0.7rem"><span class="muted">Começa a servir:</span>
-            <span class="cal-toggle"><button class="cal-toggle__btn ${set.firstServer === 'OUR' ? 'cal-toggle__btn--active' : ''}" type="button" data-fs="OUR" aria-pressed="${set.firstServer === 'OUR'}">${our}</button>
-            <button class="cal-toggle__btn ${set.firstServer === 'THEIR' ? 'cal-toggle__btn--active' : ''}" type="button" data-fs="THEIR" aria-pressed="${set.firstServer === 'THEIR'}">${their}</button></span></div>` : ''}
-          <p class="muted scout-footnote">${pts ? 'Com o set em curso, mudar uma posição regista uma substituição.' : 'Posição inicial 1 = zona de serviço. A líbero entra nas zonas 5, 6 e 1 no lugar das atletas marcadas (nunca a servir). Com duas, a de receção joga quando o adversário serve e a de defesa quando servimos nós.'}</p>
-        </details>
         <div class="cell-actions o-buttons">
           <button class="btn btn--ghost" type="button" data-newset ${D().sets.length >= MAX_SETS || !canWrite ? 'disabled' : ''}>Novo set</button>
           <button class="btn btn--primary" type="button" data-finish ${canWrite ? '' : 'disabled'}>Fim de jogo</button>
@@ -812,7 +798,10 @@ export function openScoutLive(row) {
         <section class="card o-actions">
           <div class="scout-selline">
             <div><span class="muted">Atleta selecionada</span><div class="scout-selname">${selP ? esc(`${selP.num} · ${selP.name}`) : '<span class="muted">Toca numa atleta</span>'}</div></div>
-            <button class="btn btn--ghost" type="button" data-undo ${canWrite ? '' : 'disabled'}>Anular última</button>
+            <span class="cell-actions">
+              ${canWrite && pts && ui.sel && d.lineup.includes(ui.sel) ? `<button class="btn btn--ghost" type="button" data-subout="${esc(ui.sel)}">Substituir</button>` : ''}
+              <button class="btn btn--ghost" type="button" data-undo ${canWrite ? '' : 'disabled'}>Anular última</button>
+            </span>
           </div>
           <div class="scout-agrid">${head}${body}</div>
           <div class="scout-legend">
@@ -884,41 +873,146 @@ export function openScoutLive(row) {
     on('[data-undo]', 'click', undo);
     on('[data-newset]', 'click', newSet);
     on('[data-finish]', 'click', finish);
-    on('[data-goset]', 'click', (e) => { D().cur = Number(e.currentTarget.dataset.goset); ui.sel = null; ui.lineupOpen = null; touch(); paint(); });
+    on('[data-goset]', 'click', (e) => { D().cur = Number(e.currentTarget.dataset.goset); ui.sel = null; touch(); paint(); });
+    on('[data-lineup]', 'click', () => openLineup());
+    on('[data-subout]', 'click', (e) => openLineup({ out: e.currentTarget.dataset.subout }));
+    on('details[data-toggle]', 'toggle', (e) => { ui.logOpen = e.currentTarget.open; });
+    on('[data-set]', 'click', (e) => { ui.statSet = e.currentTarget.dataset.set; paint(); });
+    on('[data-sheet]', 'click', () => import('../scout-export.js').then((ex) => ex.openGameSheet(g)).catch((err) => toastError(err.message)));
+    on('[data-xlsx]', 'click', () => import('../scout-export.js').then((ex) => ex.exportGameXlsx(g)).catch((err) => toastError(err.message)));
+    on('[data-copy]', 'click', copySummary);
+  }
+
+
+  // --- Formação (modal) -------------------------------------------------------
+  // A formação vive num modal e não no ecrã de jogo: acerta-se no aquecimento e
+  // entre sets, e durante o rally o ecrã é do campo e das ações. Antes do 1.º
+  // ponto do set mudam-se as posições à vontade; depois disso, trocar uma
+  // atleta é uma SUBSTITUIÇÃO (sai/entra), que fica na sequência de ações — é
+  // assim que os pontos jogados e o "anular" continuam certos.
+  let lineupDlg = null;
+  let subOut = null; // atleta pré-escolhida para sair (botão "Substituir")
+
+  function lineupHTML() {
+    const si = D().cur;
+    const set = curSet();
+    const d = derive(D(), si);
+    const pts = hasPoints(D(), si);
+    const our = esc(team ? teamName(team) : 'Nós');
+    const their = esc(g.opponent || 'Adversário');
+    const roster = D().roster.slice().sort((a, b) => numOf(a) - numOf(b));
+    const opts = (selId, allowEmpty, list = roster) => `${allowEmpty ? '<option value="">—</option>' : ''}${list.map((p) => `<option value="${esc(p.id)}" ${p.id === selId ? 'selected' : ''}>${esc(`${p.num} · ${p.name}`)}</option>`).join('')}`;
+    const dis = canWrite ? '' : 'disabled';
+    const libBox = (pid, slot) => `<input type="checkbox" id="sc-lib-${slot}" data-libfor="${esc(pid || '')}" ${pid && set.liberoFor.includes(pid) ? 'checked' : ''} ${!pid || !(set.libero || set.liberoDef) || !canWrite ? 'disabled' : ''} aria-label="Troca com a líbero">`;
+
+    const rows = d.lineup.map((pid, slot) => pts
+      ? `<span class="scout-lineup__p">${slot + 1}</span><span class="scout-lineup__name">${esc(pname(pid))}</span>${libBox(pid, slot)}`
+      : `<span class="scout-lineup__p">${slot + 1}</span>
+         <select id="sc-slot-${slot}" data-slot="${slot}" aria-label="Posição inicial ${slot + 1}" ${dis}>${opts(pid, true)}</select>${libBox(pid, slot)}`).join('');
+
+    let subs = '';
+    if (pts) {
+      const onCourt = d.lineup.filter(Boolean).map((id) => findPlayer(D(), id) || { id, num: '', name: pname(id) });
+      const bench = roster.filter((p) => !d.lineup.includes(p.id) && p.id !== set.libero && p.id !== set.liberoDef);
+      const done = D().events.filter((e) => e.set === si && e.t === 'SUB');
+      const outSel = subOut && d.lineup.includes(subOut) ? subOut : '';
+      subs = `<section class="scout-subs">
+        <h3>Substituição</h3>
+        <div class="scout-subs__form">
+          <label class="field"><span>Sai</span><select id="sc-sub-out" ${dis}><option value="">—</option>${onCourt.map((p) => `<option value="${esc(p.id)}" ${p.id === outSel ? 'selected' : ''}>${esc(`${p.num} · ${p.name}`)}</option>`).join('')}</select></label>
+          <label class="field"><span>Entra</span><select id="sc-sub-in" ${dis}><option value="">—</option>${bench.map((p) => `<option value="${esc(p.id)}">${esc(`${p.num} · ${p.name}`)}</option>`).join('')}</select></label>
+          <button class="btn btn--primary" type="button" data-dosub ${dis}>Substituir</button>
+        </div>
+        <p class="muted scout-footnote">${done.length} de 6 substituições neste set${done.length > 6 ? ' — acima do limite regulamentar' : ''}.${done.length ? ` ${done.map((e) => `${esc(pname(e.out))} → ${esc(pname(e.in))}`).join(' · ')}` : ''} A líbero não conta: troca-se sozinha.</p>
+      </section>`;
+    }
+
+    return `
+      <div class="scout-lineup">
+        <span class="scout-lineup__h">Pos.</span><span class="scout-lineup__h">${pts ? 'Em campo (posição de partida)' : 'Atleta'}</span><span class="scout-lineup__h">Líbero</span>
+        ${rows}
+        <span class="scout-lineup__p" title="Líbero de receção">L</span>
+        <label class="scout-lineup__lib"><span class="muted">Líbero de receção${set.liberoDef ? '' : ' (ou única)'}</span>
+          <select id="sc-libero" data-libero="libero" ${dis}>${opts(set.libero, true)}</select></label><span></span>
+        <span class="scout-lineup__p" title="Líbero de defesa">L2</span>
+        <label class="scout-lineup__lib"><span class="muted">Líbero de defesa (opcional)</span>
+          <select id="sc-libero-def" data-libero="liberoDef" ${dis}>${opts(set.liberoDef, true)}</select></label><span></span>
+      </div>
+      ${!pts ? `<div class="cell-actions scout-firstserve"><span class="muted">Começa a servir:</span>
+        <span class="cal-toggle"><button class="cal-toggle__btn ${set.firstServer === 'OUR' ? 'cal-toggle__btn--active' : ''}" type="button" data-fs="OUR" aria-pressed="${set.firstServer === 'OUR'}" ${dis}>${our}</button>
+        <button class="cal-toggle__btn ${set.firstServer === 'THEIR' ? 'cal-toggle__btn--active' : ''}" type="button" data-fs="THEIR" aria-pressed="${set.firstServer === 'THEIR'}" ${dis}>${their}</button></span></div>` : ''}
+      ${subs}
+      <p class="muted scout-footnote">${pts
+        ? 'As posições de partida já não mudam: o set começou. Para trocar uma atleta usa a substituição.'
+        : 'Posição 1 = zona de serviço. A líbero entra nas zonas 5, 6 e 1 no lugar das atletas marcadas (nunca a servir). Com duas, a de receção joga quando o adversário serve e a de defesa quando servimos nós.'}</p>`;
+  }
+
+  function wireLineup(root) {
+    const on = (sel, ev, fn) => root.querySelectorAll(sel).forEach((el) => el.addEventListener(ev, fn));
     on('[data-fs]', 'click', (e) => {
       if (!canWrite) return;
       if (hasPoints(D(), D().cur)) { toastInfo('Este set já tem pontos.'); return; }
       curSet().firstServer = e.currentTarget.dataset.fs;
       ui.sel = curSet().firstServer === 'OUR' ? court(D(), D().cur).pos[0].pid : null;
-      touch(); paint();
+      changed();
     });
     on('[data-slot]', 'change', (e) => changeSlot(Number(e.currentTarget.dataset.slot), e.currentTarget.value || null));
     on('[data-libero]', 'change', (e) => {
       const field = e.currentTarget.dataset.libero; // 'libero' (receção) | 'liberoDef' (defesa)
       const other = field === 'libero' ? 'liberoDef' : 'libero';
       const id = e.currentTarget.value || null;
-      if (id && derive(D(), D().cur).lineup.includes(id)) { toastInfo('Essa atleta já está na formação.'); paint(); return; }
-      if (id && curSet()[other] === id) { toastInfo('Essa atleta já é a outra líbero.'); paint(); return; }
+      if (id && derive(D(), D().cur).lineup.includes(id)) { toastInfo('Essa atleta já está na formação.'); lineupDlg?.render(); return; }
+      if (id && curSet()[other] === id) { toastInfo('Essa atleta já é a outra líbero.'); lineupDlg?.render(); return; }
       curSet()[field] = id;
       // Só a de defesa, sem a de receção, é a mesma coisa que uma líbero única.
       if (!curSet().libero && curSet().liberoDef) { curSet().libero = curSet().liberoDef; curSet().liberoDef = null; }
-      touch(); paint();
+      changed();
     });
     on('[data-libfor]', 'change', (e) => {
       const id = e.currentTarget.dataset.libfor;
       if (!id) return;
-      const s = curSet();
-      s.liberoFor = e.currentTarget.checked ? [...new Set([...s.liberoFor, id])] : s.liberoFor.filter((x) => x !== id);
-      touch(); paint();
+      const st = curSet();
+      st.liberoFor = e.currentTarget.checked ? [...new Set([...st.liberoFor, id])] : st.liberoFor.filter((x) => x !== id);
+      changed();
     });
-    on('details[data-toggle]', 'toggle', (e) => {
-      if (e.currentTarget.dataset.toggle === 'lineup') ui.lineupOpen = e.currentTarget.open;
-      else ui.logOpen = e.currentTarget.open;
+    on('[data-dosub]', 'click', () => {
+      const out = root.querySelector('#sc-sub-out')?.value;
+      const inn = root.querySelector('#sc-sub-in')?.value;
+      if (!out || !inn) { toastInfo('Escolhe quem sai e quem entra.'); return; }
+      const slot = derive(D(), D().cur).lineup.indexOf(out);
+      if (slot < 0) { toastInfo('Essa atleta já não está em campo.'); lineupDlg?.render(); return; }
+      subOut = null;
+      changeSlot(slot, inn);
     });
-    on('[data-set]', 'click', (e) => { ui.statSet = e.currentTarget.dataset.set; paint(); });
-    on('[data-sheet]', 'click', () => import('../scout-export.js').then((ex) => ex.openGameSheet(g)).catch((err) => toastError(err.message)));
-    on('[data-xlsx]', 'click', () => import('../scout-export.js').then((ex) => ex.exportGameXlsx(g)).catch((err) => toastError(err.message)));
-    on('[data-copy]', 'click', copySummary);
+  }
+
+  function openLineup({ out = null } = {}) {
+    subOut = out;
+    if (lineupDlg) { lineupDlg.render(); return; }
+    const ov = document.createElement('div');
+    ov.className = 'modal-overlay';
+    ov.innerHTML = `
+      <div class="modal card modal--wide scout-lineup-modal" role="dialog" aria-modal="true" aria-labelledby="sc-lu-title">
+        <div class="modal__head">
+          <h2 class="section-title" id="sc-lu-title"></h2>
+          <button class="modal__close" type="button" aria-label="Fechar">&times;</button>
+        </div>
+        <div class="scout-lineup-body"></div>
+        <div class="modal__actions"><button class="btn btn--primary" type="button" data-done>Feito</button></div>
+      </div>`;
+    const body = ov.querySelector('.scout-lineup-body');
+    const render = () => {
+      ov.querySelector('#sc-lu-title').textContent = `${hasPoints(D(), D().cur) ? 'Formação e substituições' : 'Formação'} · ${D().cur + 1}º set`;
+      body.innerHTML = lineupHTML();
+      wireLineup(body);
+    };
+    render();
+    const closeDlg = wireDialog(ov, {
+      initialFocus: out ? '#sc-sub-in' : '[data-done]',
+      onClose: () => { lineupDlg = null; subOut = null; },
+    });
+    ov.querySelector('[data-done]').addEventListener('click', closeDlg);
+    lineupDlg = { render, close: closeDlg };
   }
 
   function copySummary() {
@@ -947,5 +1041,9 @@ export function openScoutLive(row) {
 
   live = { close };
   paint();
+  {
+    const st = curSet();
+    if (canWrite && !hasPoints(D(), D().cur) && (!st.firstServer || derive(D(), D().cur).lineup.some((x) => !x))) openLineup();
+  }
   if (pendingFromBackup && canWrite) flush();
 }
