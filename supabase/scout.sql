@@ -50,6 +50,46 @@ create table if not exists game_scouts (
   updated_at  timestamptz not null default now()
 );
 
+-- ---------------------------------------------------------------------
+-- Um dispositivo a marcar de cada vez + ver ao vivo
+-- ---------------------------------------------------------------------
+-- Dois telemóveis a gravar o mesmo jogo era o último a gravar a apagar o que
+-- o outro marcou. O jogo passa a ter DONO: o dispositivo que o está a marcar
+-- (um id aleatório do próprio dispositivo), quem é, e o último sinal de vida.
+-- A app só grava com `where writer_device = <o seu>`, por isso quem perdeu a
+-- marcação deixa de conseguir escrever mesmo sem dar por isso. Os outros veem
+-- o jogo ao vivo pelo Realtime (publicação abaixo).
+alter table game_scouts add column if not exists writer_device text;
+alter table game_scouts add column if not exists writer_name   text;
+alter table game_scouts add column if not exists writer_at     timestamptz;
+
+-- O "último sinal" é a hora do SERVIDOR e não a do telemóvel que grava: quem
+-- vê compara-a com a sua, e dois relógios desacertados davam "sem sinal há 3
+-- min" a um jogo a ser marcado agora.
+create or replace function game_scouts_writer_clock() returns trigger
+language plpgsql as $$
+begin
+  if new.writer_at is not null and new.writer_at is distinct from old.writer_at then
+    new.writer_at := now();
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_game_scouts_writer_clock on game_scouts;
+create trigger trg_game_scouts_writer_clock before update on game_scouts
+  for each row execute function game_scouts_writer_clock();
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and tablename = 'game_scouts'
+  ) then
+    alter publication supabase_realtime add table game_scouts;
+  end if;
+end $$;
+
 create unique index if not exists uq_game_scouts_event on game_scouts (event_id) where event_id is not null;
 create index if not exists idx_game_scouts_team on game_scouts (team_id, game_date desc);
 

@@ -57,7 +57,7 @@ As permissões são impostas pela base de dados (RLS), não só pela interface.
    vez), `grupo-whatsapp.sql` (link do grupo do escalão, para o guia de
    entrada), `portal-atleta.sql`, `comunicacao.sql` (respostas do
    atleta + avisos do clube), `resultados.sql` (resultados de jogo),
-   `scout.sql` (Scout ao vivo: ações por atleta, depois de `resultados.sql`),
+   `scout.sql` (Scout ao vivo: ações por atleta, um dispositivo a marcar e os outros a ver em tempo real; depois de `resultados.sql`),
    `tatica.sql` (Decisão Tática: cenários de leitura de jogo + respostas),
    `exercicios.sql` (biblioteca de exercícios do clube),
    `plano-links.sql` (ligações no plano de treino e na biblioteca),

@@ -8267,6 +8267,10 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 .scout-sync--ok::before { background: var(--ok); }
 .scout-sync--warn { color: var(--yellow); }
 .scout-sync--warn::before { background: var(--yellow); }
+.scout-sync--live { color: #fff; font-weight: 600; }
+.scout-sync--live::before { background: var(--danger); animation: scout-live-pulse 1.6s ease-in-out infinite; }
+@keyframes scout-live-pulse { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .scout-sync--live::before { animation: none; } }
 .scout-linkbtn { background: none; border: 0; color: inherit; text-decoration: underline; font: inherit; padding: 0; cursor: pointer; }
 .scout-score { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto minmax(0, 1fr); align-items: center; gap: 0.8rem; padding: 0.2rem 0 0.3rem; }
 .scout-score__team { font-family: var(--font-title); font-weight: 600; font-size: 1.15rem; text-transform: uppercase; letter-spacing: 0.04em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

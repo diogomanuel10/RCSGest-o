@@ -17,6 +17,7 @@
 
 import {
   state, loadScouts, loadScoutData, createScout, saveScoutData, deleteScout, notifyScouts,
+  claimScout, releaseScout, scoutHeartbeat, loadScoutStamp, subscribeScout,
   saveGameResult, saveGameParticipation, dbErrorMessage,
 } from '../store.js';
 import { esc, emptyHTML, wireEmptyAction, loadingHTML, errorHTML } from '../ui.js';
@@ -56,6 +57,71 @@ const resultOf = (row) => {
   return { o, t, label: `${o}–${t}`, res: o > t ? 'V' : o < t ? 'D' : 'E' };
 };
 const teamLabelOf = (teamId) => teamName(teamById(teamId)) || 'Equipa';
+
+// --- Quem está a marcar -----------------------------------------------------
+// Um jogo é marcado por UM dispositivo de cada vez (ver supabase/scout.sql). O
+// dono é o DISPOSITIVO e não a pessoa: o mesmo treinador com o telemóvel e o
+// tablet abertos são dois a gravar por cima um do outro.
+const DEVICE_KEY = 'rumia-device-id';
+let deviceMem = null;
+function deviceId() {
+  if (deviceMem) return deviceMem;
+  let id = LS.get(DEVICE_KEY);
+  if (!id) {
+    id = globalThis.crypto?.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+    LS.set(DEVICE_KEY, id); // sem localStorage (janela privada) vale para esta sessão
+  }
+  deviceMem = id;
+  return id;
+}
+// `profiles` não guarda nome: o nome é o da ficha de treinador ligada à conta.
+function myName() {
+  const c = (state.coaches || []).find((x) => x.user_id && x.user_id === state.profile?.id);
+  if (c?.name) return c.name;
+  const em = state.profile?.email || '';
+  return em ? em.split('@')[0] : 'Equipa técnica';
+}
+// Sem sinal de vida há mais de um minuto, o dispositivo provavelmente ficou sem
+// rede ou fechou a app sem sair. Não se assume: diz-se, e quem chega decide.
+const STALE_MS = 60_000;
+function ago(iso) {
+  const s = Math.max(0, Math.round((Date.now() - Date.parse(iso || 0)) / 1000));
+  if (s < 10) return 'agora mesmo';
+  if (s < 60) return `há ${s} s`;
+  if (s < 3600) return `há ${Math.round(s / 60)} min`;
+  return `há ${Math.round(s / 3600)} h`;
+}
+// Outro dispositivo tem este jogo? → { name, fresh, at } ou null.
+function otherWriter(row) {
+  if (!row?.writer_device || row.writer_device === deviceId() || row.status !== 'em_curso') return null;
+  const at = row.writer_at ? Date.parse(row.writer_at) : 0;
+  return { name: row.writer_name || 'Outra pessoa', fresh: Date.now() - at < STALE_MS, at: row.writer_at };
+}
+
+// Quem chega a um jogo que outro dispositivo está a marcar: ver ou ficar com
+// ele. Devolve 'view' | 'take' | null (fechou).
+function askTakeover(other, { viewLabel = 'Ver ao vivo' } = {}) {
+  return new Promise((resolve) => {
+    let result = null;
+    const ov = document.createElement('div');
+    ov.className = 'modal-overlay';
+    ov.innerHTML = `
+      <div class="modal card modal--confirm" role="alertdialog" aria-modal="true" aria-labelledby="sc-tk-title">
+        <h2 class="section-title" id="sc-tk-title" style="font-size:1.1rem;margin:0 0 0.5rem">${other.fresh ? 'Este jogo está a ser marcado' : 'Este jogo ficou aberto noutro dispositivo'}</h2>
+        <p class="modal__confirm-text">${other.fresh
+          ? `<strong>${esc(other.name)}</strong> está a marcá-lo noutro dispositivo (último sinal ${esc(ago(other.at))}).`
+          : `<strong>${esc(other.name)}</strong> estava a marcá-lo, mas o último sinal foi ${esc(ago(other.at))} — pode ter ficado sem rede ou fechado a app sem sair.`}</p>
+        <p class="modal__confirm-text muted" style="font-size:0.88rem">Só um dispositivo marca de cada vez. Se passares a marcar aqui, o outro passa a só ver, e o que ele tiver marcado sem conseguir enviar${other.fresh ? ' (os últimos segundos)' : ' (se ficou sem rede)'} perde-se.</p>
+        <div class="modal__actions">
+          <button type="button" class="btn btn--ghost" data-take>Passar a marcar aqui</button>
+          <button type="button" class="btn btn--primary" data-view>${esc(viewLabel)}</button>
+        </div>
+      </div>`;
+    const close = wireDialog(ov, { initialFocus: '[data-view]', onClose: () => resolve(result) });
+    ov.querySelector('[data-view]').addEventListener('click', () => { result = 'view'; close(); });
+    ov.querySelector('[data-take]').addEventListener('click', () => { result = 'take'; close(); });
+  });
+}
 
 // =============================================================================
 // Secção
@@ -155,12 +221,13 @@ export function renderScout(container) {
               <button class="scout-item" type="button" data-detail="${esc(r.id)}">
                 <span class="scout-item__date">${esc(fmtDate(r.game_date))}</span>
                 <span class="scout-item__main"><strong>${esc(r.opponent || 'Adversário')}</strong>
-                  <span class="muted">${esc([r.competition, parc || 'sem pontos'].filter(Boolean).join(' · '))}</span></span>
+                  <span class="muted">${esc([r.competition, parc || 'sem pontos', liveLabel(r)].filter(Boolean).join(' · '))}</span></span>
                 ${r.status === 'terminado'
                   ? `<span class="scout-res scout-res--${res.res}">${res.label}</span>`
                   : '<span class="badge badge--warn">em curso</span>'}
               </button>
               <div class="cell-actions">
+                ${r.status === 'em_curso' ? `<button class="btn btn--ghost btn--sm" type="button" data-watch="${esc(r.id)}">Ver ao vivo</button>` : ''}
                 ${r.status === 'em_curso' && editable ? `<button class="btn btn--primary btn--sm" type="button" data-open="${esc(r.id)}">Continuar</button>` : ''}
                 <button class="btn btn--ghost btn--sm" type="button" data-sheet="${esc(r.id)}">Folha A4</button>
                 <button class="btn btn--ghost btn--sm" type="button" data-xlsx="${esc(r.id)}">Excel</button>
@@ -181,6 +248,7 @@ export function renderScout(container) {
   container.querySelector('#scout-new')?.addEventListener('click', () => openNewScout());
   wireEmptyAction(container, 'scout-new', () => openNewScout());
   container.querySelectorAll('[data-open]').forEach((b) => b.addEventListener('click', () => openScoutById(b.dataset.open)));
+  container.querySelectorAll('[data-watch]').forEach((b) => b.addEventListener('click', () => openScoutById(b.dataset.watch, { view: true })));
   container.querySelectorAll('[data-detail]').forEach((b) => b.addEventListener('click', () => openDetail(b.dataset.detail)));
   container.querySelectorAll('[data-sheet]').forEach((b) => b.addEventListener('click', () => exportOne(b.dataset.sheet, 'sheet')));
   container.querySelectorAll('[data-xlsx]').forEach((b) => b.addEventListener('click', () => exportOne(b.dataset.xlsx, 'xlsx')));
@@ -196,6 +264,14 @@ export function renderScout(container) {
       body.innerHTML = `<div class="scout-season__body">${statsBlock(done.map((g) => g.data), 'all', { multi: true, played: sumPlayed(done) })}</div>`;
     }).catch((err) => { body.innerHTML = errorHTML(dbErrorMessage(err)); });
   }
+}
+
+// "a marcar: Diogo" na lista — do que se sabia quando a lista carregou.
+function liveLabel(r) {
+  if (r.status !== 'em_curso' || !r.writer_device) return '';
+  if (r.writer_device === deviceId()) return 'a marcar neste dispositivo';
+  const o = otherWriter(r);
+  return o?.fresh ? `a marcar: ${o.name}` : '';
 }
 
 // Todos os jogos (com as ações) de uma equipa. Guarda-se em cache enquanto a
@@ -360,10 +436,19 @@ export async function openScoutForEvent(eventId) {
   }
 }
 
-async function openScoutById(id) {
+// Abrir um jogo para marcar passa sempre por aqui: é onde se pergunta, a quem
+// chega, se outro dispositivo já o está a marcar.
+async function openScoutById(id, { view = false } = {}) {
   try {
     const [row] = await loadScoutData(id);
     if (!row) throw new Error('Este jogo já não existe.');
+    if (view || !canEdit('game_scouts')) { openScoutLive(row, { view: true }); return; }
+    const other = otherWriter(row);
+    if (other) {
+      const choice = await askTakeover(other);
+      if (!choice) return;
+      if (choice === 'view') { openScoutLive(row, { view: true }); return; }
+    }
     openScoutLive(row);
   } catch (err) {
     toastError(err.message || dbErrorMessage(err));
@@ -405,6 +490,7 @@ async function openDetail(id) {
           <div class="modal__actions">
             ${editable ? '<button class="btn btn--danger btn--sm" type="button" data-del>Apagar scout</button>' : ''}
             <span style="flex:1"></span>
+            ${g.status === 'em_curso' ? '<button class="btn btn--ghost" type="button" data-watch>Ver ao vivo</button>' : ''}
             ${editable ? `<button class="btn btn--ghost" type="button" data-resume>${g.status === 'terminado' ? 'Corrigir' : 'Continuar'}</button>` : ''}
             <button class="btn btn--ghost" type="button" data-sheet>Folha A4</button>
             <button class="btn btn--primary" type="button" data-xlsx>Excel</button>
@@ -415,7 +501,8 @@ async function openDetail(id) {
     overlay.querySelectorAll('[data-set]').forEach((b) => b.addEventListener('click', () => { filter = b.dataset.set; paint(); }));
     overlay.querySelector('[data-sheet]').addEventListener('click', () => import('../scout-export.js').then((ex) => ex.openGameSheet(g)).catch((e) => toastError(e.message)));
     overlay.querySelector('[data-xlsx]').addEventListener('click', () => import('../scout-export.js').then((ex) => ex.exportGameXlsx(g)).catch((e) => toastError(e.message)));
-    overlay.querySelector('[data-resume]')?.addEventListener('click', () => { close(); openScoutLive(g); });
+    overlay.querySelector('[data-resume]')?.addEventListener('click', () => { close(); openScoutById(g.id); });
+    overlay.querySelector('[data-watch]')?.addEventListener('click', () => { close(); openScoutById(g.id, { view: true }); });
     overlay.querySelector('[data-del]')?.addEventListener('click', async () => {
       const ok = await confirmDialog('Apagar este scout? As ações marcadas deixam de existir para toda a equipa técnica. O resultado do jogo no calendário fica como está.', { confirmLabel: 'Apagar scout' });
       if (!ok) return;
@@ -495,19 +582,39 @@ function statsBlock(datas, f, { multi = false, played = {} } = {}) {
 
 let live = null;
 
-export function openScoutLive(row) {
+// Dois modos no mesmo ecrã: MARCAR (o dono do jogo) e VER AO VIVO (só
+// leitura, atualiza sozinho). Um dispositivo pode passar de um a outro sem
+// sair: o adjunto que estava a ver fica com a marcação quando a bateria do
+// outro telemóvel morre, e quem marcava passa a ver quando lha tiram.
+export function openScoutLive(row, { view = false } = {}) {
   if (live) live.close();
   const g = toGame(row);
+  const DEV = deviceId();
+  let mode = view ? 'view' : 'write';
   // A cópia do dispositivo ganha se for mais recente: é a que tem os toques
-  // que não chegaram a sair (rede no pavilhão).
-  const backup = LS.get(backupKey(g.id));
+  // que não chegaram a sair (rede no pavilhão). Só para quem marca — quem vê
+  // quer o que está na nuvem.
+  const backup = view ? null : LS.get(backupKey(g.id));
   let pendingFromBackup = false;
   if (backup && backup.data && backup.at > Date.parse(row.updated_at || 0)) {
     g.data = normalize(backup.data, row);
     g.status = backup.status || g.status;
     pendingFromBackup = true;
   }
-  if (g.status === 'em_curso') LS.set(ACTIVE_KEY, g.id);
+  if (!view && g.status === 'em_curso') LS.set(ACTIVE_KEY, g.id);
+  // Quem tem o jogo, tal como se sabe agora. `prevWriter` é o dono que quem
+  // abriu aceitou substituir: a marcação só se tira a ESSE (ou a ninguém) — se
+  // entretanto um terceiro a tiver, quem volta da falta de rede não lha rouba.
+  let writer = { device: row.writer_device || null, name: row.writer_name || '', at: row.writer_at || null };
+  let prevWriter = writer.device;
+  let owner = false;
+  let claiming = null;
+  let closed = false;
+  let closing = false;
+  let unsub = null;
+  let pollTimer = null;
+  let tickTimer = null;
+  let beatTimer = null;
 
   const ui = {
     sel: null, tab: 'jogo', statSet: 'all', logOpen: window.matchMedia('(min-width: 700px)').matches,
@@ -524,7 +631,7 @@ export function openScoutLive(row) {
   let dirty = false;
   let wakeLock = null;
   const team = teamById(g.team_id);
-  const canWrite = canEdit('game_scouts');
+  let canWrite = !view && canEdit('game_scouts');
 
   const overlay = document.createElement('div');
   overlay.className = 'scout-live';
@@ -548,14 +655,19 @@ export function openScoutLive(row) {
   async function flush() {
     clearTimeout(saveTimer); saveTimer = null;
     clearTimeout(retryTimer); retryTimer = null;
+    if (mode !== 'write') return;
     if (saving) { again = true; return; }
     if (!dirty) return;
     saving = true; dirty = false; ui.sync = 'saving'; paintSync();
     const snap = JSON.parse(JSON.stringify(g.data));
+    let lost = false;
     try {
-      const saved = await saveScoutData(g.id, { data: snap, summary: summaryOf(snap), status: g.status });
-      g.updated_at = saved.updated_at;
-      ui.sync = 'ok';
+      if (!(await ensureOwner())) lost = true;
+      else {
+        const saved = await saveScoutData(g.id, { data: snap, summary: summaryOf(snap), status: g.status }, DEV);
+        if (saved.lost) lost = true;
+        else { g.updated_at = saved.updated_at; ui.sync = 'ok'; }
+      }
     } catch (err) {
       // O que não subiu continua por subir: volta a marcar-se e tenta-se outra
       // vez daqui a pouco. O evento `online` não chega sozinho — no pavilhão a
@@ -564,8 +676,149 @@ export function openScoutLive(row) {
       ui.sync = 'err';
       retryTimer = setTimeout(flush, 15000);
     }
-    saving = false; paintSync();
+    saving = false;
+    if (lost) { dirty = true; lose(await loadScoutStamp(g.id).catch(() => null)); return; }
+    paintSync();
     if (again) { again = false; flush(); }
+    else if (closing && !dirty && ui.sync === 'ok') releaseScout(g.id, DEV).catch(() => {});
+  }
+
+  // --- Dono do jogo e ver ao vivo ---------------------------------------------
+  function ensureOwner() {
+    if (owner) return Promise.resolve(true);
+    if (!claiming) {
+      claiming = claimScout(g.id, DEV, myName(), prevWriter)
+        .then((r) => {
+          claiming = null;
+          if (!r) return false;
+          owner = true;
+          writer = { device: DEV, name: r.writer_name, at: r.writer_at };
+          return true;
+        })
+        .catch((err) => { claiming = null; throw err; });
+    }
+    return claiming;
+  }
+
+  // Outro dispositivo ficou com o jogo: este passa a ver. O que estava por
+  // enviar já não pode subir (gravava por cima do que o outro marcou), e a
+  // cópia do dispositivo sai também — senão, ao reabrir, ganhava à nuvem.
+  function lose(st) {
+    if (mode !== 'write') return;
+    const hadPending = dirty;
+    mode = 'view'; canWrite = false; owner = false; dirty = false;
+    clearTimeout(saveTimer); clearTimeout(retryTimer); clearInterval(beatTimer);
+    LS.del(backupKey(g.id));
+    if (LS.get(ACTIVE_KEY) === g.id) LS.del(ACTIVE_KEY);
+    if (st) writer = { device: st.writer_device || null, name: st.writer_name || '', at: st.writer_at || null };
+    const who = writer.name || 'Outra pessoa';
+    const msg = `${who} passou a marcar este jogo noutro dispositivo.${hadPending ? ' As últimas ações marcadas aqui não chegaram a ser guardadas.' : ''}`;
+    if (closed) { toastInfo(msg); return; }
+    toastInfo(`${msg} Aqui ficas a ver ao vivo.`);
+    lineupDlg?.close();
+    ui.sel = null; ui.sync = 'ok';
+    startViewing();
+    paint();
+    refresh();
+  }
+
+  // Um jogo que chega de fora (Realtime ou a pergunta periódica).
+  function apply(r) {
+    if (!r) return;
+    writer = { device: r.writer_device || null, name: r.writer_name || '', at: r.writer_at || null };
+    if (r.status) g.status = r.status;
+    if (r.data && r.updated_at !== g.updated_at) {
+      g.data = normalize(r.data, g);
+      g.updated_at = r.updated_at;
+      ui.sel = null;
+      paint();
+      lineupDlg?.render();
+    } else paintSync();
+  }
+
+  async function refresh() {
+    if (closed || mode !== 'view') return;
+    try {
+      const st = await loadScoutStamp(g.id);
+      if (!st) { gone(); return; }
+      if (st.updated_at !== g.updated_at) {
+        const [full] = await loadScoutData(g.id);
+        if (full) apply(full); else gone();
+      } else apply(st);
+      ui.sync = 'ok';
+    } catch {
+      ui.sync = 'err';
+    }
+    paintSync();
+  }
+
+  function gone() {
+    if (closed) return;
+    toastInfo('Este jogo foi apagado.');
+    LS.del(backupKey(g.id));
+    close();
+  }
+
+  function onRemote(type, r) {
+    if (closed) return;
+    if (type === 'DELETE') { gone(); return; }
+    if (mode === 'write') {
+      if (r?.writer_device && r.writer_device !== DEV) lose(r);
+      return;
+    }
+    // O aviso pode chegar sem as ações (registo grande demais para o Realtime):
+    // aí vai-se buscar o jogo inteiro.
+    if (r && !r.data && r.updated_at !== g.updated_at) refresh();
+    else apply(r);
+  }
+
+  // Quem vê: Realtime para o que acontece já, e uma pergunta leve a cada 10 s
+  // para quando o Realtime não chega (rede que cai e volta, separador que
+  // adormeceu). Só descarrega as ações quando o carimbo mudou.
+  function startViewing() {
+    clearInterval(pollTimer); clearInterval(tickTimer);
+    pollTimer = setInterval(() => { if (document.visibilityState === 'visible') refresh(); }, 10000);
+    tickTimer = setInterval(paintSync, 5000); // o "há N s" anda
+  }
+  // Quem marca: um sinal de vida a cada 20 s mesmo sem toques (intervalo,
+  // time-out). Se o servidor disser que o jogo já não é dele, passa a ver.
+  function startWriting() {
+    clearInterval(pollTimer); clearInterval(tickTimer); clearInterval(beatTimer);
+    beatTimer = setInterval(async () => {
+      if (mode !== 'write' || saving || !owner || document.visibilityState !== 'visible') return;
+      try {
+        if (!(await scoutHeartbeat(g.id, DEV))) lose(await loadScoutStamp(g.id).catch(() => null));
+      } catch { /* sem rede: a gravação seguinte trata disso */ }
+    }, 20000);
+  }
+
+  async function takeHere() {
+    if (!canEdit('game_scouts') || g.status !== 'em_curso') return;
+    const o = otherWriter({ ...g, writer_device: writer.device, writer_name: writer.name, writer_at: writer.at });
+    if (o) {
+      const choice = await askTakeover(o, { viewLabel: 'Continuar a ver' });
+      if (choice !== 'take') return;
+    }
+    prevWriter = writer.device;
+    try {
+      // Antes de marcar, o jogo mais recente: quem estava a ver pode ter ficado
+      // uns segundos atrás.
+      const [full] = await loadScoutData(g.id);
+      if (!full) { gone(); return; }
+      if (full.writer_device && full.writer_device !== prevWriter && full.writer_device !== DEV) { toastInfo('Entretanto outra pessoa ficou com o jogo.'); apply(full); return; }
+      apply(full);
+      mode = 'write';
+      if (!(await ensureOwner())) { mode = 'view'; toastInfo('Entretanto outra pessoa ficou com o jogo.'); refresh(); return; }
+    } catch (err) {
+      mode = 'view';
+      toastError(`Não foi possível ficar com o jogo: ${dbErrorMessage(err)}`);
+      return;
+    }
+    canWrite = true;
+    LS.set(ACTIVE_KEY, g.id);
+    startWriting();
+    toastOk('Estás a marcar este jogo neste dispositivo.');
+    paint();
   }
   const onOnline = () => { if (ui.sync === 'err') flush(); };
   window.addEventListener('online', onOnline);
@@ -577,7 +830,9 @@ export function openScoutLive(row) {
       wakeLock.addEventListener('release', () => { wakeLock = null; });
     } catch { wakeLock = null; }
   }
-  const onVisible = () => { if (document.visibilityState === 'visible') keepAwake(); else if (dirty) flush(); };
+  const onVisible = () => {
+    if (document.visibilityState === 'visible') { keepAwake(); if (mode === 'view') refresh(); } else if (dirty) flush();
+  };
   // Fechar o separador ou a app: última tentativa (a cópia do dispositivo já está gravada).
   const onPageHide = () => { if (dirty) flush(); };
   window.addEventListener('pagehide', onPageHide);
@@ -679,6 +934,7 @@ export function openScoutLive(row) {
     dirty = true;
     LS.set(backupKey(g.id), { at: Date.now(), data: g.data, status: g.status });
     await flush();
+    if (mode !== 'write') return; // outro dispositivo ficou com o jogo entretanto
     if (ui.sync !== 'ok') {
       toastError('Sem ligação: o jogo ficou guardado neste dispositivo e sobe quando houver rede. O resultado é registado depois, ao terminar de novo.');
       return;
@@ -707,11 +963,20 @@ export function openScoutLive(row) {
   }
 
   function close() {
+    if (closed) return;
+    closed = true;
+    closing = true;
     lineupDlg?.close();
+    unsub?.();
+    clearInterval(pollTimer); clearInterval(tickTimer); clearInterval(beatTimer);
     // Sai SEMPRE com tudo enviado (ou a caminho): o que estiver por subir
     // grava-se agora, e se falhar a nova tentativa continua a correr mesmo com
-    // o ecrã fechado, enquanto a app estiver aberta.
-    if (dirty || saving) flush();
+    // o ecrã fechado, enquanto a app estiver aberta. Só depois de subir larga a
+    // marcação — largá-la antes deixava outro ficar com um jogo a meio de gravar.
+    if (mode === 'write') {
+      if (dirty || saving) flush();
+      else if (owner) releaseScout(g.id, DEV).catch(() => {});
+    }
     window.removeEventListener('online', onOnline);
     window.removeEventListener('pagehide', onPageHide);
     document.removeEventListener('visibilitychange', onVisible);
@@ -725,6 +990,15 @@ export function openScoutLive(row) {
 
   // --- Desenho ---------------------------------------------------------------
   function syncHTML() {
+    if (mode === 'view') {
+      const take = canEdit('game_scouts') && g.status === 'em_curso' ? ' <button type="button" class="scout-linkbtn" data-take>Marcar aqui</button>' : '';
+      if (g.status === 'terminado') return '<span class="scout-sync">Jogo terminado</span>';
+      if (ui.sync === 'err') return `<span class="scout-sync scout-sync--warn">Sem rede: a tentar de novo</span>${take}`;
+      const fresh = writer.device && writer.at && Date.now() - Date.parse(writer.at) < STALE_MS;
+      if (fresh) return `<span class="scout-sync scout-sync--live">Ao vivo · ${esc(writer.name || 'a marcar')}</span>${take}`;
+      if (writer.device) return `<span class="scout-sync scout-sync--warn">Sem sinal de ${esc(writer.name || 'quem marca')} ${esc(ago(writer.at))}</span>${take}`;
+      return `<span class="scout-sync">Ninguém a marcar</span>${take}`;
+    }
     if (!canWrite) return '<span class="scout-sync">Só leitura</span>';
     return {
       ok: '<span class="scout-sync scout-sync--ok">Guardado</span>',
@@ -736,6 +1010,7 @@ export function openScoutLive(row) {
     const el = overlay.querySelector('#scout-sync');
     if (el) el.innerHTML = syncHTML();
     overlay.querySelector('[data-retry]')?.addEventListener('click', flush);
+    overlay.querySelector('#scout-sync [data-take]')?.addEventListener('click', takeHere);
   }
 
   function tile(c, n, srv) {
@@ -888,13 +1163,14 @@ export function openScoutLive(row) {
     const on = (sel, ev, fn) => overlay.querySelectorAll(sel).forEach((el) => el.addEventListener(ev, fn));
     on('[data-close]', 'click', close);
     on('[data-retry]', 'click', flush);
+    on('[data-take]', 'click', takeHere);
     on('[data-tab]', 'click', (e) => { ui.tab = e.currentTarget.dataset.tab; paint(); });
     on('[data-pos]', 'click', (e) => selectPos(Number(e.currentTarget.dataset.pos)));
     on('[data-t]', 'click', (e) => act(e.currentTarget.dataset.t, e.currentTarget.dataset.q));
     on('[data-undo]', 'click', undo);
     on('[data-newset]', 'click', newSet);
     on('[data-finish]', 'click', finish);
-    on('[data-goset]', 'click', (e) => { D().cur = Number(e.currentTarget.dataset.goset); ui.sel = null; touch(); paint(); });
+    on('[data-goset]', 'click', (e) => { D().cur = Number(e.currentTarget.dataset.goset); ui.sel = null; if (canWrite) touch(); paint(); });
     on('[data-lineup]', 'click', () => openLineup());
     on('[data-subout]', 'click', (e) => openLineup({ out: e.currentTarget.dataset.subout }));
     on('details[data-toggle]', 'toggle', (e) => { ui.logOpen = e.currentTarget.open; });
@@ -1061,10 +1337,18 @@ export function openScoutLive(row) {
   document.addEventListener('keydown', onKey);
 
   live = { close };
+  try { unsub = subscribeScout(g.id, onRemote); } catch { unsub = null; /* a pergunta periódica chega */ }
   paint();
+  if (mode === 'view') { startViewing(); return; }
   {
     const st = curSet();
     if (canWrite && !hasPoints(D(), D().cur) && (!st.firstServer || derive(D(), D().cur).lineup.some((x) => !x))) openLineup();
   }
+  startWriting();
+  // Fica com o jogo logo ao abrir — é isso que diz aos outros que está a ser
+  // marcado. Sem rede tenta-se outra vez na primeira gravação.
+  ensureOwner()
+    .then(async (ok) => { if (!ok) lose(await loadScoutStamp(g.id).catch(() => null)); })
+    .catch(() => { /* sem rede */ });
   if (pendingFromBackup && canWrite) { dirty = true; flush(); }
 }
