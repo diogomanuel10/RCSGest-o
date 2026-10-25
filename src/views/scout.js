@@ -514,8 +514,14 @@ export function openScoutLive(row) {
     sync: 'ok', hit: null,
   };
   let saveTimer = null;
+  let retryTimer = null;
   let saving = false;
   let again = false;
+  // Há alterações que ainda não chegaram à nuvem? É ESTA a pergunta que decide
+  // se se grava ao sair — e não o estado da última gravação: um toque feito
+  // menos de um segundo antes de "Sair" encontrava a última gravação "ok" e o
+  // temporizador cancelado, e a ação ficava só no dispositivo.
+  let dirty = false;
   let wakeLock = null;
   const team = teamById(g.team_id);
   const canWrite = canEdit('game_scouts');
@@ -534,20 +540,29 @@ export function openScoutLive(row) {
 
   // --- Gravação ---------------------------------------------------------------
   function touch() {
+    dirty = true;
     LS.set(backupKey(g.id), { at: Date.now(), data: g.data, status: g.status });
     clearTimeout(saveTimer);
     saveTimer = setTimeout(flush, 800);
   }
   async function flush() {
+    clearTimeout(saveTimer); saveTimer = null;
+    clearTimeout(retryTimer); retryTimer = null;
     if (saving) { again = true; return; }
-    saving = true; ui.sync = 'saving'; paintSync();
+    if (!dirty) return;
+    saving = true; dirty = false; ui.sync = 'saving'; paintSync();
     const snap = JSON.parse(JSON.stringify(g.data));
     try {
       const saved = await saveScoutData(g.id, { data: snap, summary: summaryOf(snap), status: g.status });
       g.updated_at = saved.updated_at;
       ui.sync = 'ok';
     } catch (err) {
+      // O que não subiu continua por subir: volta a marcar-se e tenta-se outra
+      // vez daqui a pouco. O evento `online` não chega sozinho — no pavilhão a
+      // rede "existe" e não responde, e o browser nunca dá pela falha.
+      dirty = true;
       ui.sync = 'err';
+      retryTimer = setTimeout(flush, 15000);
     }
     saving = false; paintSync();
     if (again) { again = false; flush(); }
@@ -562,7 +577,10 @@ export function openScoutLive(row) {
       wakeLock.addEventListener('release', () => { wakeLock = null; });
     } catch { wakeLock = null; }
   }
-  const onVisible = () => { if (document.visibilityState === 'visible') keepAwake(); else if (saveTimer) flush(); };
+  const onVisible = () => { if (document.visibilityState === 'visible') keepAwake(); else if (dirty) flush(); };
+  // Fechar o separador ou a app: última tentativa (a cópia do dispositivo já está gravada).
+  const onPageHide = () => { if (dirty) flush(); };
+  window.addEventListener('pagehide', onPageHide);
   document.addEventListener('visibilitychange', onVisible);
   keepAwake();
 
@@ -658,7 +676,7 @@ export function openScoutLive(row) {
     const ok = await confirmDialog(msg, { confirmLabel: 'Terminar jogo', danger: false });
     if (!ok) return;
     g.status = 'terminado';
-    clearTimeout(saveTimer);
+    dirty = true;
     LS.set(backupKey(g.id), { at: Date.now(), data: g.data, status: g.status });
     await flush();
     if (ui.sync !== 'ok') {
@@ -690,9 +708,12 @@ export function openScoutLive(row) {
 
   function close() {
     lineupDlg?.close();
-    clearTimeout(saveTimer);
-    if (ui.sync !== 'ok' || saving) flush();
+    // Sai SEMPRE com tudo enviado (ou a caminho): o que estiver por subir
+    // grava-se agora, e se falhar a nova tentativa continua a correr mesmo com
+    // o ecrã fechado, enquanto a app estiver aberta.
+    if (dirty || saving) flush();
     window.removeEventListener('online', onOnline);
+    window.removeEventListener('pagehide', onPageHide);
     document.removeEventListener('visibilitychange', onVisible);
     document.removeEventListener('keydown', onKey);
     try { wakeLock?.release(); } catch { /* já libertado */ }
@@ -1045,5 +1066,5 @@ export function openScoutLive(row) {
     const st = curSet();
     if (canWrite && !hasPoints(D(), D().cur) && (!st.firstServer || derive(D(), D().cur).lineup.some((x) => !x))) openLineup();
   }
-  if (pendingFromBackup && canWrite) flush();
+  if (pendingFromBackup && canWrite) { dirty = true; flush(); }
 }

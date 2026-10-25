@@ -1478,8 +1478,15 @@ separador antes de navegar (usado pelos cartões do Painel).
     segundos. Cada toque vai primeiro para o `localStorage`
     (`rumia-scout:<id>`) e sobe à nuvem com um atraso curto, uma escrita de
     cada vez; sem rede, o placard diz "Sem rede: guardado no dispositivo" e
-    volta a tentar quando a rede volta. Ao reabrir, a cópia do dispositivo
-    ganha se for mais recente. O jogo em curso fica marcado no dispositivo
+    volta a tentar sozinho a cada 15 s (o evento `online` não chega: no
+    pavilhão a rede "existe" e não responde, e o browser nunca dá pela falha).
+    **Sair grava sempre o que estiver por subir** — a pergunta é "há
+    alterações por enviar?" (`dirty`) e não "a última gravação correu bem?":
+    com a segunda, um toque feito menos de um segundo antes de "Sair"
+    encontrava a gravação anterior "ok", o temporizador cancelado, e a ação
+    ficava só no dispositivo. Fechar a app ou o separador (`pagehide`) faz uma
+    última tentativa. Ao reabrir, a cópia do dispositivo ganha se for mais
+    recente. O jogo em curso fica marcado no dispositivo
     (`rumia-scout-active`) e a secção oferece "Retomar".
   - **Liga-se a um jogo do calendário** (botão "Scout" na linha do jogo, no
     próprio dia — durante o aquecimento acerta-se a formação). Ao terminar, os
