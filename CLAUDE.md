@@ -270,6 +270,7 @@ src/
   game-report.js        Resumo pós-jogo imprimível (usa report-sheet)
   scout-engine.js       Scout ao vivo: lógica pura (marcador, rotação, líbero, estatísticas)
   scout-export.js       Scout: Excel (.xlsx, SheetJS lazy) e folha A4 do jogo/época
+  scout-insights.js     Scout: análise pós-jogo (dicas ao treinador) e nomes das rotações
   assets/logo.svg       Logótipo do clube (emblema SVG)
   views/
     config-help.js      Ecrã quando faltam as variáveis do Supabase
@@ -1645,6 +1646,37 @@ separador antes de navegar (usado pelos cartões do Painel).
       os há, e há uma linha **Equipa** no fim. O total de erros da atleta
       sozinho não dizia se foram cinco serviços na rede ou cinco receções.
       A folha A4 e o Excel levam as mesmas colunas de erro.
+  - **Análise do jogo** (`scout-insights.js`, no topo do detalhe de um jogo
+    TERMINADO): dicas para o treinador tiradas das ações — maior impacto,
+    pontos oferecidos (e em que ação), uma ação a correr mal a uma atleta,
+    a rotação mais difícil e, havendo época, o melhor jogo da época de cada
+    atleta. A meio do jogo não aparece: seis rallies não chegam para dizer
+    que uma rotação é difícil.
+    - **Regras e não "inteligência"**: cada dica diz o número que a sustenta
+      ("6 pontos e 1 erro, saldo +5, em 80 pontos em campo") e a fórmula do
+      impacto é essa — pontos ganhos menos erros. Uma nota opaca não se usa
+      no treino de terça; uma conta que se pode verificar, sim. E funciona
+      sem rede.
+    - **Cada regra tem um mínimo de ações** (e o "melhor da época" pede dois
+      jogos anteriores em que a mesma medida contou): dois ataques certos em
+      dois é acaso, e uma dica que se engana duas vezes deixa de ser lida.
+    - **O "melhor jogo da época" é contra ela própria**, um por atleta e no
+      máximo três, e vai para o FIM da lista: é boa notícia, e o que pede
+      trabalho tem de se ler primeiro. "A rever" compara com o que é normal
+      NELA ("costuma ter 1,5 por jogo"), não com as colegas.
+    - **Nada disto chega ao portal**: "maior impacto" é um ranking.
+  - **Por rotação** (`rotationStats` no motor): pontos jogados e ganhos em
+    cada rotação, com **side-out** (ganhar quando o adversário serve) e
+    **break-point** (ganhar quando servimos) à parte — são fases diferentes
+    e treinam-se à parte. Está no detalhe do jogo e nos totais da época.
+    - **A rotação nomeia-se pela DISTRIBUIDORA** (R1 = distribuidora na zona
+      1, a convenção de qualquer treinador), e é isso que deixa somar jogos
+      com formações diferentes. O plantel copiado para o jogo não guarda
+      posições, por isso lê-se da ficha (`setterFinder`, pelas palavras de
+      `TACTICAL_ROLE_MATCH.distribuidora`). Sem distribuidora na ficha, ou
+      fora de campo, a rotação diz quem estava a servir — e o rodapé explica
+      que preenchendo a posição passa a R1–R6.
+    - Rotações com menos de 6 pontos ficam a cinzento e não entram na dica.
   - **Exportação**: a folha A4 (`openSheet`, como o resumo pós-jogo; o PDF
     sai da janela de impressão) e o Excel com tudo — Jogos, Atletas (época),
     Atleta x Jogo e Ações, uma por linha — porque quem quer cruzar a época

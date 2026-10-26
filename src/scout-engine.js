@@ -121,9 +121,10 @@ function positions(set, lineup, rot, srv) {
   return pos;
 }
 
-// Reproduz um set. `onRally(pos, e)` é chamado em cada ponto, com quem estava
-// em campo ANTES de o ponto mudar a rotação — é assim que se contam os pontos
-// jogados por atleta.
+// Reproduz um set. `onRally(pos, e, srv)` é chamado em cada ponto, com quem
+// estava em campo ANTES de o ponto mudar a rotação — é assim que se contam os
+// pontos jogados por atleta — e com quem servia nesse rally (`OUR`/`THEIR`),
+// que é o que separa o side-out do break-point.
 export function replay(g, si, onRally) {
   const set = g.sets[si];
   let lineup = set.lineup.slice();
@@ -140,7 +141,7 @@ export function replay(g, si, onRally) {
     }
     const inc = pointTo(e);
     if (inc === 'NO') continue;
-    if (onRally) onRally(positions(set, lineup, rot, srv), e);
+    if (onRally) onRally(positions(set, lineup, rot, srv), e, srv);
     if (inc === 'OUR') {
       if (srv === 'THEIR') rot = (rot + 1) % 6;
       srv = 'OUR';
@@ -208,6 +209,44 @@ export function pointsPlayed(g) {
     });
   });
   return m;
+}
+
+// --- Rotações --------------------------------------------------------------
+//
+// Cada rally, de que rotação foi e se ganhámos. A rotação nomeia-se pela
+// DISTRIBUIDORA (R1 = distribuidora na zona 1, a convenção de qualquer
+// treinador de voleibol), e é por isso que agrega jogos com formações
+// diferentes: "R3" é a mesma coisa em outubro e em março. O plantel do jogo
+// não guarda posições, por isso quem é distribuidora diz-se de fora
+// (`isSetter(pid)`, lido da ficha). Sem distribuidora em campo — a ficha não
+// diz, ou saiu a meio — nomeia-se pela atleta que está na zona 1: é menos
+// comparável entre jogos, mas diz a verdade sobre aquele.
+//
+// Side-out = ganhar o ponto quando o adversário serve; break-point = ganhar
+// quando servimos nós. São fases diferentes do jogo e treinam-se à parte.
+export function rotationStats(games, { isSetter = () => false, f = 'all' } = {}) {
+  const rot = new Map();
+  const tot = { n: 0, won: 0, so: 0, soWon: 0, bp: 0, bpWon: 0 };
+  for (const g of games) {
+    g.sets.forEach((set, si) => {
+      if (f !== 'all' && si !== Number(f)) return;
+      const setter = set.lineup.find((pid) => pid && isSetter(pid)) || null;
+      replay(g, si, (pos, e, srv) => {
+        if (srv !== 'OUR' && srv !== 'THEIR') return;
+        const won = pointTo(e) === 'OUR';
+        const z = setter ? pos.findIndex((c) => c && c.base === setter) : -1;
+        const key = z >= 0 ? `R${z + 1}` : `S:${pos[0]?.base || '?'}`;
+        const r = rot.get(key) || { key, setter: z >= 0, zone: z + 1, pid: z >= 0 ? null : pos[0]?.base, n: 0, won: 0, so: 0, soWon: 0, bp: 0, bpWon: 0 };
+        for (const o of [r, tot]) {
+          o.n++; if (won) o.won++;
+          if (srv === 'THEIR') { o.so++; if (won) o.soWon++; } else { o.bp++; if (won) o.bpWon++; }
+        }
+        rot.set(key, r);
+      });
+    });
+  }
+  const list = [...rot.values()].sort((a, b) => (a.setter === b.setter ? (a.setter ? a.zone - b.zone : b.n - a.n) : a.setter ? -1 : 1));
+  return { list, tot };
 }
 
 // --- Estatísticas -------------------------------------------------------
