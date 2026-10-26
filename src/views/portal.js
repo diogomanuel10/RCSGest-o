@@ -69,6 +69,7 @@ import {
 // ao primeiro separador).
 let portalTab = 'hoje';
 let drillsShowAll = false;
+let scoutShowAll = false;
 
 // O SVG do cartão fica em cache pelo token: o portal re-desenha a cada
 // notificação do store e não há razão para redesenhar o mesmo código QR.
@@ -608,57 +609,92 @@ function myFundamentals(datas, used) {
     : '';
 }
 
-function teamLine(datas) {
+// `short` é a linha de UM jogo: o detalhe de onde vieram os pontos já está na
+// da época, e repetido em cada jogo aberto era um parágrafo igual por jogo.
+function teamLine(datas, { short = false } = {}) {
   const ts = teamSummary(datas);
   if (!ts.our && !ts.their) return '';
   const merit = ts.our ? Math.round(((ts.our - ts.oppErr) / ts.our) * 100) : 0;
-  return `<p class="portal-scout-team"><strong>Equipa:</strong> ${ts.our} pontos ganhos (${ts.kill} de ataque, ${ts.ace} de serviço, ${ts.blk} de bloco, ${ts.oppErr} de erros do adversário) · ${ts.ourErr} erros nossos · ${merit}% por mérito próprio</p>`;
+  return short
+    ? `<p class="portal-scout-team"><strong>Equipa:</strong> ${ts.our} pontos ganhos · ${ts.ourErr} erros · ${merit}% por mérito próprio</p>`
+    : `<p class="portal-scout-team"><strong>Equipa:</strong> ${ts.our} pontos ganhos (${ts.kill} de ataque, ${ts.ace} de serviço, ${ts.blk} de bloco, ${ts.oppErr} de erros do adversário) · ${ts.ourErr} erros nossos · ${merit}% por mérito próprio</p>`;
+}
+
+// Quantos jogos se veem antes do "Mostrar os restantes": num campeonato são
+// trinta, e a pergunta de quem abre isto é quase sempre o último jogo.
+const SCOUT_VISIBLE = 5;
+
+function scoutGameRow(g, me, { open = false } = {}) {
+  const fmt = (d) => (d ? d.split('-').reverse().slice(0, 2).join('/') : '');
+  const r = setsWon(g.data);
+  const res = r.o > r.t ? 'V' : r.o < r.t ? 'D' : 'E';
+  const p = pointsPlayed(g.data)[me.id] || 0;
+  const m = playerRows([g.data])[0];
+  const pts = m ? m.s.pts : 0;
+  // Fechada, a linha diz o que ela fez nesse jogo — sem isso, trinta linhas
+  // de "data · adversário · resultado" eram o calendário outra vez.
+  const mineShort = p ? `${pts} pt${pts === 1 ? '' : 's'}` : 'não jogaste';
+  return `<li><details class="portal-scout-game"${open ? ' open' : ''}>
+    <summary>
+      <span class="portal-att-row__day">${esc(fmt(g.game_date))}</span>
+      <span class="portal-att-row__title">vs ${esc(g.opponent || 'Adversário')}</span>
+      <span class="portal-scout-game__mine">${mineShort}</span>
+      <span class="badge badge--${res === 'V' ? 'ok' : res === 'D' ? 'danger' : 'muted'}">${r.o}–${r.t}</span>
+    </summary>
+    <div class="portal-scout-game__body">
+      <p class="muted" style="margin:0">Parciais ${esc(partials(g.data).map((x) => `${x.our}-${x.their}`).join(', ') || '—')}${g.competition ? ` · ${esc(g.competition)}` : ''}</p>
+      <p style="margin:0.35rem 0 0">${p ? `Estiveste em campo <strong>${p}</strong> pontos` : 'Não entraste em campo neste jogo'}${m ? ` · <strong>${pts}</strong> ponto${pts === 1 ? '' : 's'} teu${pts === 1 ? '' : 's'} · ${m.s.errs} erro${m.s.errs === 1 ? '' : 's'}` : ''}</p>
+      ${myFundamentals([g.data], usedCols([g.data]))}
+      ${teamLine([g.data], { short: true })}
+    </div>
+  </details></li>`;
 }
 
 function scoutHTML(me) {
   if (state.myScoutGames === null) { loadMyScoutGames(); return ''; }
   const games = state.myScoutGames;
   if (!games.length) return '';
+  const note = '<p class="portal-section__note">As tuas ações e as da equipa, nos jogos com estatística. As das colegas não aparecem aqui.</p>';
+
+  // Com um jogo só, o resumo da época ERA esse jogo: desenhá-lo duas vezes
+  // dizia o mesmo em dois blocos seguidos. Mostra-se o jogo, já aberto.
+  if (games.length === 1) {
+    return `
+    <section class="card portal-section">
+      <h2 class="section-title portal-section__title">Os meus jogos</h2>
+      ${note}
+      <ul class="portal-scout-list portal-scout-list--solo">${scoutGameRow(games[0], me, { open: true })}</ul>
+    </section>`;
+  }
+
   const datas = games.map((g) => g.data);
   const used = usedCols(datas);
   const played = datas.reduce((a, d) => a + (pointsPlayed(d)[me.id] || 0), 0);
   const mine = playerRows(datas)[0];
   const w = games.filter((g) => { const r = setsWon(g.data); return r.o > r.t; }).length;
-  const fmt = (d) => (d ? d.split('-').reverse().slice(0, 2).join('/') : '');
+  const shown = scoutShowAll ? games : games.slice(0, SCOUT_VISIBLE);
+  const rest = games.length - shown.length;
 
   return `
     <section class="card portal-section">
       <h2 class="section-title portal-section__title">Os meus jogos</h2>
-      <p class="portal-section__note">As tuas ações e as da equipa, nos jogos com estatística. As das colegas não aparecem aqui.</p>
+      ${note}
       <div class="portal-scout-head">
-        <span><strong>${games.length}</strong> jogo${games.length === 1 ? '' : 's'} · ${w} V – ${games.length - w} D</span>
+        <span><strong>${games.length}</strong> jogos · ${w} V – ${games.length - w} D</span>
         <span><strong>${played}</strong> pontos em campo</span>
         <span><strong>${mine ? mine.s.pts : 0}</strong> pontos teus</span>
       </div>
       ${myFundamentals(datas, used)}
       ${teamLine(datas)}
+      <h3 class="portal-scout-sub">Jogo a jogo</h3>
       <ul class="portal-scout-list">
-        ${games.slice(0, 10).map((g) => {
-          const r = setsWon(g.data);
-          const res = r.o > r.t ? 'V' : r.o < r.t ? 'D' : 'E';
-          const p = pointsPlayed(g.data)[me.id] || 0;
-          const m = playerRows([g.data])[0];
-          const one = usedCols([g.data]);
-          return `<li><details class="portal-scout-game">
-            <summary>
-              <span class="portal-att-row__day">${esc(fmt(g.game_date))}</span>
-              <span class="portal-att-row__title">vs ${esc(g.opponent || 'Adversário')}</span>
-              <span class="badge badge--${res === 'V' ? 'ok' : res === 'D' ? 'danger' : 'muted'}">${r.o}–${r.t}</span>
-            </summary>
-            <div class="portal-scout-game__body">
-              <p class="muted" style="margin:0">Parciais ${esc(partials(g.data).map((x) => `${x.our}-${x.their}`).join(', ') || '—')}${g.competition ? ` · ${esc(g.competition)}` : ''}</p>
-              <p style="margin:0.35rem 0 0">${p ? `Estiveste em campo <strong>${p}</strong> pontos` : 'Não entraste em campo neste jogo'}${m ? ` · <strong>${m.s.pts}</strong> ponto${m.s.pts === 1 ? '' : 's'} teu${m.s.pts === 1 ? '' : 's'} · ${m.s.errs} erro${m.s.errs === 1 ? '' : 's'}` : ''}</p>
-              ${myFundamentals([g.data], one)}
-              ${teamLine([g.data])}
-            </div>
-          </details></li>`;
-        }).join('')}
+        ${shown.map((g) => scoutGameRow(g, me)).join('')}
       </ul>
+      ${rest > 0 || scoutShowAll && games.length > SCOUT_VISIBLE
+        ? `<button class="btn btn--link portal-section__more" data-scout-toggle type="button">
+             ${scoutShowAll ? 'Mostrar só os últimos' : `Mostrar os restantes ${rest}`}
+           </button>`
+        : ''}
     </section>`;
 }
 
@@ -1079,6 +1115,11 @@ function wire(container, me, team) {
   container.querySelectorAll('[data-cancel-req]').forEach((btn) =>
     btn.addEventListener('click', () => cancelMyRequest(btn.dataset.cancelReq))
   );
+
+  container.querySelector('[data-scout-toggle]')?.addEventListener('click', () => {
+    scoutShowAll = !scoutShowAll;
+    renderPortal(container);
+  });
 
   container.querySelector('[data-drills-toggle]')?.addEventListener('click', () => {
     drillsShowAll = !drillsShowAll;

@@ -7575,6 +7575,11 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 .portal-scout-game summary { display: flex; align-items: center; gap: 0.6rem; padding: 0.45rem 0; font-size: 0.92rem; cursor: pointer; min-height: 44px; }
 .portal-scout-game summary .badge { flex: none; }
 .portal-scout-game__body { padding: 0 0 0.7rem; font-size: 0.92rem; }
+.portal-scout-game summary .portal-att-row__title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.portal-scout-game__mine { flex: none; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.portal-scout-sub { margin: 1rem 0 0; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+.portal-scout-sub + .portal-scout-list { margin-top: 0.3rem; }
+.portal-scout-list--solo { border-top: 0; padding-top: 0; margin-top: 0.4rem; }
 
 /* --- Quotas --- */
 .portal-quota-row {

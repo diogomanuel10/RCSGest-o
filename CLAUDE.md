@@ -1608,6 +1608,12 @@ separador antes de navegar (usado pelos cartões do Painel).
       sem conversa nenhuma à volta.
     - **Mostra o que ela fez, não uma posição**: "6 pontos de ataque em 14" e
       não um ranking, e só os fundamentos que se marcaram (`usedCols`).
+    - **Uma época tem trinta jogos**: o resumo da época vem em cima e a
+      lista "Jogo a jogo" mostra os 5 mais recentes, fechados, com
+      "Mostrar os restantes N". Fechada, cada linha já diz os pontos DELA
+      nesse jogo — sem isso era o calendário outra vez. A linha da equipa de
+      cada jogo é curta (o detalhe de onde vieram os pontos fica na da época),
+      e com UM jogo só não há resumo da época: era o mesmo bloco duas vezes.
     - Carrega-se só ao abrir «A época» (`loadMyScoutGames`): são as ações da
       época inteira, e o portal abre-se quase sempre para ver o treino de
       logo. Sem a migração a chamada falha e a secção não aparece.
