@@ -132,3 +132,68 @@ create policy "gsc_write" on game_scouts for all to authenticated
     app_role() = 'coordenador'
     OR (app_role() = 'treinador' AND team_id in (select trainer_team_ids()))
   );
+
+-- ---------------------------------------------------------------------
+-- A atleta vê as SUAS estatísticas e as da equipa — nunca as das colegas
+-- ---------------------------------------------------------------------
+-- A atleta não lê `game_scouts` (não há política de SELECT para ela): uma
+-- política é por LINHA e não por coluna, e a linha de um jogo leva as ações de
+-- todas as colegas. Lê-se por esta RPC, que devolve os jogos TERMINADOS da
+-- equipa dela com as ações das outras ANÓNIMAS — sem `pid`.
+--
+--   • Sem o `pid`, as ações das colegas continuam a contar para o marcador e
+--     para os totais da equipa (pontos de ataque, ases, erros nossos), mas
+--     deixam de ter dono. Comparar-se à colega do lado não ajuda ninguém a
+--     melhorar, e numa equipa de formação é a forma mais rápida de alguém
+--     deixar de vir.
+--   • As formações e as substituições ficam: é com elas que se contam os
+--     pontos que ELA jogou. Quem esteve em campo não é segredo — viu-se do
+--     banco.
+--   • Do plantel só vai ela. Os outros nomes não fazem falta a nada.
+--   • Só jogos TERMINADOS: um jogo a meio, visto do telemóvel no balneário,
+--     é uma nota sem conversa nenhuma à volta.
+--   • `security definer`, por isso filtra `org_id` à mão (a regra do
+--     `check_in_by_qr`).
+create or replace function public.my_scout_games()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  me  uuid := public.athlete_player_id();
+  org uuid := public.current_org_id();
+  tm  uuid;
+begin
+  if me is null or org is null then return '[]'::jsonb; end if;
+  select team_id into tm from public.players where id = me and org_id = org;
+  if tm is null then return '[]'::jsonb; end if;
+
+  return coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'id', g.id,
+      'opponent', g.opponent,
+      'game_date', g.game_date,
+      'competition', g.competition,
+      'data', jsonb_build_object(
+        'v', g.data->'v',
+        'cur', g.data->'cur',
+        'cols', g.data->'cols',
+        'sets', coalesce(g.data->'sets', '[]'::jsonb),
+        'roster', coalesce((
+          select jsonb_agg(r) from jsonb_array_elements(coalesce(g.data->'roster', '[]'::jsonb)) r
+          where r->>'id' = me::text), '[]'::jsonb),
+        'events', coalesce((
+          select jsonb_agg(case when e->>'t' = 'SUB' or e->>'pid' = me::text then e else e - 'pid' end order by o)
+          from jsonb_array_elements(coalesce(g.data->'events', '[]'::jsonb)) with ordinality x(e, o)), '[]'::jsonb)
+      )
+    ) order by g.game_date desc, g.created_at desc)
+    from public.game_scouts g
+    where g.org_id = org and g.team_id = tm and g.status = 'terminado'
+  ), '[]'::jsonb);
+end;
+$$;
+
+revoke all on function public.my_scout_games() from public;
+grant execute on function public.my_scout_games() to authenticated;

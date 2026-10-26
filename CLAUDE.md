@@ -1557,9 +1557,26 @@ separador antes de navegar (usado pelos cartões do Painel).
     `libero`: uma líbero sozinha é a única, chame-se o campo como se chamar.
   - **Quem**: o treinador nas suas equipas e o coordenador escrevem; a
     direção lê (RLS `gsc_*`). Não é secção configurável: é a ferramenta do
-    próprio treinador no banco, como os Pedidos (`roleCanAccess`). O atleta
-    não lê o scout — "3 erros de receção" sem o contexto do jogo é uma nota,
-    e quem a explica é o treinador.
+    próprio treinador no banco, como os Pedidos (`roleCanAccess`).
+  - **A atleta vê as SUAS estatísticas e as da EQUIPA, nunca as das colegas**
+    (RPC `my_scout_games`, secção "Os meus jogos" em «A época» do portal).
+    Comparar-se à colega do lado não ajuda ninguém a melhorar, e numa equipa
+    de formação é a forma mais rápida de alguém deixar de vir.
+    - **Não lê `game_scouts`**: uma política é por LINHA e não por coluna, e a
+      linha de um jogo leva as ações de todas. A RPC (`security definer`,
+      filtra `org_id` à mão) devolve os jogos da equipa dela com as ações das
+      outras SEM `pid` — continuam a contar para o marcador e para os totais
+      da equipa, mas deixam de ter dono. O recorte é no SERVIDOR: o que não
+      chega ao telemóvel não se pode mostrar por engano. Do plantel só vai
+      ela; as formações e as substituições ficam, porque é com elas que se
+      contam os pontos que ela jogou (quem esteve em campo viu-se do banco).
+    - **Só jogos TERMINADOS**: um jogo a meio, lido no balneário, é uma nota
+      sem conversa nenhuma à volta.
+    - **Mostra o que ela fez, não uma posição**: "6 pontos de ataque em 14" e
+      não um ranking, e só os fundamentos que se marcaram (`usedCols`).
+    - Carrega-se só ao abrir «A época» (`loadMyScoutGames`): são as ações da
+      época inteira, e o portal abre-se quase sempre para ver o treino de
+      logo. Sem a migração a chamada falha e a secção não aparece.
   - **Exportação**: a folha A4 (`openSheet`, como o resumo pós-jogo; o PDF
     sai da janela de impressão) e o Excel com tudo — Jogos, Atletas (época),
     Atleta x Jogo e Ações, uma por linha — porque quem quer cruzar a época

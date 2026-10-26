@@ -13,8 +13,11 @@
 import {
   state, respondToEvent, respondToAppointment, saveTacticalAnswer, dbErrorMessage,
   createEquipmentRequests, deleteRow, articlePhotoUrl,
-  savePlayerPhoto, saveMyPlayerData, uploadPlayerDocument,
+  savePlayerPhoto, saveMyPlayerData, uploadPlayerDocument, loadMyScoutGames,
 } from '../store.js';
+import {
+  setsWon, partials, teamSummary, playerRows, pointsPlayed, usedCols, fmtPct,
+} from '../scout-engine.js';
 import { toastOk, toastError } from '../toast.js';
 import { getNotifications, markRead } from '../notifications.js';
 import { openModal, wireDialog, confirmDialog } from '../modal.js';
@@ -576,6 +579,89 @@ function hojeHTML(me, upcoming) {
   `;
 }
 
+// --- Os meus jogos (scout) --------------------------------------------------
+//
+// As estatísticas de jogo DELA e as da EQUIPA — e nunca as das colegas. A
+// RPC `my_scout_games` já entrega as ações das outras sem dono (contam para o
+// marcador e para os totais da equipa, mas não dizem de quem são), por isso
+// aqui não há nada a esconder: o que não chegou não se pode mostrar.
+//
+// Mostra-se o que ela FEZ e não uma nota: "6 pontos de ataque em 14" lê-se
+// como trabalho; uma posição num ranking lia-se como um juízo. Os
+// fundamentos são só os que se marcaram (`usedCols`) — num jogo em que o
+// treinador não scoutou bloco, "Bloco 0" dizia que ela não blocou.
+const FUND_LINES = [
+  ['ATTACK', 'Ataque', (s) => (s.atk ? `${s.kill} ponto${s.kill === 1 ? '' : 's'} em ${s.atk} · eficácia ${fmtPct(s.effA)}` : null)],
+  ['SERVICE', 'Serviço', (s) => (s.srv ? `${s.srv} · ${s.ace} ás${s.ace === 1 ? '' : 'es'} · ${s.srvErr} erro${s.srvErr === 1 ? '' : 's'}` : null)],
+  ['RECEPTION', 'Receção', (s) => (s.rec ? `${s.rec} · ${fmtPct(s.posR)} positiva` : null)],
+  ['BLOCK', 'Bloco', (s) => (s.blkT ? `${s.blk} ponto${s.blk === 1 ? '' : 's'} em ${s.blkT}` : null)],
+  ['DEFENSE', 'Defesa', (s) => (s.def ? `${s.def} · ${fmtPct(s.posD)} positiva` : null)],
+  ['SETTING', 'Passe', (s) => (s.pas ? `${s.pas} · ${fmtPct(s.posP)} positivo` : null)],
+];
+
+function myFundamentals(datas, used) {
+  const mine = playerRows(datas)[0];
+  if (!mine) return '';
+  const lines = FUND_LINES.filter(([k]) => used.has(k)).map(([, l, f]) => [l, f(mine.s)]).filter(([, v]) => v);
+  return lines.length
+    ? `<dl class="portal-scout-fund">${lines.map(([l, v]) => `<dt>${l}</dt><dd>${esc(v)}</dd>`).join('')}</dl>`
+    : '';
+}
+
+function teamLine(datas) {
+  const ts = teamSummary(datas);
+  if (!ts.our && !ts.their) return '';
+  const merit = ts.our ? Math.round(((ts.our - ts.oppErr) / ts.our) * 100) : 0;
+  return `<p class="portal-scout-team"><strong>Equipa:</strong> ${ts.our} pontos ganhos (${ts.kill} de ataque, ${ts.ace} de serviço, ${ts.blk} de bloco, ${ts.oppErr} de erros do adversário) · ${ts.ourErr} erros nossos · ${merit}% por mérito próprio</p>`;
+}
+
+function scoutHTML(me) {
+  if (state.myScoutGames === null) { loadMyScoutGames(); return ''; }
+  const games = state.myScoutGames;
+  if (!games.length) return '';
+  const datas = games.map((g) => g.data);
+  const used = usedCols(datas);
+  const played = datas.reduce((a, d) => a + (pointsPlayed(d)[me.id] || 0), 0);
+  const mine = playerRows(datas)[0];
+  const w = games.filter((g) => { const r = setsWon(g.data); return r.o > r.t; }).length;
+  const fmt = (d) => (d ? d.split('-').reverse().slice(0, 2).join('/') : '');
+
+  return `
+    <section class="card portal-section">
+      <h2 class="section-title portal-section__title">Os meus jogos</h2>
+      <p class="portal-section__note">As tuas ações e as da equipa, nos jogos com estatística. As das colegas não aparecem aqui.</p>
+      <div class="portal-scout-head">
+        <span><strong>${games.length}</strong> jogo${games.length === 1 ? '' : 's'} · ${w} V – ${games.length - w} D</span>
+        <span><strong>${played}</strong> pontos em campo</span>
+        <span><strong>${mine ? mine.s.pts : 0}</strong> pontos teus</span>
+      </div>
+      ${myFundamentals(datas, used)}
+      ${teamLine(datas)}
+      <ul class="portal-scout-list">
+        ${games.slice(0, 10).map((g) => {
+          const r = setsWon(g.data);
+          const res = r.o > r.t ? 'V' : r.o < r.t ? 'D' : 'E';
+          const p = pointsPlayed(g.data)[me.id] || 0;
+          const m = playerRows([g.data])[0];
+          const one = usedCols([g.data]);
+          return `<li><details class="portal-scout-game">
+            <summary>
+              <span class="portal-att-row__day">${esc(fmt(g.game_date))}</span>
+              <span class="portal-att-row__title">vs ${esc(g.opponent || 'Adversário')}</span>
+              <span class="badge badge--${res === 'V' ? 'ok' : res === 'D' ? 'danger' : 'muted'}">${r.o}–${r.t}</span>
+            </summary>
+            <div class="portal-scout-game__body">
+              <p class="muted" style="margin:0">Parciais ${esc(partials(g.data).map((x) => `${x.our}-${x.their}`).join(', ') || '—')}${g.competition ? ` · ${esc(g.competition)}` : ''}</p>
+              <p style="margin:0.35rem 0 0">${p ? `Estiveste em campo <strong>${p}</strong> pontos` : 'Não entraste em campo neste jogo'}${m ? ` · <strong>${m.s.pts}</strong> ponto${m.s.pts === 1 ? '' : 's'} teu${m.s.pts === 1 ? '' : 's'} · ${m.s.errs} erro${m.s.errs === 1 ? '' : 's'}` : ''}</p>
+              ${myFundamentals([g.data], one)}
+              ${teamLine([g.data])}
+            </div>
+          </details></li>`;
+        }).join('')}
+      </ul>
+    </section>`;
+}
+
 // --- Separador "A minha época" -------------------------------------------
 
 function epocaHTML(me) {
@@ -614,6 +700,8 @@ function epocaHTML(me) {
              : ''}`
         : '<p class="portal-section__note">Ainda sem registos de presença.</p>'}
     </section>
+
+    ${scoutHTML(me)}
 
     ${squads.length ? `
     <section class="card portal-section">
