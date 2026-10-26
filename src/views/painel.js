@@ -77,6 +77,7 @@ import { openMedicoTab } from './medico.js';
 import { openAthleteProfile } from './athlete-profile.js';
 import { wireDialog } from '../modal.js';
 import { setSelectedEvent } from './presencas.js';
+import { openSquadModal } from './convocatoria.js';
 import { openResultModal } from './resultado.js';
 import { openSeasonPlanning } from './planteis.js';
 import { openBirthdayCard } from './parabens.js';
@@ -1185,6 +1186,10 @@ function wireWorkTargets(root, { tab = 'geral', includeNav = false, before = nul
   // como já faziam os cartões do Calendário.
   root.querySelectorAll('[data-work-event]').forEach((el) =>
     el.addEventListener('click', () => go(() => {
+      // Um jogo já não vive nas Presenças: quem não vem a um jogo resolve-se
+      // na convocatória.
+      const ev = state.events.find((e) => e.id === el.dataset.workEvent);
+      if (ev?.type === 'jogo') { openSquadModal(ev.id); return; }
       setSelectedEvent(el.dataset.workEvent);
       navTo('presencas');
     }))
@@ -1999,7 +2004,7 @@ function coachTodayRow(ev, hideLocation = false) {
       </div>
       <div style="display:flex;gap:0.4rem;align-items:center;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
         ${isJogo
-          ? `${canEdit('squads') && canAccess('presencas') && ev.team_id ? `<button class="btn btn--ghost btn--sm" data-squad-event="${ev.id}" type="button">Convocatória</button>` : ''}
+          ? `${canEdit('squads') && ev.team_id ? `<button class="btn btn--ghost btn--sm" data-squad-event="${ev.id}" type="button">Convocatória</button>` : ''}
              ${canEdit('game_results') ? `<button class="btn btn--accent btn--sm" data-result-event="${ev.id}" type="button">Resultado</button>` : ''}`
           : `<button class="btn btn--ghost btn--sm" data-plan-event="${ev.id}" type="button">Plano</button>
              ${canEdit('attendances') ? `<button class="btn btn--accent btn--sm" data-mark-event="${ev.id}" type="button">Marcar</button>` : ''}`}
@@ -2145,10 +2150,7 @@ function wireCoachPainel(container) {
     btn.addEventListener('click', () => openResultModal(btn.dataset.resultEvent))
   );
   container.querySelectorAll('[data-squad-event]').forEach((btn) =>
-    btn.addEventListener('click', () => {
-      setSelectedEvent(btn.dataset.squadEvent);
-      navTo('presencas');
-    })
+    btn.addEventListener('click', () => openSquadModal(btn.dataset.squadEvent))
   );
   container.querySelectorAll('[data-nav]').forEach((el) =>
     el.addEventListener('click', () => {

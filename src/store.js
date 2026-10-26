@@ -1494,6 +1494,25 @@ export async function upsertAttendance(eventId, playerId, values) {
   return data;
 }
 
+// "Todos presentes": marca presente a quem ainda NÃO tem registo neste evento.
+// Uma escrita só, e `ignoreDuplicates` para nunca pisar um estado que alguém
+// (ou o quiosque) marcou entretanto — um atraso não volta a "presente".
+export async function markAllPresent(eventId, playerIds) {
+  if (!playerIds.length) return 0;
+  const rows = playerIds.map((pid) => ({ event_id: eventId, player_id: pid, status: 'presente', source: 'manual' }));
+  const { error } = await supabase
+    .from('attendances')
+    .upsert(rows, { onConflict: 'event_id,player_id', ignoreDuplicates: true });
+  if (error) throw error;
+  const { data, error: readErr } = await supabase.from('attendances').select('*').eq('event_id', eventId);
+  if (readErr) throw readErr;
+  state.attendances = state.attendances.filter((a) => a.event_id !== eventId);
+  state.attendances.push(...(data || []));
+  toastOk(`${playerIds.length} atleta${playerIds.length === 1 ? '' : 's'} marcad${playerIds.length === 1 ? 'o' : 'os'} como presente${playerIds.length === 1 ? '' : 's'}.`);
+  notify();
+  return playerIds.length;
+}
+
 // Upsert de uma tabela com chave `player_id` (perfil físico, história clínica).
 // Cria ou atualiza a linha desse atleta e sincroniza a cache local.
 export async function upsertByPlayer(table, collection, playerId, values) {

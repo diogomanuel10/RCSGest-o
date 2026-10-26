@@ -24,7 +24,7 @@ import {
   myTeams, isMyEvent,
 } from '../compute.js';
 import { renderScout, openScoutForEvent } from './scout.js';
-import { setSelectedEvent } from './presencas.js';
+import { openSquadModal } from './convocatoria.js';
 import { openResultModal } from './resultado.js';
 import { findPlanForEvent, openGamePlanForEvent } from './plano-jogo.js';
 import { openEventForm } from './calendario.js';
@@ -116,9 +116,9 @@ function ensureScouts() {
 }
 const scoutOf = (ev) => (state.scouts || []).find((r) => r.event_id === ev.id) || null;
 
-// A convocatória vive nas Presenças: sem acesso a essa secção o botão levava a
-// um sítio onde o utilizador não entra.
-const canSquad = (ev) => canEdit('squads') && canAccess('presencas') && !!ev.team_id;
+// A convocatória é um diálogo deste ecrã (`convocatoria.js`), e já não vive
+// nas Presenças: basta poder convocar.
+const canSquad = (ev) => canEdit('squads') && !!ev.team_id;
 const canResult = (ev) => canEdit('squads') && !!ev.team_id && eventDateTime(ev) <= new Date();
 // Scout ao vivo: no DIA do jogo e não só depois da hora marcada (é durante o
 // aquecimento que se acerta a formação), e só nas equipas de quem marca — o
@@ -306,7 +306,7 @@ async function runStep(step, eventId) {
   const ev = state.events.find((e) => e.id === eventId);
   if (!ev) return;
   if (step === 'plan') { openGamePlanForEvent(ev); navTo('plano-jogo'); return; }
-  if (step === 'squad') { setSelectedEvent(ev.id); navTo('presencas'); return; }
+  if (step === 'squad') { openSquadModal(ev.id); return; }
   if (step === 'scout') { openScoutForEvent(ev.id); return; }
   if (step === 'result') { openResultModal(ev.id); return; }
   if (step === 'report') {
