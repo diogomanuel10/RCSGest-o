@@ -2574,8 +2574,13 @@ separador antes de navegar (usado pelos cartões do Painel).
     um atendimento se sobrepõe a um treino/jogo da equipa do atleta.
   - Editável por quem tem `canEdit('clinical')` / `canEdit('appointments')`
     (coordenador e fisioterapeuta), em linha com o RLS `med_rw`.
-  - **No Calendário, a fisio vê os atendimentos em primeiro plano** (toggle
-    "🩺 Atendimentos · Tudo", ligado por omissão para o `fisioterapeuta`). Os
+  - **O Calendário tem separadores** (`Tudo` · `Treinos` · `🩺 Atendimentos`,
+    este só a quem tem `canAccess('medico')`): a mesma lista misturava treinos,
+    jogos, musculação e consultas, e quem a abre quase sempre quer uma dessas
+    coisas. `Treinos` são os treinos e a musculação (os jogos têm a secção
+    Jogos); o filtro de tipo só existe em `Tudo`, e o detalhe do dia mostra o
+    mesmo que o separador de onde se abriu (`inTab`). A fisio abre por omissão
+    nos Atendimentos, onde os atendimentos ficam em primeiro plano. Os
     treinos continuam lá — é por eles que se decide a hora de um atendimento —
     mas como CONTEXTO: uma linha por dia ("No mesmo dia: 18:30 Iniciadas F ·
     …"), e o que coincide com a equipa da atleta vem a âmbar
