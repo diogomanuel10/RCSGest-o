@@ -109,6 +109,20 @@ create trigger trg_clear_appointment_response_on_insert
 --
 -- Vai à fisioterapeuta e, num clube SEM fisio com conta, ao coordenador — a
 -- mesma regra do `clubHasFisio` na fila dos pedidos.
+--
+-- `appointment_when` nasce em atendimentos-atleta.sql, mas repete-se aqui:
+-- sem ela o "não posso" rebentava com "function appointment_when(date, text)
+-- does not exist" — a atleta avisava e o aviso não saía. É `create or
+-- replace` com a mesma definição, por isso correr os dois não muda nada.
+create or replace function public.appointment_when(p_date date, p_time text)
+returns text
+language sql
+immutable
+as $$
+  select to_char(p_date, 'DD/MM')
+      || coalesce(' às ' || left(nullif(trim(p_time), ''), 5), '');
+$$;
+
 create or replace function public.respond_to_appointment(
   p_appointment_id uuid,
   p_response       text,
