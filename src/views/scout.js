@@ -28,8 +28,9 @@ import { toastOk, toastError, toastInfo } from '../toast.js';
 import {
   ACT, COLS, ROWS, SYM, QN, MAX_SETS, emptyData, derive, court, setWinner, setsWon, hasPoints,
   partials, summarize, pointsPlayed, teamSummary, teamCounts, playerStats, playerRows, findPlayer, numOf, fmtPct,
-  activeCols, usedCols, OPTIONAL_COLS,
+  activeCols, usedCols, OPTIONAL_COLS, rotationStats,
 } from '../scout-engine.js';
+import { gameInsights, setterFinder, rotationLabel } from '../scout-insights.js';
 
 // --- Estado local da secção -------------------------------------------------
 let teamFilter = '';
@@ -262,7 +263,8 @@ export function renderScout(container) {
     body.innerHTML = loadingHTML('A juntar os jogos da época…');
     seasonGames(teamFilter).then((games) => {
       const done = games.filter((g) => g.status === 'terminado');
-      body.innerHTML = `<div class="scout-season__body">${statsBlock(done.map((g) => g.data), 'all', { multi: true, played: sumPlayed(done) })}</div>`;
+      const datas = done.map((g) => g.data);
+      body.innerHTML = `<div class="scout-season__body">${rotationBlock(datas, { multi: true })}${statsBlock(datas, 'all', { multi: true, played: sumPlayed(done) })}</div>`;
     }).catch((err) => { body.innerHTML = errorHTML(dbErrorMessage(err)); });
   }
 }
@@ -470,6 +472,10 @@ async function openDetail(id) {
     return;
   }
   let filter = 'all';
+  // Os outros jogos terminados da equipa, para o "melhor jogo da época" e o
+  // "costuma ter". Chegam depois do primeiro desenho (vêm da cache da época,
+  // ou da rede): até lá a análise sai sem essas duas dicas.
+  let season = [];
   const editable = canEdit('game_scouts');
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
@@ -485,6 +491,7 @@ async function openDetail(id) {
           <button class="modal__close" type="button" aria-label="Fechar">&times;</button>
         </div>
         <div class="scout-detail__body">
+          ${g.status === 'terminado' ? analysisBlock(g.data, season) : ''}
           <div class="cell-actions">
             ${setFilterHTML(g.data, filter)}
           </div>
@@ -518,6 +525,12 @@ async function openDetail(id) {
   };
   paint();
   const close = wireDialog(overlay, {});
+  if (g.status === 'terminado' && g.team_id) {
+    seasonGames(g.team_id).then((games) => {
+      season = games.filter((x) => x.status === 'terminado' && x.id !== g.id).map((x) => x.data);
+      if (season.length >= 2 && overlay.isConnected) paint();
+    }).catch(() => {});
+  }
 }
 
 // --- Blocos de estatística (secção, detalhe e ecrã de jogo) -----------------
@@ -527,6 +540,64 @@ function setFilterHTML(data, cur) {
     <button class="cal-toggle__btn ${cur === 'all' ? 'cal-toggle__btn--active' : ''}" type="button" data-set="all" aria-pressed="${cur === 'all'}">Total</button>
     ${data.sets.map((_, i) => `<button class="cal-toggle__btn ${cur === String(i) ? 'cal-toggle__btn--active' : ''}" type="button" data-set="${i}" aria-pressed="${cur === String(i)}">${i + 1}º set</button>`).join('')}
   </div>`;
+}
+
+// --- Análise pós-jogo e rotações -------------------------------------------
+//
+// As dicas vêm de `scout-insights.js` (regras com mínimos, cada uma com o
+// número que a sustenta). Aparecem no detalhe de um jogo TERMINADO: a meio do
+// jogo uma "rotação mais difícil" com seis rallies é ruído.
+
+function analysisBlock(data, season) {
+  const isSetter = setterFinder();
+  const tips = gameInsights(data, { season, isSetter });
+  return `<section class="scout-part">
+    <h3 class="scout-part__title">Análise do jogo</h3>
+    ${tips.length
+      ? `<ul class="scout-tips">${tips.map((t) => `<li class="scout-tip scout-tip--${t.tone}">
+          <span class="scout-tip__icon" aria-hidden="true">${t.icon}</span>
+          <div><strong>${esc(t.title)}</strong><p>${esc(t.text)}</p></div></li>`).join('')}</ul>`
+      : '<p class="muted" style="margin:0">Ainda não há ações que cheguem para tirar conclusões deste jogo.</p>'}
+    ${rotationBlock([data])}
+  </section>`;
+}
+
+// Pontos por rotação, com side-out (recebemos) e break-point (servimos)
+// separados: são fases diferentes do jogo e treinam-se à parte.
+function rotationBlock(datas, { multi = false } = {}) {
+  const isSetter = setterFinder();
+  const { list, tot } = rotationStats(datas, { isSetter });
+  if (!tot.n) return '';
+  const p = (a, b) => (b ? `${Math.round((a / b) * 100)}%` : '—');
+  const anySetter = list.some((r) => r.setter);
+  const rate = (r) => (r.n ? r.won / r.n : 0);
+  const body = `
+    <div class="scout-kpis scout-kpis--sm">
+      <div class="scout-kpi"><span class="muted">Side-out</span><strong>${p(tot.soWon, tot.so)}</strong>
+        <span class="muted scout-kpi__legend">ganhámos ${tot.soWon} de ${tot.so} quando o adversário servia</span></div>
+      <div class="scout-kpi"><span class="muted">Break-point</span><strong>${p(tot.bpWon, tot.bp)}</strong>
+        <span class="muted scout-kpi__legend">ganhámos ${tot.bpWon} de ${tot.bp} quando servíamos nós</span></div>
+    </div>
+    <div class="table-wrap"><table class="no-stack scout-table scout-rot">
+      <thead><tr><th>Rotação</th><th>Pontos</th><th>Ganhos</th><th class="scout-rot__bar-h">%</th><th>Side-out</th><th>Break-point</th></tr></thead>
+      <tbody>${list.map((r) => {
+        const l = rotationLabel(r, datas);
+        const v = rate(r);
+        const tone = r.n < 6 ? '' : v >= 0.55 ? 'ok' : v < 0.45 ? 'danger' : 'neutral';
+        return `<tr${r.n < 6 ? ' class="scout-rot--few"' : ''}>
+          <td title="${esc(l.long)}"><strong>${esc(l.short)}</strong>${r.setter ? '' : ' <span class="muted">a servir</span>'}</td>
+          <td>${r.n}</td><td>${r.won}</td>
+          <td class="scout-rot__bar"><span class="scout-rot__track"><span class="sc-tone--${tone || 'neutral'}" style="width:${Math.round(v * 100)}%"></span></span>${p(r.won, r.n)}</td>
+          <td>${p(r.soWon, r.so)} <span class="muted">${r.soWon}/${r.so}</span></td>
+          <td>${p(r.bpWon, r.bp)} <span class="muted">${r.bpWon}/${r.bp}</span></td></tr>`;
+      }).join('')}</tbody></table></div>
+    <p class="muted scout-footnote">${anySetter
+      ? 'R1 a R6 = zona onde está a distribuidora (lida da posição na ficha).'
+      : 'Nenhuma atleta tem "Distribuidora" na posição da ficha, por isso cada rotação diz quem estava a servir (zona 1). Com a posição preenchida passa a R1–R6, que se compara entre jogos.'}
+      Rotações com menos de 6 pontos ficam a cinzento: são poucas para concluir.</p>`;
+  return multi
+    ? `<section class="scout-part"><h3 class="scout-part__title">Por rotação</h3>${body}</section>`
+    : `<h4 class="scout-part__sub">Por rotação</h4>${body}`;
 }
 
 // Grupos da tabela por ação — só entram os das ações que se marcaram. Cada
