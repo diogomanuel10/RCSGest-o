@@ -99,13 +99,31 @@ function goToGame(eventId) {
 }
 
 const filters = { type: '', team: '' };
-// Foco nos atendimentos: a fisio precisa de saber que há treino às 18:30 —
-// é o que decide a hora a que marca —, mas o calendário do clube tem quatro
-// treinos por noite e cada um ocupava tanto como a consulta da Beatriz. Com
-// foco, os atendimentos são as linhas e os eventos do clube passam a CONTEXTO:
-// uma linha por dia, com o que colide com a atleta assinalado. `null` = o que
-// o papel pede (ligado para a fisio, desligado para o coordenador).
-let apptFocus = null;
+// Separadores: o calendário do clube tem treinos, jogos, musculação e
+// atendimentos todos na mesma lista, e quem o abre quase sempre quer só uma
+// dessas coisas. Cada separador é uma pergunta:
+//   • Tudo         — o que há no clube (com o filtro de tipo);
+//   • Treinos      — treinos e sessões de musculação, sem jogos nem consultas;
+//   • Atendimentos — a agenda da fisio. Os eventos do clube não desaparecem:
+//     a fisio precisa de saber que há treino às 18:30 (é o que decide a hora a
+//     que marca), mas passam a CONTEXTO — uma linha por dia, com o que colide
+//     com a atleta assinalado. Quatro treinos por noite com o mesmo peso de
+//     uma consulta enterravam a consulta.
+// `null` = o que o papel pede (Atendimentos para a fisio, Tudo para o resto).
+const TRAINING_TYPES = new Set(['treino', 'musculacao']);
+let calTab = null;
+function currentTab(showAppts) {
+  const tab = calTab ?? (showAppts && isFisio() ? 'atendimentos' : 'tudo');
+  return tab === 'atendimentos' && !showAppts ? 'tudo' : tab;
+}
+// O que cada separador mostra (e os filtros por cima). Uma função só, porque o
+// detalhe do dia tem de mostrar exatamente o mesmo que a lista de onde saiu.
+function inTab(e, tab) {
+  if (filters.team && e.team_id !== filters.team) return false;
+  if (tab === 'treinos') return !e._appt && TRAINING_TYPES.has(e.type);
+  if (tab === 'atendimentos') return true;
+  return !filters.type || e.type === filters.type;
+}
 let calView = 'lista'; // 'lista' | 'semana' | 'grelha'
 let gridMonth = new Date(); // mês exibido na grelha
 let weekRef = new Date();   // qualquer dia da semana exibida na vista Semana
@@ -124,21 +142,27 @@ export function renderCalendario(container) {
     ? state.appointments.filter((a) => a.status !== 'cancelado').map(apptToEvent)
     : [];
 
+  const tab = currentTab(showAppts);
   const events = [...state.events, ...apptEvents]
-    .filter(
-      (e) =>
-        (!filters.type || e.type === filters.type) &&
-        (!filters.team || e.team_id === filters.team)
-    )
+    .filter((e) => inTab(e, tab))
     .sort((a, b) => eventDateTime(a) - eventDateTime(b));
 
   const future = events.filter((e) => eventDateTime(e) >= now);
   const past = events.filter((e) => eventDateTime(e) < now);
-  // Com um tipo escolhido no filtro a pergunta já foi feita — o foco só
-  // arruma a vista "Todos".
-  const focus = showAppts && !filters.type && (apptFocus ?? isFisio());
+  const focus = tab === 'atendimentos';
+  const tabs = [
+    { key: 'tudo', label: 'Tudo' },
+    { key: 'treinos', label: 'Treinos' },
+    showAppts && { key: 'atendimentos', label: '🩺 Atendimentos' },
+  ].filter(Boolean);
 
   container.innerHTML = `
+    <div class="cal-toggle section-tabs" role="tablist" aria-label="O que ver no calendário">
+      ${tabs.map((t) => `
+        <button class="cal-toggle__btn ${tab === t.key ? 'cal-toggle__btn--active' : ''}"
+                data-cal-tab="${t.key}" type="button" role="tab"
+                aria-selected="${tab === t.key}">${esc(t.label)}</button>`).join('')}
+    </div>
     <header class="page-head">
       <h1 class="section-title">Calendário</h1>
       <div class="row" style="gap:0.5rem;flex-wrap:wrap">
@@ -147,16 +171,11 @@ export function renderCalendario(container) {
           <button class="cal-toggle__btn ${calView === 'semana' ? 'cal-toggle__btn--active' : ''}" id="view-semana" type="button">▤ Semana</button>
           <button class="cal-toggle__btn ${calView === 'grelha' ? 'cal-toggle__btn--active' : ''}" id="view-grelha" type="button">▦ Mês</button>
         </div>
-        ${showAppts && !filters.type ? `
-          <div class="cal-toggle" role="group" aria-label="O que destacar">
-            <button class="cal-toggle__btn ${focus ? 'cal-toggle__btn--active' : ''}" data-focus="on" type="button" aria-pressed="${focus}">🩺 Atendimentos</button>
-            <button class="cal-toggle__btn ${!focus ? 'cal-toggle__btn--active' : ''}" data-focus="off" type="button" aria-pressed="${!focus}">Tudo</button>
-          </div>` : ''}
-        ${showAppts && state.calendarFeedReady
+        ${focus && state.calendarFeedReady
           ? '<button class="btn btn--ghost" id="calendar-sync" type="button" title="Ver os atendimentos no Google Calendar ou no iPhone, sempre atualizados">📆 Google Calendar</button>'
           : ''}
-        <button class="btn btn--ghost" id="export-ics" type="button" title="Descarregar os eventos (sem atendimentos) num ficheiro .ics">⤓ .ics</button>
-        ${editable ? `
+        ${!focus ? '<button class="btn btn--ghost" id="export-ics" type="button" title="Descarregar os eventos (sem atendimentos) num ficheiro .ics">⤓ .ics</button>' : ''}
+        ${editable && !focus ? `
           <button class="btn btn--ghost" id="add-recurrent" type="button">↺ Recorrentes</button>
           <button class="btn btn--accent" id="add-event" type="button">+ Evento</button>
         ` : ''}
@@ -165,20 +184,24 @@ export function renderCalendario(container) {
 
     ${
       calView === 'grelha'
-        ? renderGrid(events, editable, focus)
+        ? renderGrid(events, editable && !focus, focus)
         : calView === 'semana'
-          ? renderWeek(events, editable, focus)
-          : renderLista(events, future, past, editable, showAppts, focus)
+          ? renderWeek(events, editable && !focus, focus)
+          : renderLista(events, future, past, editable, showAppts, tab)
     }
   `;
 
-  container.querySelector('#add-event')?.addEventListener('click', () => openForm());
-  wireEmptyAction(container, 'add-event', () => openForm());
+  // No separador Treinos, "+ Evento" já nasce treino (se quem cria o puder
+  // criar — o preparador só cria musculação).
+  const newEvent = (date) => openForm(null, date,
+    tab === 'treinos' && creatableTypes().some((t) => t.key === 'treino') ? { type: 'treino' } : null);
+  container.querySelector('#add-event')?.addEventListener('click', () => newEvent());
+  wireEmptyAction(container, 'add-event', () => newEvent());
   container.querySelector('#add-recurrent')?.addEventListener('click', () => openRecurrentModal());
   container.querySelector('#export-ics')?.addEventListener('click', () => exportICS(events));
   container.querySelector('#calendar-sync')?.addEventListener('click', () => openCalendarSync());
-  container.querySelectorAll('[data-focus]').forEach((b) => b.addEventListener('click', () => {
-    apptFocus = b.dataset.focus === 'on';
+  container.querySelectorAll('[data-cal-tab]').forEach((b) => b.addEventListener('click', () => {
+    calTab = b.dataset.calTab;
     renderCalendario(container);
   }));
   container.querySelector('#view-lista').addEventListener('click', () => { calView = 'lista'; renderCalendario(container); });
@@ -195,20 +218,21 @@ export function renderCalendario(container) {
   container.querySelectorAll('[data-edit]').forEach((b) => b.addEventListener('click', () => openForm(b.dataset.edit)));
   container.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => remove(b.dataset.del)));
   container.querySelectorAll('[data-game]').forEach((b) => b.addEventListener('click', () => goToGame(b.dataset.game)));
-  container.querySelectorAll('[data-new-day]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); openForm(null, b.dataset.newDay); }));
+  container.querySelectorAll('[data-new-day]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); newEvent(b.dataset.newDay); }));
   container.querySelectorAll('[data-appt]').forEach((b) => b.addEventListener('click', () => openAthleteProfile(b.dataset.appt, { tab: 'fisioterapia' })));
   container.querySelectorAll('[data-appt-resched]').forEach((b) => b.addEventListener('click', () => reschedule(b.dataset.apptResched)));
   container.querySelectorAll('[data-training-plan]').forEach((b) =>
     b.addEventListener('click', () => openTrainingPlan(b.dataset.trainingPlan)));
   container.querySelectorAll('[data-day]').forEach((cell) => {
-    cell.addEventListener('click', () => openDayModal(cell.dataset.day, editable));
+    cell.addEventListener('click', () => openDayModal(cell.dataset.day, editable, tab));
     cell.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDayModal(cell.dataset.day, editable); }
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDayModal(cell.dataset.day, editable, tab); }
     });
   });
 }
 
-function renderLista(events, future, past, editable, showAppts, focus) {
+function renderLista(events, future, past, editable, showAppts, tab) {
+  const focus = tab === 'atendimentos';
   const nAppts = events.filter((e) => e._appt).length;
   const count = focus
     ? `${nAppts} atendimento${nAppts === 1 ? '' : 's'}`
@@ -217,14 +241,14 @@ function renderLista(events, future, past, editable, showAppts, focus) {
   return `
     <section class="card">
       <div class="filters">
-        <div>
+        ${tab === 'tudo' ? `<div>
           <label for="f-type">Tipo</label>
           <select id="f-type">
             <option value="">Todos</option>
             ${EVENT_TYPES.map((t) => `<option value="${t.key}" ${filters.type === t.key ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}
             ${showAppts ? `<option value="fisioterapia" ${filters.type === 'fisioterapia' ? 'selected' : ''}>Fisioterapia</option>` : ''}
           </select>
-        </div>
+        </div>` : ''}
         <div>
           <label for="f-team">Equipa</label>
           <select id="f-team">
@@ -241,7 +265,8 @@ function renderLista(events, future, past, editable, showAppts, focus) {
           // Sem eventos NENHUNS é um clube a começar; sem eventos NESTE filtro
           // é um filtro apertado. A mesma frase para os dois casos mandava
           // criar um evento a quem já tem trinta.
-          ? emptyHTML('Sem eventos para os filtros escolhidos.', { icone: '🔍' })
+          ? emptyHTML(tab === 'treinos' ? 'Sem treinos para os filtros escolhidos.'
+              : focus ? 'Sem atendimentos marcados.' : 'Sem eventos para os filtros escolhidos.', { icone: '🔍' })
           : emptyHTML('O calendário está vazio. Marca os treinos e os jogos aqui — é daqui que saem as presenças e as convocatórias.', {
               icone: '📅',
               action: editable ? { key: 'add-event', label: '+ Marcar o primeiro evento' } : null,
@@ -617,17 +642,13 @@ function eventRow(ev, isPast, editable) {
 // Detalhe de um dia: abre-se ao clicar numa célula da grelha (útil quando há
 // muitos eventos e a célula só mostra os primeiros). Lista todos os eventos e
 // atendimentos do dia, com as mesmas ações da vista Lista.
-function openDayModal(dateStr, editable) {
+function openDayModal(dateStr, editable, tab = 'tudo') {
   const showAppts = canAccess('medico');
   const apptEvents = showAppts
     ? state.appointments.filter((a) => a.status !== 'cancelado' && a.date === dateStr).map(apptToEvent)
     : [];
   const dayEvents = [...state.events.filter((e) => e.date === dateStr), ...apptEvents]
-    .filter(
-      (e) =>
-        (!filters.type || e.type === filters.type) &&
-        (!filters.team || e.team_id === filters.team)
-    )
+    .filter((e) => inTab(e, tab))
     .sort((a, b) => eventDateTime(a) - eventDateTime(b));
 
   const d = new Date(dateStr + 'T00:00:00');
