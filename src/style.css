@@ -7522,6 +7522,19 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 }
 .portal-att-row .badge { flex: none; }
 
+/* --- Os meus jogos (scout) --- */
+.portal-scout-head { display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-size: 0.95rem; }
+.portal-scout-head strong { font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+.portal-scout-fund { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.2rem 0.9rem; margin: 0.7rem 0 0; font-size: 0.92rem; }
+.portal-scout-fund dt { color: var(--text-muted); }
+.portal-scout-fund dd { margin: 0; }
+.portal-scout-team { margin: 0.6rem 0 0; font-size: var(--portal-note); color: var(--text-muted); }
+.portal-scout-list { list-style: none; margin: 0.9rem 0 0; padding: 0.6rem 0 0; border-top: 1px solid var(--border); }
+.portal-scout-game { border-bottom: 1px solid var(--surface-2); }
+.portal-scout-game summary { display: flex; align-items: center; gap: 0.6rem; padding: 0.45rem 0; font-size: 0.92rem; cursor: pointer; min-height: 44px; }
+.portal-scout-game summary .badge { flex: none; }
+.portal-scout-game__body { padding: 0 0 0.7rem; font-size: 0.92rem; }
+
 /* --- Quotas --- */
 .portal-quota-row {
   display: flex;

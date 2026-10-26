@@ -88,6 +88,10 @@ export const state = {
   // (quando, onde), nunca a leitura clínica. Vive à parte de `appointments`
   // de propósito: são duas coisas com o mesmo nome e donos diferentes.
   myAppointments: [],
+  // Os jogos scoutados da equipa da atleta, com as ações das colegas sem dono
+  // (RPC `my_scout_games`). `null` até o separador «A época» os pedir; vazio
+  // se a migração ainda não correu.
+  myScoutGames: null,
   // A `resposta-atendimento.sql` já correu? Dá à atleta o "vou / não posso"
   // do atendimento. Sem ela a RPC não existe, e um botão que só dá erro é
   // pior do que o aviso de antes ("avisa o teu treinador").
@@ -209,6 +213,7 @@ export function resetState() {
   state.physioRequests = [];
   state.physioRequestsReady = true;
   state.myAppointments = [];
+  state.myScoutGames = null;
   state.apptResponseReady = true;
   state.calendarFeedReady = true;
   state.rehabExercises = [];
@@ -689,6 +694,23 @@ export async function loadMyAppointments() {
   if (state.profile?.role !== 'atleta') { state.myAppointments = []; return; }
   const { data, error } = await supabase.rpc('my_physio_appointments');
   state.myAppointments = error ? [] : (data || []);
+}
+
+// As estatísticas de jogo da atleta: os jogos TERMINADOS da equipa dela, com
+// as suas ações e as das colegas anónimas (ver `my_scout_games` em
+// supabase/scout.sql). Só se pede ao abrir «A época» — são as ações de uma
+// época inteira, e o portal abre-se para ver o treino de logo. Sem a migração
+// a chamada falha e a secção simplesmente não aparece.
+let myScoutLoading = null;
+export function loadMyScoutGames() {
+  if (state.profile?.role !== 'atleta') { state.myScoutGames = []; return Promise.resolve([]); }
+  if (!myScoutLoading) {
+    myScoutLoading = supabase.rpc('my_scout_games')
+      .then(({ data, error }) => { state.myScoutGames = error ? [] : (Array.isArray(data) ? data : []); })
+      .catch(() => { state.myScoutGames = []; })
+      .finally(() => { myScoutLoading = null; notify(); });
+  }
+  return myScoutLoading;
 }
 
 // A atleta responde a um atendimento de fisioterapia: 'vou' ou 'nao_posso'
