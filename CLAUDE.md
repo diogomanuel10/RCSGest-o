@@ -295,7 +295,8 @@ src/
     calendario.js       Vista Calendário
     jogos.js            Secção Jogos (lista de jogos com o percurso de cada um + separador Scout)
     agenda-sync.js      Link de subscrição da agenda da fisio (Google/iPhone)
-    presencas.js        Quem vem a um evento: presenças (treino) ou convocatória (jogo)
+    presencas.js        Presenças dos treinos e da musculação (por fechar, todos presentes, estatísticas)
+    convocatoria.js     Convocatória de um jogo (diálogo aberto dos Jogos e do Painel)
     portal.js           Portal do atleta (a sua página pessoal, mobile-first)
     quiosque.js         Modo quiosque: câmara à entrada regista presenças por QR
     resultado.js        Registo do resultado de um jogo (parciais + participação)
@@ -311,6 +312,7 @@ src/
     marketing.js        Datas & iniciativas para as redes sociais (só coordenador)
 supabase/schema.sql     Tabelas, índices, RLS e dados iniciais (correr no Supabase)
 supabase/qrcode-presencas.sql  Presenças por QR: token do atleta + RPCs de check-in
+supabase/fecho-presencas.sql   Fecho automático das sessões ao fim de 3 dias (pg_cron)
 supabase/convites-massa.sql    Convites de atleta em lote (RPC create_invitations_bulk)
 supabase/convocatoria-simples.sql Convocatória só com convocado/não convocado
 supabase/musculacao.sql        Sessões de musculação: evento com o plantel escolhido (event_players)
@@ -1474,6 +1476,14 @@ separador antes de navegar (usado pelos cartões do Painel).
     lista carrega em segundo plano quando ainda ninguém abriu o Scout.
   - O treinador vê os jogos das SUAS equipas (`myTeams`); a secção aparece a
     quem tem o Calendário ou o Scout.
+  - **A convocatória é um diálogo** (`convocatoria.js`), com as respostas dos
+    atletas ao lado de cada nome: um convocado que avisou que não pode ir é o
+    cruzamento que interessa ver. Estar convocado é ter linha em
+    `squad_players` (`SQUAD_CALLED`, `supabase/convocatoria-simples.sql`) —
+    duas respostas, não três. Houve `titular` e `suplente`, e eram a decisão
+    errada no sítio errado: o 6 inicial decide-se no pavilhão e muda no
+    aquecimento, mas o portal mostrava-o como facto dias antes do jogo. A
+    coluna `status` fica (com um só valor) para não mexer na chave única.
 - **Scout ao vivo** (`supabase/scout.sql`, `scout-engine.js`, `scout-export.js`,
   `views/scout.js`): durante o jogo o treinador toca na atleta e na ação
   (receção, passe, ataque, serviço, bloco, defesa, com a qualidade `# + − / =`
@@ -1904,46 +1914,51 @@ separador antes de navegar (usado pelos cartões do Painel).
   ser lida. **Não é um
   juízo sobre o treinador** — é obrigar a que seja decisão consciente em vez de
   uma coisa que simplesmente acontece.
-- **"Quem vem" é um ecrã só, por evento** (`presencas.js`): a convocatória era
-  um modal do Calendário, a resposta do atleta decorava dois ecrãs diferentes e
-  as presenças eram uma secção à parte que só via treinos. São três perguntas
-  sobre o MESMO evento e as mesmas pessoas, e ninguém as faz em separado.
-  Escolhe-se o evento e o ecrã adapta-se ao tipo:
-  - **treino** → respostas + presenças (Presente / Atraso / Justificado / Falta),
-    com o quiosque QR e o "fechar sessão";
-  - **jogo** → respostas + convocatória (convocado / não convocado).
-
-  - **A convocatória tem DUAS respostas, não três**
-    (`SQUAD_CALLED` em `constants.js`, `supabase/convocatoria-simples.sql`):
-    estar convocado é ter linha em `squad_players`; não ter linha é ficar de
-    fora. Houve `titular` e `suplente`, e eram a decisão errada no sítio
-    errado — o 6 inicial decide-se no pavilhão, muda no aquecimento e muda
-    outra vez a meio do primeiro set, mas o **portal do atleta** mostrava-o
-    como um facto dias antes do jogo, sem conversa nenhuma à volta. E quem
-    jogou mesmo já se mede em PONTOS, no registo do resultado, que é onde isso
-    é verdade. Ao treinador, só pedia arrumar o plantel em três gavetas para
-    responder a uma pergunta de duas. A coluna `status` fica (com um só valor
-    permitido) para não mexer no índice nem na chave única; no portal a atleta
-    lê "Convocada" e mais nada.
-
-  - **O seletor do evento ordena-se pela distância a hoje**, em três grupos
-    (`Hoje` · `Próximos` · `Anteriores`, este do mais recente para trás), e o
-    evento pré-selecionado é o mais perto de agora. Ordenado do mais recente
-    para o mais antigo, à quinta jornada o treino de hoje estava a meio de
-    duzentas linhas e marcar presenças começava por deslizar a lista inteira.
+- **Presenças: quem apareceu, treino a treino** (`presencas.js`). Treinos e
+  sessões de musculação — os **jogos saíram daqui**: a convocatória é um passo
+  do jogo e abre-se como diálogo da secção Jogos (`openSquadModal` em
+  `convocatoria.js`, também usado pelo Painel). No mesmo seletor, um jogo de
+  sábado vivia entre vinte treinos e o ecrã mudava de forma conforme a linha.
+  - **A separação também é de números**: `attendanceStats` conta TODAS as
+    presenças que existirem, e marcar presenças em jogos misturaria
+    comparência ao treino com participação em jogo — os dois números que o
+    `trainingVsPlayingGaps` cruza precisamente por serem diferentes. Quem jogou
+    mede-se em pontos, no registo do resultado.
+  - **A sessão fecha-se sozinha** (`supabase/fecho-presencas.sql`,
+    `auto_close_attendance_sessions`, pg_cron diário): ao fim de
+    `settings.attendance_auto_close_days` (3) dias, quem ficou sem registo passa
+    a `falta` — o que o botão "Fechar já" faz à mão, e de que ninguém se
+    lembrava treino a treino.
+    - **Só fecha a que tem PELO MENOS UM registo.** Um treino sem registo
+      nenhum é um treino que ninguém marcou, não um a que ninguém foi:
+      fechá-lo dava falta ao plantel inteiro e estragava a comparência, as
+      quedas individuais e o "treina muito, joga pouco". Esse fica "por
+      fechar" e diz porquê.
+    - **Fechar não bloqueia**: uma falta continua a poder passar a justificada.
+      O fecho preenche os buracos, não decide por cima de ninguém.
+    - Corre com a chave de serviço, por isso escreve o `org_id` à mão.
+    - A app só promete o fecho ("Fecha automaticamente a 29 out") depois da
+      migração — é a coluna em `settings` que lho diz, a linha do
+      `'qr_checkin_enabled' in state.settings`.
+  - **"Por fechar" no topo**: as sessões que já acabaram (`eventEnded`) com
+    registos em falta, cada uma a um clique, com "12/18" e quando fecha. O
+    seletor ordena-se pela distância a hoje (`Hoje` · `Próximos` ·
+    `Anteriores`) e cada sessão já começada leva a mesma contagem.
+  - **"Todos presentes"** marca presente quem ainda não tem registo — numa
+    escrita só, sem pisar o que já estava marcado (`markAllPresent`,
+    `ignoreDuplicates`) — e **salta quem avisou que não vinha**: marcar
+    presente a quem disse que faltava é o engano que depois ninguém repara.
+  - **"Justificar com o aviso"** na linha de quem respondeu "não vou": a
+    justificação leva o motivo que o atleta deu. Um aviso continua a não ser
+    uma justificação por si só (decide quem treina) — o botão só poupa
+    voltar a escrever o que já lá está.
+  - **O treinador vê só as SUAS equipas** (`isMyEvent`/`myTeams`), no seletor
+    e nas Estatísticas.
   - **As estatísticas veem-se por época E por mês** (`monthBarHTML`): a taxa da
     época é a média de oito meses e esconde precisamente o que há para
-    explicar — em novembro o plantel vinha a 90%, em fevereiro a 55%. A barra
-    de períodos é ao mesmo tempo o filtro e a leitura: cada mês mostra a sua
-    taxa, por ordem cronológica, e clicar recalcula a tabela.
-
-  A separação por tipo é deliberada: `attendanceStats` conta TODAS as presenças
-  que existirem, por isso marcar presenças em jogos misturaria comparência ao
-  treino com participação em jogo — os dois números que o
-  `trainingVsPlayingGaps` cruza precisamente por serem diferentes. Quem jogou
-  mede-se em pontos, no registo do resultado. O Calendário e o Painel deixam de
-  abrir um modal: escolhem o evento (`setSelectedEvent`) e navegam para cá, e o
-  botão só aparece a quem tem acesso à secção.
+    explicar. E dizem quantos treinos ainda não têm NENHUM registo: esses não
+    entram na taxa, e uma taxa de 95% com metade dos treinos por marcar lê-se
+    como um plantel exemplar. O nome do atleta abre a ficha.
 
 - **Portal do atleta** (`portal.js`): é o único ecrã da Rumia cujo utilizador
   não é do clube a trabalhar — é uma atleta, no telemóvel, trinta segundos.

@@ -6495,6 +6495,47 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 .pres-avisos__name { font-weight: 600; }
 .pres-avisos__hint { margin: 0.6rem 0 0; font-size: 0.82rem; }
 
+/* Presenças: as sessões por fechar, no topo, cada uma a um clique. */
+.pres-pending { margin-bottom: 1.2rem; }
+.pres-pending__title { font-size: 1rem; margin: 0 0 0.5rem; }
+.pres-pending__list { list-style: none; margin: 0 0 0.4rem; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+.pres-pending__item {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.2rem 0.6rem;
+  text-align: left;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs, 6px);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.pres-pending__item:hover { background: color-mix(in srgb, var(--info) 6%, var(--surface)); }
+.pres-pending__item.is-active { border-color: var(--info); }
+.pres-pending__label { font-weight: 600; font-size: 0.88rem; text-transform: capitalize; }
+.pres-pending__note { flex-basis: 100%; font-size: 0.8rem; }
+.pres-justify { margin-top: 0.3rem; align-self: flex-start; }
+.pres-unmarked { margin: 0.7rem 0 0; font-size: 0.84rem; color: var(--warn-ink); }
+
+/* Um nome que abre a ficha, sem parecer um botão. */
+.link-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 30%, transparent);
+  text-underline-offset: 2px;
+}
+.link-btn:hover { color: var(--info-ink); }
+
 /* Resposta do atleta na linha da convocatória. */
 .squad-row__resp { margin-left: 0.4rem; font-size: 0.72rem; }
 
