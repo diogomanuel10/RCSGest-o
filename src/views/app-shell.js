@@ -40,7 +40,7 @@ import { renderPortal } from './portal.js';
 import { renderArquivados } from './arquivados.js';
 import { renderFinanceiro, openFinanceiroTab } from './financeiro.js';
 import { renderPlanoJogo } from './plano-jogo.js';
-import { renderScout } from './scout.js';
+import { renderJogos, openJogosTab } from './jogos.js';
 import { renderTreino, openTreinoTab } from './treino.js';
 import { renderMarketing } from './marketing.js';
 import { renderAdmin } from './admin.js';
@@ -106,7 +106,12 @@ const NAV = [
   { key: 'saude',        label: 'Saúde & Física', icon: ICONS.medico,      render: renderSaude,         group: 'desportivo', alias: 'fisioterapia lesões dept. médico preparação física ginásio periodização', can: () => canAccess('medico') || canAccess('fisica') },
 
   { key: 'calendario',   label: 'Calendário',    icon: ICONS.calendario,   render: renderCalendario,    group: 'competicao' },
-  { key: 'scout',        label: 'Scout',         icon: ICONS.scout,        render: renderScout,         group: 'competicao', alias: 'estatísticas jogo ao vivo datavolley ações atletas' },
+  // Jogos orquestra a lista de jogos (o percurso de cada um: plano,
+  // convocatória, scout, resultado, resumo) e a época scoutada. Os botões de
+  // cada jogo viviam no Calendário, que deixou de servir para ver a semana.
+  { key: 'jogos',        label: 'Jogos',         icon: ICONS.scout,        render: renderJogos,         group: 'competicao',
+    alias: 'scout estatísticas jogo ao vivo datavolley ações atletas resultados convocatória adversário',
+    can: () => canAccess('calendario') || canAccess('scout') },
   { key: 'presencas',    label: 'Presenças',     icon: ICONS.presencas,    render: renderPresencas,     group: 'competicao' },
 
   { key: 'equipamentos', label: 'Equipamentos',  icon: ICONS.equipamentos, render: renderEquipamentos,  group: 'admin', alias: 'inventário encomendas tamanhos pedidos material meias', can: () => canAccess('equipamentos') || canAccess('encomendas') || canAccess('pedidos') },
@@ -354,6 +359,7 @@ export async function renderAppShell(root, session) {
     objetivos:   { route: 'painel',     open: () => openInicioTab('objetivos') },
     patrocinios: { route: 'financeiro', open: () => openFinanceiroTab('patrocinios') },
     pedidos:     { route: 'equipamentos', open: () => openEquipamentosTab('pedidos') },
+    scout:       { route: 'jogos',      open: () => openJogosTab('scout') },
   };
 
   // Traduz o endereço atual em { route } ou { playerId, tab }.

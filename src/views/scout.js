@@ -9,7 +9,7 @@
 //   • a SECÇÃO (lista de jogos scoutados por equipa, totais da época,
 //     exportação) — `renderScout`;
 //   • o ECRÃ DE JOGO, em ecrã inteiro por cima da app — `openScoutLive`. Abre
-//     da secção ou do botão "Scout" de um jogo no Calendário.
+//     da secção ou do passo "Scout" de um jogo, na secção Jogos (jogos.js).
 //
 // Tudo o que se vê no ecrã de jogo deriva da sequência de ações
 // (`scout-engine.js`). A gravação é silenciosa e com cópia no dispositivo: o
@@ -237,7 +237,7 @@ export function renderScout(container) {
           }).join('')}
         </ul>
       </section>`
-      : emptyHTML('Ainda não há jogos scoutados nesta equipa. Abre um jogo do calendário e carrega em "Scout", ou cria um aqui.', {
+      : emptyHTML('Ainda não há jogos scoutados nesta equipa. No separador Jogos, carrega em "Fazer scout" no jogo, ou cria um aqui.', {
         icone: '🏐', action: editable ? { key: 'scout-new', label: '+ Scout de um jogo' } : null,
       })}
     `}
