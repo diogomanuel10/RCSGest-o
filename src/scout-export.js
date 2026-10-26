@@ -30,16 +30,18 @@ const ATHLETE_HEADER = (multi) => [
   'Serv. total', 'Ases', 'Erros serv.', 'Ef. serv. %',
   'Rec. total', 'Erros rec.', 'Rec. positiva %', 'Rec. perfeita %',
   'Ataque total', 'Pontos ataque', 'Erros ataque', 'Bloqueados', 'Ef. ataque %',
-  'Bloco total', 'Pontos bloco', 'Defesa total', 'Def. positiva %', 'Passe total', 'Passe positivo %',
+  'Bloco total', 'Pontos bloco', 'Erros bloco', 'Defesa total', 'Erros defesa', 'Def. positiva %',
+  'Passe total', 'Erros passe', 'Passe positivo %', 'Erros outros',
 ];
-const ATHLETE_WIDTHS = [5, 22, 7, 9, 7, 7, 7, 6, 9, 9, 8, 8, 12, 12, 10, 11, 10, 10, 10, 9, 10, 10, 12, 9, 13];
+const ATHLETE_WIDTHS = [5, 22, 7, 9, 7, 7, 7, 6, 9, 9, 8, 8, 12, 12, 10, 11, 10, 10, 10, 9, 10, 10, 10, 10, 12, 9, 10, 13, 10];
 
 function athleteRow(r, played, multi) {
   const s = r.s;
   return [
     r.p.num, r.p.name, ...(multi ? [r.j] : []), played[r.id] || 0, s.pts, s.errs,
     s.srv, s.ace, s.srvErr, pc(s.effS), s.rec, s.recErr, pc(s.posR), pc(s.perfR),
-    s.atk, s.kill, s.atkErr, s.atkBlk, pc(s.effA), s.blkT, s.blk, s.def, pc(s.posD), s.pas, pc(s.posP),
+    s.atk, s.kill, s.atkErr, s.atkBlk, pc(s.effA), s.blkT, s.blk, s.blkErr, s.def, s.defErr, pc(s.posD),
+    s.pas, s.pasErr, pc(s.posP), s.othErr,
   ];
 }
 
@@ -157,11 +159,11 @@ export async function exportSeasonXlsx(teamLabel, games) {
 // "Blk 0" num jogo em que não se scoutou bloco lê-se como "não fez nenhum".
 // O Excel leva-as todas — é para cruzar jogos, e as colunas têm de ser as mesmas.
 const SHEET_COLS = [
-  ['SERVICE', ['Serv.', 'Ace', 'Ef. S'], (s) => [s.srv, s.ace, fmtPct(s.effS)]],
-  ['RECEPTION', ['Rec.', 'Pos.'], (s) => [s.rec, fmtPct(s.posR)]],
-  ['ATTACK', ['Atq.', 'Pto', 'Ef. A'], (s) => [s.atk, s.kill, fmtPct(s.effA)]],
-  ['BLOCK', ['Blk'], (s) => [s.blk]],
-  ['DEFENSE', ['Def. +'], (s) => [fmtPct(s.posD)]],
+  ['SERVICE', ['Serv.', 'Ace', 'Err S', 'Ef. S'], (s) => [s.srv, s.ace, s.srvErr, fmtPct(s.effS)]],
+  ['RECEPTION', ['Rec.', 'Err R', 'Pos.'], (s) => [s.rec, s.recErr, fmtPct(s.posR)]],
+  ['ATTACK', ['Atq.', 'Pto', 'Err A', 'Ef. A'], (s) => [s.atk, s.kill, s.atkErr, fmtPct(s.effA)]],
+  ['BLOCK', ['Blk', 'Err B'], (s) => [s.blk, s.blkErr]],
+  ['DEFENSE', ['Def. +', 'Err D'], (s) => [fmtPct(s.posD), s.defErr]],
 ];
 
 function athleteTable(datas, played, multi) {

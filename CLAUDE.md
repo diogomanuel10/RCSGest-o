@@ -1632,6 +1632,19 @@ separador antes de navegar (usado pelos cartões do Painel).
     - Carrega-se só ao abrir o separador (`loadMyScoutGames`): são as ações
       da época inteira, e o portal abre-se quase sempre para ver o treino de
       logo. Sem a migração a chamada falha e diz que ainda não há jogos.
+  - **As estatísticas do treinador dividem-se em quatro partes** (`statsBlock`):
+    **Equipa** (de onde vieram os pontos), **Por ação**, **Por atleta** e
+    **Destaques**. A tabela sozinha respondia a "quem", e a pergunta que
+    decide o treino de terça é "onde é que perdemos pontos?".
+    - **Por ação** é a equipa inteira (`teamCounts`): uma barra por ação com
+      a distribuição `# + − / =`, os erros à cabeça (número e %) e o número
+      que a resume (eficácia, positiva, pontos de bloco). Os erros em "outras
+      ações" (rede, invasão) dizem-se no rodapé — contam para os erros nossos
+      e não são de nenhuma ação.
+    - **Cada grupo da tabela leva os seus ERROS** (`Err`), a vermelho quando
+      os há, e há uma linha **Equipa** no fim. O total de erros da atleta
+      sozinho não dizia se foram cinco serviços na rede ou cinco receções.
+      A folha A4 e o Excel levam as mesmas colunas de erro.
   - **Exportação**: a folha A4 (`openSheet`, como o resumo pós-jogo; o PDF
     sai da janela de impressão) e o Excel com tudo — Jogos, Atletas (época),
     Atleta x Jogo e Ações, uma por linha — porque quem quer cruzar a época

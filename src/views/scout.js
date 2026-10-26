@@ -27,7 +27,7 @@ import { myTeams, teamById, teamName, gameResult } from '../compute.js';
 import { toastOk, toastError, toastInfo } from '../toast.js';
 import {
   ACT, COLS, ROWS, SYM, QN, MAX_SETS, emptyData, derive, court, setWinner, setsWon, hasPoints,
-  partials, summarize, pointsPlayed, teamSummary, playerRows, findPlayer, numOf, fmtPct,
+  partials, summarize, pointsPlayed, teamSummary, teamCounts, playerStats, playerRows, findPlayer, numOf, fmtPct,
   activeCols, usedCols, OPTIONAL_COLS,
 } from '../scout-engine.js';
 
@@ -529,18 +529,66 @@ function setFilterHTML(data, cur) {
   </div>`;
 }
 
-// Grupos da tabela por ação — só entram os das ações que se marcaram.
+// Grupos da tabela por ação — só entram os das ações que se marcaram. Cada
+// grupo leva os ERROS da ação: o total de erros da atleta sozinho não diz se
+// foram cinco serviços na rede ou cinco receções, e é isso que decide o que
+// se treina na terça.
 const STAT_GROUPS = [
-  ['SERVICE', 'Serviço', (s) => [s.srv, s.ace, fmtPct(s.effS)], ['Tot', 'Ace', 'Ef.']],
-  ['RECEPTION', 'Receção', (s) => [s.rec, fmtPct(s.posR), fmtPct(s.perfR)], ['Tot', 'Pos', 'Perf']],
-  ['ATTACK', 'Ataque', (s) => [s.atk, s.kill, fmtPct(s.effA)], ['Tot', 'Pto', 'Ef.']],
-  ['BLOCK', 'Bloco', (s) => [s.blkT, s.blk], ['Tot', 'Pto']],
-  ['DEFENSE', 'Defesa', (s) => [s.def, fmtPct(s.posD)], ['Tot', 'Pos']],
-  ['SETTING', 'Passe', (s) => [s.pas, fmtPct(s.posP)], ['Tot', 'Pos']],
+  ['SERVICE', 'Serviço', (s) => [s.srv, s.ace, s.srvErr, fmtPct(s.effS)], ['Tot', 'Ace', 'Err', 'Ef.']],
+  ['RECEPTION', 'Receção', (s) => [s.rec, s.recErr, fmtPct(s.posR), fmtPct(s.perfR)], ['Tot', 'Err', 'Pos', 'Perf']],
+  ['ATTACK', 'Ataque', (s) => [s.atk, s.kill, s.atkErr, s.atkBlk, fmtPct(s.effA)], ['Tot', 'Pto', 'Err', 'Blq', 'Ef.']],
+  ['BLOCK', 'Bloco', (s) => [s.blkT, s.blk, s.blkErr], ['Tot', 'Pto', 'Err']],
+  ['DEFENSE', 'Defesa', (s) => [s.def, s.defErr, fmtPct(s.posD)], ['Tot', 'Err', 'Pos']],
+  ['SETTING', 'Passe', (s) => [s.pas, s.pasErr, fmtPct(s.posP)], ['Tot', 'Err', 'Pos']],
 ];
+
+// O número que resume cada ação no quadro "Por ação".
+const ACTION_KEY = {
+  SERVICE: ['Eficácia', (s) => fmtPct(s.effS)],
+  RECEPTION: ['Positiva', (s) => fmtPct(s.posR)],
+  ATTACK: ['Eficácia', (s) => fmtPct(s.effA)],
+  BLOCK: ['Pontos', (s) => String(s.blk)],
+  DEFENSE: ['Positiva', (s) => fmtPct(s.posD)],
+  SETTING: ['Positivo', (s) => fmtPct(s.posP)],
+};
+const Q_TONE = { PERFECT: 'ok', OK: 'info', BAD: 'neutral', BLOCKED: 'warn', ERROR: 'danger' };
+
+// A equipa por ação: a distribuição da qualidade (# + − / =) numa barra, com
+// os erros à vista. É a pergunta "onde é que perdemos pontos?", que a tabela
+// por atleta só responde somando colunas de cabeça.
+function actionsBlock(tc, ts, used) {
+  const ts2 = playerStats(tc);
+  const rows = STAT_GROUPS.filter(([k]) => used.has(k)).map(([k, label]) => {
+    const qs = ROWS.filter((q) => ACT[k].q[q]);
+    const vals = qs.map((q) => [q, tc[`${k}.${q}`] || 0]);
+    const total = vals.reduce((a, [, n]) => a + n, 0);
+    if (!total) return '';
+    const err = tc[`${k}.ERROR`] || 0;
+    const [kl, kf] = ACTION_KEY[k];
+    return `<div class="scout-act">
+      <div class="scout-act__head">
+        <strong>${esc(label)}</strong><span class="muted">${total}</span>
+        <span class="scout-act__err${err ? ' scout-act__err--on' : ''}">${err} erro${err === 1 ? '' : 's'}${total ? ` · ${Math.round((err / total) * 100)}%` : ''}</span>
+        <span class="scout-act__key">${kl} <b>${kf(ts2)}</b></span>
+      </div>
+      <div class="sc-bar" role="img" aria-label="${esc(`${label}: ${vals.filter(([, n]) => n).map(([q, n]) => `${n} ${QN[q]}`).join(', ')}`)}">
+        ${vals.filter(([, n]) => n).map(([q, n]) => `<span class="sc-bar__seg sc-tone--${Q_TONE[q]}" style="flex-grow:${n}"></span>`).join('')}
+      </div>
+      <p class="sc-legend">${vals.filter(([, n]) => n).map(([q, n]) => `<span><i class="sc-dot sc-tone--${Q_TONE[q]}"></i>${SYM[q]} ${n}</span>`).join('')}</p>
+    </div>`;
+  }).join('');
+  const other = tc['OTHER.ERROR'] || 0;
+  if (!rows && !other) return '';
+  return `<section class="scout-part">
+    <h3 class="scout-part__title">Por ação</h3>
+    <div class="scout-acts">${rows}</div>
+    <p class="muted scout-footnote">${ts.ourErr} erros nossos no total${other ? ` · ${other} erro${other === 1 ? '' : 's'} noutras ações (rede, invasão…)` : ''} · # perfeito · + bom · − fraco · / bloqueado · = erro</p>
+  </section>`;
+}
 
 function statsBlock(datas, f, { multi = false, played = {} } = {}) {
   const ts = teamSummary(datas, f);
+  const tc = teamCounts(datas, f);
   const rows = playerRows(datas, f);
   const used = usedCols(datas);
   const groups = STAT_GROUPS.filter(([k]) => used.has(k));
@@ -558,31 +606,51 @@ function statsBlock(datas, f, { multi = false, played = {} } = {}) {
       ? `<ol>${list.map((r) => `<li><span>${esc(`${r.p.num} · ${shortName(r.p.name)}`)}</span><span>${kind === 'n' ? r.s[key] : fmtPct(r.s[key])}</span></li>`).join('')}</ol>`
       : '<p class="muted">Dados insuficientes</p>'}</div>`;
   };
+  // Os erros por ação a vermelho quando os há: numa tabela de trinta números
+  // por linha, são os que se procuram primeiro.
+  const cell = (v, i, h) => {
+    const err = h[i] === 'Err' && Number(v) > 0;
+    return `<td class="${i ? '' : 'scout-table__gl'}${err ? ' scout-table__err' : ''}">${v}</td>`;
+  };
+  const team = playerStats(tc);
   const meritPct = ts.our ? Math.round(((ts.our - ts.oppErr) / ts.our) * 100) : 0;
   return `
-    <div class="scout-kpis">
-      <div class="scout-kpi"><span class="muted">Pontos nossos</span><strong>${ts.our}</strong>
-        ${bar([[ts.kill, 'var(--ok)'], [ts.ace, 'var(--info)'], [ts.blk, 'var(--navy-300)'], [ts.oppErr, 'var(--border)']])}
-        <span class="muted scout-kpi__legend">${ts.kill} ataque · ${ts.ace} serviço · ${ts.blk} bloco · ${ts.oppErr} erros adv.</span></div>
-      <div class="scout-kpi"><span class="muted">Pontos do adversário</span><strong>${ts.their}</strong>
-        ${bar([[ts.ourErr, 'var(--danger)'], [ts.oppPt, 'var(--border)']])}
-        <span class="muted scout-kpi__legend">${ts.ourErr} erros nossos · ${ts.oppPt} mérito do adversário</span></div>
-      <div class="scout-kpi"><span class="muted">Pontos por mérito próprio</span><strong>${meritPct}%</strong>
-        <span class="muted scout-kpi__legend">dos pontos ganhos vieram de ações nossas</span></div>
-    </div>
-    <div class="scout-ranks">
-      ${rank('Pontos', 'pts', 'n')}${rank('Eficácia de ataque', 'effA', 'p', 'atk', 'ATTACK')}${rank('Ases', 'ace', 'n', null, 'SERVICE')}
-      ${rank('Receção positiva', 'posR', 'p', 'rec', 'RECEPTION')}${rank('Pontos de bloco', 'blk', 'n', null, 'BLOCK')}${rank('Defesa positiva', 'posD', 'p', 'def', 'DEFENSE')}
-    </div>
-    ${rows.length ? `<div class="table-wrap"><table class="no-stack scout-table">
-      <thead><tr><th rowspan="2">Atleta</th>${multi ? '<th rowspan="2">Jogos</th>' : ''}<th rowspan="2" title="Pontos em que esteve em campo">Pts jog.</th><th rowspan="2">Pts</th><th rowspan="2">Erros</th>
-        ${groups.map(([, l, , h]) => `<th colspan="${h.length}" class="scout-table__grp">${l}</th>`).join('')}</tr>
-        <tr>${groups.map(([, , , h]) => h.map((x, i) => `<th${i ? '' : ' class="scout-table__gl"'}>${x}</th>`).join('')).join('')}</tr></thead>
-      <tbody>${rows.map(({ id, p, s, j }) => `<tr>
-        <td>${esc(`${p.num} · ${p.name}`)}</td>${multi ? `<td>${j}</td>` : ''}<td>${played[id] || 0}</td><td><strong>${s.pts}</strong></td><td>${s.errs}</td>
-        ${groups.map(([, , cells]) => cells(s).map((v, i) => `<td${i ? '' : ' class="scout-table__gl"'}>${v}</td>`).join('')).join('')}</tr>`).join('')}</tbody></table></div>`
-      : `<p class="muted">Sem ações registadas${f === 'all' ? '' : ' neste set'}.</p>`}
-    <p class="muted scout-footnote">Pts jog. = pontos em que a atleta estava em campo · Ef. serviço = (ases − erros) ÷ total · Ef. ataque = (pontos − erros − bloqueados) ÷ total · Pos. = (# + +) ÷ total${multi ? ' · rankings de percentagem com pelo menos 10 ações' : ''}</p>`;
+    <section class="scout-part">
+      <h3 class="scout-part__title">Equipa</h3>
+      <div class="scout-kpis">
+        <div class="scout-kpi"><span class="muted">Pontos nossos</span><strong>${ts.our}</strong>
+          ${bar([[ts.kill, 'var(--ok)'], [ts.ace, 'var(--info)'], [ts.blk, 'var(--navy-300)'], [ts.oppErr, 'var(--border)']])}
+          <span class="muted scout-kpi__legend">${ts.kill} ataque · ${ts.ace} serviço · ${ts.blk} bloco · ${ts.oppErr} erros adv.</span></div>
+        <div class="scout-kpi"><span class="muted">Pontos do adversário</span><strong>${ts.their}</strong>
+          ${bar([[ts.ourErr, 'var(--danger)'], [ts.oppPt, 'var(--border)']])}
+          <span class="muted scout-kpi__legend">${ts.ourErr} erros nossos · ${ts.oppPt} mérito do adversário</span></div>
+        <div class="scout-kpi"><span class="muted">Pontos por mérito próprio</span><strong>${meritPct}%</strong>
+          <span class="muted scout-kpi__legend">dos pontos ganhos vieram de ações nossas</span></div>
+      </div>
+    </section>
+    ${actionsBlock(tc, ts, used)}
+    <section class="scout-part">
+      <h3 class="scout-part__title">Por atleta</h3>
+      ${rows.length ? `<div class="table-wrap"><table class="no-stack scout-table">
+        <thead><tr><th rowspan="2">Atleta</th>${multi ? '<th rowspan="2">Jogos</th>' : ''}<th rowspan="2" title="Pontos em que esteve em campo">Pts jog.</th><th rowspan="2">Pts</th><th rowspan="2">Erros</th>
+          ${groups.map(([, l, , h]) => `<th colspan="${h.length}" class="scout-table__grp">${l}</th>`).join('')}</tr>
+          <tr>${groups.map(([, , , h]) => h.map((x, i) => `<th${i ? '' : ' class="scout-table__gl"'}>${x}</th>`).join('')).join('')}</tr></thead>
+        <tbody>${rows.map(({ id, p, s, j }) => `<tr>
+          <td>${esc(`${p.num} · ${p.name}`)}</td>${multi ? `<td>${j}</td>` : ''}<td>${played[id] || 0}</td><td><strong>${s.pts}</strong></td><td>${s.errs}</td>
+          ${groups.map(([, , cells, h]) => cells(s).map((v, i) => cell(v, i, h)).join('')).join('')}</tr>`).join('')}</tbody>
+        <tfoot><tr class="scout-table__total"><td>Equipa</td>${multi ? '<td></td>' : ''}<td></td><td><strong>${team.pts}</strong></td><td>${team.errs}</td>
+          ${groups.map(([, , cells, h]) => cells(team).map((v, i) => cell(v, i, h)).join('')).join('')}</tr></tfoot></table></div>`
+        : `<p class="muted">Sem ações registadas${f === 'all' ? '' : ' neste set'}.</p>`}
+      <p class="muted scout-footnote">Pts jog. = pontos em que a atleta estava em campo · Err = erros nessa ação (ponto para o adversário) · Blq = ataques bloqueados · Ef. serviço = (ases − erros) ÷ total · Ef. ataque = (pontos − erros − bloqueados) ÷ total · Pos. = (# + +) ÷ total</p>
+    </section>
+    <section class="scout-part">
+      <h3 class="scout-part__title">Destaques</h3>
+      <div class="scout-ranks">
+        ${rank('Pontos', 'pts', 'n')}${rank('Eficácia de ataque', 'effA', 'p', 'atk', 'ATTACK')}${rank('Ases', 'ace', 'n', null, 'SERVICE')}
+        ${rank('Receção positiva', 'posR', 'p', 'rec', 'RECEPTION')}${rank('Pontos de bloco', 'blk', 'n', null, 'BLOCK')}${rank('Defesa positiva', 'posD', 'p', 'def', 'DEFENSE')}
+      </div>
+      ${multi ? '<p class="muted scout-footnote">Rankings de percentagem com pelo menos 10 ações.</p>' : ''}
+    </section>`;
 }
 
 // =============================================================================

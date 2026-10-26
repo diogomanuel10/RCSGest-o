@@ -247,12 +247,28 @@ export function playerStats(o) {
     perfR: pct(gv(o, 'RECEPTION.PERFECT'), rec),
     atk, kill: gv(o, 'ATTACK.PERFECT'), atkErr: gv(o, 'ATTACK.ERROR'), atkBlk: gv(o, 'ATTACK.BLOCKED'),
     effA: pct(gv(o, 'ATTACK.PERFECT') - gv(o, 'ATTACK.ERROR') - gv(o, 'ATTACK.BLOCKED'), atk),
-    blk: gv(o, 'BLOCK.PERFECT'), blkT: tot(o, 'BLOCK'),
-    def, posD: pct(gv(o, 'DEFENSE.PERFECT') + gv(o, 'DEFENSE.OK'), def),
-    pas, posP: pct(gv(o, 'SETTING.PERFECT') + gv(o, 'SETTING.OK'), pas),
+    blk: gv(o, 'BLOCK.PERFECT'), blkT: tot(o, 'BLOCK'), blkErr: gv(o, 'BLOCK.ERROR'),
+    def, defErr: gv(o, 'DEFENSE.ERROR'), posD: pct(gv(o, 'DEFENSE.PERFECT') + gv(o, 'DEFENSE.OK'), def),
+    pas, pasErr: gv(o, 'SETTING.ERROR'), posP: pct(gv(o, 'SETTING.PERFECT') + gv(o, 'SETTING.OK'), pas),
+    othErr: gv(o, 'OTHER.ERROR'),
     pts: gv(o, 'SERVICE.PERFECT') + gv(o, 'ATTACK.PERFECT') + gv(o, 'BLOCK.PERFECT'),
     errs,
   };
+}
+
+// As ações da EQUIPA inteira, no mesmo formato de `counts` (`ATTACK.ERROR`…),
+// para a linha "Equipa" da tabela e para o quadro por ação. Entram também as
+// ações sem dono (as das colegas, na leitura da atleta): contam para a equipa.
+export function teamCounts(games, f = 'all') {
+  const o = {};
+  for (const g of games) {
+    for (const e of g.events) {
+      if (e.t === 'SUB' || e.t === 'OPPONENT' || !inSet(e, f)) continue;
+      const k = `${e.t}.${e.q}`;
+      o[k] = (o[k] || 0) + 1;
+    }
+  }
+  return o;
 }
 
 // De onde vieram os pontos de cada lado.
