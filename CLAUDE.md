@@ -293,6 +293,7 @@ src/
     physical-file.js    Área de Prep. física do perfil (dados físicos, avaliações, controlo)
     referencias.js      Editor das faixas de referência das avaliações físicas
     calendario.js       Vista Calendário
+    jogos.js            Secção Jogos (lista de jogos com o percurso de cada um + separador Scout)
     agenda-sync.js      Link de subscrição da agenda da fisio (Google/iPhone)
     presencas.js        Quem vem a um evento: presenças (treino) ou convocatória (jogo)
     portal.js           Portal do atleta (a sua página pessoal, mobile-first)
@@ -510,6 +511,7 @@ camada extra.
 |----------------|---------------------------------------------------------------------|
 | `painel`       | Resumo (`painel`) · Objetivos (`objetivos`)                          |
 | `treino`       | Exercícios (`exercicios`) · Decisão tática (`tatica`)                |
+| `jogos`        | Jogos (`calendario`) · Scout (`scout`)                               |
 | `financeiro`   | Livro-razão (`financeiro`) · Patrocínios (`patrocinios`) · Quotas (`quotas`) |
 | `saude`        | Fisioterapia (`medico`) · Prep. física (`fisica`)                    |
 | `equipamentos` | Inventário (`equipamentos`) · Pedidos (`pedidos`) · Encomendas (`encomendas`) |
@@ -519,8 +521,8 @@ A entrada só aparece se **alguma** das suas permissões passar (ver `can` no
 separador antes de navegar (usado pelos cartões do Painel).
 
 - **Endereços antigos**: `LEGACY_ROUTES` no `app-shell` redirecciona `#/medico`,
-  `#/fisica`, `#/quotas`, `#/patrocinios`, `#/exercicios`, `#/tatica` e
-  `#/objetivos` para a secção que os absorveu, já no separador certo — links
+  `#/fisica`, `#/quotas`, `#/patrocinios`, `#/exercicios`, `#/tatica`,
+  `#/objetivos` e `#/scout` para a secção que os absorveu, já no separador certo — links
   partilhados e favoritos continuam a funcionar. Pelo mesmo motivo, o `navTo()`
   do Painel escreve no hash quando a rota já não tem botão na barra lateral.
 - **Pesquisa**: cada entrada do `NAV` pode ter `alias` com o que vive lá dentro
@@ -1450,6 +1452,28 @@ separador antes de navegar (usado pelos cartões do Painel).
     fez. Quando há registo de alguém, quem não tem linha é porque não jogou. Os
     pontos de um atleta são ainda limitados ao total do jogo — mais do que isso é
     engano de digitação (validado também no ecrã de registo).
+- **Jogos: o trabalho de um jogo num sítio só** (`views/jogos.js`): o
+  Calendário servia para ver QUANDO é o quê e tinha passado a ser o ecrã onde
+  se trabalhava cada jogo — com o Scout, a linha de um jogo chegava a sete
+  botões (plano, convocar, scout, resultado, resumo, editar, remover) ao lado
+  de treinos com um ou dois, e a semana deixava de se ler.
+  - **Os passos são uma ORDEM, não uma fila de botões iguais**: plano →
+    convocatória → scout → resultado → resumo. Cada jogo mostra os feitos com
+    ✓ e destaca o passo SEGUINTE (`gameSteps`), que é o que responde a "o que
+    falta neste jogo?". O que já não faz sentido não aparece: um plano ou uma
+    convocatória por fazer depois do jogo não são nem uma coisa nem outra.
+  - **"Por fechar" vem antes dos "Próximos"**: um jogo que passou sem
+    resultado é trabalho por fazer, não histórico. Os terminados mostram os
+    10 mais recentes, com "Mostrar os restantes N".
+  - **O Calendário fica com "Abrir jogo"** (`openGame`), que abre a lista com
+    aquele jogo à vista — um filtro de equipa ou o corte dos terminados não o
+    escondem. O crachá do resultado e o número de convocados continuam na
+    linha do calendário: são informação, não trabalho.
+  - **O Scout passou a separador desta secção** (`#/scout` redirecciona). O
+    estado do scout de cada jogo ("a decorrer") vem de `state.scouts`, que a
+    lista carrega em segundo plano quando ainda ninguém abriu o Scout.
+  - O treinador vê os jogos das SUAS equipas (`myTeams`); a secção aparece a
+    quem tem o Calendário ou o Scout.
 - **Scout ao vivo** (`supabase/scout.sql`, `scout-engine.js`, `scout-export.js`,
   `views/scout.js`): durante o jogo o treinador toca na atleta e na ação
   (receção, passe, ataque, serviço, bloco, defesa, com a qualidade `# + − / =`
@@ -1514,8 +1538,8 @@ separador antes de navegar (usado pelos cartões do Painel).
       ações quando ele mudou. Quem marca manda um sinal de vida a cada 20 s
       sem toques, e larga o jogo ao sair, mas só DEPOIS de a última gravação
       subir.
-  - **Liga-se a um jogo do calendário** (botão "Scout" na linha do jogo, no
-    próprio dia — durante o aquecimento acerta-se a formação). Ao terminar, os
+  - **Liga-se a um jogo do calendário** (passo "Fazer scout" do jogo, na
+    secção Jogos, no próprio dia — durante o aquecimento acerta-se a formação). Ao terminar, os
     parciais vão para `game_sets` (o trigger reconta o final) e os **pontos
     jogados** de cada atleta para `game_minutes.points`, contados pela
     rotação: estava em campo quando o ponto acabou. É a mesma medida do

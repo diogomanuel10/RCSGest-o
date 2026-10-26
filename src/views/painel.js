@@ -165,7 +165,7 @@ export function renderPainel(container) {
     seeCalendar && metricOn('balanco') && record.jogos > 0 && {
       label: 'Balanço', value: `${record.vitorias}–${record.derrotas}`,
       sub: `${record.taxa}% de vitórias`,
-      tone: record.taxa >= 50 ? 'ok' : 'warn', route: 'calendario',
+      tone: record.taxa >= 50 ? 'ok' : 'warn', route: 'jogos',
     },
   ].filter(Boolean);
 
@@ -1820,7 +1820,7 @@ function renderTreinadorPainel(container) {
       label: 'Próximo jogo', value: diasAte(proximoJogo),
       sub: [teamName(teamById(proximoJogo.team_id)), proximoJogo.opponent ? 'vs ' + proximoJogo.opponent : '']
         .filter(Boolean).join(' · ') || 'agendado',
-      route: 'calendario' },
+      route: 'jogos' },
   ].filter(Boolean);
 
   // Saíram deste painel o cartão "Presenças por marcar" e o "Treinos por

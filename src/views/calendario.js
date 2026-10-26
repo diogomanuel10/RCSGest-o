@@ -2,17 +2,14 @@
 // por tipo e por equipa, distinguindo eventos passados dos futuros.
 
 import { state, createRow, createRows, updateRow, archiveRow, setEventPlayers, dbErrorMessage } from '../store.js';
-import { setSelectedEvent } from './presencas.js';
-import { openResultModal } from './resultado.js';
+import { openGame } from './jogos.js';
 import { esc, emptyHTML, wireEmptyAction } from '../ui.js';
-import { toastError } from '../toast.js';
 import { eventDateTime, eventTimeRange, teamById, teamName, escalaoColor, gameResult, gameSetsOf,
-         eventPlayerIds, eventRoster, appointmentConflicts, isMyEvent } from '../compute.js';
+         eventPlayerIds, eventRoster, appointmentConflicts } from '../compute.js';
 import { openModal, confirmDialog, wireDialog } from '../modal.js';
 import { openAthleteProfile } from './athlete-profile.js';
 import { openAppointmentForm, apptResponseHTML } from './clinical-file.js';
 import { openCalendarSync } from './agenda-sync.js';
-import { findPlanForEvent, openGamePlanForEvent } from './plano-jogo.js';
 import { openTrainingPlan } from './training-plan.js';
 import {
   EVENT_TYPES,
@@ -93,12 +90,12 @@ function navTo(route) {
   else location.hash = `#/${route}`;
 }
 
-// A convocatória deixou de ser um modal do Calendário: é o ecrã das Presenças
-// com o jogo escolhido. Quem vai ao jogo, quem avisou que não pode e quem
-// apareceu ao treino são a mesma pergunta sobre o mesmo evento.
-function openSquad(eventId) {
-  setSelectedEvent(eventId);
-  navTo('presencas');
+// O trabalho de um jogo (plano, convocatória, scout, resultado, resumo) vive
+// na secção Jogos — ver jogos.js. Aqui o jogo é uma linha do calendário, e a
+// linha leva lá com ele já à vista.
+function goToGame(eventId) {
+  openGame(eventId);
+  navTo('jogos');
 }
 
 const filters = { type: '', team: '' };
@@ -197,38 +194,10 @@ export function renderCalendario(container) {
   container.querySelector('#grid-today')?.addEventListener('click', () => { gridMonth = new Date(); renderCalendario(container); });
   container.querySelectorAll('[data-edit]').forEach((b) => b.addEventListener('click', () => openForm(b.dataset.edit)));
   container.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => remove(b.dataset.del)));
-  container.querySelectorAll('[data-squad]').forEach((b) => b.addEventListener('click', () => openSquad(b.dataset.squad)));
-  container.querySelectorAll('[data-result]').forEach((b) => b.addEventListener('click', () => openResultModal(b.dataset.result)));
-  // Resumo pós-jogo: folha imprimível com o que já foi registado. O módulo é
-  // carregado só quando alguém pede o resumo (chunk à parte).
-  container.querySelectorAll('[data-report]').forEach((b) =>
-    b.addEventListener('click', async () => {
-      try {
-        const { openGameReport } = await import('../game-report.js');
-        openGameReport(b.dataset.report);
-      } catch (err) {
-        toastError(err.message || 'Não foi possível gerar o resumo.');
-      }
-    })
-  );
-  // Scout ao vivo do jogo: abre o que já existe ou começa um (chunk à parte).
-  container.querySelectorAll('[data-scout]').forEach((b) =>
-    b.addEventListener('click', async () => {
-      try {
-        const { openScoutForEvent } = await import('./scout.js');
-        openScoutForEvent(b.dataset.scout);
-      } catch (err) {
-        toastError(err.message || 'Não foi possível abrir o scout.');
-      }
-    })
-  );
+  container.querySelectorAll('[data-game]').forEach((b) => b.addEventListener('click', () => goToGame(b.dataset.game)));
   container.querySelectorAll('[data-new-day]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); openForm(null, b.dataset.newDay); }));
   container.querySelectorAll('[data-appt]').forEach((b) => b.addEventListener('click', () => openAthleteProfile(b.dataset.appt, { tab: 'fisioterapia' })));
   container.querySelectorAll('[data-appt-resched]').forEach((b) => b.addEventListener('click', () => reschedule(b.dataset.apptResched)));
-  container.querySelectorAll('[data-plan-event]').forEach((b) => b.addEventListener('click', () => {
-    const ev = state.events.find((e) => e.id === b.dataset.planEvent);
-    if (ev) { openGamePlanForEvent(ev); navTo('plano-jogo'); }
-  }));
   container.querySelectorAll('[data-training-plan]').forEach((b) =>
     b.addEventListener('click', () => openTrainingPlan(b.dataset.trainingPlan)));
   container.querySelectorAll('[data-day]').forEach((cell) => {
@@ -594,17 +563,11 @@ function eventRow(ev, isPast, editable) {
   const color = team ? escalaoColor(team.escalao) : null;
   const accent = color ? ` style="border-left:4px solid ${color};padding-left:0.7rem"` : '';
 
-  // A convocatória vive agora nas Presenças: sem acesso a essa secção, o botão
-  // levaria a um sítio onde o utilizador não entra.
-  const canSquad = canEdit('squads') && canAccess('presencas') && ev.type === 'jogo' && ev.team_id;
   const squad = state.squads.find((s) => s.event_id === ev.id);
   const nConvocados = squad
     ? state.squadPlayers.filter((sp) => sp.squad_id === squad.id).length
     : 0;
 
-  // Ligação ao Plano de Jogo (só jogos, para quem tem acesso a essa secção).
-  const showPlan = ev.type === 'jogo' && ev.team_id && canAccess('plano-jogo');
-  const hasPlan = showPlan && !!findPlanForEvent(ev);
   // Ligação ao Plano de Treino (só treinos, para quem marca presenças). O
   // calendário é o sítio natural para o preparar — antes só se lá chegava pelo
   // Painel, e só a treinos de hoje ou com presenças por marcar.
@@ -640,12 +603,8 @@ function eventRow(ev, isPast, editable) {
           : ''}
       </div>
       <div class="cell-actions">
-        ${showPlan ? `<button class="btn btn--ghost btn--sm" data-plan-event="${ev.id}" type="button">${hasPlan ? 'Plano ✓' : 'Preparar plano'}</button>` : ''}
+        ${ev.type === 'jogo' ? `<button class="btn btn--ghost btn--sm" data-game="${ev.id}" type="button" title="Plano, convocatória, scout e resultado">Abrir jogo</button>` : ''}
         ${showTraining ? `<button class="btn btn--ghost btn--sm" data-training-plan="${ev.id}" type="button">${hasTraining ? 'Plano ✓' : 'Preparar treino'}</button>` : ''}
-        ${canSquad ? `<button class="btn btn--ghost btn--sm" data-squad="${ev.id}" type="button">Convocar</button>` : ''}
-        ${canResult(ev) ? `<button class="btn btn--ghost btn--sm" data-result="${ev.id}" type="button">${gameResult(ev.id) ? 'Resultado ✓' : 'Registar resultado'}</button>` : ''}
-        ${canScout(ev) ? `<button class="btn btn--ghost btn--sm" data-scout="${ev.id}" type="button">Scout</button>` : ''}
-        ${ev.type === 'jogo' && gameResult(ev.id) ? `<button class="btn btn--ghost btn--sm" data-report="${ev.id}" type="button">Resumo</button>` : ''}
         ${canEditThis
           ? `<button class="btn btn--ghost btn--sm" data-edit="${ev.id}" type="button">Editar</button>
              <button class="btn btn--danger btn--sm" data-del="${ev.id}" type="button">Remover</button>`
@@ -697,13 +656,9 @@ function openDayModal(dateStr, editable) {
   // fique por cima sem sobreposições.
   overlay.querySelectorAll('[data-edit]').forEach((b) => b.addEventListener('click', () => { close(); openForm(b.dataset.edit); }));
   overlay.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => { close(); remove(b.dataset.del); }));
-  overlay.querySelectorAll('[data-squad]').forEach((b) => b.addEventListener('click', () => { close(); openSquad(b.dataset.squad); }));
+  overlay.querySelectorAll('[data-game]').forEach((b) => b.addEventListener('click', () => { close(); goToGame(b.dataset.game); }));
   overlay.querySelectorAll('[data-appt]').forEach((b) => b.addEventListener('click', () => { close(); openAthleteProfile(b.dataset.appt, { tab: 'fisioterapia' }); }));
   overlay.querySelectorAll('[data-appt-resched]').forEach((b) => b.addEventListener('click', () => { close(); reschedule(b.dataset.apptResched); }));
-  overlay.querySelectorAll('[data-plan-event]').forEach((b) => b.addEventListener('click', () => {
-    const ev = state.events.find((e) => e.id === b.dataset.planEvent);
-    if (ev) { close(); openGamePlanForEvent(ev); navTo('plano-jogo'); }
-  }));
   overlay.querySelectorAll('[data-training-plan]').forEach((b) => b.addEventListener('click', () => {
     const id = b.dataset.trainingPlan;
     close();
@@ -1161,27 +1116,6 @@ export function openRecurrentTrainings() {
 }
 export { openRecurrentTrainings as openRecurrentForm };
 
-
-// Quem regista o resultado: quem marca convocatórias (coordenador e treinador
-// da equipa), e só depois de o jogo ter acontecido — registar o resultado de
-// um jogo que ainda não se jogou não faz sentido.
-function canResult(ev) {
-  return canEdit('squads')
-    && ev.type === 'jogo'
-    && ev.team_id
-    && eventDateTime(ev) <= new Date();
-}
-
-// Scout ao vivo: no DIA do jogo e não só depois da hora marcada (é durante o
-// aquecimento que se acerta a formação), e só nas equipas de quem marca — o
-// RLS recusaria a gravação de um jogo de outra equipa.
-function canScout(ev) {
-  return canEdit('game_scouts')
-    && ev.type === 'jogo'
-    && ev.team_id
-    && isMyEvent(ev)
-    && ev.date <= new Date().toISOString().slice(0, 10);
-}
 
 // Resultado na linha do evento: o marcador em sets e, se houver parciais, os
 // sets escritos por extenso — que é como um treinador lê um jogo.
