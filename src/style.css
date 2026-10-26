@@ -7354,14 +7354,6 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
   color: var(--muted);
 }
 
-.portal-quota-list {
-  list-style: none;
-  margin: 0.5rem 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
 .portal-event {
   display: flex;
   align-items: flex-start;
@@ -7513,13 +7505,11 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
   color: var(--text-muted);
 }
 .portal-att__form strong { color: var(--text); }
-.portal-att__chips,
-.portal-quotas-head {
+.portal-att__chips {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
 }
-.portal-quotas-head { margin-bottom: 0.6rem; }
 
 .portal-att-list,
 .portal-squads {
@@ -7564,27 +7554,53 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 .portal-att-row .badge { flex: none; }
 
 /* --- Os meus jogos (scout) --- */
-.portal-scout-head { display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-size: 0.95rem; }
-.portal-scout-head strong { font-size: 1.15rem; font-variant-numeric: tabular-nums; }
-.portal-scout-fund { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.2rem 0.9rem; margin: 0.7rem 0 0; font-size: 0.92rem; }
-.portal-scout-fund dt { color: var(--text-muted); }
-.portal-scout-fund dd { margin: 0; }
-.portal-scout-team { margin: 0.6rem 0 0; font-size: var(--portal-note); color: var(--text-muted); }
 .portal-scout-list { list-style: none; margin: 0.9rem 0 0; padding: 0.6rem 0 0; border-top: 1px solid var(--border); }
 .portal-scout-game { border-bottom: 1px solid var(--surface-2); }
 .portal-scout-game summary { display: flex; align-items: center; gap: 0.6rem; padding: 0.45rem 0; font-size: 0.92rem; cursor: pointer; min-height: 44px; }
 .portal-scout-game summary .badge { flex: none; }
 .portal-scout-game__body { padding: 0 0 0.7rem; font-size: 0.92rem; }
+.portal-scout-game summary .portal-att-row__title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.portal-scout-game__mine { flex: none; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.portal-scout-sub { margin: 1rem 0 0; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+.portal-scout-sub + .portal-scout-list { margin-top: 0.3rem; }
+.portal-scout-list--solo { border-top: 0; padding-top: 0; margin-top: 0.4rem; }
 
-/* --- Quotas --- */
-.portal-quota-row {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  font-size: 0.92rem;
-}
-.portal-quota-row__when { flex: 1; font-weight: 600; }
-.portal-quota-row__valor { color: var(--text-muted); }
+/* --- Separador «Jogos»: números grandes, barras em vez de percentagens --- */
+.sc-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; margin: 0.8rem 0 0; }
+.sc-tile { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0.55rem 0.6rem; display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+.sc-tile strong { font-family: var(--font-title); font-size: 1.7rem; line-height: 1; font-variant-numeric: tabular-nums; color: var(--text); }
+.sc-tile span { font-size: 0.78rem; color: var(--text-muted); line-height: 1.25; }
+.sc-tiles--sm { margin-top: 0.6rem; }
+.sc-tiles--sm .sc-tile { padding: 0.4rem 0.5rem; }
+.sc-tiles--sm .sc-tile strong { font-size: 1.3rem; }
+
+.sc-funds { display: flex; flex-direction: column; gap: 0.75rem; margin: 1rem 0 0; }
+.sc-fund__head { display: flex; justify-content: space-between; align-items: baseline; font-size: 0.92rem; margin-bottom: 0.25rem; }
+.sc-fund__head strong { font-variant-numeric: tabular-nums; color: var(--text-muted); font-weight: 600; font-size: 0.85rem; }
+.sc-bar { display: flex; height: 12px; border-radius: 999px; overflow: hidden; background: var(--surface-2); gap: 2px; }
+.sc-bar__seg { min-width: 4px; }
+.sc-legend { display: flex; flex-wrap: wrap; gap: 0.15rem 0.8rem; margin: 0.3rem 0 0; font-size: 0.8rem; color: var(--text-muted); }
+.sc-legend span { display: inline-flex; align-items: center; gap: 0.3rem; white-space: nowrap; }
+.sc-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.sc-tone--ok { background: var(--ok); }
+.sc-tone--warn { background: var(--warn); }
+.sc-tone--danger { background: var(--danger); }
+.sc-tone--info { background: var(--info); }
+.sc-tone--gold { background: var(--gold); }
+.sc-tone--neutral { background: var(--silver); }
+
+.sc-team { margin: 1.1rem 0 0; padding-top: 0.8rem; border-top: 1px solid var(--border); }
+.sc-team__head { margin: 0 0 0.35rem; font-size: 0.9rem; }
+.sc-team__note { margin: 0.35rem 0 0; font-size: var(--portal-note); color: var(--text-muted); }
+.sc-team--compact { margin-top: 0.8rem; padding-top: 0.6rem; }
+
+.sc-chart-wrap { margin: 1rem 0 0; }
+.sc-chart { display: flex; align-items: flex-end; gap: 3px; height: 96px; margin-top: 0.5rem; }
+.sc-chart__col { flex: 1 1 0; min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 2px; }
+.sc-chart__val { font-size: 0.7rem; color: var(--text-muted); font-variant-numeric: tabular-nums; line-height: 1; }
+.sc-chart__bar { width: 100%; max-width: 28px; background: var(--navy-500); border-radius: 3px 3px 0 0; }
+.sc-chart__bar--off { background: var(--border); }
+.sc-chart__axis { display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--text-muted); margin-top: 0.25rem; border-top: 1px solid var(--border); padding-top: 0.2rem; }
 
 /* --- Cartão QR ---
    Aqui o código é o protagonista: é o que se mostra à câmara à entrada. */
@@ -8294,7 +8310,7 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 .scout-kpi strong { font-family: var(--font-title); font-size: 2rem; line-height: 1; font-variant-numeric: tabular-nums; }
 .scout-kpi__legend { font-size: 0.8rem; }
 .scout-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--surface-2); margin-top: 0.3rem; }
-.scout-ranks { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 0.8rem; }
+.scout-ranks { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: 0.8rem; }
 .scout-rank { padding: 0.7rem 0.9rem; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
 .scout-rank h3 { margin: 0 0 0.4rem; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
 .scout-rank ol { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0.2rem; }
@@ -8306,6 +8322,18 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 .scout-table__grp { text-align: center !important; border-left: 1px solid var(--border); }
 .scout-table__gl { border-left: 1px solid var(--border); }
 .scout-footnote { font-size: 0.8rem; margin: 0.6rem 0 0; }
+.scout-part { display: flex; flex-direction: column; gap: 0.6rem; }
+.scout-part__title { margin: 0; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+.scout-part .scout-footnote { margin: 0; }
+.scout-acts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 0.6rem 1.2rem; }
+.scout-act { padding: 0.65rem 0.8rem; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); min-width: 0; }
+.scout-act__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 0.6rem; margin-bottom: 0.35rem; font-size: 0.9rem; }
+.scout-act__err { font-size: 0.82rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.scout-act__err--on { color: var(--danger-ink); font-weight: 600; }
+.scout-act__key { margin-left: auto; font-size: 0.82rem; color: var(--text-muted); }
+.scout-act__key b { color: var(--text); font-variant-numeric: tabular-nums; }
+.scout-table__err { color: var(--danger-ink); font-weight: 600; }
+.scout-table__total td { border-top: 2px solid var(--border); font-weight: 600; background: var(--surface-2); }
 .scout-detail { max-width: min(1100px, 96vw); }
 .scout-detail__body { display: flex; flex-direction: column; gap: 1rem; overflow-y: auto; max-height: 76vh; }
 

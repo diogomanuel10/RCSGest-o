@@ -16,7 +16,7 @@ import {
   savePlayerPhoto, saveMyPlayerData, uploadPlayerDocument, loadMyScoutGames,
 } from '../store.js';
 import {
-  setsWon, partials, teamSummary, playerRows, pointsPlayed, usedCols, fmtPct,
+  setsWon, partials, teamSummary, playerRows, pointsPlayed, usedCols, counts, playerStats,
 } from '../scout-engine.js';
 import { toastOk, toastError } from '../toast.js';
 import { getNotifications, markRead } from '../notifications.js';
@@ -32,7 +32,6 @@ import {
   teamById,
   teamName,
   playerAttendanceStats,
-  playerQuotas,
   playerEventResponse, eventResponseWindow, canRespondToEvent, isPlayerEvent,
   playerRecentTrainings,
   playerRecentForm,
@@ -52,7 +51,6 @@ import {
   ATTENDANCE_STATUSES,
   ATTENDANCE_LABEL,
   ATTENDANCE_BADGE,
-  MONTHS,
   AVAILABILITY_LABEL,
   AVAILABILITY_BADGE,
   EVENT_RESPONSES,
@@ -69,6 +67,7 @@ import {
 // ao primeiro separador).
 let portalTab = 'hoje';
 let drillsShowAll = false;
+let scoutShowAll = false;
 
 // O SVG do cartão fica em cache pelo token: o portal re-desenha a cada
 // notificação do store e não há razão para redesenhar o mesmo código QR.
@@ -76,6 +75,7 @@ let cardCache = { token: null, promise: null };
 
 const PORTAL_TABS = [
   { key: 'hoje',   label: 'Hoje' },
+  { key: 'jogos',  label: 'Jogos', needsGames: true },
   { key: 'epoca',  label: 'A época' },
   { key: 'cartao', label: 'Cartão', needsCard: true },
 ];
@@ -152,7 +152,7 @@ export function renderPortal(container) {
   const upcoming = myUpcoming(me, 8);
   const next = upcoming[0] || null;
 
-  const tabs = PORTAL_TABS.filter((t) => !t.needsCard || me.qr_token);
+  const tabs = PORTAL_TABS.filter((t) => (!t.needsCard || me.qr_token) && (!t.needsGames || hasPlayedGames(me)));
   if (!tabs.some((t) => t.key === portalTab)) portalTab = tabs[0].key;
 
   // Tudo dentro de um invólucro próprio: o portal é uma coluna só, e a app
@@ -176,6 +176,7 @@ export function renderPortal(container) {
 
     <div id="portal-body">
       ${portalTab === 'hoje'   ? hojeHTML(me, upcoming) : ''}
+      ${portalTab === 'jogos'  ? jogosHTML(me) : ''}
       ${portalTab === 'epoca'  ? epocaHTML(me) : ''}
       ${portalTab === 'cartao' ? cartaoHTML() : ''}
     </div>
@@ -579,97 +580,247 @@ function hojeHTML(me, upcoming) {
   `;
 }
 
-// --- Os meus jogos (scout) --------------------------------------------------
+// --- Separador «Jogos» (scout) --------------------------------------------
 //
 // As estatísticas de jogo DELA e as da EQUIPA — e nunca as das colegas. A
 // RPC `my_scout_games` já entrega as ações das outras sem dono (contam para o
 // marcador e para os totais da equipa, mas não dizem de quem são), por isso
 // aqui não há nada a esconder: o que não chegou não se pode mostrar.
 //
-// Mostra-se o que ela FEZ e não uma nota: "6 pontos de ataque em 14" lê-se
-// como trabalho; uma posição num ranking lia-se como um juízo. Os
-// fundamentos são só os que se marcaram (`usedCols`) — num jogo em que o
-// treinador não scoutou bloco, "Bloco 0" dizia que ela não blocou.
-const FUND_LINES = [
-  ['ATTACK', 'Ataque', (s) => (s.atk ? `${s.kill} ponto${s.kill === 1 ? '' : 's'} em ${s.atk} · eficácia ${fmtPct(s.effA)}` : null)],
-  ['SERVICE', 'Serviço', (s) => (s.srv ? `${s.srv} · ${s.ace} ás${s.ace === 1 ? '' : 'es'} · ${s.srvErr} erro${s.srvErr === 1 ? '' : 's'}` : null)],
-  ['RECEPTION', 'Receção', (s) => (s.rec ? `${s.rec} · ${fmtPct(s.posR)} positiva` : null)],
-  ['BLOCK', 'Bloco', (s) => (s.blkT ? `${s.blk} ponto${s.blk === 1 ? '' : 's'} em ${s.blkT}` : null)],
-  ['DEFENSE', 'Defesa', (s) => (s.def ? `${s.def} · ${fmtPct(s.posD)} positiva` : null)],
-  ['SETTING', 'Passe', (s) => (s.pas ? `${s.pas} · ${fmtPct(s.posP)} positivo` : null)],
+// É um separador e não uma secção de «A época»: é a parte do portal que ela
+// abre por gosto, depois de cada jogo, e ao fim de um campeonato são trinta
+// jogos — entre as presenças e o material afogava o resto.
+//
+// Mostra-se o que ela FEZ e não uma nota. "Eficácia −9%" é linguagem de
+// treinador: a uma miúda de catorze anos lê-se como "sou má" sem dizer
+// porquê. Cada fundamento é uma BARRA com o que correu bem, o que continuou
+// e o que foi erro, e a legenda diz as três coisas por palavras — o mesmo
+// número, explicado. Os fundamentos são só os que se marcaram (`usedCols`):
+// num jogo em que o treinador não scoutou bloco, "Bloco 0" dizia que ela não
+// blocou.
+
+// Por fundamento, os segmentos da barra: [qualidades, singular, plural, tom].
+// O tom `neutral` é a bola que continuou em jogo — nem ponto nem erro.
+const FUND_BARS = [
+  ['ATTACK', 'Ataque', [
+    [['PERFECT'], 'ponto', 'pontos', 'ok'],
+    [['OK', 'BAD'], 'continuou', 'continuaram', 'neutral'],
+    [['BLOCKED'], 'bloqueado', 'bloqueados', 'warn'],
+    [['ERROR'], 'erro', 'erros', 'danger'],
+  ]],
+  ['SERVICE', 'Serviço', [
+    [['PERFECT'], 'ás', 'ases', 'ok'],
+    [['OK', 'BAD'], 'em jogo', 'em jogo', 'neutral'],
+    [['ERROR'], 'erro', 'erros', 'danger'],
+  ]],
+  ['RECEPTION', 'Receção', [
+    [['PERFECT', 'OK'], 'boa', 'boas', 'ok'],
+    [['BAD'], 'fraca', 'fracas', 'neutral'],
+    [['ERROR'], 'erro', 'erros', 'danger'],
+  ]],
+  ['BLOCK', 'Bloco', [
+    [['PERFECT'], 'ponto', 'pontos', 'ok'],
+    [['OK', 'BAD'], 'toque', 'toques', 'neutral'],
+    [['ERROR'], 'erro', 'erros', 'danger'],
+  ]],
+  ['DEFENSE', 'Defesa', [
+    [['PERFECT', 'OK'], 'boa', 'boas', 'ok'],
+    [['BAD'], 'fraca', 'fracas', 'neutral'],
+    [['ERROR'], 'erro', 'erros', 'danger'],
+  ]],
+  ['SETTING', 'Passe', [
+    [['PERFECT', 'OK'], 'bom', 'bons', 'ok'],
+    [['BAD'], 'fraco', 'fracos', 'neutral'],
+    [['ERROR'], 'erro', 'erros', 'danger'],
+  ]],
 ];
 
-function myFundamentals(datas, used) {
-  const mine = playerRows(datas)[0];
-  if (!mine) return '';
-  const lines = FUND_LINES.filter(([k]) => used.has(k)).map(([, l, f]) => [l, f(mine.s)]).filter(([, v]) => v);
-  return lines.length
-    ? `<dl class="portal-scout-fund">${lines.map(([l, v]) => `<dt>${l}</dt><dd>${esc(v)}</dd>`).join('')}</dl>`
-    : '';
+// Uma barra empilhada + a legenda por palavras. `segs` = [[n, rótulo, tom]].
+function stackBar(segs, label) {
+  const shown = segs.filter(([n]) => n > 0);
+  const aria = `${label}: ${shown.map(([n, l]) => `${n} ${l}`).join(', ')}`;
+  return `
+    <div class="sc-bar" role="img" aria-label="${esc(aria)}">
+      ${shown.map(([n, , tone]) => `<span class="sc-bar__seg sc-tone--${tone}" style="flex-grow:${n}"></span>`).join('')}
+    </div>
+    <p class="sc-legend">${shown.map(([n, l, tone]) =>
+      `<span><i class="sc-dot sc-tone--${tone}"></i>${n} ${esc(l)}</span>`).join('')}</p>`;
 }
 
-function teamLine(datas) {
+function myFundamentals(datas, used, me) {
+  const c = counts(datas)[me.id] || {};
+  const rows = FUND_BARS.filter(([k]) => used.has(k)).map(([k, label, segs]) => {
+    const n = (qs) => qs.reduce((a, q) => a + (c[`${k}.${q}`] || 0), 0);
+    const parts = segs.map(([qs, one, many, tone]) => { const v = n(qs); return [v, v === 1 ? one : many, tone]; });
+    const total = parts.reduce((a, [v]) => a + v, 0);
+    return total ? `
+      <div class="sc-fund">
+        <div class="sc-fund__head"><span>${esc(label)}</span><strong>${total}</strong></div>
+        ${stackBar(parts, label)}
+      </div>` : '';
+  }).join('');
+  return rows ? `<div class="sc-funds">${rows}</div>` : '';
+}
+
+// De onde vieram os pontos da equipa. "Por mérito próprio" diz-se por
+// palavras: é a parte que não foi oferecida pelo adversário.
+function teamBlock(datas, { compact = false } = {}) {
   const ts = teamSummary(datas);
   if (!ts.our && !ts.their) return '';
   const merit = ts.our ? Math.round(((ts.our - ts.oppErr) / ts.our) * 100) : 0;
-  return `<p class="portal-scout-team"><strong>Equipa:</strong> ${ts.our} pontos ganhos (${ts.kill} de ataque, ${ts.ace} de serviço, ${ts.blk} de bloco, ${ts.oppErr} de erros do adversário) · ${ts.ourErr} erros nossos · ${merit}% por mérito próprio</p>`;
+  const bar = stackBar([
+    [ts.kill, 'de ataque', 'info'],
+    [ts.ace, 'de serviço', 'ok'],
+    [ts.blk, 'de bloco', 'gold'],
+    [ts.oppErr, 'erros do adversário', 'neutral'],
+  ], 'Pontos da equipa');
+  return `
+    <div class="sc-team${compact ? ' sc-team--compact' : ''}">
+      <p class="sc-team__head"><strong>Equipa:</strong> ${ts.our} pontos ganhos · ${ts.ourErr} erros nossos</p>
+      ${bar}
+      ${compact ? '' : `<p class="sc-team__note">${merit}% dos pontos ganhos foram nossos; o resto foram erros do adversário.</p>`}
+    </div>`;
 }
 
-function scoutHTML(me) {
-  if (state.myScoutGames === null) { loadMyScoutGames(); return ''; }
+// Os pontos dela jogo a jogo, do mais antigo para o mais recente: é a
+// evolução, e é contra ela própria — nenhuma colega aparece aqui.
+function pointsChart(games, me) {
+  const seq = games.slice().reverse().map((g) => ({
+    pts: (counts([g.data])[me.id] ? playerStats(counts([g.data])[me.id]).pts : 0),
+    played: (pointsPlayed(g.data)[me.id] || 0) > 0,
+    g,
+  }));
+  const max = Math.max(1, ...seq.map((x) => x.pts));
+  const labels = seq.length <= 12;
+  const fmt = (d) => (d ? d.split('-').reverse().slice(0, 2).join('/') : '');
+  return `
+    <div class="sc-chart-wrap">
+      <h3 class="portal-scout-sub">Os teus pontos, jogo a jogo</h3>
+      <div class="sc-chart" role="img" aria-label="${esc(seq.map((x) => `${fmt(x.g.game_date)}: ${x.played ? `${x.pts} pontos` : 'não jogaste'}`).join('; '))}">
+        ${seq.map((x) => `
+          <div class="sc-chart__col" title="${esc(`${fmt(x.g.game_date)} vs ${x.g.opponent || 'Adversário'} — ${x.played ? `${x.pts} pontos` : 'não jogaste'}`)}">
+            ${labels ? `<span class="sc-chart__val">${x.played ? x.pts : ''}</span>` : ''}
+            <span class="sc-chart__bar${x.played ? '' : ' sc-chart__bar--off'}" style="height:${x.played ? Math.max(4, Math.round((x.pts / max) * 76)) : 4}px"></span>
+          </div>`).join('')}
+      </div>
+      <div class="sc-chart__axis"><span>${esc(fmt(seq[0].g.game_date))}</span><span>${esc(fmt(seq[seq.length - 1].g.game_date))}</span></div>
+    </div>`;
+}
+
+// Quantos jogos se veem antes do "Mostrar os restantes": num campeonato são
+// trinta, e a pergunta de quem abre isto é quase sempre o último jogo.
+const SCOUT_VISIBLE = 5;
+
+function scoutGameRow(g, me, { open = false } = {}) {
+  const fmt = (d) => (d ? d.split('-').reverse().slice(0, 2).join('/') : '');
+  const r = setsWon(g.data);
+  const res = r.o > r.t ? 'V' : r.o < r.t ? 'D' : 'E';
+  const p = pointsPlayed(g.data)[me.id] || 0;
+  const m = playerRows([g.data])[0];
+  const pts = m ? m.s.pts : 0;
+  // Fechada, a linha diz o que ela fez nesse jogo — sem isso, trinta linhas
+  // de "data · adversário · resultado" eram o calendário outra vez.
+  const mineShort = p ? `${pts} pt${pts === 1 ? '' : 's'}` : 'não jogaste';
+  return `<li><details class="portal-scout-game"${open ? ' open' : ''}>
+    <summary>
+      <span class="portal-att-row__day">${esc(fmt(g.game_date))}</span>
+      <span class="portal-att-row__title">vs ${esc(g.opponent || 'Adversário')}</span>
+      <span class="portal-scout-game__mine">${mineShort}</span>
+      <span class="badge badge--${res === 'V' ? 'ok' : res === 'D' ? 'danger' : 'muted'}">${r.o}–${r.t}</span>
+    </summary>
+    <div class="portal-scout-game__body">
+      <p class="muted" style="margin:0">Parciais ${esc(partials(g.data).map((x) => `${x.our}-${x.their}`).join(', ') || '—')}${g.competition ? ` · ${esc(g.competition)}` : ''}</p>
+      <div class="sc-tiles sc-tiles--sm">
+        <div class="sc-tile"><strong>${p}</strong><span>pontos em campo</span></div>
+        <div class="sc-tile"><strong>${pts}</strong><span>ponto${pts === 1 ? '' : 's'} teu${pts === 1 ? '' : 's'}</span></div>
+        <div class="sc-tile"><strong>${m ? m.s.errs : 0}</strong><span>erro${m && m.s.errs === 1 ? '' : 's'}</span></div>
+      </div>
+      ${p || m ? myFundamentals([g.data], usedCols([g.data]), me) : '<p class="muted" style="margin:0.5rem 0 0">Não entraste em campo neste jogo.</p>'}
+      ${teamBlock([g.data], { compact: true })}
+    </div>
+  </details></li>`;
+}
+
+// O separador só aparece a quem tem jogos JÁ JOGADOS no calendário da sua
+// equipa — lido dos eventos, que já estão em memória. Saber se há scout
+// obrigava a descarregar as ações da época inteira só para decidir se se
+// desenha um botão; assim descarrega-se ao abrir o separador.
+function hasPlayedGames(me) {
+  if (state.myScoutGames?.length) return true;
+  const now = new Date();
+  return state.events.some((e) => e.type === 'jogo' && e.team_id === me.team_id && eventDateTime(e) < now);
+}
+
+function jogosHTML(me) {
+  if (state.myScoutGames === null) {
+    loadMyScoutGames();
+    return '<section class="card portal-section"><p class="portal-section__note">A carregar os jogos…</p></section>';
+  }
   const games = state.myScoutGames;
-  if (!games.length) return '';
+  if (!games.length) {
+    return `
+    <section class="card portal-section">
+      <h2 class="section-title portal-section__title">Os meus jogos</h2>
+      <p class="portal-section__note">Ainda não há jogos com estatística. Aparecem aqui quando o treinador fizer o scout de um jogo da tua equipa.</p>
+    </section>`;
+  }
+  const note = '<p class="portal-section__note">As tuas ações e as da equipa. As das colegas não aparecem aqui.</p>';
+
+  // Com um jogo só, o resumo da época ERA esse jogo: desenhá-lo duas vezes
+  // dizia o mesmo em dois blocos seguidos. Mostra-se o jogo, já aberto.
+  if (games.length === 1) {
+    return `
+    <section class="card portal-section">
+      <h2 class="section-title portal-section__title">Os meus jogos</h2>
+      ${note}
+      <ul class="portal-scout-list portal-scout-list--solo">${scoutGameRow(games[0], me, { open: true })}</ul>
+    </section>`;
+  }
+
   const datas = games.map((g) => g.data);
   const used = usedCols(datas);
   const played = datas.reduce((a, d) => a + (pointsPlayed(d)[me.id] || 0), 0);
   const mine = playerRows(datas)[0];
   const w = games.filter((g) => { const r = setsWon(g.data); return r.o > r.t; }).length;
-  const fmt = (d) => (d ? d.split('-').reverse().slice(0, 2).join('/') : '');
+  const shown = scoutShowAll ? games : games.slice(0, SCOUT_VISIBLE);
+  const rest = games.length - shown.length;
 
   return `
     <section class="card portal-section">
-      <h2 class="section-title portal-section__title">Os meus jogos</h2>
-      <p class="portal-section__note">As tuas ações e as da equipa, nos jogos com estatística. As das colegas não aparecem aqui.</p>
-      <div class="portal-scout-head">
-        <span><strong>${games.length}</strong> jogo${games.length === 1 ? '' : 's'} · ${w} V – ${games.length - w} D</span>
-        <span><strong>${played}</strong> pontos em campo</span>
-        <span><strong>${mine ? mine.s.pts : 0}</strong> pontos teus</span>
+      <h2 class="section-title portal-section__title">A minha época</h2>
+      ${note}
+      <div class="sc-tiles">
+        <div class="sc-tile"><strong>${games.length}</strong><span>jogos · ${w}V ${games.length - w}D</span></div>
+        <div class="sc-tile"><strong>${played}</strong><span>pontos em campo</span></div>
+        <div class="sc-tile"><strong>${mine ? mine.s.pts : 0}</strong><span>pontos teus</span></div>
       </div>
-      ${myFundamentals(datas, used)}
-      ${teamLine(datas)}
-      <ul class="portal-scout-list">
-        ${games.slice(0, 10).map((g) => {
-          const r = setsWon(g.data);
-          const res = r.o > r.t ? 'V' : r.o < r.t ? 'D' : 'E';
-          const p = pointsPlayed(g.data)[me.id] || 0;
-          const m = playerRows([g.data])[0];
-          const one = usedCols([g.data]);
-          return `<li><details class="portal-scout-game">
-            <summary>
-              <span class="portal-att-row__day">${esc(fmt(g.game_date))}</span>
-              <span class="portal-att-row__title">vs ${esc(g.opponent || 'Adversário')}</span>
-              <span class="badge badge--${res === 'V' ? 'ok' : res === 'D' ? 'danger' : 'muted'}">${r.o}–${r.t}</span>
-            </summary>
-            <div class="portal-scout-game__body">
-              <p class="muted" style="margin:0">Parciais ${esc(partials(g.data).map((x) => `${x.our}-${x.their}`).join(', ') || '—')}${g.competition ? ` · ${esc(g.competition)}` : ''}</p>
-              <p style="margin:0.35rem 0 0">${p ? `Estiveste em campo <strong>${p}</strong> pontos` : 'Não entraste em campo neste jogo'}${m ? ` · <strong>${m.s.pts}</strong> ponto${m.s.pts === 1 ? '' : 's'} teu${m.s.pts === 1 ? '' : 's'} · ${m.s.errs} erro${m.s.errs === 1 ? '' : 's'}` : ''}</p>
-              ${myFundamentals([g.data], one)}
-              ${teamLine([g.data])}
-            </div>
-          </details></li>`;
-        }).join('')}
+      ${games.length >= 3 ? pointsChart(games, me) : ''}
+      ${myFundamentals(datas, used, me)}
+      ${teamBlock(datas)}
+    </section>
+
+    <section class="card portal-section">
+      <h2 class="section-title portal-section__title">Jogo a jogo</h2>
+      <ul class="portal-scout-list portal-scout-list--solo">
+        ${shown.map((g) => scoutGameRow(g, me)).join('')}
       </ul>
+      ${games.length > SCOUT_VISIBLE
+        ? `<button class="btn btn--link portal-section__more" data-scout-toggle type="button">
+             ${scoutShowAll ? 'Mostrar só os últimos' : `Mostrar os restantes ${rest}`}
+           </button>`
+        : ''}
     </section>`;
 }
 
 // --- Separador "A minha época" -------------------------------------------
 
+// As QUOTAS saíram do portal (decisão do clube): são assunto entre o clube e
+// a família, tratado no Financeiro, e não algo que a atleta acompanhe aqui.
 function epocaHTML(me) {
   const att = playerAttendanceStats(me.id);
   const form = playerRecentForm(me.id, 5);
   const recent = playerRecentTrainings(me.id, 8);
   const squads = playerUpcomingSquads(me.id, 5);
-  const quotas = playerQuotas(me.id);
   const pedidos = myRequests(me.id);
 
   // Só os estados que aconteceram mesmo. A grelha com os quatro estados é
@@ -701,27 +852,12 @@ function epocaHTML(me) {
         : '<p class="portal-section__note">Ainda sem registos de presença.</p>'}
     </section>
 
-    ${scoutHTML(me)}
-
     ${squads.length ? `
     <section class="card portal-section">
       <h2 class="section-title portal-section__title">As minhas convocatórias</h2>
       <ul class="portal-squads">${squads.map(squadRow).join('')}</ul>
     </section>
     ` : ''}
-
-    <section class="card portal-section">
-      <h2 class="section-title portal-section__title">As minhas quotas</h2>
-      ${quotas.list.length
-        ? `<div class="portal-quotas-head">
-             ${quotas.owedCount
-               ? `<span class="badge badge--warn">${quotas.owedCount} por pagar · ${euros(quotas.owed)}</span>`
-               : '<span class="badge badge--ok">Tudo regularizado</span>'}
-             <span class="badge badge--muted">${quotas.paidCount} pago${quotas.paidCount === 1 ? '' : 's'}</span>
-           </div>
-           <ul class="portal-quota-list">${quotas.list.slice(0, 12).map(quotaLine).join('')}</ul>`
-        : '<p class="portal-section__note">Sem quotas registadas.</p>'}
-    </section>
 
     ${materialHTML(pedidos, me)}
   `;
@@ -731,8 +867,7 @@ function epocaHTML(me) {
 //
 // O que JÁ está resolvido: entregue, recusado, ou pago e à espera. A
 // encomenda em curso vive lá em cima, fora dos separadores — aqui fica o
-// registo, que é consulta e não ação, e por isso pode estar ao lado das
-// quotas: é a mesma conversa administrativa com o clube.
+// registo, que é consulta e não ação, e por isso pode viver em «A época».
 //
 // Só aparece quando o clube abriu ALGUM artigo aos pedidos — ou quando ela
 // já tem pedidos feitos (senão o histórico desaparecia no dia em que o
@@ -1080,6 +1215,11 @@ function wire(container, me, team) {
     btn.addEventListener('click', () => cancelMyRequest(btn.dataset.cancelReq))
   );
 
+  container.querySelector('[data-scout-toggle]')?.addEventListener('click', () => {
+    scoutShowAll = !scoutShowAll;
+    renderPortal(container);
+  });
+
   container.querySelector('[data-drills-toggle]')?.addEventListener('click', () => {
     drillsShowAll = !drillsShowAll;
     renderPortal(container);
@@ -1376,22 +1516,6 @@ function whenText(iso) {
   if (dias === 1) return 'ontem';
   if (dias < 7) return `há ${dias} dias`;
   return d.toLocaleDateString('pt-PT', { day: '2-digit', month: 'long' });
-}
-
-function quotaLine(q) {
-  const mes = MONTHS[q.mes - 1] || q.mes;
-  const pagoEm = q.pago_em
-    ? new Date(q.pago_em).toLocaleDateString('pt-PT', { day: '2-digit', month: 'short' })
-    : null;
-  return `
-    <li class="portal-quota-row">
-      <span class="portal-quota-row__when">${esc(String(mes))} ${q.ano}</span>
-      <span class="portal-quota-row__valor">${euros(Number(q.valor || 0))}</span>
-      ${q.pago
-        ? `<span class="badge badge--ok">Pago${pagoEm ? ' · ' + esc(pagoEm) : ''}</span>`
-        : '<span class="badge badge--warn">Pendente</span>'}
-    </li>
-  `;
 }
 
 // Modal do exercício de decisão tática.

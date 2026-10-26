@@ -1593,7 +1593,7 @@ separador antes de navegar (usado pelos cartões do Painel).
     direção lê (RLS `gsc_*`). Não é secção configurável: é a ferramenta do
     próprio treinador no banco, como os Pedidos (`roleCanAccess`).
   - **A atleta vê as SUAS estatísticas e as da EQUIPA, nunca as das colegas**
-    (RPC `my_scout_games`, secção "Os meus jogos" em «A época» do portal).
+    (RPC `my_scout_games`, separador «Jogos» do portal).
     Comparar-se à colega do lado não ajuda ninguém a melhorar, e numa equipa
     de formação é a forma mais rápida de alguém deixar de vir.
     - **Não lê `game_scouts`**: uma política é por LINHA e não por coluna, e a
@@ -1606,11 +1606,45 @@ separador antes de navegar (usado pelos cartões do Painel).
       contam os pontos que ela jogou (quem esteve em campo viu-se do banco).
     - **Só jogos TERMINADOS**: um jogo a meio, lido no balneário, é uma nota
       sem conversa nenhuma à volta.
-    - **Mostra o que ela fez, não uma posição**: "6 pontos de ataque em 14" e
-      não um ranking, e só os fundamentos que se marcaram (`usedCols`).
-    - Carrega-se só ao abrir «A época» (`loadMyScoutGames`): são as ações da
-      época inteira, e o portal abre-se quase sempre para ver o treino de
-      logo. Sem a migração a chamada falha e a secção não aparece.
+    - **É um separador e não uma secção de «A época»**: é a parte do portal
+      que ela abre por gosto, depois de cada jogo, e trinta jogos entre as
+      presenças e o material afogavam o resto. Aparece a quem tem jogos JÁ
+      JOGADOS no calendário da equipa (`hasPlayedGames`, lido dos eventos em
+      memória): saber se há scout obrigava a descarregar as ações da época
+      só para decidir se se desenha um botão. Sem scout ainda, o separador
+      diz porquê.
+    - **Barras e não percentagens.** "Eficácia −9%" é linguagem de
+      treinador, e a uma miúda de catorze anos lê-se como "sou má" sem dizer
+      porquê. Cada fundamento é uma barra com o que correu bem, o que
+      continuou e o que foi erro, e a legenda diz as três coisas por palavras
+      ("4 pontos · 9 continuaram · 4 erros") — o mesmo número, explicado. A
+      equipa também: de onde vieram os pontos (ataque, serviço, bloco, erros
+      do adversário) é uma barra, não uma frase entre parênteses.
+    - **Mostra o que ela fez, não uma posição**: números grandes (jogos,
+      pontos em campo, pontos dela) e um gráfico dos pontos DELA jogo a jogo,
+      a partir de 3 jogos — a evolução é contra ela própria. Nenhum ranking,
+      e só os fundamentos que se marcaram (`usedCols`).
+    - **Uma época tem trinta jogos**: o resumo vem em cima e "Jogo a jogo"
+      mostra os 5 mais recentes, fechados, com "Mostrar os restantes N".
+      Fechada, cada linha já diz os pontos DELA nesse jogo — sem isso era o
+      calendário outra vez. Com UM jogo só não há resumo da época: era o
+      mesmo bloco duas vezes, e mostra-se o jogo já aberto.
+    - Carrega-se só ao abrir o separador (`loadMyScoutGames`): são as ações
+      da época inteira, e o portal abre-se quase sempre para ver o treino de
+      logo. Sem a migração a chamada falha e diz que ainda não há jogos.
+  - **As estatísticas do treinador dividem-se em quatro partes** (`statsBlock`):
+    **Equipa** (de onde vieram os pontos), **Por ação**, **Por atleta** e
+    **Destaques**. A tabela sozinha respondia a "quem", e a pergunta que
+    decide o treino de terça é "onde é que perdemos pontos?".
+    - **Por ação** é a equipa inteira (`teamCounts`): uma barra por ação com
+      a distribuição `# + − / =`, os erros à cabeça (número e %) e o número
+      que a resume (eficácia, positiva, pontos de bloco). Os erros em "outras
+      ações" (rede, invasão) dizem-se no rodapé — contam para os erros nossos
+      e não são de nenhuma ação.
+    - **Cada grupo da tabela leva os seus ERROS** (`Err`), a vermelho quando
+      os há, e há uma linha **Equipa** no fim. O total de erros da atleta
+      sozinho não dizia se foram cinco serviços na rede ou cinco receções.
+      A folha A4 e o Excel levam as mesmas colunas de erro.
   - **Exportação**: a folha A4 (`openSheet`, como o resumo pós-jogo; o PDF
     sai da janela de impressão) e o Excel com tudo — Jogos, Atletas (época),
     Atleta x Jogo e Ações, uma por linha — porque quem quer cruzar a época
@@ -1973,7 +2007,7 @@ separador antes de navegar (usado pelos cartões do Painel).
     disponibilidade só aparece quando NÃO está tudo bem: dizer "Apto" a quem
     está apto é gastar o cimo do ecrã com uma não-notícia.
   - **Como vai a época** e **onde está o cartão** — separadores (`Hoje` ·
-    `A época` · `Cartão`), no mesmo padrão do `saude.js`/`treino.js`. O cartão
+    `Jogos` · `A época` · `Cartão`), no mesmo padrão do `saude.js`/`treino.js`. O cartão
     é guardado no dispositivo em TODAS as visitas, mesmo com o separador
     fechado: é à porta do pavilhão, sem rede, que ele faz falta, e aí já não
     há como o ir buscar.
@@ -2022,8 +2056,9 @@ separador antes de navegar (usado pelos cartões do Painel).
       levantar**, que sai para uma linha própria no topo do cartão: é a única
       coisa ali que lhe pede uma AÇÃO, e no meio de quatro crachás parecidos
       lia-se como mais um estado — com o material a ficar no gabinete.
-  - **"O meu material"** é o HISTÓRICO e vive em «A época», ao lado das
-    quotas: o que já foi entregue, recusado ou pago. É consulta e não ação —
+  - **As quotas saíram do portal**: são assunto entre o clube e a família,
+    tratado no Financeiro, e não algo que a atleta acompanhe aqui.
+  - **"O meu material"** é o HISTÓRICO e vive em «A época»: o que já foi entregue, recusado ou pago. É consulta e não ação —
     a mesma conversa administrativa com o clube, e não uma pergunta que se
     faça todos os dias. O que está em curso não se repete aqui: desenhar as
     mesmas linhas no cartão da encomenda e outra vez na lista era dizer-lhe
