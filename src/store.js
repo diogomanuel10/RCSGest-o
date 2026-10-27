@@ -40,11 +40,16 @@ const ENTITY_LABEL = {
   equipment_requests: 'Pedido',
   physio_requests: 'Pedido de fisioterapia',
   rehab_exercises: 'Exercício',
+  site_photos: 'Foto',
+  site_posts: 'Notícia',
+  site_products: 'Artigo da loja',
+  site_orders: 'Pedido da loja',
 };
 
 // Etiquetas femininas — o particípio concorda em género («Equipa guardada»).
 const FEMININE = new Set([
   'teams', 'quotas', 'clinical_sessions', 'orders', 'training_phases', 'physical_tests',
+  'site_photos', 'site_posts',
 ]);
 
 // Aviso de confirmação para uma operação numa tabela conhecida.
@@ -156,6 +161,15 @@ export const state = {
   // não é possível — a mesma linha do `birthDateReady()`.
   marketingItems: [],
   marketingReady: true,
+  // Conteúdos do site público (galeria, notícias, loja e pedidos da loja).
+  // Não vão no `loadAll`: só o coordenador os edita, e só nas Definições →
+  // Site. `siteContent` fica `null` até se abrir esse ecrã (`loadSiteContent`);
+  // `false` quer dizer que a migração `site-conteudo.sql` ainda não correu.
+  siteContent: null,
+  sitePhotos: [],
+  sitePosts: [],
+  siteProducts: [],
+  siteOrders: [],
   gameResults: [],        // resultado final de cada jogo (sets)
   gameSets: [],           // parciais de cada set
   financialEntries: [],   // receitas e despesas do clube
@@ -246,6 +260,11 @@ export function resetState() {
   state.exercises = [];
   state.marketingItems = [];
   state.marketingReady = true;
+  state.siteContent = null;
+  state.sitePhotos = [];
+  state.sitePosts = [];
+  state.siteProducts = [];
+  state.siteOrders = [];
   state.profile = null;
   state.profiles = [];
   state.org = null;
@@ -2659,6 +2678,126 @@ export async function setClubSite(slug, enabled) {
   if (error) throw error;
   state.org = { ...(state.org || {}), slug: data?.slug ?? null, site_enabled: Boolean(data?.site_enabled) };
   return data;
+}
+
+// --- Conteúdos do site público ------------------------------------------
+// Ver `supabase/site-conteudo.sql`. Carregam-se só quando o coordenador abre
+// as Definições → Site: o resto da app não precisa de nada disto, e o
+// `loadAll` corre em cada arranque de toda a gente.
+
+let siteContentLoading = null;
+
+export function loadSiteContent({ force = false } = {}) {
+  if (siteContentLoading) return siteContentLoading;
+  if (state.siteContent && !force) return Promise.resolve();
+  siteContentLoading = (async () => {
+    const [photos, posts, products, orders] = await Promise.all([
+      supabase.from('site_photos').select('*').order('sort').order('created_at', { ascending: false }),
+      supabase.from('site_posts').select('*').order('created_at', { ascending: false }),
+      supabase.from('site_products').select('*').order('sort').order('name'),
+      supabase.from('site_orders').select('*').order('created_at', { ascending: false }).limit(300),
+    ]);
+    // Sem a migração as tabelas não existem: o ecrã diz o que falta correr
+    // em vez de mostrar quatro listas vazias que parecem funcionar.
+    if (photos.error || posts.error || products.error || orders.error) {
+      state.siteContent = false;
+    } else {
+      state.sitePhotos = photos.data || [];
+      state.sitePosts = posts.data || [];
+      state.siteProducts = products.data || [];
+      state.siteOrders = orders.data || [];
+      state.siteContent = true;
+    }
+    notify();
+  })().finally(() => { siteContentLoading = null; });
+  return siteContentLoading;
+}
+
+const SITE_MEDIA_BUCKET = 'site-media';
+
+// Uma foto da galeria abre a toda a largura do ecrã de um portátil: 1600px
+// chega e não pesa. Um produto ou um logótipo desenham-se num cartão.
+export const SITE_IMAGE_LARGE = 1600;
+export const SITE_IMAGE_SMALL = 800;
+
+// Envia uma imagem do site e devolve o CAMINHO (o endereço público constrói-se
+// a partir dele). Sufixo aleatório pela razão do `uploadArticlePhoto`: o
+// bucket é servido por CDN e um caminho fixo continuava a mostrar a antiga.
+export async function uploadSiteImage(kind, file, maxPx = SITE_IMAGE_SMALL) {
+  const orgId = state.org?.id || state.profile?.org_id;
+  if (!orgId) throw new Error('Clube por identificar.');
+  if (!file || !file.size) {
+    throw new Error('A imagem chegou vazia. Se está na iCloud, abre-a primeiro na app Fotos e tenta de novo.');
+  }
+  const blob = await shrinkImage(file, maxPx);
+  const rand = Math.random().toString(36).slice(2, 10);
+  const path = `${orgId}/${kind}-${Date.now().toString(36)}-${rand}.jpg`;
+  const { error } = await supabase.storage
+    .from(SITE_MEDIA_BUCKET)
+    .upload(path, blob, { contentType: 'image/jpeg', upsert: true });
+  if (error) throw error;
+  return path;
+}
+
+// Apagar a imagem é um extra (a linha já foi), por isso engole a falha.
+export async function deleteSiteImage(path) {
+  if (!path) return;
+  try {
+    await supabase.storage.from(SITE_MEDIA_BUCKET).remove([path]);
+  } catch {
+    /* sem consequência para o utilizador */
+  }
+}
+
+// Fotos da galeria em lote: uma escrita por foto mas sem um toast por foto
+// (vinte avisos seguidos tapavam o ecrã) — o aviso é um só, no fim. As novas
+// ficam À FRENTE das antigas: quem carrega as fotos de sábado quer vê-las no
+// topo do site no domingo. Uma que falhe não deita fora as outras.
+export async function addSitePhotos(files) {
+  const minSort = Math.min(0, ...state.sitePhotos.map((p) => p.sort || 0));
+  const failed = [];
+  let ok = 0;
+  for (const [i, file] of files.entries()) {
+    try {
+      const path = await uploadSiteImage('foto', file, SITE_IMAGE_LARGE);
+      const { data, error } = await supabase
+        .from('site_photos').insert({ path, sort: minSort - files.length + i }).select().single();
+      if (error) {
+        await deleteSiteImage(path);
+        throw error;
+      }
+      state.sitePhotos.push(data);
+      ok += 1;
+    } catch (err) {
+      failed.push(`${file.name}: ${dbErrorMessage(err)}`);
+    }
+  }
+  state.sitePhotos.sort((a, b) => (a.sort || 0) - (b.sort || 0)
+    || String(b.created_at).localeCompare(String(a.created_at)));
+  if (ok) toastOk(`${ok} foto${ok === 1 ? '' : 's'} adicionada${ok === 1 ? '' : 's'}.`);
+  notify();
+  return failed;
+}
+
+// A ordem do carrossel. Renumera a lista inteira: as fotos nascem com `sort`
+// repetidos, e trocar dois valores iguais não mudava nada.
+export async function reorderSitePhotos(ordered) {
+  const changes = ordered
+    .map((p, idx) => ({ p, idx }))
+    .filter(({ p, idx }) => p.sort !== idx);
+  const results = await Promise.all(changes.map(({ p, idx }) =>
+    supabase.from('site_photos').update({ sort: idx }).eq('id', p.id)));
+  const failed = results.find((r) => r.error);
+  if (failed) throw failed.error;
+  changes.forEach(({ p, idx }) => { p.sort = idx; });
+  state.sitePhotos = [...ordered];
+  notify();
+}
+
+export function siteImageUrl(path) {
+  if (!path) return '';
+  const { data } = supabase.storage.from(SITE_MEDIA_BUCKET).getPublicUrl(path);
+  return data?.publicUrl || '';
 }
 
 // Nota: a cópia de segurança em .json (exportar/importar) foi removida.

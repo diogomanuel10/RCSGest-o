@@ -9,15 +9,35 @@ import { esc } from '../ui.js';
 import { confirmDialog } from '../modal.js';
 import { teamName } from '../compute.js';
 import { GENDER_LABEL } from '../constants.js';
+import { renderSiteContent } from './site-conteudo.js';
 
 const SITE_DOMAIN = (import.meta.env.VITE_SITE_DOMAIN || 'rumia.pt').trim();
 
 const SECTIONS = [
-  { key: 'agenda', label: 'Próximos jogos', hint: 'dia, hora, pavilhão e adversário' },
-  { key: 'resultados', label: 'Resultados', hint: 'final e parciais' },
+  { key: 'agenda', label: 'Calendário de jogos', hint: 'dia, hora, pavilhão e adversário' },
+  { key: 'resultados', label: 'Resultados', hint: 'final, parciais e o balanço de cada equipa' },
+  { key: 'equipas', label: 'Equipas', hint: 'escalões, treinadores e os plantéis que publicares' },
+  { key: 'galeria', label: 'Galeria de jogos', hint: 'o carrossel do início' },
+  { key: 'noticias', label: 'Notícias', hint: 'só as publicadas' },
+  { key: 'loja', label: 'Loja do clube', hint: 'os artigos à venda e os pedidos' },
+  { key: 'historia', label: 'História do clube', hint: 'o texto e os marcos que escreveres' },
   { key: 'patrocinadores', label: 'Patrocinadores', hint: 'só os confirmados, por nível' },
   { key: 'inscricoes', label: 'Pedidos de inscrição', hint: 'chegam ao Recrutamento, com aviso' },
 ];
+
+// Os marcos escrevem-se uma linha por marco, "1987 — Fundação do clube": é
+// como se escreveriam num papel, e um formulário com dois campos por marco
+// para dez marcos era um formulário de vinte campos.
+function milestonesToText(list) {
+  return (Array.isArray(list) ? list : []).map((m) => `${m.year} — ${m.text}`).join('\n');
+}
+
+function parseMilestones(text) {
+  return String(text || '').split('\n').map((line) => {
+    const m = /^\s*(\d{4})\s*[—–:\-]+\s*(.+)$/.exec(line);
+    return m ? { year: m[1], text: m[2].trim().slice(0, 300) } : null;
+  }).filter(Boolean).sort((a, b) => a.year.localeCompare(b.year)).slice(0, 40);
+}
 
 // O site só existe depois de `site-publico.sql` correr: é ele que traz as
 // colunas. A linha do `birthDateReady()`.
@@ -56,6 +76,7 @@ export function renderSiteSettings(el) {
   const site = state.settings.site || {};
   const sections = site.sections || {};
   const hidden = new Set(site.hidden_teams || []);
+  const roster = new Set(site.roster_teams || []);
   const slug = org.slug || suggestSlug(state.settings.club_name || org.name);
   const teams = state.teams.filter((t) => !t.archived_at);
   const dupEscalao = (t) => teams.filter((x) => x.escalao === t.escalao).length > 1;
@@ -69,10 +90,11 @@ export function renderSiteSettings(el) {
         já estão na Rumia: o resultado de sábado aparece lá assim que é registado.
       </p>
       <p class="muted" style="font-size:0.85rem;margin:0 0 1rem">
-        <strong>Nenhum atleta aparece no site</strong> — nem nome, nem número,
-        nem foto, nem estatística — e os treinos também não: dizer onde estão
-        crianças a horas fixas todas as semanas não é informação pública. Só
-        jogos, resultados, patrocinadores e os contactos que escreveres aqui.
+        <strong>Por omissão, nenhum atleta aparece no site</strong> — e os
+        treinos também não: dizer onde estão crianças a horas fixas todas as
+        semanas não é informação pública. O plantel de uma equipa só aparece se
+        o publicares em baixo, escalão a escalão, e mesmo aí só com o número, a
+        posição e o nome abreviado ("Ana S.").
       </p>
 
       <form id="site-form">
@@ -117,6 +139,45 @@ export function renderSiteSettings(el) {
               <span>${esc(teamName(t))}${dupEscalao(t) ? ` · ${esc(GENDER_LABEL[t.gender] || t.gender)}` : ''}</span>
             </label>`).join('')}
         </div>` : ''}
+
+        ${teams.length ? `
+        <h3 class="section-title" style="font-size:1rem;margin:1.2rem 0 0.4rem">Plantéis no site</h3>
+        <p class="muted" style="margin:0 0 0.4rem;font-size:0.85rem">
+          Só os escalões marcados mostram o plantel (número, posição e nome
+          abreviado — nunca foto, idade ou estatísticas). Antes de marcar um
+          escalão de formação, confirma que as famílias o autorizaram.
+        </p>
+        <div class="check-list" style="max-height:220px">
+          ${teams.map((t) => `
+            <label class="check-item">
+              <input type="checkbox" name="roster" value="${esc(t.id)}" ${roster.has(t.id) ? 'checked' : ''} />
+              <span>${esc(teamName(t))}${dupEscalao(t) ? ` · ${esc(GENDER_LABEL[t.gender] || t.gender)}` : ''}</span>
+            </label>`).join('')}
+        </div>` : ''}
+
+        <h3 class="section-title" style="font-size:1rem;margin:1.2rem 0 0.4rem">História do clube</h3>
+        <div class="field-grid">
+          <div class="field">
+            <label for="site_founded">Ano de fundação</label>
+            <input type="text" id="site_founded" name="founded" inputmode="numeric" maxlength="4"
+                   pattern="(18|19|20)[0-9]{2}" placeholder="ex.: 1987" value="${esc(site.founded || '')}" />
+          </div>
+        </div>
+        <div class="field">
+          <label for="site_history">A história</label>
+          <textarea id="site_history" name="history" rows="5" maxlength="6000"
+                    placeholder="Como nasceu, quem o fundou, os momentos que ninguém esquece.">${esc(site.history || '')}</textarea>
+        </div>
+        <div class="field">
+          <label for="site_milestones">Marcos</label>
+          <textarea id="site_milestones" name="milestones" rows="4" maxlength="6000"
+                    aria-describedby="site_milestones_hint"
+                    placeholder="1987 — Fundação do clube&#10;2004 — Primeira subida à 1.ª divisão">${esc(milestonesToText(site.milestones))}</textarea>
+          <p class="field__hint muted" id="site_milestones_hint" style="margin:0.25rem 0 0;font-size:0.82rem">
+            Um por linha: o ano, um travessão e o que aconteceu. Aparecem no site
+            como uma linha do tempo, por ordem.
+          </p>
+        </div>
 
         <h3 class="section-title" style="font-size:1rem;margin:1.2rem 0 0.4rem">Sobre e contactos</h3>
         <div class="field">
@@ -163,7 +224,10 @@ export function renderSiteSettings(el) {
           <button type="submit" class="btn btn--primary">Guardar</button>
         </div>
       </form>
-    </section>`;
+    </section>
+    <div class="settings-stack" id="site-content"></div>`;
+
+  renderSiteContent(el.querySelector('#site-content'));
 
   const form = el.querySelector('#site-form');
   const msg = el.querySelector('#site-msg');
@@ -191,11 +255,21 @@ export function renderSiteSettings(el) {
       if (!ok) return;
     }
     const checkedTeams = new Set([...form.querySelectorAll('input[name="team"]:checked')].map((i) => i.value));
+    const rosterTeams = [...form.querySelectorAll('input[name="roster"]:checked')].map((i) => i.value);
+    const founded = (form.founded?.value || '').trim();
+    if (founded && !/^(18|19|20)\d{2}$/.test(founded)) {
+      show('O ano de fundação tem de ter quatro algarismos (ex.: 1987).', 'error');
+      return;
+    }
     const value = (name) => (form.elements[name]?.value || '').trim() || null;
     const nextSite = {
       ...site,
       sections: Object.fromEntries(SECTIONS.map((s) => [s.key, form.elements[`sec_${s.key}`].checked])),
       hidden_teams: teams.filter((t) => !checkedTeams.has(t.id)).map((t) => t.id),
+      roster_teams: rosterTeams,
+      founded: founded || null,
+      history: value('history'),
+      milestones: parseMilestones(form.milestones?.value),
       about: value('about'),
       email: value('email'),
       phone: value('phone'),

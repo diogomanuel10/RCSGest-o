@@ -2,10 +2,15 @@
 //
 // Não importa nada da app: nem o cliente do Supabase, nem o store, nem o
 // design system. Quem abre isto é um pai no telemóvel, vindo de um link do
-// Instagram, muitas vezes com dados móveis — e o que precisa são duas
-// chamadas `fetch` e uma página. Os dados vêm de duas RPCs públicas
-// (`public_club_site` e `public_site_signup`, ver `supabase/site-publico.sql`),
-// que só devolvem o que é público: nenhum atleta sai de lá.
+// Instagram, muitas vezes com dados móveis — e o que precisa são poucas
+// chamadas `fetch` e uma página. Os dados vêm de RPCs públicas
+// (`public_club_site`, `public_site_signup` e `public_shop_order`, ver
+// `supabase/site-publico.sql` e `supabase/site-conteudo.sql`), que só
+// devolvem o que é público.
+//
+// É UMA página com várias secções em rotas no hash (`#/calendario`,
+// `#/equipas/<id>`…): os dados chegam todos numa chamada, por isso mudar de
+// secção não espera pela rede, e cada endereço continua a ser partilhável.
 
 import './site.css';
 
@@ -23,15 +28,19 @@ const root = document.getElementById('site');
 
 // Quantas linhas se mostram antes do "Mostrar mais". Uma época tem trinta
 // jogos por escalão; a página inteira aberta era um scroll sem fim.
-const AGENDA_STEP = 12;
-const RESULTS_STEP = 10;
+const RESULTS_STEP = 12;
+const SLIDE_MS = 6000;
 
 let data = null;
 let slug = '';
 let teamFilter = '';
-let agendaShown = AGENDA_STEP;
 let resultsShown = RESULTS_STEP;
 let signupDone = false;
+let calMonth = null; // { y, m } do mês aberto no calendário
+let calDay = '';     // dia escolhido no calendário ('YYYY-MM-DD')
+let slideIndex = 0;
+let slideTimer = null;
+let menuOpen = false;
 
 // --- Utilitários -----------------------------------------------------------
 
@@ -95,6 +104,13 @@ async function rpc(name, body) {
   return json;
 }
 
+// Endereço público de uma imagem do bucket `site-media`. O caminho vem da
+// base de dados, por isso cada segmento é codificado.
+function mediaUrl(path) {
+  if (!path) return '';
+  return `${API_URL}/storage/v1/object/public/site-media/${String(path).split('/').map(encodeURIComponent).join('/')}`;
+}
+
 // Uma preferência deste dispositivo (o escalão escolhido) e a última página
 // vista, para quem volta abrir já com conteúdo. Em janela privada o
 // localStorage rebenta — e isso não pode impedir o site de abrir.
@@ -108,8 +124,16 @@ function writeStore(key, value) {
 // Datas guardadas como 'YYYY-MM-DD': lidas como dia local, nunca como UTC
 // (senão o jogo de sábado aparecia na sexta a quem estivesse a oeste).
 function parseDay(s) {
-  const [y, m, d] = String(s).split('-').map(Number);
+  const [y, m, d] = String(s).slice(0, 10).split('-').map(Number);
   return new Date(y, (m || 1) - 1, d || 1);
+}
+
+function isoDay(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function cap(txt) {
+  return txt ? txt.charAt(0).toUpperCase() + txt.slice(1) : txt;
 }
 
 function dayLabel(s) {
@@ -119,17 +143,32 @@ function dayLabel(s) {
   const diff = Math.round((d - today) / 86400000);
   if (diff === 0) return 'Hoje';
   if (diff === 1) return 'Amanhã';
-  const txt = d.toLocaleDateString('pt-PT', { weekday: 'short', day: 'numeric', month: 'short' });
-  return txt.charAt(0).toUpperCase() + txt.slice(1);
+  if (diff === -1) return 'Ontem';
+  return cap(d.toLocaleDateString('pt-PT', { weekday: 'short', day: 'numeric', month: 'short' }));
+}
+
+function longDate(s) {
+  return parseDay(s).toLocaleDateString('pt-PT', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 function monthLabel(s) {
-  const txt = parseDay(s).toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' });
-  return txt.charAt(0).toUpperCase() + txt.slice(1);
+  return cap(parseDay(s).toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' }));
 }
 
 function hhmm(t) {
   return t ? String(t).slice(0, 5) : '';
+}
+
+// "Faltam 3 dias" — para o próximo jogo. Só em dias: horas e minutos a contar
+// num site que ninguém deixa aberto são um relógio que nunca se vê mexer.
+function countdown(g) {
+  const d = parseDay(g.date);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diff = Math.round((d - today) / 86400000);
+  if (diff <= 0) return 'É hoje!';
+  if (diff === 1) return 'É amanhã';
+  return `Faltam ${diff} dias`;
 }
 
 // Só se constrói um href se for mesmo http(s) — a regra do `safeUrl` da app.
@@ -177,6 +216,28 @@ function initials(name) {
     .toUpperCase() || '★';
 }
 
+function euros(v) {
+  return Number(v).toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' });
+}
+
+// Texto livre escrito na app: parágrafos separados por uma linha em branco,
+// quebras simples mantêm-se.
+function paragraphs(text) {
+  return String(text || '')
+    .split(/\n\s*\n/)
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .map((p) => `<p>${esc(p).replace(/\n/g, '<br />')}</p>`)
+    .join('');
+}
+
+function emblem(cls = '') {
+  const c = data.club;
+  return c.logo
+    ? `<img class="emblem ${cls}" src="${esc(c.logo)}" alt="" />`
+    : `<span class="emblem emblem--initials ${cls}" aria-hidden="true">${esc(initials(c.name))}</span>`;
+}
+
 // --- Equipas ---------------------------------------------------------------
 
 // O nome de uma equipa é o escalão; o género só entra quando o clube tem o
@@ -194,6 +255,8 @@ function teamLabels() {
   return map;
 }
 
+const GENDER = { F: 'Feminino', M: 'Masculino', X: 'Misto' };
+
 // Pela ordem dos escalões do clube (Minis antes de Seniores), não alfabética.
 function orderedTeams() {
   const order = Array.isArray(data?.club?.escaloes) ? data.club.escaloes : [];
@@ -202,7 +265,7 @@ function orderedTeams() {
     return i === -1 ? 999 : i;
   };
   return [...(data?.teams || [])].sort(
-    (a, b) => rank(a.escalao) - rank(b.escalao) || a.escalao.localeCompare(b.escalao) || a.gender.localeCompare(b.gender)
+    (a, b) => rank(a.escalao) - rank(b.escalao) || a.escalao.localeCompare(b.escalao) || String(a.gender).localeCompare(String(b.gender))
   );
 }
 
@@ -210,55 +273,159 @@ function filtered(list) {
   return teamFilter ? list.filter((g) => g.team_id === teamFilter) : list;
 }
 
-// --- Blocos ----------------------------------------------------------------
+function outcome(g) {
+  if (g.sets_for === g.sets_against) return ['E', 'draw', 'Empate'];
+  return g.sets_for > g.sets_against ? ['V', 'win', 'Vitória'] : ['D', 'loss', 'Derrota'];
+}
 
-function heroHTML() {
-  const c = data.club;
-  const logo = c.logo
-    ? `<img class="hero__logo" src="${esc(c.logo)}" alt="" />`
-    : `<span class="hero__logo hero__logo--initials" aria-hidden="true">${esc(initials(c.name))}</span>`;
-  const s = data.sections;
-  const links = [
-    s.agenda && ['agenda', 'Jogos'],
-    s.resultados && ['resultados', 'Resultados'],
-    s.patrocinadores && (data.sponsors || []).length && ['patrocinadores', 'Patrocinadores'],
-    s.inscricoes && ['inscricoes', 'Inscrições'],
-    ['contactos', 'Contactos'],
-  ].filter(Boolean);
+// O balanço de uma equipa (ou do clube): é a pergunta que um pai faz antes de
+// todas as outras — "como é que eles vão?".
+function record(list) {
+  const r = { played: list.length, win: 0, loss: 0, draw: 0, setsFor: 0, setsAgainst: 0 };
+  list.forEach((g) => {
+    const [, kind] = outcome(g);
+    r[kind] += 1;
+    r.setsFor += Number(g.sets_for) || 0;
+    r.setsAgainst += Number(g.sets_against) || 0;
+  });
+  r.form = list.slice(0, 5).map(outcome);
+  r.pct = r.played ? Math.round((r.win / r.played) * 100) : 0;
+  return r;
+}
+
+function formDots(form) {
+  if (!form.length) return '';
+  return `<span class="formguide" aria-label="Últimos jogos: ${form.map((f) => f[2]).join(', ')}">
+    ${form.map((f) => `<span class="formguide__dot formguide__dot--${f[1]}" title="${f[2]}">${f[0]}</span>`).join('')}
+  </span>`;
+}
+
+// --- Rotas -----------------------------------------------------------------
+
+// Os endereços da primeira versão do site eram âncoras (`#agenda`), e já
+// foram partilhados: continuam a abrir a secção certa.
+const LEGACY_ROUTES = { agenda: 'calendario' };
+
+function route() {
+  const parts = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
+  const page = parts[0] || '';
+  return { page: LEGACY_ROUTES[page] || page, id: parts[1] ? decodeURIComponent(parts[1]) : '' };
+}
+
+function has(section) {
+  const s = data.sections || {};
+  switch (section) {
+    case 'galeria': return s.galeria !== false && (data.photos || []).length > 0;
+    case 'noticias': return s.noticias !== false && (data.posts || []).length > 0;
+    case 'loja': return s.loja !== false && (data.products || []).length > 0;
+    case 'historia': {
+      const h = data.history;
+      return s.historia !== false && h && (h.text || h.founded || (h.milestones || []).length);
+    }
+    case 'patrocinadores': return s.patrocinadores !== false && (data.sponsors || []).length > 0;
+    case 'equipas': return s.equipas !== false && (data.teams || []).length > 0;
+    case 'agenda': return s.agenda !== false;
+    case 'resultados': return s.resultados !== false;
+    case 'inscricoes': return s.inscricoes !== false;
+    default: return true;
+  }
+}
+
+// O menu só mostra o que existe: uma "Loja" que abre uma página vazia lê-se
+// como um site abandonado.
+function navItems() {
+  return [
+    ['', 'Início', true],
+    ['calendario', 'Calendário', has('agenda') || has('resultados')],
+    ['resultados', 'Resultados', has('resultados')],
+    ['equipas', 'Equipas', has('equipas')],
+    ['noticias', 'Notícias', has('noticias')],
+    ['loja', 'Loja', has('loja')],
+    ['historia', 'História', has('historia')],
+    ['patrocinadores', 'Patrocinadores', has('patrocinadores')],
+    ['contactos', 'Contactos', true],
+  ].filter((x) => x[2]);
+}
+
+function link(page, id = '') {
+  return `#/${page}${id ? `/${encodeURIComponent(id)}` : ''}`;
+}
+
+// --- Cabeçalho e rodapé ------------------------------------------------------
+
+function headerHTML(page) {
+  const items = navItems();
+  const active = page === 'equipa' ? 'equipas' : page === 'noticia' ? 'noticias' : page;
+  const nav = items.map(([id, label]) => `
+    <a href="${link(id)}" class="topnav__link${active === id ? ' is-active' : ''}"
+       ${active === id ? 'aria-current="page"' : ''}>${label}</a>`).join('');
   return `
-    <header class="hero">
-      <div class="wrap hero__inner">
-        ${logo}
-        <div class="hero__text">
-          <h1 class="hero__name">${esc(c.name)}</h1>
-          ${c.motto ? `<p class="hero__motto">${esc(c.motto)}</p>` : ''}
-        </div>
+    <header class="topbar">
+      <div class="wrap topbar__inner">
+        <a class="brand" href="#/" aria-label="${esc(data.club.name)} — início">
+          ${emblem('emblem--sm')}
+          <span class="brand__name">${esc(data.club.name)}</span>
+        </a>
+        <nav class="topnav" aria-label="Secções">${nav}</nav>
+        ${has('inscricoes') ? '<a class="btn btn--accent topbar__cta" href="#/inscricoes">Inscreve-te</a>' : ''}
+        <button type="button" class="burger" aria-expanded="${menuOpen}" aria-controls="menu" data-menu>
+          <span class="sr-only">Menu</span><span class="burger__bar" aria-hidden="true"></span>
+        </button>
       </div>
-      <nav class="site-nav" aria-label="Secções">
-        <div class="wrap site-nav__inner">
-          ${links.map(([id, label]) => `<a href="#${id}">${label}</a>`).join('')}
-        </div>
+      <nav class="menu${menuOpen ? ' is-open' : ''}" id="menu" aria-label="Menu" ${menuOpen ? '' : 'hidden'}>
+        ${nav}
+        ${has('inscricoes') ? '<a class="topnav__link menu__cta" href="#/inscricoes">Inscreve-te</a>' : ''}
       </nav>
     </header>`;
 }
 
-function nextGameHTML(labels) {
-  const g = filtered(data.upcoming || [])[0];
-  if (!data.sections.agenda || !g) return '';
-  return `
-    <section class="next" aria-label="Próximo jogo">
-      <p class="next__kicker">Próximo jogo · ${esc(labels[g.team_id] || '')}</p>
-      <p class="next__match">${esc(data.club.name)} <span class="next__vs">vs</span> ${esc(g.opponent || g.title || 'A definir')}</p>
-      <p class="next__when">
-        <strong>${esc(dayLabel(g.date))}${g.time ? ` · ${esc(hhmm(g.time))}` : ''}</strong>
-        ${g.location ? `<span>${esc(g.location)}</span>` : ''}
-      </p>
-    </section>`;
+function socialsHTML() {
+  const c = data.contacts || {};
+  const ig = socialUrl(c.instagram, 'https://instagram.com');
+  const fb = socialUrl(c.facebook, 'https://facebook.com');
+  return [
+    ig && `<a class="social" href="${esc(ig)}" target="_blank" rel="noopener">Instagram</a>`,
+    fb && `<a class="social" href="${esc(fb)}" target="_blank" rel="noopener">Facebook</a>`,
+  ].filter(Boolean).join('');
 }
 
-function filterHTML(labels) {
+function footerHTML() {
+  const c = data.contacts || {};
+  const tel = c.phone ? String(c.phone).replace(/[^\d+]/g, '') : '';
+  const mail = c.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.email) ? c.email : '';
+  return `
+    <footer class="foot">
+      <div class="wrap foot__grid">
+        <div class="foot__club">
+          ${emblem('emblem--sm')}
+          <div>
+            <p class="foot__name">${esc(data.club.name)}</p>
+            ${data.club.motto ? `<p class="foot__muted">${esc(data.club.motto)}</p>` : ''}
+          </div>
+        </div>
+        <nav class="foot__nav" aria-label="Rodapé">
+          ${navItems().map(([id, label]) => `<a href="${link(id)}">${label}</a>`).join('')}
+        </nav>
+        <div class="foot__contacts">
+          ${c.address ? `<p>${esc(c.address)}</p>` : ''}
+          ${tel ? `<p><a href="tel:${esc(tel)}">${esc(c.phone)}</a></p>` : ''}
+          ${mail ? `<p><a href="mailto:${esc(mail)}">${esc(mail)}</a></p>` : ''}
+          <div class="socials">${socialsHTML()}</div>
+        </div>
+      </div>
+      <div class="wrap foot__base">
+        <span>${esc(data.club.name)}${data.club.season ? ` · Época ${esc(data.club.season)}` : ''}</span>
+        <a href="https://www.${esc(SITE_DOMAIN)}" target="_blank" rel="noopener">Feito com Rumia</a>
+      </div>
+    </footer>`;
+}
+
+// --- Blocos comuns -----------------------------------------------------------
+
+function chipsHTML() {
   const teams = orderedTeams();
-  if (teams.length < 2 || !(data.sections.agenda || data.sections.resultados)) return '';
+  if (teams.length < 2) return '';
+  const labels = teamLabels();
   const chip = (id, label) => `
     <button type="button" class="chip${teamFilter === id ? ' chip--on' : ''}"
             data-team="${esc(id)}" aria-pressed="${teamFilter === id}">${esc(label)}</button>`;
@@ -269,109 +436,639 @@ function filterHTML(labels) {
     </div>`;
 }
 
-function agendaHTML(labels) {
-  if (!data.sections.agenda) return '';
-  const all = filtered(data.upcoming || []);
-  const list = all.slice(0, agendaShown);
-  let month = '';
-  const rows = list.map((g) => {
-    const m = monthLabel(g.date);
-    const head = m !== month ? `<li class="list__month">${esc(m)}</li>` : '';
-    month = m;
-    return `${head}
-      <li class="game">
-        <div class="game__when">
-          <span class="game__day">${esc(dayLabel(g.date))}</span>
-          ${g.time ? `<span class="game__time">${esc(hhmm(g.time))}</span>` : ''}
-        </div>
-        <div class="game__body">
-          <p class="game__title">vs ${esc(g.opponent || g.title || 'A definir')}</p>
-          <p class="game__meta">${esc(labels[g.team_id] || '')}${g.location ? ` · ${esc(g.location)}` : ''}</p>
-        </div>
-      </li>`;
-  }).join('');
-  const more = all.length > agendaShown
-    ? `<button type="button" class="more" data-more="agenda">Mostrar os restantes ${all.length - agendaShown}</button>`
-    : '';
+function pageHead(kicker, title, lead = '') {
   return `
-    <section class="block" id="agenda">
-      <h2 class="block__title">Próximos jogos</h2>
-      ${rows ? `<ul class="list">${rows}</ul>${more}` : `<p class="empty">Não há jogos marcados${teamFilter ? ' para este escalão' : ''}.</p>`}
+    <section class="pagehead">
+      <div class="wrap">
+        <p class="kicker">${esc(kicker)}</p>
+        <h1 class="pagehead__title">${esc(title)}</h1>
+        ${lead ? `<p class="pagehead__lead">${lead}</p>` : ''}
+      </div>
     </section>`;
 }
 
-function resultsHTML(labels) {
-  if (!data.sections.resultados) return '';
-  const all = filtered(data.results || []);
-  const list = all.slice(0, resultsShown);
-  const rows = list.map((g) => {
-    const win = g.sets_for > g.sets_against;
-    const draw = g.sets_for === g.sets_against;
-    const tag = draw ? ['E', 'draw', 'Empate'] : win ? ['V', 'win', 'Vitória'] : ['D', 'loss', 'Derrota'];
-    const sets = (g.sets || []).map(([a, b]) => `${a}–${b}`).join(' · ');
+function sectionHead(title, more = '') {
+  return `
+    <div class="sechead">
+      <h2 class="sechead__title">${esc(title)}</h2>
+      ${more}
+    </div>`;
+}
+
+function moreLink(page, label) {
+  return `<a class="sechead__more" href="${link(page)}">${esc(label)} →</a>`;
+}
+
+function upcomingRow(g, labels) {
+  return `
+    <li class="game">
+      <div class="game__date">
+        <span class="game__dnum">${parseDay(g.date).getDate()}</span>
+        <span class="game__dmon">${esc(parseDay(g.date).toLocaleDateString('pt-PT', { month: 'short' }).replace('.', ''))}</span>
+      </div>
+      <div class="game__body">
+        <p class="game__title"><span class="vs">vs</span> ${esc(g.opponent || g.title || 'A definir')}</p>
+        <p class="game__meta">
+          <span class="tag">${esc(labels[g.team_id] || '')}</span>
+          ${esc(dayLabel(g.date))}${g.time ? ` · ${esc(hhmm(g.time))}` : ''}${g.location ? ` · ${esc(g.location)}` : ''}
+        </p>
+      </div>
+    </li>`;
+}
+
+function resultRow(g, labels) {
+  const tag = outcome(g);
+  const sets = (g.sets || []).map(([a, b]) => `${a}–${b}`).join(' · ');
+  return `
+    <li class="game">
+      <span class="result result--${tag[1]}" title="${tag[2]}" aria-label="${tag[2]}">${tag[0]}</span>
+      <div class="game__body">
+        <p class="game__title">vs ${esc(g.opponent || g.title || 'Adversário')}</p>
+        <p class="game__meta">
+          <span class="tag">${esc(labels[g.team_id] || '')}</span>
+          ${esc(dayLabel(g.date))}${sets ? ` · <span class="sets">${esc(sets)}</span>` : ''}
+        </p>
+      </div>
+      <span class="score score--${tag[1]}">${esc(g.sets_for)}<span>–</span>${esc(g.sets_against)}</span>
+    </li>`;
+}
+
+function newsCard(p, labels, big = false) {
+  return `
+    <a class="news${big ? ' news--big' : ''}" href="${link('noticia', p.id)}">
+      <div class="news__img">
+        ${p.cover ? `<img src="${esc(mediaUrl(p.cover))}" alt="" loading="lazy" />` : `<span class="news__ph" aria-hidden="true">${emblem('emblem--ghost')}</span>`}
+      </div>
+      <div class="news__body">
+        <p class="news__meta">${p.published_at ? esc(longDate(p.published_at)) : ''}${p.team_id && labels[p.team_id] ? ` · ${esc(labels[p.team_id])}` : ''}</p>
+        <h3 class="news__title">${esc(p.title)}</h3>
+        ${p.summary ? `<p class="news__sum">${esc(p.summary)}</p>` : ''}
+      </div>
+    </a>`;
+}
+
+function productCard(p) {
+  return `
+    <article class="product">
+      <div class="product__img">
+        ${p.photo ? `<img src="${esc(mediaUrl(p.photo))}" alt="" loading="lazy" />` : `<span class="news__ph" aria-hidden="true">${emblem('emblem--ghost')}</span>`}
+      </div>
+      <div class="product__body">
+        <h3 class="product__name">${esc(p.name)}</h3>
+        <p class="product__price">${p.price == null ? 'Preço sob consulta' : esc(euros(p.price))}</p>
+        ${(p.sizes || []).length ? `<p class="product__sizes">${p.sizes.map((s) => `<span>${esc(s)}</span>`).join('')}</p>` : ''}
+        <button type="button" class="btn btn--brand" data-order="${esc(p.id)}">Encomendar</button>
+      </div>
+    </article>`;
+}
+
+function sponsorTile(s) {
+  const url = safeUrl(s.url);
+  const inner = s.logo
+    ? `<img src="${esc(mediaUrl(s.logo))}" alt="${esc(s.name)}" loading="lazy" />`
+    : `<span class="sponsor__name">${esc(s.name)}</span>`;
+  const body = `${inner}${s.category && !s.logo ? `<span class="sponsor__cat">${esc(s.category)}</span>` : ''}`;
+  return url
+    ? `<li><a class="sponsor sponsor--${esc(s.tier || 'base')}" href="${esc(url)}" target="_blank" rel="noopener" title="${esc(s.name)}">${body}</a></li>`
+    : `<li><span class="sponsor sponsor--${esc(s.tier || 'base')}" title="${esc(s.name)}">${body}</span></li>`;
+}
+
+// --- Carrossel -----------------------------------------------------------------
+
+function slideCaption(ph, labels) {
+  if (ph.caption) return esc(ph.caption);
+  const g = ph.game;
+  if (!g) return '';
+  const score = g.sets_for != null ? ` · ${esc(g.sets_for)}–${esc(g.sets_against)}` : '';
+  return `${esc(labels[g.team_id] || '')} vs ${esc(g.opponent || 'Adversário')}${score}`;
+}
+
+function heroHTML(labels) {
+  const c = data.club;
+  const photos = has('galeria') ? data.photos : [];
+  if (slideIndex >= photos.length) slideIndex = 0;
+  const slides = photos.map((ph, i) => {
+    const capt = slideCaption(ph, labels);
+    const meta = ph.game?.date ? esc(longDate(ph.game.date)) : '';
     return `
-      <li class="game">
-        <span class="result result--${tag[1]}" title="${tag[2]}" aria-label="${tag[2]}">${tag[0]}</span>
-        <div class="game__body">
-          <p class="game__title">vs ${esc(g.opponent || g.title || 'Adversário')}
-            <span class="score">${esc(g.sets_for)}–${esc(g.sets_against)}</span></p>
-          <p class="game__meta">${esc(dayLabel(g.date))} · ${esc(labels[g.team_id] || '')}${sets ? ` · <span class="sets">${esc(sets)}</span>` : ''}</p>
-        </div>
-      </li>`;
+      <figure class="slide${i === slideIndex ? ' is-active' : ''}" aria-hidden="${i !== slideIndex}"
+              role="group" aria-roledescription="diapositivo" aria-label="${i + 1} de ${photos.length}">
+        <img src="${esc(mediaUrl(ph.path))}" alt="${capt ? capt.replace(/<[^>]+>/g, '') : ''}"
+             ${i === 0 ? 'fetchpriority="high"' : 'loading="lazy"'} />
+        ${capt ? `<figcaption class="slide__cap"><span>${capt}</span>${meta ? `<small>${meta}</small>` : ''}</figcaption>` : ''}
+      </figure>`;
   }).join('');
-  const more = all.length > resultsShown
-    ? `<button type="button" class="more" data-more="results">Mostrar os restantes ${all.length - resultsShown}</button>`
+  const controls = photos.length > 1 ? `
+    <button type="button" class="hero__arrow hero__arrow--prev" data-slide="-1" aria-label="Foto anterior">‹</button>
+    <button type="button" class="hero__arrow hero__arrow--next" data-slide="1" aria-label="Foto seguinte">›</button>
+    <div class="hero__dots" role="group" aria-label="Escolher foto">
+      ${photos.map((_, i) => `<button type="button" class="hero__dot${i === slideIndex ? ' is-active' : ''}"
+         data-goto="${i}" aria-label="Foto ${i + 1}" aria-current="${i === slideIndex}"></button>`).join('')}
+    </div>` : '';
+  const ctas = [
+    has('agenda') && `<a class="btn btn--accent" href="${link('calendario')}">Ver calendário</a>`,
+    has('inscricoes') && `<a class="btn btn--glass" href="${link('inscricoes')}">Quero fazer parte</a>`,
+  ].filter(Boolean).join('');
+  return `
+    <section class="hero${photos.length ? '' : ' hero--plain'}" aria-roledescription="carrossel" aria-label="Fotos dos jogos">
+      <div class="hero__slides" data-swipe>${slides}</div>
+      <div class="hero__shade" aria-hidden="true"></div>
+      <div class="wrap hero__content">
+        ${photos.length ? '' : emblem('emblem--hero')}
+        <p class="kicker kicker--light">${c.season ? `Época ${esc(c.season)}` : 'Bem-vindo'}</p>
+        <h1 class="hero__name">${esc(c.name)}</h1>
+        ${c.motto ? `<p class="hero__motto">${esc(c.motto)}</p>` : ''}
+        ${ctas ? `<div class="hero__ctas">${ctas}</div>` : ''}
+      </div>
+      ${controls}
+    </section>`;
+}
+
+function stopSlides() {
+  if (slideTimer) clearInterval(slideTimer);
+  slideTimer = null;
+}
+
+function showSlide(i) {
+  const slides = [...root.querySelectorAll('.slide')];
+  if (!slides.length) return;
+  slideIndex = (i + slides.length) % slides.length;
+  slides.forEach((s, n) => {
+    s.classList.toggle('is-active', n === slideIndex);
+    s.setAttribute('aria-hidden', String(n !== slideIndex));
+  });
+  root.querySelectorAll('.hero__dot').forEach((d, n) => {
+    d.classList.toggle('is-active', n === slideIndex);
+    d.setAttribute('aria-current', String(n === slideIndex));
+  });
+}
+
+// Avança sozinho, mas para quando alguém está a olhar com atenção (rato ou
+// foco no carrossel) e não anda de todo com "reduzir movimento".
+function startSlides() {
+  stopSlides();
+  const count = root.querySelectorAll('.slide').length;
+  if (count < 2 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  slideTimer = setInterval(() => showSlide(slideIndex + 1), SLIDE_MS);
+}
+
+function wireCarousel() {
+  const hero = root.querySelector('.hero');
+  if (!hero || root.querySelectorAll('.slide').length < 2) return;
+  hero.querySelectorAll('[data-slide]').forEach((b) => b.addEventListener('click', () => {
+    showSlide(slideIndex + Number(b.dataset.slide));
+    startSlides();
+  }));
+  hero.querySelectorAll('[data-goto]').forEach((b) => b.addEventListener('click', () => {
+    showSlide(Number(b.dataset.goto));
+    startSlides();
+  }));
+  hero.addEventListener('mouseenter', stopSlides);
+  hero.addEventListener('mouseleave', startSlides);
+  hero.addEventListener('focusin', stopSlides);
+  hero.addEventListener('focusout', startSlides);
+  // Deslizar com o dedo: é no telemóvel que o site é mais visto.
+  const area = hero.querySelector('[data-swipe]');
+  let x0 = null;
+  area.addEventListener('pointerdown', (e) => { x0 = e.clientX; });
+  area.addEventListener('pointerup', (e) => {
+    if (x0 == null) return;
+    const dx = e.clientX - x0;
+    x0 = null;
+    if (Math.abs(dx) > 40) {
+      showSlide(slideIndex + (dx < 0 ? 1 : -1));
+      startSlides();
+    }
+  });
+  startSlides();
+}
+
+// --- Páginas -------------------------------------------------------------------
+
+function nextGameHTML(labels) {
+  const g = (data.upcoming || [])[0];
+  if (!has('agenda') || !g) return '';
+  return `
+    <section class="nextcard" aria-label="Próximo jogo">
+      <div class="nextcard__top">
+        <span class="kicker">Próximo jogo · ${esc(labels[g.team_id] || '')}</span>
+        <span class="pill">${esc(countdown(g))}</span>
+      </div>
+      <div class="nextcard__match">
+        <div class="side">${emblem('emblem--md')}<span>${esc(data.club.name)}</span></div>
+        <div class="nextcard__vs">
+          <span class="nextcard__time">${g.time ? esc(hhmm(g.time)) : 'vs'}</span>
+          <span class="nextcard__day">${esc(dayLabel(g.date))}</span>
+        </div>
+        <div class="side"><span class="emblem emblem--md emblem--opp" aria-hidden="true">${esc(initials(g.opponent || g.title || '?'))}</span>
+          <span>${esc(g.opponent || g.title || 'A definir')}</span></div>
+      </div>
+      ${g.location ? `<p class="nextcard__where">📍 ${esc(g.location)}</p>` : ''}
+    </section>`;
+}
+
+function homeHTML(labels) {
+  const results = (data.results || []).slice(0, 6);
+  const rec = record(data.results || []);
+  const posts = has('noticias') ? data.posts.slice(0, 3) : [];
+  const prods = has('loja') ? data.products.slice(0, 4) : [];
+  const founded = Number(data.history?.founded);
+  const years = founded ? new Date().getFullYear() - founded : 0;
+  const stats = [
+    (data.teams || []).length && [String(data.teams.length), data.teams.length === 1 ? 'equipa' : 'equipas'],
+    rec.played && [String(rec.win), rec.win === 1 ? 'vitória esta época' : 'vitórias esta época'],
+    rec.played && [`${rec.pct}%`, 'de jogos ganhos'],
+    years > 0 && [String(years), years === 1 ? 'ano de história' : 'anos de história'],
+  ].filter(Boolean);
+  const upcoming = has('agenda') ? (data.upcoming || []).slice(1, 5) : [];
+
+  return `
+    ${heroHTML(labels)}
+    <div class="wrap home">
+      ${nextGameHTML(labels)}
+      ${stats.length ? `
+        <ul class="stats">
+          ${stats.map(([n, l]) => `<li><strong>${esc(n)}</strong><span>${esc(l)}</span></li>`).join('')}
+        </ul>` : ''}
+
+      ${has('resultados') && results.length ? `
+        <section class="sec">
+          ${sectionHead('Últimos resultados', moreLink('resultados', 'Todos os resultados'))}
+          <ul class="rcards">
+            ${results.map((g) => {
+              const tag = outcome(g);
+              return `
+              <li class="rcard rcard--${tag[1]}">
+                <span class="rcard__team">${esc(labels[g.team_id] || '')}</span>
+                <span class="rcard__score">${esc(g.sets_for)}–${esc(g.sets_against)}</span>
+                <span class="rcard__opp">vs ${esc(g.opponent || g.title || 'Adversário')}</span>
+                <span class="rcard__date">${esc(dayLabel(g.date))} · ${tag[2]}</span>
+              </li>`;
+            }).join('')}
+          </ul>
+        </section>` : ''}
+
+      ${upcoming.length ? `
+        <section class="sec">
+          ${sectionHead('A seguir', moreLink('calendario', 'Calendário completo'))}
+          <ul class="list card">${upcoming.map((g) => upcomingRow(g, labels)).join('')}</ul>
+        </section>` : ''}
+
+      ${posts.length ? `
+        <section class="sec">
+          ${sectionHead('Notícias', moreLink('noticias', 'Todas as notícias'))}
+          <div class="newsgrid">${posts.map((p, i) => newsCard(p, labels, i === 0)).join('')}</div>
+        </section>` : ''}
+
+      ${prods.length ? `
+        <section class="sec">
+          ${sectionHead('Loja do clube', moreLink('loja', 'Ver a loja'))}
+          <div class="shopgrid">${prods.map(productCard).join('')}</div>
+        </section>` : ''}
+
+      ${has('patrocinadores') ? `
+        <section class="sec">
+          ${sectionHead('Quem nos apoia', moreLink('patrocinadores', 'Patrocinadores'))}
+          <ul class="sponsors sponsors--strip">${data.sponsors.map(sponsorTile).join('')}</ul>
+        </section>` : ''}
+    </div>
+
+    ${has('inscricoes') ? `
+      <section class="band">
+        <div class="wrap band__inner">
+          <div>
+            <h2 class="band__title">Queres jogar connosco?</h2>
+            <p>Marca um treino de experiência. Do mini ao sénior, há lugar para ti.</p>
+          </div>
+          <a class="btn btn--accent btn--lg" href="${link('inscricoes')}">Inscreve-te</a>
+        </div>
+      </section>` : ''}`;
+}
+
+// Calendário: o mês em grelha, com os jogos de cada dia. Os jogos já jogados
+// levam o resultado — é o mesmo calendário que um pai consulta na segunda a
+// perguntar "quanto ficou?".
+function calendarHTML(labels) {
+  const games = filtered([
+    ...(has('agenda') ? data.upcoming || [] : []),
+    ...(has('resultados') ? data.results || [] : []),
+  ]);
+  const byDay = {};
+  games.forEach((g) => { (byDay[String(g.date).slice(0, 10)] ||= []).push(g); });
+  Object.values(byDay).forEach((l) => l.sort((a, b) => String(a.time || '').localeCompare(String(b.time || ''))));
+
+  const today = new Date();
+  if (!calMonth) calMonth = { y: today.getFullYear(), m: today.getMonth() };
+  const first = new Date(calMonth.y, calMonth.m, 1);
+  const offset = (first.getDay() + 6) % 7; // segunda-feira primeiro
+  const daysIn = new Date(calMonth.y, calMonth.m + 1, 0).getDate();
+  const todayIso = isoDay(today);
+  const cells = [];
+  for (let i = 0; i < offset; i += 1) cells.push('<li class="cal__cell cal__cell--out" aria-hidden="true"></li>');
+  for (let d = 1; d <= daysIn; d += 1) {
+    const iso = isoDay(new Date(calMonth.y, calMonth.m, d));
+    const list = byDay[iso] || [];
+    const chips = list.slice(0, 3).map((g) => {
+      const kind = g.sets_for != null ? outcome(g)[1] : 'next';
+      return `<span class="cal__chip cal__chip--${kind}">${esc(labels[g.team_id] || '')}</span>`;
+    }).join('');
+    cells.push(`
+      <li class="cal__cell${iso === todayIso ? ' is-today' : ''}${list.length ? ' has-games' : ''}${iso === calDay ? ' is-picked' : ''}">
+        ${list.length
+          ? `<button type="button" class="cal__btn" data-day="${iso}" aria-pressed="${iso === calDay}"
+               aria-label="${d}: ${list.length} jogo${list.length === 1 ? '' : 's'}">
+               <span class="cal__num">${d}</span>
+               <span class="cal__chips">${chips}${list.length > 3 ? `<span class="cal__chip">+${list.length - 3}</span>` : ''}</span>
+               <span class="cal__dots" aria-hidden="true">${list.map((g) => `<i class="cal__dot--${g.sets_for != null ? outcome(g)[1] : 'next'}"></i>`).join('')}</span>
+             </button>`
+          : `<span class="cal__num">${d}</span>`}
+      </li>`);
+  }
+
+  const monthKey = `${calMonth.y}-${String(calMonth.m + 1).padStart(2, '0')}`;
+  const inMonth = games
+    .filter((g) => String(g.date).startsWith(monthKey))
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.time || '').localeCompare(String(b.time || '')));
+  const shown = calDay ? (byDay[calDay] || []) : inMonth;
+  const label = cap(first.toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' }));
+
+  return `
+    ${pageHead('Calendário', 'Jogos do clube', 'Todos os jogos, de todos os escalões. Escolhe o teu para ver só os dele.')}
+    <div class="wrap page">
+      ${chipsHTML()}
+      <div class="calwrap">
+        <section class="card cal" aria-label="${esc(label)}">
+          <div class="cal__head">
+            <button type="button" class="iconbtn" data-month="-1" aria-label="Mês anterior">‹</button>
+            <h2 class="cal__title">${esc(label)}</h2>
+            <button type="button" class="iconbtn" data-month="1" aria-label="Mês seguinte">›</button>
+          </div>
+          <ol class="cal__week" aria-hidden="true">
+            ${['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map((d) => `<li>${d}</li>`).join('')}
+          </ol>
+          <ol class="cal__grid">${cells.join('')}</ol>
+          <p class="cal__legend">
+            <span><i class="lg lg--next"></i> Por jogar</span>
+            <span><i class="lg lg--win"></i> Vitória</span>
+            <span><i class="lg lg--loss"></i> Derrota</span>
+            ${calMonth.y !== today.getFullYear() || calMonth.m !== today.getMonth()
+              ? '<button type="button" class="linkbtn" data-month="today">Voltar a hoje</button>' : ''}
+          </p>
+        </section>
+        <section class="card calside">
+          <div class="sechead sechead--tight">
+            <h2 class="sechead__title">${calDay ? esc(cap(parseDay(calDay).toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long' }))) : `Jogos de ${esc(label.split(' ')[0].toLowerCase())}`}</h2>
+            ${calDay ? '<button type="button" class="linkbtn" data-day="">Ver o mês todo</button>' : ''}
+          </div>
+          ${shown.length
+            ? `<ul class="list">${shown.map((g) => (g.sets_for != null ? resultRow(g, labels) : upcomingRow(g, labels))).join('')}</ul>`
+            : `<p class="empty">Não há jogos ${calDay ? 'neste dia' : 'neste mês'}${teamFilter ? ' para este escalão' : ''}.</p>`}
+        </section>
+      </div>
+    </div>`;
+}
+
+function resultsPageHTML(labels) {
+  const teams = orderedTeams();
+  const all = data.results || [];
+  const summary = (teamFilter ? teams.filter((t) => t.id === teamFilter) : teams)
+    .map((t) => ({ t, r: record(all.filter((g) => g.team_id === t.id)) }))
+    .filter((x) => x.r.played);
+  const list = filtered(all);
+  const shown = list.slice(0, resultsShown);
+  const more = list.length > resultsShown
+    ? `<button type="button" class="more" data-more="results">Mostrar os restantes ${list.length - resultsShown}</button>`
     : '';
   return `
-    <section class="block" id="resultados">
-      <h2 class="block__title">Resultados</h2>
-      ${rows ? `<ul class="list">${rows}</ul>${more}` : `<p class="empty">Ainda não há resultados${teamFilter ? ' deste escalão' : ''} esta época.</p>`}
-    </section>`;
+    ${pageHead('Resultados', 'Como vão as equipas', 'O balanço da época de cada escalão e todos os resultados, com os parciais.')}
+    <div class="wrap page">
+      ${chipsHTML()}
+      ${summary.length ? `
+        <ul class="teamstats">
+          ${summary.map(({ t, r }) => `
+            <li class="teamstat">
+              <a href="${link('equipas', t.id)}" class="teamstat__name">${esc(labels[t.id])}</a>
+              <div class="teamstat__bar" aria-hidden="true">
+                <span class="teamstat__win" style="width:${r.played ? (r.win / r.played) * 100 : 0}%"></span>
+              </div>
+              <div class="teamstat__nums">
+                <span><strong>${r.played}</strong> jogos</span>
+                <span><strong>${r.win}</strong> V</span>
+                <span><strong>${r.loss}</strong> D</span>
+                ${r.draw ? `<span><strong>${r.draw}</strong> E</span>` : ''}
+                <span><strong>${r.setsFor}–${r.setsAgainst}</strong> sets</span>
+              </div>
+              ${formDots(r.form)}
+            </li>`).join('')}
+        </ul>` : ''}
+      <section class="card sec">
+        ${shown.length ? `<ul class="list">${shown.map((g) => resultRow(g, labels)).join('')}</ul>${more}`
+          : `<p class="empty">Ainda não há resultados${teamFilter ? ' deste escalão' : ''} esta época.</p>`}
+      </section>
+    </div>`;
+}
+
+function teamsHTML(labels) {
+  const teams = orderedTeams();
+  return `
+    ${pageHead('Equipas', 'Os nossos escalões', 'Cada equipa, quem a treina e como vai a época.')}
+    <div class="wrap page">
+      <ul class="teamgrid">
+        ${teams.map((t) => {
+          const r = record((data.results || []).filter((g) => g.team_id === t.id));
+          const next = (data.upcoming || []).find((g) => g.team_id === t.id);
+          const head = (t.coaches || []).find((c) => c.role === 'principal') || (t.coaches || [])[0];
+          return `
+          <li>
+            <a class="teamcard" href="${link('equipas', t.id)}">
+              <span class="teamcard__badge">${esc(t.escalao.slice(0, 3).toUpperCase())}</span>
+              <span class="teamcard__name">${esc(labels[t.id])}</span>
+              <span class="teamcard__meta">${esc(GENDER[t.gender] || '')}${head ? ` · ${esc(head.name)}` : ''}</span>
+              ${r.played ? `<span class="teamcard__rec">${r.win}V · ${r.loss}D ${formDots(r.form)}</span>` : ''}
+              ${next ? `<span class="teamcard__next">Próximo: ${esc(dayLabel(next.date))} vs ${esc(next.opponent || 'A definir')}</span>` : ''}
+              ${t.roster ? '<span class="teamcard__roster">Ver plantel →</span>' : ''}
+            </a>
+          </li>`;
+        }).join('')}
+      </ul>
+    </div>`;
+}
+
+function teamHTML(id, labels) {
+  const t = (data.teams || []).find((x) => x.id === id);
+  if (!t) return notFoundHTML();
+  const results = (data.results || []).filter((g) => g.team_id === id);
+  const upcoming = (data.upcoming || []).filter((g) => g.team_id === id);
+  const r = record(results);
+  const posts = has('noticias') ? data.posts.filter((p) => p.team_id === id).slice(0, 3) : [];
+  const roster = Array.isArray(t.roster) ? t.roster : null;
+  return `
+    <section class="pagehead pagehead--team">
+      <div class="wrap">
+        <a class="back" href="${link('equipas')}">← Equipas</a>
+        <p class="kicker">${esc(GENDER[t.gender] || '')}${data.club.season ? ` · Época ${esc(data.club.season)}` : ''}</p>
+        <h1 class="pagehead__title">${esc(labels[t.id])}</h1>
+        ${r.played ? `
+        <ul class="stats stats--inline">
+          <li><strong>${r.played}</strong><span>jogos</span></li>
+          <li><strong>${r.win}</strong><span>vitórias</span></li>
+          <li><strong>${r.loss}</strong><span>derrotas</span></li>
+          <li><strong>${r.pct}%</strong><span>ganhos</span></li>
+        </ul>` : ''}
+      </div>
+    </section>
+    <div class="wrap page">
+      ${(t.coaches || []).length ? `
+        <section class="sec">
+          ${sectionHead('Equipa técnica')}
+          <ul class="coaches">
+            ${t.coaches.map((c) => `
+              <li class="coach">
+                <span class="coach__av" aria-hidden="true">${esc(initials(c.name))}</span>
+                <span><strong>${esc(c.name)}</strong><small>${c.role === 'principal' ? 'Treinador principal' : 'Treinador adjunto'}</small></span>
+              </li>`).join('')}
+          </ul>
+        </section>` : ''}
+      ${roster ? `
+        <section class="sec">
+          ${sectionHead('Plantel')}
+          ${roster.length ? `
+          <ul class="roster">
+            ${roster.map((p) => `
+              <li class="player">
+                <span class="player__num">${esc(p.number || '–')}</span>
+                <span class="player__name">${esc(p.name)}</span>
+                ${p.position ? `<span class="player__pos">${esc(p.position)}</span>` : ''}
+              </li>`).join('')}
+          </ul>` : '<p class="empty">O plantel ainda não está fechado.</p>'}
+        </section>` : ''}
+      <div class="twocol">
+        ${has('agenda') ? `
+        <section class="card sec">
+          ${sectionHead('Próximos jogos')}
+          ${upcoming.length ? `<ul class="list">${upcoming.slice(0, 8).map((g) => upcomingRow(g, labels)).join('')}</ul>`
+            : '<p class="empty">Não há jogos marcados.</p>'}
+        </section>` : ''}
+        ${has('resultados') ? `
+        <section class="card sec">
+          ${sectionHead('Resultados', r.played ? formDots(r.form) : '')}
+          ${results.length ? `<ul class="list">${results.slice(0, 8).map((g) => resultRow(g, labels)).join('')}</ul>`
+            : '<p class="empty">Ainda sem resultados esta época.</p>'}
+        </section>` : ''}
+      </div>
+      ${posts.length ? `
+        <section class="sec">
+          ${sectionHead(`Notícias dos ${labels[t.id]}`)}
+          <div class="newsgrid">${posts.map((p) => newsCard(p, labels)).join('')}</div>
+        </section>` : ''}
+    </div>`;
+}
+
+function newsPageHTML(labels) {
+  const posts = data.posts || [];
+  return `
+    ${pageHead('Notícias', 'O que se passa no clube')}
+    <div class="wrap page">
+      <div class="newsgrid newsgrid--all">${posts.map((p, i) => newsCard(p, labels, i === 0)).join('')}</div>
+    </div>`;
+}
+
+function postHTML(id, labels) {
+  const p = (data.posts || []).find((x) => x.id === id);
+  if (!p) return notFoundHTML();
+  const others = data.posts.filter((x) => x.id !== id).slice(0, 3);
+  return `
+    <article class="post">
+      ${p.cover ? `<div class="post__cover"><img src="${esc(mediaUrl(p.cover))}" alt="" /></div>` : ''}
+      <div class="wrap wrap--narrow post__wrap">
+        <a class="back back--dark" href="${link('noticias')}">← Notícias</a>
+        <p class="kicker">${p.published_at ? esc(longDate(p.published_at)) : ''}${p.team_id && labels[p.team_id] ? ` · ${esc(labels[p.team_id])}` : ''}</p>
+        <h1 class="post__title">${esc(p.title)}</h1>
+        ${p.summary ? `<p class="post__lead">${esc(p.summary)}</p>` : ''}
+        <div class="prose">${paragraphs(p.body)}</div>
+        <button type="button" class="btn btn--ghost" data-share>Partilhar</button>
+      </div>
+    </article>
+    ${others.length ? `
+      <div class="wrap page">
+        ${sectionHead('Mais notícias')}
+        <div class="newsgrid">${others.map((o) => newsCard(o, labels)).join('')}</div>
+      </div>` : ''}`;
+}
+
+function shopHTML() {
+  return `
+    ${pageHead('Loja', 'Veste as cores do clube', 'Escolhe o artigo, deixa o teu contacto e o clube combina contigo o pagamento e a entrega.')}
+    <div class="wrap page">
+      <div class="shopgrid shopgrid--all">${(data.products || []).map(productCard).join('')}</div>
+    </div>`;
+}
+
+function historyHTML() {
+  const h = data.history || {};
+  const founded = Number(h.founded);
+  const years = founded ? new Date().getFullYear() - founded : 0;
+  const miles = Array.isArray(h.milestones) ? h.milestones : [];
+  return `
+    <section class="pagehead pagehead--history">
+      <div class="wrap">
+        <p class="kicker">História</p>
+        <h1 class="pagehead__title">${founded ? `Desde ${esc(founded)}` : esc(data.club.name)}</h1>
+        ${years > 0 ? `<p class="pagehead__lead">${years} anos de ${esc(data.club.name)}.</p>` : ''}
+      </div>
+    </section>
+    <div class="wrap wrap--narrow page">
+      ${h.text ? `<div class="prose prose--lead">${paragraphs(h.text)}</div>` : ''}
+      ${miles.length ? `
+        <section class="sec">
+          ${sectionHead('Marcos')}
+          <ol class="timeline">
+            ${miles.map((m) => `
+              <li class="timeline__item">
+                <span class="timeline__year">${esc(m.year)}</span>
+                <p class="timeline__text">${esc(m.text)}</p>
+              </li>`).join('')}
+          </ol>
+        </section>` : ''}
+    </div>`;
 }
 
 const TIER_LABEL = { ouro: 'Ouro', prata: 'Prata', bronze: 'Bronze' };
 
-function sponsorsHTML() {
+function sponsorsPageHTML() {
   const list = data.sponsors || [];
-  if (!data.sections.patrocinadores || !list.length) return '';
   const groups = ['ouro', 'prata', 'bronze', ''].map((tier) => ({
     tier,
     items: list.filter((s) => (TIER_LABEL[s.tier] ? s.tier : '') === tier),
   })).filter((g) => g.items.length);
   return `
-    <section class="block" id="patrocinadores">
-      <h2 class="block__title">Quem nos apoia</h2>
+    ${pageHead('Patrocinadores', 'Quem nos apoia', 'Sem eles não havia equipamentos, deslocações nem torneios. Obrigado.')}
+    <div class="wrap page">
       ${groups.map((g) => `
-        ${g.tier ? `<p class="tier tier--${g.tier}">${TIER_LABEL[g.tier]}</p>` : groups.length > 1 ? '<p class="tier">Apoios</p>' : ''}
-        <ul class="sponsors sponsors--${g.tier || 'base'}">
-          ${g.items.map((s) => `
-            <li class="sponsor">
-              <span class="sponsor__name">${esc(s.name)}</span>
-              ${s.category ? `<span class="sponsor__cat">${esc(s.category)}</span>` : ''}
-            </li>`).join('')}
-        </ul>`).join('')}
-    </section>`;
+        <section class="sec">
+          <p class="tier tier--${g.tier || 'base'}">${g.tier ? `Patrocinador ${TIER_LABEL[g.tier]}` : 'Apoios'}</p>
+          <ul class="sponsors sponsors--${g.tier || 'base'}">${g.items.map(sponsorTile).join('')}</ul>
+        </section>`).join('')}
+    </div>`;
 }
 
 function signupHTML() {
-  if (!data.sections.inscricoes) return '';
   if (signupDone) {
     return `
-      <section class="block" id="inscricoes">
-        <h2 class="block__title">Inscrições</h2>
-        <div class="done" role="status">
-          <p><strong>Pedido enviado.</strong></p>
+      ${pageHead('Inscrições', 'Pedido enviado')}
+      <div class="wrap wrap--narrow page">
+        <div class="card done" role="status">
+          <p><strong>Obrigado!</strong></p>
           <p>O clube recebeu o teu pedido e vai entrar em contacto pelo telefone ou email que deixaste.</p>
         </div>
-      </section>`;
+      </div>`;
   }
   const teams = orderedTeams();
   const labels = teamLabels();
   return `
-    <section class="block" id="inscricoes">
-      <h2 class="block__title">Quero fazer parte</h2>
-      <p class="block__lead">Deixa os teus dados e o clube entra em contacto para marcar um treino de experiência.</p>
-      <form class="form" id="signup" novalidate>
+    ${pageHead('Inscrições', 'Quero fazer parte', 'Deixa os teus dados e o clube entra em contacto para marcar um treino de experiência.')}
+    <div class="wrap wrap--narrow page">
+      <form class="card form" id="signup" novalidate>
         <div class="form__grid">
           <label class="field">
             <span>Nome do atleta</span>
@@ -404,15 +1101,19 @@ function signupHTML() {
             Se o atleta for menor, sou o encarregado de educação.</span>
         </label>
         <p class="form__error" id="signup-error" role="alert" hidden></p>
-        <button class="btn" type="submit">Enviar pedido</button>
+        <button class="btn btn--accent btn--lg" type="submit">Enviar pedido</button>
       </form>
-    </section>`;
+    </div>`;
 }
 
 function contactsHTML() {
   const c = data.contacts || {};
   const items = [];
-  if (c.address) items.push(`<li><span class="ct__k">Onde estamos</span><span>${esc(c.address)}</span></li>`);
+  if (c.address) {
+    const maps = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.address)}`;
+    items.push(`<li><span class="ct__k">Onde estamos</span><span>${esc(c.address)}</span>
+      <a class="linkbtn" href="${esc(maps)}" target="_blank" rel="noopener">Abrir no mapa ↗</a></li>`);
+  }
   if (c.phone) {
     const tel = String(c.phone).replace(/[^\d+]/g, '');
     items.push(`<li><span class="ct__k">Telefone</span><a href="tel:${esc(tel)}">${esc(c.phone)}</a></li>`);
@@ -420,20 +1121,157 @@ function contactsHTML() {
   if (c.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.email)) {
     items.push(`<li><span class="ct__k">Email</span><a href="mailto:${esc(c.email)}">${esc(c.email)}</a></li>`);
   }
-  const ig = socialUrl(c.instagram, 'https://instagram.com');
-  const fb = socialUrl(c.facebook, 'https://facebook.com');
-  const social = [
-    ig && `<a class="social" href="${esc(ig)}" target="_blank" rel="noopener">Instagram</a>`,
-    fb && `<a class="social" href="${esc(fb)}" target="_blank" rel="noopener">Facebook</a>`,
-  ].filter(Boolean).join('');
+  const social = socialsHTML();
   return `
-    <section class="block" id="contactos">
-      <h2 class="block__title">${data.about ? 'Sobre o clube' : 'Contactos'}</h2>
-      ${data.about ? `<p class="about">${esc(data.about).replace(/\n/g, '<br />')}</p>` : ''}
-      ${items.length ? `<ul class="ct">${items.join('')}</ul>` : ''}
-      ${social ? `<div class="socials">${social}</div>` : ''}
-      ${!data.about && !items.length && !social ? '<p class="empty">O clube ainda não deixou contactos.</p>' : ''}
-    </section>`;
+    ${pageHead('Contactos', data.about ? 'Sobre o clube' : 'Fala connosco')}
+    <div class="wrap page">
+      <div class="twocol">
+        ${data.about ? `<section class="card sec prose">${paragraphs(data.about)}</section>` : ''}
+        <section class="card sec">
+          ${items.length ? `<ul class="ct">${items.join('')}</ul>` : ''}
+          ${social ? `<div class="socials">${social}</div>` : ''}
+          ${!items.length && !social ? '<p class="empty">O clube ainda não deixou contactos.</p>' : ''}
+        </section>
+      </div>
+    </div>`;
+}
+
+function notFoundHTML() {
+  return `
+    ${pageHead('Ups', 'Esta página não existe')}
+    <div class="wrap page"><p><a class="btn btn--brand" href="#/">Voltar ao início</a></p></div>`;
+}
+
+function pageHTML(page, id, labels) {
+  switch (page) {
+    case '': return homeHTML(labels);
+    case 'calendario': return has('agenda') || has('resultados') ? calendarHTML(labels) : notFoundHTML();
+    case 'resultados': return has('resultados') ? resultsPageHTML(labels) : notFoundHTML();
+    case 'equipas': return has('equipas') ? (id ? teamHTML(id, labels) : teamsHTML(labels)) : notFoundHTML();
+    case 'noticias': return has('noticias') ? newsPageHTML(labels) : notFoundHTML();
+    case 'noticia': return has('noticias') ? postHTML(id, labels) : notFoundHTML();
+    case 'loja': return has('loja') ? shopHTML() : notFoundHTML();
+    case 'historia': return has('historia') ? historyHTML() : notFoundHTML();
+    case 'patrocinadores': return has('patrocinadores') ? sponsorsPageHTML() : notFoundHTML();
+    case 'inscricoes': return has('inscricoes') ? signupHTML() : notFoundHTML();
+    case 'contactos': return contactsHTML();
+    default: return notFoundHTML();
+  }
+}
+
+function pageTitle(page, id, labels) {
+  const name = data.club.name;
+  const map = {
+    calendario: 'Calendário', resultados: 'Resultados', equipas: 'Equipas', noticias: 'Notícias',
+    loja: 'Loja', historia: 'História', patrocinadores: 'Patrocinadores', inscricoes: 'Inscrições',
+    contactos: 'Contactos',
+  };
+  if (page === 'equipas' && id && labels[id]) return `${labels[id]} — ${name}`;
+  if (page === 'noticia') {
+    const p = (data.posts || []).find((x) => x.id === id);
+    if (p) return `${p.title} — ${name}`;
+  }
+  return map[page] ? `${map[page]} — ${name}` : name;
+}
+
+// --- Encomenda da loja -------------------------------------------------------
+
+function openOrder(productId) {
+  const p = (data.products || []).find((x) => x.id === productId);
+  if (!p) return;
+  const dlg = document.createElement('dialog');
+  dlg.className = 'dialog';
+  dlg.setAttribute('aria-labelledby', 'order-title');
+  dlg.innerHTML = `
+    <form class="form" method="dialog" novalidate>
+      <div class="dialog__head">
+        ${p.photo ? `<img class="dialog__img" src="${esc(mediaUrl(p.photo))}" alt="" />` : ''}
+        <div>
+          <h2 id="order-title" class="dialog__title">${esc(p.name)}</h2>
+          <p class="product__price">${p.price == null ? 'Preço sob consulta' : esc(euros(p.price))}</p>
+        </div>
+        <button type="button" class="iconbtn dialog__x" data-close aria-label="Fechar">×</button>
+      </div>
+      ${p.description ? `<div class="prose prose--sm">${paragraphs(p.description)}</div>` : ''}
+      <div class="form__grid">
+        ${(p.sizes || []).length ? `
+        <label class="field">
+          <span>Tamanho</span>
+          <select name="size" required>
+            <option value="">Escolher…</option>
+            ${p.sizes.map((s) => `<option value="${esc(s)}">${esc(s)}</option>`).join('')}
+          </select>
+        </label>` : ''}
+        <label class="field">
+          <span>Quantidade</span>
+          <input name="quantity" type="number" min="1" max="20" step="1" value="1" inputmode="numeric" />
+        </label>
+        <label class="field">
+          <span>O teu nome</span>
+          <input name="name" required maxlength="120" autocomplete="name" />
+        </label>
+        <label class="field">
+          <span>Telefone ou email</span>
+          <input name="contact" required maxlength="160" autocomplete="email tel" />
+        </label>
+      </div>
+      <label class="field">
+        <span>Nota <em>(opcional — ex.: nome e número a estampar)</em></span>
+        <textarea name="message" rows="2" maxlength="1000"></textarea>
+      </label>
+      <label class="check">
+        <input type="checkbox" name="consent" required />
+        <span>Autorizo o clube a guardar estes dados para tratar da encomenda.</span>
+      </label>
+      <p class="form__note">Não pagas nada agora: o clube contacta-te para combinar o pagamento e a entrega.</p>
+      <p class="form__error" role="alert" hidden></p>
+      <div class="dialog__done" role="status" hidden></div>
+      <button class="btn btn--accent btn--lg" type="submit" value="send">Enviar pedido</button>
+    </form>`;
+  document.body.appendChild(dlg);
+  const form = dlg.querySelector('form');
+  const err = dlg.querySelector('.form__error');
+  const close = () => { dlg.close(); };
+  dlg.addEventListener('close', () => dlg.remove());
+  dlg.addEventListener('click', (e) => { if (e.target === dlg) close(); });
+  dlg.querySelector('[data-close]').addEventListener('click', close);
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const v = Object.fromEntries(new FormData(form));
+    const fail = (msg) => { err.textContent = msg; err.hidden = false; };
+    if (form.elements.size && !v.size) return fail('Escolhe o tamanho.');
+    const qty = Math.round(Number(v.quantity) || 0);
+    if (qty < 1 || qty > 20) return fail('A quantidade tem de estar entre 1 e 20.');
+    if (String(v.name || '').trim().length < 2) return fail('Escreve o teu nome.');
+    if (String(v.contact || '').trim().length < 6) return fail('Deixa um telefone ou um email para o clube te contactar.');
+    if (!form.consent.checked) return fail('É preciso autorizar o tratamento dos dados para o clube te poder contactar.');
+    err.hidden = true;
+    const btn = form.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    btn.textContent = 'A enviar…';
+    try {
+      await rpc('public_shop_order', {
+        p_slug: slug,
+        p_product_id: p.id,
+        p_size: v.size || null,
+        p_quantity: qty,
+        p_name: v.name,
+        p_contact: v.contact,
+        p_message: v.message || null,
+        p_consent: true,
+      });
+      form.querySelectorAll('.field, .check, .form__grid, .form__note, button[type="submit"]').forEach((x) => { x.hidden = true; });
+      const done = dlg.querySelector('.dialog__done');
+      done.innerHTML = '<p><strong>Pedido enviado!</strong></p><p>O clube vai contactar-te para combinar o pagamento e a entrega.</p><button type="button" class="btn btn--brand" data-close>Fechar</button>';
+      done.hidden = false;
+      done.querySelector('[data-close]').addEventListener('click', close);
+    } catch (ex) {
+      fail(/failed to fetch|network/i.test(ex.message) ? 'Sem ligação. Verifica a internet e tenta de novo.' : ex.message);
+      btn.disabled = false;
+      btn.textContent = 'Enviar pedido';
+    }
+  });
+  dlg.showModal();
 }
 
 // --- Página ----------------------------------------------------------------
@@ -447,12 +1285,13 @@ function applyTheme() {
   s.setProperty('--brand-ink', inkOn(primary));
   s.setProperty('--accent', accent);
   s.setProperty('--accent-ink', inkOn(accent));
-  document.title = `${c.name} — Jogos e resultados`;
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', primary);
-  const desc = [c.motto, 'Agenda de jogos, resultados e contactos.'].filter(Boolean).join(' · ');
+  const desc = [c.motto, 'Calendário, resultados, equipas, notícias e loja do clube.'].filter(Boolean).join(' · ');
   document.querySelector('meta[name="description"]')?.setAttribute('content', desc);
   if (c.logo) document.querySelector('link[rel="icon"]')?.setAttribute('href', c.logo);
 }
+
+let lastRoute = null;
 
 function render() {
   // Trocar de escalão ou abrir "mostrar mais" re-desenha a página: o que já
@@ -461,36 +1300,21 @@ function render() {
   const kept = draft
     ? { values: Object.fromEntries(new FormData(draft)), consent: draft.consent?.checked }
     : null;
+  stopSlides();
   const labels = teamLabels();
+  const { page, id } = route();
+  const key = `${page}/${id}`;
   applyTheme();
+  document.title = pageTitle(page, id, labels);
   root.removeAttribute('aria-busy');
   const preview = data.published === false
-    ? `<p class="preview" role="status">Pré-visualização: só tu vês esta página. O site ainda não está publicado.</p>`
+    ? '<p class="preview" role="status">Pré-visualização: só tu vês esta página. O site ainda não está publicado.</p>'
     : '';
   root.innerHTML = `
     ${preview}
-    ${heroHTML()}
-    <main class="wrap main">
-      ${nextGameHTML(labels)}
-      ${filterHTML(labels)}
-      <div class="cols">
-        <div>
-          ${agendaHTML(labels)}
-          ${resultsHTML(labels)}
-        </div>
-        <div>
-          ${sponsorsHTML()}
-          ${contactsHTML()}
-        </div>
-      </div>
-      ${signupHTML()}
-    </main>
-    <footer class="foot">
-      <div class="wrap foot__inner">
-        <span>${esc(data.club.name)}${data.club.season ? ` · Época ${esc(data.club.season)}` : ''}</span>
-        <a href="https://www.${esc(SITE_DOMAIN)}" target="_blank" rel="noopener">Feito com Rumia</a>
-      </div>
-    </footer>`;
+    ${headerHTML(page)}
+    <main id="main" class="main main--${page || 'inicio'}">${pageHTML(page, id, labels)}</main>
+    ${footerHTML()}`;
   const form = root.querySelector('#signup');
   if (form && kept) {
     Object.entries(kept.values).forEach(([k, v]) => {
@@ -498,28 +1322,81 @@ function render() {
     });
     form.consent.checked = Boolean(kept.consent);
   }
+  if (lastRoute !== null && lastRoute !== key) window.scrollTo(0, 0);
+  lastRoute = key;
   wire();
 }
 
+// O menu passa a gaveta quando não cabe na barra — e isso depende do nome do
+// clube, que vai de "CVA" a "Clube Desportivo e Recreativo da Senhora da
+// Hora". Uma largura fixa de corte servia uns e cortava o "Contactos" a outros.
+function fitNav() {
+  const bar = root.querySelector('.topbar');
+  const nav = bar?.querySelector('.topnav');
+  if (!nav) return;
+  bar.classList.remove('topbar--burger');
+  if (window.innerWidth <= 1000 || nav.scrollWidth > nav.clientWidth + 1) bar.classList.add('topbar--burger');
+}
+
 function wire() {
+  fitNav();
+  root.querySelector('[data-menu]')?.addEventListener('click', () => {
+    menuOpen = !menuOpen;
+    const menu = root.querySelector('#menu');
+    menu.hidden = !menuOpen;
+    menu.classList.toggle('is-open', menuOpen);
+    root.querySelector('[data-menu]').setAttribute('aria-expanded', String(menuOpen));
+  });
   root.querySelectorAll('[data-team]').forEach((btn) =>
     btn.addEventListener('click', () => {
       teamFilter = btn.dataset.team;
-      agendaShown = AGENDA_STEP;
       resultsShown = RESULTS_STEP;
+      calDay = '';
       writeStore(`rumia-site-team:${slug}`, teamFilter);
       render();
     })
   );
   root.querySelectorAll('[data-more]').forEach((btn) =>
     btn.addEventListener('click', () => {
-      if (btn.dataset.more === 'agenda') agendaShown = Infinity;
-      else resultsShown = Infinity;
+      resultsShown = Infinity;
       render();
     })
   );
+  root.querySelectorAll('[data-month]').forEach((btn) =>
+    btn.addEventListener('click', () => {
+      const today = new Date();
+      if (btn.dataset.month === 'today') calMonth = { y: today.getFullYear(), m: today.getMonth() };
+      else {
+        const d = new Date(calMonth.y, calMonth.m + Number(btn.dataset.month), 1);
+        calMonth = { y: d.getFullYear(), m: d.getMonth() };
+      }
+      calDay = '';
+      render();
+    })
+  );
+  root.querySelectorAll('[data-day]').forEach((btn) =>
+    btn.addEventListener('click', () => {
+      calDay = btn.dataset.day === calDay ? '' : btn.dataset.day;
+      render();
+      if (calDay && window.innerWidth < 900) root.querySelector('.calside')?.scrollIntoView({ block: 'start' });
+    })
+  );
+  root.querySelectorAll('[data-order]').forEach((btn) =>
+    btn.addEventListener('click', () => openOrder(btn.dataset.order))
+  );
+  root.querySelector('[data-share]')?.addEventListener('click', async (e) => {
+    const url = location.href;
+    try {
+      if (navigator.share) await navigator.share({ title: document.title, url });
+      else {
+        await navigator.clipboard.writeText(url);
+        e.currentTarget.textContent = 'Link copiado';
+      }
+    } catch { /* quem cancela a partilha não fez nada de errado */ }
+  });
   const form = root.querySelector('#signup');
   if (form) form.addEventListener('submit', onSignup);
+  wireCarousel();
 }
 
 async function onSignup(e) {
@@ -552,7 +1429,7 @@ async function onSignup(e) {
     });
     signupDone = true;
     render();
-    root.querySelector('#inscricoes')?.scrollIntoView({ block: 'start' });
+    window.scrollTo(0, 0);
   } catch (ex) {
     fail(/failed to fetch|network/i.test(ex.message)
       ? 'Sem ligação. Verifica a internet e tenta de novo.'
@@ -571,6 +1448,23 @@ function message(title, body) {
     </div>`;
 }
 
+// O mesmo site, aberto na versão anterior (sem galeria, notícias nem loja):
+// uma cópia guardada de antes desta versão não tem estas listas, e o resto do
+// código assume que existem.
+function normalize(d) {
+  return {
+    ...d,
+    sections: d.sections || {},
+    teams: d.teams || [],
+    upcoming: d.upcoming || [],
+    results: d.results || [],
+    sponsors: d.sponsors || [],
+    photos: d.photos || [],
+    posts: d.posts || [],
+    products: d.products || [],
+  };
+}
+
 async function start() {
   if (!API_URL || !API_KEY) {
     message('Site por configurar', 'Faltam as variáveis do Supabase neste alojamento.');
@@ -583,12 +1477,24 @@ async function start() {
   }
   teamFilter = readStore(`rumia-site-team:${slug}`) || '';
 
+  window.addEventListener('hashchange', () => {
+    menuOpen = false;
+    if (data) render();
+  });
+  window.addEventListener('resize', fitNav);
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && menuOpen) {
+      menuOpen = false;
+      if (data) render();
+    }
+  });
+
   // Quem já cá esteve vê logo a última versão, e a página atualiza-se quando
   // a resposta chega — um jogo de sábado não muda entre duas visitas.
   const cached = readStore(`rumia-site:${slug}`);
   if (cached?.data) {
-    data = cached.data;
-    if (teamFilter && !(data.teams || []).some((t) => t.id === teamFilter)) teamFilter = '';
+    data = normalize(cached.data);
+    if (teamFilter && !data.teams.some((t) => t.id === teamFilter)) teamFilter = '';
     render();
   }
 
@@ -600,11 +1506,11 @@ async function start() {
       return;
     }
     const same = cached?.data && JSON.stringify(cached.data) === JSON.stringify(fresh);
-    data = fresh;
+    data = normalize(fresh);
     // Uma pré-visualização não fica guardada: era o que um visitante deste
     // dispositivo veria depois, sem o site estar publicado.
-    if (fresh.published !== false) writeStore(`rumia-site:${slug}`, { at: Date.now(), data });
-    if (teamFilter && !(data.teams || []).some((t) => t.id === teamFilter)) teamFilter = '';
+    if (fresh.published !== false) writeStore(`rumia-site:${slug}`, { at: Date.now(), data: fresh });
+    if (teamFilter && !data.teams.some((t) => t.id === teamFilter)) teamFilter = '';
     if (!same) render();
   } catch (ex) {
     if (!data) message('Sem ligação', 'Não foi possível carregar o site do clube. Tenta de novo daqui a pouco.');

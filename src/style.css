@@ -8508,6 +8508,70 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
   .scout-ab--hit, .scout-court--flash { animation: none; }
 }
 
+/* ---------------------------------------------------------------------
+   Definições → Site: galeria, notícias, loja e pedidos
+   --------------------------------------------------------------------- */
+.site-thumbs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 180px), 1fr));
+  gap: 0.75rem;
+}
+.site-thumb {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--surface-2);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.site-thumb img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  display: block;
+  background: var(--border);
+}
+.site-thumb__body { padding: 0.5rem; display: grid; gap: 0.4rem; }
+.site-thumb__cap {
+  margin: 0;
+  font-size: 0.82rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.site-thumb__actions { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+
+.site-rows { list-style: none; margin: 0.6rem 0 0; padding: 0; display: grid; gap: 0.5rem; }
+.site-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.site-row__img {
+  width: 56px;
+  height: 56px;
+  flex: none;
+  border-radius: var(--radius-xs);
+  object-fit: cover;
+  background: var(--surface-2);
+}
+.site-row__img--logo { object-fit: contain; background: #fff; }
+.site-row__img--empty { display: grid; place-items: center; font-size: 1.4rem; }
+.site-row__body { flex: 1 1 200px; min-width: 0; }
+.site-row__title { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.site-row__meta { margin: 0.15rem 0 0; font-size: 0.85rem; }
+.site-row__note { margin: 0.3rem 0 0; font-size: 0.88rem; white-space: pre-line; }
+.site-row__actions { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+
 /* =========================================================================
    Responsivo — telemóvel e tablet
    =========================================================================
