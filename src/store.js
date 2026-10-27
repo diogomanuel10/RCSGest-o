@@ -2647,6 +2647,20 @@ export async function saveSettings(values) {
   return data;
 }
 
+// Site público: o endereço e o interruptor vivem no clube (`organizations`),
+// que só o admin da plataforma escreve — por isso vão pela RPC `set_club_site`,
+// que valida o endereço e que é único entre clubes. Sem toast: quem chama
+// grava a seguir as definições do site, e é esse o aviso que se lê.
+export async function setClubSite(slug, enabled) {
+  const { data, error } = await supabase.rpc('set_club_site', {
+    p_slug: slug || null,
+    p_enabled: Boolean(enabled),
+  });
+  if (error) throw error;
+  state.org = { ...(state.org || {}), slug: data?.slug ?? null, site_enabled: Boolean(data?.site_enabled) };
+  return data;
+}
+
 // Nota: a cópia de segurança em .json (exportar/importar) foi removida.
 // Prometia uma coisa que não cumpria: exportava SEIS tabelas de mais de
 // quarenta — sem presenças, quotas, dados clínicos, físicos ou financeiros —

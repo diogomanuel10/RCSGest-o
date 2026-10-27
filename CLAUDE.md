@@ -123,6 +123,32 @@ conforme o `role` + RLS. Ver `supabase/multitenant.sql` (corre DEPOIS de
     único mandava os pais dos infantis para o grupo dos séniores. É opcional —
     sem ele o guia sai à mesma, sem esse passo — e passa por `safeUrl`, como
     as ligações do plano de treino.
+- **Site público do clube** (`supabase/site-publico.sql`, `site.html`,
+  `src/site/`, `views/site-definicoes.js`): `<clube>.rumia.pt`, sem login, para
+  pais, adeptos e patrocinadores — próximos jogos, resultados com parciais,
+  patrocinadores confirmados, contactos e um formulário de inscrição. Os dados
+  são os da app: o resultado de sábado aparece no site quando é registado.
+  - **Nenhum atleta sai da app**: nem nome, nem número, nem foto, nem
+    estatística — as funções públicas não leem `players`. E só JOGOS: os
+    treinos dizem onde estão crianças a horas fixas todas as semanas.
+  - **As tabelas não ganham política para o `anon`** (uma política é por
+    linha, não por coluna). O site lê por RPCs `security definer`
+    (`public_club_site`, `public_site_signup`) que devolvem só os campos
+    públicos e filtram o `org_id` à mão.
+  - **Publicar é um gesto explícito**: `organizations.site_enabled` nasce falso
+    e o endereço (`organizations.slug`, único entre clubes) só se escreve pela
+    RPC `set_club_site`, do coordenador. O resto (secções, escalões
+    escondidos, contactos) vive em `settings.site` (jsonb). Um clube suspenso
+    ou com o trial expirado fica sem site.
+  - **Pré-visualização**: aberto das Definições (`/site.html?clube=<slug>`, na
+    origem da app) o site leva a sessão, e o servidor mostra o site do
+    PRÓPRIO clube antes de publicado, com uma faixa a dizê-lo.
+  - **O pedido de inscrição é um `prospect`** (`source = 'site'`) com aviso ao
+    coordenador: consentimento obrigatório e escrito na ficha, teto de 20 por
+    hora por clube e o mesmo nome+contacto não duplica no mesmo dia.
+  - **O site não importa nada da app** (nem o supabase-js): duas chamadas
+    `fetch`, ~6 KB. É outro ponto de entrada do Vite (`vite.config.js`) e o
+    `vercel.json` encaminha `*.rumia.pt` (fora `www`/`app`) para `site.html`.
 - **Subscrições**: `organizations.status` (`trial`/`ativa`/`suspensa`/
   `cancelada`) + `trial_ends_at`. O *gate* em `app-shell.js` (`orgAccess()`)
   bloqueia clubes inativos (`subscription-blocked.js`).
@@ -261,6 +287,7 @@ src/
   sizes-message.js      Mensagem à família para confirmar os dados da encomenda
   encomenda-fornecedor-xlsx.js Folha da encomenda no formato do fornecedor (ExcelJS lazy)
   join-poster.js        Cartaz A4 do guia de entrada (QR da app + QR do grupo)
+  site/                 Site público do clube (<clube>.rumia.pt): site.js + site.css, sem dependências da app
   marketing-dates.js    Catálogo de datas para as redes sociais (fixas + móveis)
   player-photo.js       Foto de perfil nos avatares (endereços assinados em lote)
   offline-card.js       Cartão QR guardado no dispositivo (ecrã de recurso sem rede)
@@ -310,6 +337,7 @@ src/
     nova-epoca.js       Assistente de viragem de época (só coordenador)
     utilizadores.js     Vista Utilizadores (gestão de papéis — só coordenador)
     arquivados.js       Vista Arquivados (registos inativos + repor — só coordenador)
+    site-definicoes.js  Definições → Site: endereço, publicar, secções, escalões e contactos
     marketing.js        Datas & iniciativas para as redes sociais (só coordenador)
 supabase/schema.sql     Tabelas, índices, RLS e dados iniciais (correr no Supabase)
 supabase/qrcode-presencas.sql  Presenças por QR: token do atleta + RPCs de check-in
@@ -348,6 +376,7 @@ supabase/painel-avisos.sql     Limiares do clube + avisos escolhidos por utiliza
 supabase/resumo-semanal.sql    Resumo semanal (notificação + push) e limiares de queda
 supabase/web-push.sql          Web Push: trigger em notifications -> Edge Function send-push
 supabase/dados-exemplo.sql     Marca do clube de exemplo (settings.demo_seed)
+supabase/site-publico.sql      Site público: endereço do clube + RPCs públicas (página e inscrição)
 supabase/marketing.sql         Datas & iniciativas do clube (iniciativas, datas próprias, ocultas)
 public/                 Ficheiros estáticos (modelo-atletas-rumia.xlsx)
 ```

@@ -1,4 +1,16 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "rewrites": [{ "source": "/(.*)", "destination": "/" }]
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": "(www|app)\\.rumia\\.pt" }],
+      "destination": "/"
+    },
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": "[a-z0-9-]+\\.rumia\\.pt" }],
+      "destination": "/site.html"
+    },
+    { "source": "/(.*)", "destination": "/" }
+  ]
 }
