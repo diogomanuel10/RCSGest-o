@@ -67,6 +67,15 @@ create policy "site_media_delete" on storage.objects for delete to authenticated
   using (bucket_id = 'site-media' and app_role() = 'coordenador'
          and (storage.foldername(name))[1] = current_org_id()::text);
 
+-- A LEITURA da linha em `storage.objects` também precisa de política, mesmo
+-- num bucket público: o "público" só abre o ENDEREÇO do ficheiro, não a
+-- tabela. O Storage lê a linha que acabou de escrever (e a que vai apagar), e
+-- sem isto o envio era recusado como "row-level security" — foi o que fez a
+-- primeira foto carregada falhar. Fica-se pela pasta do próprio clube.
+drop policy if exists "site_media_read" on storage.objects;
+create policy "site_media_read" on storage.objects for select to authenticated
+  using (bucket_id = 'site-media' and (storage.foldername(name))[1] = current_org_id()::text);
+
 -- ---------------------------------------------------------------------
 -- 2. Tabelas
 -- ---------------------------------------------------------------------
