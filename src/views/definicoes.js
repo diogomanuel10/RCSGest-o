@@ -10,6 +10,7 @@ import { escaloes, positions, sport, allEquipmentArticles, equipmentArticlesRead
 import { SPORTS, SPORT_POSITIONS, TEXT_SIZES, DEFAULT_EQUIPMENT_ARTICLES } from '../constants.js';
 import { openModal } from '../modal.js';
 import { branding, logoSrc, defaultLogo, parseHex, DEFAULT_BRANDING } from '../branding.js';
+import { renderSiteSettings } from './site-definicoes.js';
 
 // Limite do emblema guardado (data URL na linha de definições). Mantém a linha
 // pequena e o carregamento rápido.
@@ -45,6 +46,7 @@ export function renderDefinicoes(container) {
       <div class="cal-toggle" role="group" aria-label="Separadores das definições">
         ${tabBtn('identidade', 'Identidade')}
         ${tabBtn('estrutura', 'Estrutura')}
+        ${coordenador ? tabBtn('site', 'Site') : ''}
       </div>
     </header>
 
@@ -418,7 +420,14 @@ export function renderDefinicoes(container) {
     </div>
     </div>
 
+    ${coordenador ? `
+    <div class="${panelClass('site')}" data-panel="site">
+      <div class="settings-stack" id="site-settings"></div>
+    </div>` : ''}
   `;
+
+  const siteEl = container.querySelector('#site-settings');
+  if (siteEl) renderSiteSettings(siteEl);
 
   // --- Separadores ---
   container.querySelectorAll('[data-settings-tab]').forEach((btn) =>

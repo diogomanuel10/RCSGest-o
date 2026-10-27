@@ -174,6 +174,21 @@ Google Calendar ou no calendário do iPhone, sempre atualizados.
 
 3. Na app: Saúde → Fisioterapia → Agenda (ou Calendário) → **📆 Google Calendar**.
 
+### Site público do clube (`<clube>.rumia.pt`)
+
+Opcional. Cada clube pode publicar uma página pública com jogos, resultados,
+patrocinadores, contactos e um formulário de inscrição.
+
+1. Corre `supabase/site-publico.sql` no SQL Editor.
+2. No Vercel, acrescenta o domínio **`*.rumia.pt`** ao projeto (domínios
+   *wildcard* exigem que o domínio use os *nameservers* do Vercel). O
+   [`vercel.json`](vercel.json) já envia qualquer subdomínio que não seja `www`
+   ou `app` para o site público.
+3. Se usares outro domínio, troca `rumia.pt` no `vercel.json` e define
+   `VITE_SITE_DOMAIN` nas variáveis do Vercel.
+4. Na app: Definições → **Site** (só o coordenador) — escolhe o endereço,
+   pré-visualiza e publica.
+
 ## 5. Publicar no Vercel
 
 A app é um site estático (Vite), por isso assenta bem no Vercel.
