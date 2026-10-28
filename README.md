@@ -183,7 +183,9 @@ formulário de inscrição.
 
 1. Corre `supabase/site-publico.sql` e depois `supabase/site-conteudo.sql` no
    SQL Editor (o segundo cria o bucket `site-media` e as tabelas da galeria,
-   notícias e loja).
+   notícias e loja). Se já tinhas corrido o `site-conteudo.sql` antes desta
+   correção e carregar uma foto dá "Sem permissão", corre também
+   `supabase/imagens-site-permissoes.sql`.
 2. No Vercel, acrescenta o domínio **`*.rumia.pt`** ao projeto (domínios
    *wildcard* exigem que o domínio use os *nameservers* do Vercel). O
    [`vercel.json`](vercel.json) já envia qualquer subdomínio que não seja `www`

@@ -2242,7 +2242,7 @@ export async function uploadArticlePhoto(articleKey, file) {
 
   const { error } = await supabase.storage
     .from(ARTICLE_PHOTO_BUCKET)
-    .upload(path, blob, { contentType: 'image/jpeg', upsert: true });
+    .upload(path, blob, { contentType: 'image/jpeg', upsert: false });
   if (error) throw error;
   return path;
 }
@@ -2723,6 +2723,8 @@ export const SITE_IMAGE_SMALL = 800;
 // Envia uma imagem do site e devolve o CAMINHO (o endereço público constrói-se
 // a partir dele). Sufixo aleatório pela razão do `uploadArticlePhoto`: o
 // bucket é servido por CDN e um caminho fixo continuava a mostrar a antiga.
+// Por ser sempre um caminho NOVO, é um envio simples e não um `upsert` — o
+// upsert é um INSERT … ON CONFLICT, que pede ao RLS mais do que escrever.
 export async function uploadSiteImage(kind, file, maxPx = SITE_IMAGE_SMALL) {
   const orgId = state.org?.id || state.profile?.org_id;
   if (!orgId) throw new Error('Clube por identificar.');
@@ -2734,7 +2736,7 @@ export async function uploadSiteImage(kind, file, maxPx = SITE_IMAGE_SMALL) {
   const path = `${orgId}/${kind}-${Date.now().toString(36)}-${rand}.jpg`;
   const { error } = await supabase.storage
     .from(SITE_MEDIA_BUCKET)
-    .upload(path, blob, { contentType: 'image/jpeg', upsert: true });
+    .upload(path, blob, { contentType: 'image/jpeg', upsert: false });
   if (error) throw error;
   return path;
 }
