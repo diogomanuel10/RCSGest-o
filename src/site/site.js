@@ -171,6 +171,42 @@ function countdown(g) {
   return `Faltam ${diff} dias`;
 }
 
+// A hora de início de um jogo como data local (sem hora: meia-noite).
+function startsAt(g) {
+  const d = parseDay(g.date);
+  const [h, m] = String(g.time || '').split(':').map(Number);
+  if (g.time) d.setHours(h || 0, m || 0, 0, 0);
+  return d;
+}
+
+// "Daqui a 2h 15min" — só no próprio dia, que é quando as horas importam.
+function startsIn(g) {
+  if (!g.time) return 'Hoje';
+  const mins = Math.round((startsAt(g) - Date.now()) / 60000);
+  if (mins <= 0) return `Começou às ${hhmm(g.time)}`;
+  if (mins < 60) return `Começa daqui a ${mins} min`;
+  const h = Math.floor(mins / 60);
+  return `Começa daqui a ${h}h${mins % 60 ? ` ${String(mins % 60).padStart(2, '0')}min` : ''}`;
+}
+
+// Os jogos por jogar a partir de hoje. A cópia guardada no dispositivo pode
+// ser de há uma semana, e o "próximo jogo" não pode ser o de sábado passado.
+function upcomingGames() {
+  if (!has('agenda')) return [];
+  const today = isoDay(new Date());
+  return (data.upcoming || []).filter((g) => String(g.date).slice(0, 10) >= today);
+}
+
+function mapsUrl(place) {
+  return place ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place)}` : '';
+}
+
+// O nome da modalidade para "Hoje há voleibol". Sem modalidade conhecida a
+// frase fica "Hoje jogamos" — não se inventa.
+const SPORT_WORD = {
+  voleibol: 'voleibol', futebol: 'futebol', futsal: 'futsal', andebol: 'andebol', basquetebol: 'basquetebol',
+};
+
 // Só se constrói um href se for mesmo http(s) — a regra do `safeUrl` da app.
 function safeUrl(raw) {
   const v = String(raw || '').trim();
@@ -420,6 +456,23 @@ function footerHTML() {
     </footer>`;
 }
 
+// No telemóvel, o pedido de inscrição fica fixo em baixo: é a única coisa que
+// o site pede a quem o visita, e no fim de uma página longa ninguém lá chega.
+// Ao lado vai "Como chegar" ao próximo jogo (ou à sede), que é o que um pai
+// procura no sábado de manhã.
+function dockHTML(page) {
+  if (!has('inscricoes') || page === 'inscricoes') return '';
+  const g = upcomingGames()[0];
+  const place = g?.location || data.contacts?.address || '';
+  return `
+    <div class="dock" role="region" aria-label="Atalhos">
+      <a class="btn btn--accent" href="${link('inscricoes')}">Inscreve-te</a>
+      ${place
+        ? `<a class="btn btn--glass" href="${esc(mapsUrl(place))}" target="_blank" rel="noopener">Como chegar</a>`
+        : `<a class="btn btn--glass" href="${link('calendario')}">Calendário</a>`}
+    </div>`;
+}
+
 // --- Blocos comuns -----------------------------------------------------------
 
 function chipsHTML() {
@@ -490,8 +543,18 @@ function resultRow(g, labels) {
         </p>
       </div>
       <span class="score score--${tag[1]}">${esc(g.sets_for)}<span>–</span>${esc(g.sets_against)}</span>
+      ${shareBtn(g.id)}
     </li>`;
 }
+
+// O resultado em imagem, para as histórias do Instagram e o WhatsApp: é por
+// lá que chega quase todo o público de um clube de formação.
+function shareBtn(id, label = '') {
+  return `<button type="button" class="sharebtn${label ? ' sharebtn--text' : ''}" data-card="result" data-id="${esc(id)}"
+    aria-label="Partilhar este resultado em imagem" title="Partilhar em imagem">${SHARE_ICON}${label ? `<span>${esc(label)}</span>` : ''}</button>`;
+}
+
+const SHARE_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 8 5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>';
 
 function newsCard(p, labels, big = false) {
   return `
@@ -522,15 +585,15 @@ function productCard(p) {
     </article>`;
 }
 
-function sponsorTile(s) {
+function sponsorTile(s, cls = '') {
   const url = safeUrl(s.url);
   const inner = s.logo
     ? `<img src="${esc(mediaUrl(s.logo))}" alt="${esc(s.name)}" loading="lazy" />`
     : `<span class="sponsor__name">${esc(s.name)}</span>`;
   const body = `${inner}${s.category && !s.logo ? `<span class="sponsor__cat">${esc(s.category)}</span>` : ''}`;
   return url
-    ? `<li><a class="sponsor sponsor--${esc(s.tier || 'base')}" href="${esc(url)}" target="_blank" rel="noopener" title="${esc(s.name)}">${body}</a></li>`
-    : `<li><span class="sponsor sponsor--${esc(s.tier || 'base')}" title="${esc(s.name)}">${body}</span></li>`;
+    ? `<li${cls ? ` class="${cls}"` : ''}><a class="sponsor sponsor--${esc(s.tier || 'base')}" href="${esc(url)}" target="_blank" rel="noopener" title="${esc(s.name)}">${body}</a></li>`
+    : `<li${cls ? ` class="${cls}"` : ''}><span class="sponsor sponsor--${esc(s.tier || 'base')}" title="${esc(s.name)}">${body}</span></li>`;
 }
 
 // --- Carrossel -----------------------------------------------------------------
@@ -543,17 +606,194 @@ function slideCaption(ph, labels) {
   return `${esc(labels[g.team_id] || '')} vs ${esc(g.opponent || 'Adversário')}${score}`;
 }
 
-function heroHTML(labels) {
+// O topo do início muda com o dia, como nos sites dos clubes grandes: um
+// clube vive ao ritmo do fim de semana, e uma página igual no sábado de manhã
+// e na terça à noite não dá razão nenhuma para voltar. Tudo sai dos dados que
+// já chegam (jogos e resultados) — o coordenador não escreve nada a mais.
+//   jogo     — há jogos HOJE: "Hoje há voleibol", o jogo que vem a seguir e a
+//              hora a que começa.
+//   ronda    — a última jornada acabou há três dias ou menos: o balanço dela.
+//   proximo  — o resto da semana: o próximo jogo.
+//   clube    — sem jogos à vista: o nome e o lema do clube.
+function heroMoment() {
+  const today = isoDay(new Date());
+  const up = upcomingGames();
+  const todays = up.filter((g) => String(g.date).slice(0, 10) === today);
+  if (todays.length) {
+    // O jogo em destaque é o primeiro que ainda não acabou (duas horas de
+    // margem); ao fim do dia fica o último.
+    const now = Date.now();
+    const current = todays.find((g) => !g.time || startsAt(g).getTime() + 2 * 3600000 > now) || todays[todays.length - 1];
+    return { kind: 'jogo', games: todays, game: current };
+  }
+  const res = has('resultados') ? data.results || [] : [];
+  if (res.length) {
+    const last = parseDay(res[0].date);
+    const age = Math.round((parseDay(today) - last) / 86400000);
+    if (age <= 3) {
+      // A jornada é o último dia com resultados e os dois anteriores: sábado e
+      // domingo contam juntos, e um jogo de quarta não se cola ao fim de semana.
+      const games = res.filter((g) => (last - parseDay(g.date)) / 86400000 <= 2);
+      return { kind: 'ronda', games };
+    }
+  }
+  if (up.length) return { kind: 'proximo', game: up[0] };
+  return { kind: 'clube' };
+}
+
+function sideName(name, cls = '') {
+  return `<span class="mside ${cls}">${cls ? `<span class="emblem emblem--initials emblem--md emblem--opp" aria-hidden="true">${esc(initials(name))}</span>` : emblem('emblem--md')}
+    <span class="mside__name">${esc(name)}</span></span>`;
+}
+
+// O cartão do jogo: os dois lados, a hora e onde é.
+function matchCard(g, labels, { live = false, others = [] } = {}) {
+  return `
+    <div class="mcard">
+      <div class="mcard__top">
+        <span>${esc(labels[g.team_id] || '')}</span>
+        <span>${esc(live ? startsIn(g) : countdown(g))}</span>
+      </div>
+      <div class="mcard__row">
+        ${sideName(data.club.name)}
+        <span class="mcard__vs">
+          <strong>${g.time ? esc(hhmm(g.time)) : 'vs'}</strong>
+          <small>${esc(dayLabel(g.date))}</small>
+        </span>
+        ${sideName(g.opponent || g.title || 'A definir', 'mside--opp')}
+      </div>
+      ${g.location ? `<p class="mcard__where">${esc(g.location)}</p>` : ''}
+      ${others.length ? `
+        <ul class="mcard__more" aria-label="Também hoje">
+          ${others.map((o) => `<li><strong>${o.time ? esc(hhmm(o.time)) : '—'}</strong> ${esc(labels[o.team_id] || '')} <span>vs ${esc(o.opponent || o.title || 'A definir')}</span></li>`).join('')}
+        </ul>` : ''}
+    </div>`;
+}
+
+function scoreTile(g, labels) {
+  const tag = outcome(g);
+  return `
+    <li class="stile stile--${tag[1]}">
+      <span class="stile__score">${esc(g.sets_for)}–${esc(g.sets_against)}</span>
+      <span class="stile__who">${esc(labels[g.team_id] || '')} <span>vs ${esc(g.opponent || g.title || 'Adversário')}</span></span>
+      ${shareBtn(g.id)}
+    </li>`;
+}
+
+function heroCopy(moment, labels) {
   const c = data.club;
+  const word = SPORT_WORD[c.sport];
+  const ctas = (...items) => items.filter(Boolean).join('');
+  switch (moment.kind) {
+    case 'jogo': {
+      const gs = moment.games;
+      const g = moment.game;
+      const places = [...new Set(gs.map((x) => x.location || ''))];
+      const where = places.length === 1 && places[0] ? ` · ${places[0]}` : '';
+      const times = gs.filter((x) => x.time).map((x) => hhmm(x.time));
+      const sub = gs.length === 1
+        ? `${labels[g.team_id] || ''} vs ${g.opponent || g.title || 'A definir'}${where}.`
+        : `${gs.length} jogos${times.length > 1 ? `, das ${times[0]} às ${times[times.length - 1]}` : ''}${where}. Aparece!`;
+      return {
+        kicker: cap(parseDay(g.date).toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long' })),
+        title: word ? `Hoje há<br><em>${esc(word)}</em>` : 'Hoje<br><em>jogamos</em>',
+        sub: esc(sub),
+        ctas: ctas(
+          g.location && `<a class="btn btn--accent" href="${esc(mapsUrl(g.location))}" target="_blank" rel="noopener">Como chegar</a>`,
+          `<button type="button" class="btn btn--glass" data-ics="${esc(g.id)}">Adicionar ao calendário</button>`,
+        ),
+        panel: matchCard(g, labels, { live: true, others: gs.filter((x) => x.id !== g.id) }),
+      };
+    }
+    case 'ronda': {
+      const gs = moment.games;
+      const wins = gs.filter((g) => outcome(g)[1] === 'win');
+      const first = parseDay(gs[gs.length - 1].date);
+      const last = parseDay(gs[0].date);
+      const fmt = (d) => d.toLocaleDateString('pt-PT', { day: 'numeric', month: 'short' }).replace('.', '');
+      const when = isoDay(first) === isoDay(last) ? fmt(last) : `${fmt(first)} e ${fmt(last)}`;
+      let title;
+      let sub;
+      if (gs.length === 1) {
+        const g = gs[0];
+        const tag = outcome(g);
+        title = `${tag[2]}<br><em>${esc(g.sets_for)}–${esc(g.sets_against)}</em>`;
+        sub = `${esc(labels[g.team_id] || '')} vs ${esc(g.opponent || g.title || 'Adversário')}.`;
+      } else {
+        title = wins.length
+          ? `${wins.length} ${wins.length === 1 ? 'vitória' : 'vitórias'}<br><em>em ${gs.length} jogos</em>`
+          : `${gs.length} jogos<br><em>da jornada</em>`;
+        // O destaque é a vitória com mais diferença de sets: é a que se conta.
+        const best = [...wins].sort((a, b) => (b.sets_for - b.sets_against) - (a.sets_for - a.sets_against))[0];
+        sub = best
+          ? `Destaque: ${esc(labels[best.team_id] || '')} ${esc(best.sets_for)}–${esc(best.sets_against)} vs ${esc(best.opponent || best.title || 'Adversário')}.`
+          : 'Todos os resultados, escalão a escalão.';
+      }
+      const shown = gs.slice(0, 4);
+      return {
+        kicker: `Resultados · ${when}`,
+        title,
+        sub,
+        ctas: ctas(
+          `<button type="button" class="btn btn--accent" data-card="${gs.length === 1 ? 'result' : 'round'}" data-id="${esc(gs[0].id)}">${SHARE_ICON} Partilhar resultados</button>`,
+          `<a class="btn btn--glass" href="${link('resultados')}">Todos os resultados</a>`,
+        ),
+        panel: `
+          <ul class="stiles">${shown.map((g) => scoreTile(g, labels)).join('')}</ul>
+          ${gs.length > shown.length ? `<a class="hero__more" href="${link('resultados')}">e mais ${gs.length - shown.length} →</a>` : ''}`,
+      };
+    }
+    case 'proximo': {
+      const g = moment.game;
+      const week = upcomingGames().filter((x) => (parseDay(x.date) - parseDay(isoDay(new Date()))) / 86400000 <= 7);
+      const post = has('noticias') ? data.posts[0] : null;
+      return {
+        kicker: `Próximo jogo · ${dayLabel(g.date)}${g.time ? ` ${hhmm(g.time)}` : ''}`,
+        title: `${esc(labels[g.team_id] || data.club.name)}<br><em>vs ${esc(g.opponent || g.title || 'A definir')}</em>`,
+        sub: esc(`${countdown(g)}.${week.length > 1 ? ` ${week.length} jogos nos próximos 7 dias.` : ''}`),
+        ctas: ctas(
+          `<button type="button" class="btn btn--accent" data-ics="${esc(g.id)}">Adicionar ao calendário</button>`,
+          `<a class="btn btn--glass" href="${link('calendario')}">Ver calendário</a>`,
+        ),
+        // Com uma notícia, o painel é dela: o jogo já está no título.
+        panel: post ? `
+          <a class="hnews" href="${link('noticia', post.id)}">
+            ${post.cover ? `<img src="${esc(mediaUrl(post.cover))}" alt="" />` : ''}
+            <span class="hnews__body">
+              <span class="hnews__kick">Notícia${post.published_at ? ` · ${esc(dayLabel(post.published_at))}` : ''}</span>
+              <strong>${esc(post.title)}</strong>
+            </span>
+          </a>` : matchCard(g, labels),
+      };
+    }
+    default:
+      return {
+        kicker: c.season ? `Época ${c.season}` : 'Bem-vindo',
+        title: esc(c.name),
+        sub: c.motto ? esc(c.motto) : '',
+        ctas: ctas(
+          has('agenda') && `<a class="btn btn--accent" href="${link('calendario')}">Ver calendário</a>`,
+          has('inscricoes') && `<a class="btn btn--glass" href="${link('inscricoes')}">Quero fazer parte</a>`,
+        ),
+        panel: '',
+      };
+  }
+}
+
+function heroHTML(labels, moment) {
   const photos = has('galeria') ? data.photos : [];
   if (slideIndex >= photos.length) slideIndex = 0;
+  const copy = heroCopy(moment, labels);
+  const plain = moment.kind === 'clube';
+  // As legendas das fotos só aparecem no topo "do clube": com um painel ao
+  // lado disputavam o mesmo canto, e o que se lê ali é o jogo.
   const slides = photos.map((ph, i) => {
-    const capt = slideCaption(ph, labels);
+    const capt = plain ? slideCaption(ph, labels) : '';
     const meta = ph.game?.date ? esc(longDate(ph.game.date)) : '';
     return `
       <figure class="slide${i === slideIndex ? ' is-active' : ''}" aria-hidden="${i !== slideIndex}"
               role="group" aria-roledescription="diapositivo" aria-label="${i + 1} de ${photos.length}">
-        <img src="${esc(mediaUrl(ph.path))}" alt="${capt ? capt.replace(/<[^>]+>/g, '') : ''}"
+        <img src="${esc(mediaUrl(ph.path))}" alt="${slideCaption(ph, labels).replace(/<[^>]+>/g, '')}"
              ${i === 0 ? 'fetchpriority="high"' : 'loading="lazy"'} />
         ${capt ? `<figcaption class="slide__cap"><span>${capt}</span>${meta ? `<small>${meta}</small>` : ''}</figcaption>` : ''}
       </figure>`;
@@ -565,20 +805,20 @@ function heroHTML(labels) {
       ${photos.map((_, i) => `<button type="button" class="hero__dot${i === slideIndex ? ' is-active' : ''}"
          data-goto="${i}" aria-label="Foto ${i + 1}" aria-current="${i === slideIndex}"></button>`).join('')}
     </div>` : '';
-  const ctas = [
-    has('agenda') && `<a class="btn btn--accent" href="${link('calendario')}">Ver calendário</a>`,
-    has('inscricoes') && `<a class="btn btn--glass" href="${link('inscricoes')}">Quero fazer parte</a>`,
-  ].filter(Boolean).join('');
   return `
-    <section class="hero${photos.length ? '' : ' hero--plain'}" aria-roledescription="carrossel" aria-label="Fotos dos jogos">
+    <section class="hero hero--${moment.kind}${photos.length ? '' : ' hero--plain'}" aria-label="Destaque">
       <div class="hero__slides" data-swipe>${slides}</div>
       <div class="hero__shade" aria-hidden="true"></div>
-      <div class="wrap hero__content">
-        ${photos.length ? '' : emblem('emblem--hero')}
-        <p class="kicker kicker--light">${c.season ? `Época ${esc(c.season)}` : 'Bem-vindo'}</p>
-        <h1 class="hero__name">${esc(c.name)}</h1>
-        ${c.motto ? `<p class="hero__motto">${esc(c.motto)}</p>` : ''}
-        ${ctas ? `<div class="hero__ctas">${ctas}</div>` : ''}
+      <div class="hero__stripes" aria-hidden="true"></div>
+      <div class="wrap hero__content${copy.panel ? ' hero__content--split' : ''}">
+        <div class="hero__text">
+          ${plain && !photos.length ? emblem('emblem--hero') : ''}
+          <p class="kicker kicker--hero">${esc(copy.kicker)}</p>
+          <h1 class="hero__name">${copy.title}</h1>
+          ${copy.sub ? `<p class="hero__motto">${copy.sub}</p>` : ''}
+          ${copy.ctas ? `<div class="hero__ctas">${copy.ctas}</div>` : ''}
+        </div>
+        ${copy.panel ? `<div class="hero__panel">${copy.panel}</div>` : ''}
       </div>
       ${controls}
     </section>`;
@@ -645,80 +885,143 @@ function wireCarousel() {
 
 // --- Páginas -------------------------------------------------------------------
 
-function nextGameHTML(labels) {
-  const g = (data.upcoming || [])[0];
-  if (!has('agenda') || !g) return '';
+// A faixa de resultados no topo: todos os escalões num marcador, como os
+// clubes grandes fazem com as modalidades. Num clube de formação o jogo dos
+// infantis é o jogo mais importante para vinte famílias.
+function tickerHTML(labels) {
+  const list = (has('resultados') ? data.results || [] : []).slice(0, 10);
+  if (!list.length) return '';
   return `
-    <section class="nextcard" aria-label="Próximo jogo">
-      <div class="nextcard__top">
-        <span class="kicker">Próximo jogo · ${esc(labels[g.team_id] || '')}</span>
-        <span class="pill">${esc(countdown(g))}</span>
+    <nav class="ticker" aria-label="Últimos resultados">
+      <div class="wrap ticker__inner">
+        <span class="ticker__label">Últimos resultados</span>
+        <ul class="ticker__list">
+          ${list.map((g) => {
+            const tag = outcome(g);
+            return `<li><a href="${link('resultados')}">
+              <span class="ticker__team">${esc(labels[g.team_id] || '')}</span>
+              <strong class="ticker__score ticker__score--${tag[1]}">${esc(g.sets_for)}–${esc(g.sets_against)}</strong>
+              <span class="ticker__opp">${esc(g.opponent || g.title || 'Adversário')}</span>
+            </a></li>`;
+          }).join('')}
+        </ul>
       </div>
-      <div class="nextcard__match">
-        <div class="side">${emblem('emblem--md')}<span>${esc(data.club.name)}</span></div>
-        <div class="nextcard__vs">
-          <span class="nextcard__time">${g.time ? esc(hhmm(g.time)) : 'vs'}</span>
-          <span class="nextcard__day">${esc(dayLabel(g.date))}</span>
-        </div>
-        <div class="side"><span class="emblem emblem--md emblem--opp" aria-hidden="true">${esc(initials(g.opponent || g.title || '?'))}</span>
-          <span>${esc(g.opponent || g.title || 'A definir')}</span></div>
-      </div>
-      ${g.location ? `<p class="nextcard__where">📍 ${esc(g.location)}</p>` : ''}
+    </nav>`;
+}
+
+// Os jogos da semana em cartões, um por escalão. O que já está no topo não se
+// repete aqui: o mesmo jogo duas vezes lê-se como dois jogos.
+function weekHTML(labels, moment) {
+  const up = upcomingGames();
+  if (!up.length) return '';
+  const today = parseDay(isoDay(new Date()));
+  const skip = new Set(moment.kind === 'jogo' ? moment.games.map((g) => g.id) : moment.game ? [moment.game.id] : []);
+  const rest = up.filter((g) => !skip.has(g.id));
+  let list = rest.filter((g) => (parseDay(g.date) - today) / 86400000 <= 7);
+  let title = 'Próximos 7 dias';
+  if (!list.length) {
+    list = rest.slice(0, 4);
+    title = 'A seguir';
+  } else if (list.every((g) => [0, 6].includes(parseDay(g.date).getDay()))
+    && (parseDay(list[list.length - 1].date) - parseDay(list[0].date)) / 86400000 <= 1) {
+    title = 'Este fim de semana';
+  }
+  if (!list.length) return '';
+  const shown = list.slice(0, 8);
+  return `
+    <section class="sec">
+      ${sectionHead(title, moreLink('calendario', 'Calendário completo'))}
+      <ul class="wgames">
+        ${shown.map((g) => `
+          <li class="wgame">
+            <span class="wgame__team">${esc(labels[g.team_id] || '')}</span>
+            <span class="wgame__vs">vs ${esc(g.opponent || g.title || 'A definir')}</span>
+            <span class="wgame__when">${esc(dayLabel(g.date))}${g.time ? ` · ${esc(hhmm(g.time))}` : ''}</span>
+            ${g.location ? `<span class="wgame__where">${esc(g.location)}</span>` : ''}
+            <span class="wgame__actions">
+              ${g.location ? `<a href="${esc(mapsUrl(g.location))}" target="_blank" rel="noopener">Como chegar</a>` : ''}
+              <button type="button" class="linkbtn" data-ics="${esc(g.id)}">Adicionar ao calendário</button>
+            </span>
+          </li>`).join('')}
+      </ul>
     </section>`;
 }
 
+function galleryHTML(labels) {
+  if (!has('galeria') || data.photos.length < 3) return '';
+  const photos = data.photos.slice(0, 5);
+  return `
+    <section class="sec">
+      ${sectionHead('Galeria')}
+      <ul class="mosaic mosaic--${photos.length}">
+        ${photos.map((ph) => {
+          const capt = slideCaption(ph, labels);
+          return `<li><a href="${esc(mediaUrl(ph.path))}" target="_blank" rel="noopener">
+            <img src="${esc(mediaUrl(ph.path))}" alt="${capt.replace(/<[^>]+>/g, '')}" loading="lazy" />
+            ${capt ? `<span class="mosaic__cap">${capt}</span>` : ''}
+          </a></li>`;
+        }).join('')}
+      </ul>
+    </section>`;
+}
+
+// O patrocinador principal (o primeiro Ouro) tem lugar próprio: é o que
+// mostra a quem pensa patrocinar o que está a comprar.
+function homeSponsorsHTML() {
+  if (!has('patrocinadores')) return '';
+  const list = data.sponsors;
+  const main = list[0]?.tier === 'ouro' ? list[0] : null;
+  const rest = main ? list.slice(1) : list;
+  return `
+    <section class="sec">
+      ${sectionHead('Quem nos apoia', `<a class="sechead__more" href="${link('contactos')}">Patrocinar o clube →</a>`)}
+      <ul class="sponsors sponsors--home">
+        ${main ? sponsorTile(main, 'sponsors__main') : ''}
+        ${rest.map((s) => sponsorTile(s)).join('')}
+      </ul>
+    </section>`;
+}
+
+// "Dos Minis aos Seniores": os escalões do próprio clube dizem quem pode vir.
+function bandTitle() {
+  const teams = orderedTeams();
+  const first = teams[0]?.escalao;
+  const last = teams[teams.length - 1]?.escalao;
+  return first && last && first !== last ? `Dos ${first} aos ${last}` : 'Queres jogar connosco?';
+}
+
 function homeHTML(labels) {
-  const results = (data.results || []).slice(0, 6);
-  const rec = record(data.results || []);
-  const posts = has('noticias') ? data.posts.slice(0, 3) : [];
+  const moment = heroMoment();
+  const posts = has('noticias') ? data.posts.slice(moment.kind === 'proximo' ? 1 : 0).slice(0, 3) : [];
   const prods = has('loja') ? data.products.slice(0, 4) : [];
   const founded = Number(data.history?.founded);
   const years = founded ? new Date().getFullYear() - founded : 0;
+  const rec = record(data.results || []);
   const stats = [
     (data.teams || []).length && [String(data.teams.length), data.teams.length === 1 ? 'equipa' : 'equipas'],
     rec.played && [String(rec.win), rec.win === 1 ? 'vitória esta época' : 'vitórias esta época'],
     rec.played && [`${rec.pct}%`, 'de jogos ganhos'],
     years > 0 && [String(years), years === 1 ? 'ano de história' : 'anos de história'],
   ].filter(Boolean);
-  const upcoming = has('agenda') ? (data.upcoming || []).slice(1, 5) : [];
 
   return `
-    ${heroHTML(labels)}
+    ${moment.kind === 'ronda' ? '' : tickerHTML(labels)}
+    ${heroHTML(labels, moment)}
     <div class="wrap home">
-      ${nextGameHTML(labels)}
+      ${weekHTML(labels, moment)}
+
       ${stats.length ? `
         <ul class="stats">
           ${stats.map(([n, l]) => `<li><strong>${esc(n)}</strong><span>${esc(l)}</span></li>`).join('')}
         </ul>` : ''}
 
-      ${has('resultados') && results.length ? `
-        <section class="sec">
-          ${sectionHead('Últimos resultados', moreLink('resultados', 'Todos os resultados'))}
-          <ul class="rcards">
-            ${results.map((g) => {
-              const tag = outcome(g);
-              return `
-              <li class="rcard rcard--${tag[1]}">
-                <span class="rcard__team">${esc(labels[g.team_id] || '')}</span>
-                <span class="rcard__score">${esc(g.sets_for)}–${esc(g.sets_against)}</span>
-                <span class="rcard__opp">vs ${esc(g.opponent || g.title || 'Adversário')}</span>
-                <span class="rcard__date">${esc(dayLabel(g.date))} · ${tag[2]}</span>
-              </li>`;
-            }).join('')}
-          </ul>
-        </section>` : ''}
-
-      ${upcoming.length ? `
-        <section class="sec">
-          ${sectionHead('A seguir', moreLink('calendario', 'Calendário completo'))}
-          <ul class="list card">${upcoming.map((g) => upcomingRow(g, labels)).join('')}</ul>
-        </section>` : ''}
-
       ${posts.length ? `
         <section class="sec">
           ${sectionHead('Notícias', moreLink('noticias', 'Todas as notícias'))}
-          <div class="newsgrid">${posts.map((p, i) => newsCard(p, labels, i === 0)).join('')}</div>
+          <div class="newsgrid">${posts.map((p, i) => newsCard(p, labels, i === 0 && posts.length >= 3)).join('')}</div>
         </section>` : ''}
+
+      ${galleryHTML(labels)}
 
       ${prods.length ? `
         <section class="sec">
@@ -726,21 +1029,17 @@ function homeHTML(labels) {
           <div class="shopgrid">${prods.map(productCard).join('')}</div>
         </section>` : ''}
 
-      ${has('patrocinadores') ? `
-        <section class="sec">
-          ${sectionHead('Quem nos apoia', moreLink('patrocinadores', 'Patrocinadores'))}
-          <ul class="sponsors sponsors--strip">${data.sponsors.map(sponsorTile).join('')}</ul>
-        </section>` : ''}
+      ${homeSponsorsHTML()}
     </div>
 
     ${has('inscricoes') ? `
       <section class="band">
         <div class="wrap band__inner">
           <div>
-            <h2 class="band__title">Queres jogar connosco?</h2>
-            <p>Marca um treino de experiência. Do mini ao sénior, há lugar para ti.</p>
+            <h2 class="band__title">${esc(bandTitle())}</h2>
+            <p>Marca um treino experimental. Há lugar para ti.</p>
           </div>
-          <a class="btn btn--accent btn--lg" href="${link('inscricoes')}">Inscreve-te</a>
+          <a class="btn btn--brand btn--lg" href="${link('inscricoes')}">Marca um treino experimental</a>
         </div>
       </section>` : ''}`;
 }
@@ -1174,6 +1473,75 @@ function pageTitle(page, id, labels) {
   return map[page] ? `${map[page]} — ${name}` : name;
 }
 
+// --- Adicionar ao calendário --------------------------------------------------
+
+// Um .ics de um só jogo, feito no browser. A hora vai "flutuante" (sem fuso):
+// é a hora do pavilhão, e é essa que o telemóvel de quem lá vai deve mostrar.
+function icsText(value) {
+  return String(value || '').replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/([,;])/g, '\\$1');
+}
+
+function downloadIcs(id) {
+  const g = (data.upcoming || []).find((x) => x.id === id);
+  if (!g) return;
+  const labels = teamLabels();
+  const pad = (n) => String(n).padStart(2, '0');
+  const stamp = (d) => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
+  const start = startsAt(g);
+  const lines = [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Rumia//Site do clube//PT', 'CALSCALE:GREGORIAN',
+    'BEGIN:VEVENT',
+    `UID:${g.id}@${SITE_DOMAIN}`,
+    `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '')}`,
+  ];
+  if (g.time) {
+    const end = new Date(start.getTime() + 2 * 3600000);
+    const t = (d) => `${stamp(d)}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
+    lines.push(`DTSTART:${t(start)}`, `DTEND:${t(end)}`);
+  } else {
+    const next = new Date(start);
+    next.setDate(next.getDate() + 1);
+    lines.push(`DTSTART;VALUE=DATE:${stamp(start)}`, `DTEND;VALUE=DATE:${stamp(next)}`);
+  }
+  lines.push(`SUMMARY:${icsText(`${data.club.name} · ${labels[g.team_id] || ''} vs ${g.opponent || g.title || 'A definir'}`)}`);
+  if (g.location) lines.push(`LOCATION:${icsText(g.location)}`);
+  lines.push(`URL:${location.origin}${location.pathname}${location.search}#/calendario`, 'END:VEVENT', 'END:VCALENDAR');
+  const url = URL.createObjectURL(new Blob([lines.join('\r\n')], { type: 'text/calendar;charset=utf-8' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `jogo-${String(g.date).slice(0, 10)}.ics`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// --- Imagem para partilhar ----------------------------------------------------
+
+// O desenho fica num módulo à parte (só se carrega ao carregar no botão): o
+// site é aberto com dados móveis, e quase ninguém partilha numa visita.
+async function openCard(kind, id) {
+  const labels = teamLabels();
+  const results = data.results || [];
+  const g = results.find((x) => x.id === id);
+  if (!g) return;
+  let games = [g];
+  if (kind === 'round') {
+    const moment = heroMoment();
+    if (moment.kind === 'ronda') games = moment.games;
+  }
+  const { openShareCard } = await import('./share-card.js');
+  openShareCard({
+    kind: games.length > 1 ? 'round' : 'result',
+    games,
+    labels,
+    club: data.club,
+    colors: { ...clubColors(), brandInk: inkOn(clubColors().primary), accentInk: inkOn(clubColors().accent) },
+    site: `${slug}.${SITE_DOMAIN}`,
+    url: `${location.origin}${location.pathname}${location.search}#/resultados`,
+  });
+}
+
 // --- Encomenda da loja -------------------------------------------------------
 
 function openOrder(productId) {
@@ -1276,10 +1644,17 @@ function openOrder(productId) {
 
 // --- Página ----------------------------------------------------------------
 
+function clubColors() {
+  const c = data.club;
+  return {
+    primary: /^#[0-9a-f]{6}$/i.test(c.primary || '') ? c.primary : '#143b61',
+    accent: /^#[0-9a-f]{6}$/i.test(c.accent || '') ? c.accent : '#f2b705',
+  };
+}
+
 function applyTheme() {
   const c = data.club;
-  const primary = /^#[0-9a-f]{6}$/i.test(c.primary || '') ? c.primary : '#143b61';
-  const accent = /^#[0-9a-f]{6}$/i.test(c.accent || '') ? c.accent : '#f2b705';
+  const { primary, accent } = clubColors();
   const s = document.documentElement.style;
   s.setProperty('--brand', primary);
   s.setProperty('--brand-ink', inkOn(primary));
@@ -1314,7 +1689,9 @@ function render() {
     ${preview}
     ${headerHTML(page)}
     <main id="main" class="main main--${page || 'inicio'}">${pageHTML(page, id, labels)}</main>
-    ${footerHTML()}`;
+    ${footerHTML()}
+    ${dockHTML(page)}`;
+  root.classList.toggle('has-dock', Boolean(root.querySelector('.dock')));
   const form = root.querySelector('#signup');
   if (form && kept) {
     Object.entries(kept.values).forEach(([k, v]) => {
@@ -1383,6 +1760,12 @@ function wire() {
   );
   root.querySelectorAll('[data-order]').forEach((btn) =>
     btn.addEventListener('click', () => openOrder(btn.dataset.order))
+  );
+  root.querySelectorAll('[data-ics]').forEach((btn) =>
+    btn.addEventListener('click', () => downloadIcs(btn.dataset.ics))
+  );
+  root.querySelectorAll('[data-card]').forEach((btn) =>
+    btn.addEventListener('click', () => openCard(btn.dataset.card, btn.dataset.id))
   );
   root.querySelector('[data-share]')?.addEventListener('click', async (e) => {
     const url = location.href;

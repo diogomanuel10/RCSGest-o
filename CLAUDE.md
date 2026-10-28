@@ -151,7 +151,7 @@ conforme o `role` + RLS. Ver `supabase/multitenant.sql` (corre DEPOIS de
     coordenador: consentimento obrigatório e escrito na ficha, teto de 20 por
     hora por clube e o mesmo nome+contacto não duplica no mesmo dia.
   - **O site não importa nada da app** (nem o supabase-js): poucas chamadas
-    `fetch`, ~14 KB comprimido. É outro ponto de entrada do Vite
+    `fetch`, ~17 KB comprimido. É outro ponto de entrada do Vite
     (`vite.config.js`) e o `vercel.json` encaminha `*.rumia.pt` (fora
     `www`/`app`) para `site.html`.
   - **É uma página com rotas no hash** (`#/calendario`, `#/equipas/<id>`,
@@ -176,6 +176,31 @@ conforme o `role` + RLS. Ver `supabase/multitenant.sql` (corre DEPOIS de
     e do preço do artigo nesse momento) e avisa o coordenador, que combina
     pagamento e entrega — as mesmas defesas do pedido de inscrição
     (consentimento, 20/hora por clube, sem duplicar no mesmo dia).
+  - **O visual é o de um site de clube, não o de uma app** (`site.css`): letra
+    condensada e pesada (Barlow Condensed), títulos em maiúsculas, a cor do
+    clube em blocos grandes e riscas diagonais na cor de destaque
+    (`--stripes`). Tudo sai das duas cores que o clube já escolhe nas
+    Definições — o coordenador não configura nada a mais. Era uma página de
+    nove blocos de cartões brancos com o mesmo peso, e lia-se como um painel.
+  - **O topo do início muda com o dia** (`heroMoment`): há jogos HOJE ("Hoje
+    há voleibol", o jogo seguinte e a hora a que começa), a última jornada
+    acabou há três dias ou menos (o balanço dela, com os marcadores), o resto
+    da semana (o próximo jogo) e, sem jogos à vista, o nome e o lema. Um clube
+    vive ao ritmo do fim de semana, e uma página igual no sábado e na terça
+    não dá razão nenhuma para voltar. Por cima, uma **faixa com os últimos
+    resultados de todos os escalões**; por baixo, os jogos da semana com
+    "Como chegar" e "Adicionar ao calendário" (`.ics` feito no browser, hora
+    sem fuso). O que já está no topo não se repete nos blocos de baixo.
+  - **O resultado sai do site em imagem** (`share-card.js`, carregado só ao
+    carregar em "Partilhar"): um cartão 9:16 com as cores do clube, para as
+    histórias do Instagram e o WhatsApp, que é de onde chega o público. É um
+    `<canvas>` no browser — sem servidor. Abre-se uma pré-visualização e quem
+    a vê escolhe partilhar ou descarregar. Um emblema noutro domínio sem CORS
+    "suja" o canvas: aí a imagem sai sem emblema em vez de não sair.
+  - **No telemóvel, "Inscreve-te" e "Como chegar" ficam fixos em baixo**
+    (`dockHTML`): no fim de uma página longa ninguém chegava à faixa de
+    inscrição. O patrocinador principal (o primeiro Ouro) tem lugar próprio no
+    início, com "Patrocinar o clube".
   - **A exceção à regra "nenhum atleta sai da app" é o plantel PUBLICADO**,
     escalão a escalão (`settings.site.roster_teams`, nasce vazio): número,
     posição e o nome abreviado ("Ana S."), cortado no SERVIDOR
@@ -320,7 +345,7 @@ src/
   sizes-message.js      Mensagem à família para confirmar os dados da encomenda
   encomenda-fornecedor-xlsx.js Folha da encomenda no formato do fornecedor (ExcelJS lazy)
   join-poster.js        Cartaz A4 do guia de entrada (QR da app + QR do grupo)
-  site/                 Site público do clube (<clube>.rumia.pt): site.js + site.css, sem dependências da app
+  site/                 Site público do clube (<clube>.rumia.pt): site.js + site.css (+ share-card.js), sem dependências da app
   marketing-dates.js    Catálogo de datas para as redes sociais (fixas + móveis)
   player-photo.js       Foto de perfil nos avatares (endereços assinados em lote)
   offline-card.js       Cartão QR guardado no dispositivo (ecrã de recurso sem rede)
