@@ -21,6 +21,7 @@ const SECTIONS = [
   { key: 'noticias', label: 'Notícias', hint: 'só as publicadas' },
   { key: 'loja', label: 'Loja do clube', hint: 'os artigos à venda e os pedidos' },
   { key: 'historia', label: 'História do clube', hint: 'o texto e os marcos que escreveres' },
+  { key: 'clube', label: 'Símbolos, mascote e hino', hint: 'na página "O Clube", com a história' },
   { key: 'patrocinadores', label: 'Patrocinadores', hint: 'só os confirmados, por nível' },
   { key: 'inscricoes', label: 'Pedidos de inscrição', hint: 'chegam ao Recrutamento, com aviso' },
 ];
