@@ -7,6 +7,7 @@ import { esc, emptyHTML, wireEmptyAction } from '../ui.js';
 import { eventDateTime, eventTimeRange, teamById, teamName, escalaoColor, gameResult, gameSetsOf,
          eventPlayerIds, eventRoster, appointmentConflicts } from '../compute.js';
 import { openModal, confirmDialog, wireDialog } from '../modal.js';
+import { toastError } from '../toast.js';
 import { openAthleteProfile } from './athlete-profile.js';
 import { openAppointmentForm, apptResponseHTML } from './clinical-file.js';
 import { openCalendarSync } from './agenda-sync.js';
@@ -216,7 +217,7 @@ export function renderCalendario(container) {
   container.querySelector('#grid-next')?.addEventListener('click', () => { gridMonth = new Date(gridMonth.getFullYear(), gridMonth.getMonth() + 1, 1); renderCalendario(container); });
   container.querySelector('#grid-today')?.addEventListener('click', () => { gridMonth = new Date(); renderCalendario(container); });
   container.querySelectorAll('[data-edit]').forEach((b) => b.addEventListener('click', () => openForm(b.dataset.edit)));
-  container.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => remove(b.dataset.del)));
+  container.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => removeEvent(b.dataset.del)));
   container.querySelectorAll('[data-game]').forEach((b) => b.addEventListener('click', () => goToGame(b.dataset.game)));
   container.querySelectorAll('[data-new-day]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); newEvent(b.dataset.newDay); }));
   container.querySelectorAll('[data-appt]').forEach((b) => b.addEventListener('click', () => openAthleteProfile(b.dataset.appt, { tab: 'fisioterapia' })));
@@ -632,7 +633,7 @@ function eventRow(ev, isPast, editable) {
         ${showTraining ? `<button class="btn btn--ghost btn--sm" data-training-plan="${ev.id}" type="button">${hasTraining ? 'Plano ✓' : 'Preparar treino'}</button>` : ''}
         ${canEditThis
           ? `<button class="btn btn--ghost btn--sm" data-edit="${ev.id}" type="button">Editar</button>
-             <button class="btn btn--danger btn--sm" data-del="${ev.id}" type="button">Remover</button>`
+             <button class="btn btn--danger btn--sm" data-del="${ev.id}" type="button">Eliminar</button>`
           : ''}
       </div>
     </div>
@@ -676,7 +677,7 @@ function openDayModal(dateStr, editable, tab = 'tudo') {
   // As ações fecham o detalhe primeiro para que o modal/diálogo seguinte
   // fique por cima sem sobreposições.
   overlay.querySelectorAll('[data-edit]').forEach((b) => b.addEventListener('click', () => { close(); openForm(b.dataset.edit); }));
-  overlay.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => { close(); remove(b.dataset.del); }));
+  overlay.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => { close(); removeEvent(b.dataset.del); }));
   overlay.querySelectorAll('[data-game]').forEach((b) => b.addEventListener('click', () => { close(); goToGame(b.dataset.game); }));
   overlay.querySelectorAll('[data-appt]').forEach((b) => b.addEventListener('click', () => { close(); openAthleteProfile(b.dataset.appt, { tab: 'fisioterapia' }); }));
   overlay.querySelectorAll('[data-appt-resched]').forEach((b) => b.addEventListener('click', () => { close(); reschedule(b.dataset.apptResched); }));
@@ -842,17 +843,36 @@ function openForm(id, prefillDate, defaults) {
   reopen(values);
 }
 
-async function remove(id) {
+// Eliminar um evento é ARQUIVÁ-LO (a regra das entidades principais): sai do
+// Calendário, dos Jogos, das Presenças, do portal e do site do clube, mas a
+// convocatória, o resultado e o scout ficam presos a ele e voltam se for
+// reposto nos Arquivados. Um jogo marcado por engano ou cancelado de vez
+// apaga-se sem levar o histórico com ele — apagar de verdade levava em
+// cascata as presenças e os pontos jogados de cada atleta.
+//
+// A pergunta diz QUE jogo é (equipa, adversário e dia): a lista dos Jogos tem
+// os cartões todos iguais lado a lado, e "Eliminar o evento Jogo?" não
+// distingue o de sábado do de domingo.
+export async function removeEvent(id) {
   const ev = state.events.find((x) => x.id === id);
+  if (!ev) return;
+  const team = teamById(ev.team_id);
+  const day = eventDateTime(ev).toLocaleDateString('pt-PT', { weekday: 'short', day: 'numeric', month: 'short' });
+  const what = ev.type === 'jogo'
+    ? `o jogo ${team ? `${teamName(team)} ` : ''}vs ${ev.opponent || 'adversário por definir'} (${day})`
+    : `"${ev.title || EVENT_TYPE_LABEL[ev.type]}" (${day})`;
+  const extra = ev.type === 'jogo'
+    ? ' Deixa de aparecer nos Jogos, no Calendário, no portal das atletas e no site do clube.'
+    : ' Deixa de aparecer no Calendário e no portal das atletas.';
   const ok = await confirmDialog(
-    `Arquivar o evento "${ev?.title || EVENT_TYPE_LABEL[ev?.type]}"? Fica no histórico e pode ser reposto nos Arquivados.`,
-    { confirmLabel: 'Arquivar', danger: false }
+    `Eliminar ${what}?${extra} Fica nos Arquivados, com o que já tinha registado, e pode ser reposto.`,
+    { confirmLabel: 'Eliminar' }
   );
   if (!ok) return;
   try {
     await archiveRow('events', id);
   } catch (err) {
-    alert(dbErrorMessage(err));
+    toastError(dbErrorMessage(err));
   }
 }
 

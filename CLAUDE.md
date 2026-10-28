@@ -1541,6 +1541,12 @@ separador antes de navegar (usado pelos cartões do Painel).
     lista carrega em segundo plano quando ainda ninguém abriu o Scout.
   - O treinador vê os jogos das SUAS equipas (`myTeams`); a secção aparece a
     quem tem o Calendário ou o Scout.
+  - **Eliminar um jogo é arquivá-lo** (`removeEvent` em `calendario.js`, o
+    mesmo botão do Calendário): sai dos Jogos, do Calendário, do portal e do
+    site, mas a convocatória, o resultado e o scout ficam com ele e voltam se
+    for reposto nos Arquivados. Apagar de vez levava em cascata as presenças e
+    os pontos jogados. A confirmação diz QUE jogo é (equipa, adversário, dia):
+    os cartões da lista são todos iguais.
   - **A convocatória é um diálogo** (`convocatoria.js`), com as respostas dos
     atletas ao lado de cada nome: um convocado que avisou que não pode ir é o
     cruzamento que interessa ver. Estar convocado é ter linha em

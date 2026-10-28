@@ -9358,6 +9358,7 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 .game-step--done { color: var(--ok-ink); }
 .game-step__ok { margin-right: 0.3rem; font-weight: 700; }
 .game-steps__edit { margin-left: auto; }
+.game-steps__del { color: var(--danger-ink); }
 
 @media (max-width: 820px) {
   .game-card { grid-template-columns: 88px minmax(0, 1fr); gap: 0.4rem 0.7rem; }

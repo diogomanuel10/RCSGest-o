@@ -27,7 +27,7 @@ import { renderScout, openScoutForEvent } from './scout.js';
 import { openSquadModal } from './convocatoria.js';
 import { openResultModal } from './resultado.js';
 import { findPlanForEvent, openGamePlanForEvent } from './plano-jogo.js';
-import { openEventForm } from './calendario.js';
+import { openEventForm, removeEvent } from './calendario.js';
 
 // --- Separadores ------------------------------------------------------------
 
@@ -207,7 +207,8 @@ function gameCard(ev, { past = false, focus = false } = {}) {
       ${scoreHTML(ev)}
       <div class="game-steps">
         ${stepsHTML(ev)}
-        ${canEditEvent(ev) ? `<button class="btn btn--ghost btn--sm game-steps__edit" type="button" data-edit-game="${esc(ev.id)}">Editar</button>` : ''}
+        ${canEditEvent(ev) ? `<button class="btn btn--ghost btn--sm game-steps__edit" type="button" data-edit-game="${esc(ev.id)}">Editar</button>
+          <button class="btn btn--ghost btn--sm game-steps__del" type="button" data-del-game="${esc(ev.id)}">Eliminar</button>` : ''}
       </div>
     </article>`;
 }
@@ -296,6 +297,8 @@ function renderJogosList(container) {
   container.querySelector('#jogos-more')?.addEventListener('click', () => { showAllDone = true; renderJogosList(container); });
   container.querySelectorAll('[data-edit-game]').forEach((b) =>
     b.addEventListener('click', () => openEventForm(b.dataset.editGame)));
+  container.querySelectorAll('[data-del-game]').forEach((b) =>
+    b.addEventListener('click', () => removeEvent(b.dataset.delGame)));
   container.querySelectorAll('[data-step]').forEach((b) =>
     b.addEventListener('click', () => runStep(b.dataset.step, b.dataset.id)));
 
