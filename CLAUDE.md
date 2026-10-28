@@ -151,7 +151,7 @@ conforme o `role` + RLS. Ver `supabase/multitenant.sql` (corre DEPOIS de
     coordenador: consentimento obrigatório e escrito na ficha, teto de 20 por
     hora por clube e o mesmo nome+contacto não duplica no mesmo dia.
   - **O site não importa nada da app** (nem o supabase-js): poucas chamadas
-    `fetch`, ~17 KB comprimido. É outro ponto de entrada do Vite
+    `fetch`, ~18 KB comprimido. É outro ponto de entrada do Vite
     (`vite.config.js`) e o `vercel.json` encaminha `*.rumia.pt` (fora
     `www`/`app`) para `site.html`.
   - **É uma página com rotas no hash** (`#/calendario`, `#/equipas/<id>`,
@@ -201,6 +201,16 @@ conforme o `role` + RLS. Ver `supabase/multitenant.sql` (corre DEPOIS de
     (`dockHTML`): no fim de uma página longa ninguém chegava à faixa de
     inscrição. O patrocinador principal (o primeiro Ouro) tem lugar próprio no
     início, com "Patrocinar o clube".
+  - **"O Clube"** (`#/clube`, `clubHTML`; `#/historia` abre lá): a mascote,
+    o hino (letra, gravação a tocar no próprio site e/ou link), os símbolos (o
+    emblema e as cores, com o que significam) e a história, numa página só —
+    é o que os sites dos clubes têm numa página própria, e a mascote é o que
+    os mais novos procuram, por isso também tem uma chamada no início.
+    Escreve-se nas Definições → Site, no cartão "O Clube" (`settings.site`:
+    `symbols`, `mascot`, `anthem`; secção `clube`), e o que ficar vazio não
+    aparece — nem no menu. A gravação do hino vai para o mesmo bucket
+    `site-media`, que passou a aceitar áudio até 12 MB (`uploadSiteAudio`; as
+    imagens continuam a ser reduzidas antes de subir).
   - **A exceção à regra "nenhum atleta sai da app" é o plantel PUBLICADO**,
     escalão a escalão (`settings.site.roster_teams`, nasce vazio): número,
     posição e o nome abreviado ("Ana S."), cortado no SERVIDOR
@@ -396,7 +406,7 @@ src/
     utilizadores.js     Vista Utilizadores (gestão de papéis — só coordenador)
     arquivados.js       Vista Arquivados (registos inativos + repor — só coordenador)
     site-definicoes.js  Definições → Site: endereço, publicar, secções, escalões, plantéis, história e contactos
-    site-conteudo.js    Definições → Site: galeria, notícias, loja, pedidos da loja e logótipos dos patrocinadores
+    site-conteudo.js    Definições → Site: galeria, notícias, loja, pedidos da loja, logótipos dos patrocinadores e "O Clube" (mascote, hino, símbolos)
     marketing.js        Datas & iniciativas para as redes sociais (só coordenador)
 supabase/schema.sql     Tabelas, índices, RLS e dados iniciais (correr no Supabase)
 supabase/qrcode-presencas.sql  Presenças por QR: token do atleta + RPCs de check-in

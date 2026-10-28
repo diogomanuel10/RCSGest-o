@@ -340,7 +340,9 @@ function formDots(form) {
 
 // Os endereços da primeira versão do site eram âncoras (`#agenda`), e já
 // foram partilhados: continuam a abrir a secção certa.
-const LEGACY_ROUTES = { agenda: 'calendario' };
+// A História passou a viver dentro de "O Clube", com os símbolos, a mascote e
+// o hino: o `#/historia` já partilhado abre lá.
+const LEGACY_ROUTES = { agenda: 'calendario', historia: 'clube' };
 
 function route() {
   const parts = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
@@ -359,12 +361,31 @@ function has(section) {
       return s.historia !== false && h && (h.text || h.founded || (h.milestones || []).length);
     }
     case 'patrocinadores': return s.patrocinadores !== false && (data.sponsors || []).length > 0;
+    case 'simbolos': return s.clube !== false && Boolean(identity().symbols);
+    case 'mascote': return s.clube !== false && Boolean(identity().mascot);
+    case 'hino': return s.clube !== false && Boolean(identity().anthem);
+    case 'clube': return has('historia') || has('simbolos') || has('mascote') || has('hino');
     case 'equipas': return s.equipas !== false && (data.teams || []).length > 0;
     case 'agenda': return s.agenda !== false;
     case 'resultados': return s.resultados !== false;
     case 'inscricoes': return s.inscricoes !== false;
     default: return true;
   }
+}
+
+// Os símbolos, a mascote e o hino, só com o que tiver conteúdo: uma mascote
+// sem nome nem foto, ou um hino sem letra nem som, não é nada para mostrar.
+function identity() {
+  const id = data?.identity || {};
+  const m = id.mascot || {};
+  const a = id.anthem || {};
+  const audio = a.audio ? mediaUrl(a.audio) : '';
+  const listen = safeUrl(a.link);
+  return {
+    symbols: String(id.symbols || '').trim(),
+    mascot: m.name || m.photo ? { name: m.name || '', text: m.text || '', photo: m.photo ? mediaUrl(m.photo) : '' } : null,
+    anthem: a.lyrics || audio || listen ? { title: a.title || 'Hino do clube', authors: a.authors || '', lyrics: a.lyrics || '', audio, listen } : null,
+  };
 }
 
 // O menu só mostra o que existe: uma "Loja" que abre uma página vazia lê-se
@@ -377,7 +398,7 @@ function navItems() {
     ['equipas', 'Equipas', has('equipas')],
     ['noticias', 'Notícias', has('noticias')],
     ['loja', 'Loja', has('loja')],
-    ['historia', 'História', has('historia')],
+    ['clube', 'O Clube', has('clube')],
     ['patrocinadores', 'Patrocinadores', has('patrocinadores')],
     ['contactos', 'Contactos', true],
   ].filter((x) => x[2]);
@@ -1023,6 +1044,8 @@ function homeHTML(labels) {
 
       ${galleryHTML(labels)}
 
+      ${mascotTeaserHTML()}
+
       ${prods.length ? `
         <section class="sec">
           ${sectionHead('Loja do clube', moreLink('loja', 'Ver a loja'))}
@@ -1303,33 +1326,109 @@ function shopHTML() {
     </div>`;
 }
 
-function historyHTML() {
-  const h = data.history || {};
+// "O Clube": o que faz deste clube este clube — a história, o emblema e as
+// cores, a mascote e o hino. Os sites dos clubes grandes têm isto numa página
+// própria, e é a que os adeptos mais novos procuram (a mascote).
+function clubHTML() {
+  const c = data.club;
+  const h = has('historia') ? data.history || {} : {};
+  const id = identity();
   const founded = Number(h.founded);
   const years = founded ? new Date().getFullYear() - founded : 0;
   const miles = Array.isArray(h.milestones) ? h.milestones : [];
+  const parts = [
+    has('mascote') && ['mascote', id.mascot.name || 'Mascote'],
+    has('hino') && ['hino', 'Hino'],
+    has('simbolos') && ['simbolos', 'Símbolos'],
+    (h.text || miles.length) && ['historia', 'História'],
+  ].filter(Boolean);
   return `
     <section class="pagehead pagehead--history">
       <div class="wrap">
-        <p class="kicker">História</p>
-        <h1 class="pagehead__title">${founded ? `Desde ${esc(founded)}` : esc(data.club.name)}</h1>
-        ${years > 0 ? `<p class="pagehead__lead">${years} anos de ${esc(data.club.name)}.</p>` : ''}
+        <p class="kicker">O Clube</p>
+        <h1 class="pagehead__title">${founded ? `Desde ${esc(founded)}` : esc(c.name)}</h1>
+        ${years > 0 ? `<p class="pagehead__lead">${years} anos de ${esc(c.name)}.</p>` : c.motto ? `<p class="pagehead__lead">${esc(c.motto)}</p>` : ''}
       </div>
     </section>
-    <div class="wrap wrap--narrow page">
-      ${h.text ? `<div class="prose prose--lead">${paragraphs(h.text)}</div>` : ''}
-      ${miles.length ? `
-        <section class="sec">
-          ${sectionHead('Marcos')}
-          <ol class="timeline">
-            ${miles.map((m) => `
-              <li class="timeline__item">
-                <span class="timeline__year">${esc(m.year)}</span>
-                <p class="timeline__text">${esc(m.text)}</p>
-              </li>`).join('')}
-          </ol>
+    <div class="wrap page clubpage">
+      ${parts.length > 1 ? `
+        <nav class="chips" aria-label="Nesta página">
+          ${parts.map(([key, label]) => `<button type="button" class="chip" data-jump="${key}">${esc(label)}</button>`).join('')}
+        </nav>` : ''}
+
+      ${has('mascote') ? `
+        <section class="mascot" id="sec-mascote">
+          ${id.mascot.photo ? `<div class="mascot__img"><img src="${esc(id.mascot.photo)}" alt="${esc(id.mascot.name)}" loading="lazy" /></div>` : ''}
+          <div class="mascot__body">
+            <p class="kicker">A nossa mascote</p>
+            <h2 class="mascot__name">${esc(id.mascot.name)}</h2>
+            ${id.mascot.text ? `<div class="prose">${paragraphs(id.mascot.text)}</div>` : ''}
+          </div>
+        </section>` : ''}
+
+      ${has('hino') ? `
+        <section class="sec anthem" id="sec-hino">
+          ${sectionHead(id.anthem.title)}
+          ${id.anthem.authors ? `<p class="anthem__by">${esc(id.anthem.authors)}</p>` : ''}
+          ${id.anthem.audio || id.anthem.listen ? `
+            <div class="anthem__play">
+              ${id.anthem.audio ? `<audio controls preload="none" src="${esc(id.anthem.audio)}">O teu browser não toca áudio.</audio>` : ''}
+              ${id.anthem.listen ? `<a class="btn btn--brand" href="${esc(id.anthem.listen)}" target="_blank" rel="noopener">Ouvir o hino ↗</a>` : ''}
+            </div>` : ''}
+          ${id.anthem.lyrics ? `<div class="anthem__lyrics">${paragraphs(id.anthem.lyrics)}</div>` : ''}
+        </section>` : ''}
+
+      ${has('simbolos') ? `
+        <section class="sec symbols" id="sec-simbolos">
+          ${sectionHead('Símbolos')}
+          <div class="symbols__grid">
+            <div class="symbols__badge">${emblem('emblem--hero')}</div>
+            <div class="symbols__body">
+              <ul class="symbols__colors" aria-label="As cores do clube">
+                <li><span class="swatch swatch--brand" aria-hidden="true"></span>Cor principal</li>
+                <li><span class="swatch swatch--accent" aria-hidden="true"></span>Cor de destaque</li>
+              </ul>
+              <div class="prose">${paragraphs(id.symbols)}</div>
+            </div>
+          </div>
+        </section>` : ''}
+
+      ${h.text || miles.length ? `
+        <section class="sec" id="sec-historia">
+          ${sectionHead('História')}
+          <div class="wrap--narrow clubpage__history">
+            ${h.text ? `<div class="prose prose--lead">${paragraphs(h.text)}</div>` : ''}
+            ${miles.length ? `
+              <ol class="timeline">
+                ${miles.map((m) => `
+                  <li class="timeline__item">
+                    <span class="timeline__year">${esc(m.year)}</span>
+                    <p class="timeline__text">${esc(m.text)}</p>
+                  </li>`).join('')}
+              </ol>` : ''}
+          </div>
         </section>` : ''}
     </div>`;
+}
+
+// A mascote na página inicial: é a cara do clube para quem tem oito anos, e
+// é por ela que muitas famílias chegam ao resto.
+function mascotTeaserHTML() {
+  if (!has('mascote')) return '';
+  const m = identity().mascot;
+  const first = String(m.text || '').split(/(?<=[.!?])\s/)[0];
+  return `
+    <section class="sec">
+      <a class="mteaser" href="${link('clube')}">
+        ${m.photo ? `<span class="mteaser__img"><img src="${esc(m.photo)}" alt="" loading="lazy" /></span>` : ''}
+        <span class="mteaser__body">
+          <span class="kicker">A nossa mascote</span>
+          <strong class="mteaser__name">${esc(m.name)}</strong>
+          ${first ? `<span class="mteaser__text">${esc(first)}</span>` : ''}
+          <span class="mteaser__more">Conhece a nossa mascote →</span>
+        </span>
+      </a>
+    </section>`;
 }
 
 const TIER_LABEL = { ouro: 'Ouro', prata: 'Prata', bronze: 'Bronze' };
@@ -1450,7 +1549,7 @@ function pageHTML(page, id, labels) {
     case 'noticias': return has('noticias') ? newsPageHTML(labels) : notFoundHTML();
     case 'noticia': return has('noticias') ? postHTML(id, labels) : notFoundHTML();
     case 'loja': return has('loja') ? shopHTML() : notFoundHTML();
-    case 'historia': return has('historia') ? historyHTML() : notFoundHTML();
+    case 'clube': return has('clube') ? clubHTML() : notFoundHTML();
     case 'patrocinadores': return has('patrocinadores') ? sponsorsPageHTML() : notFoundHTML();
     case 'inscricoes': return has('inscricoes') ? signupHTML() : notFoundHTML();
     case 'contactos': return contactsHTML();
@@ -1462,7 +1561,7 @@ function pageTitle(page, id, labels) {
   const name = data.club.name;
   const map = {
     calendario: 'Calendário', resultados: 'Resultados', equipas: 'Equipas', noticias: 'Notícias',
-    loja: 'Loja', historia: 'História', patrocinadores: 'Patrocinadores', inscricoes: 'Inscrições',
+    loja: 'Loja', clube: 'O Clube', patrocinadores: 'Patrocinadores', inscricoes: 'Inscrições',
     contactos: 'Contactos',
   };
   if (page === 'equipas' && id && labels[id]) return `${labels[id]} — ${name}`;
@@ -1758,6 +1857,9 @@ function wire() {
       if (calDay && window.innerWidth < 900) root.querySelector('.calside')?.scrollIntoView({ block: 'start' });
     })
   );
+  root.querySelectorAll('[data-jump]').forEach((btn) =>
+    btn.addEventListener('click', () => root.querySelector(`#sec-${btn.dataset.jump}`)?.scrollIntoView({ block: 'start' }))
+  );
   root.querySelectorAll('[data-order]').forEach((btn) =>
     btn.addEventListener('click', () => openOrder(btn.dataset.order))
   );
@@ -1845,6 +1947,7 @@ function normalize(d) {
     photos: d.photos || [],
     posts: d.posts || [],
     products: d.products || [],
+    identity: d.identity || null,
   };
 }
 

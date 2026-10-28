@@ -33,9 +33,10 @@
 --   site_orders      pedidos feitos pelo site. Não há pagamento online: o
 --                    pedido chega ao coordenador, que combina pagamento e
 --                    entrega — é o que um clube consegue mesmo gerir.
---   settings.site    história, marcos, plantéis publicados e logótipos/links
---                    dos patrocinadores (jsonb: lê-se sempre inteiro).
---   bucket site-media  imagens públicas de tudo isto.
+--   settings.site    história, marcos, plantéis publicados, logótipos/links
+--                    dos patrocinadores e a página "O Clube" — símbolos,
+--                    mascote e hino (jsonb: lê-se sempre inteiro).
+--   bucket site-media  imagens públicas de tudo isto, e o áudio do hino.
 -- =====================================================================
 
 -- ---------------------------------------------------------------------
@@ -44,12 +45,21 @@
 -- Público pela razão do `equipment-photos`: isto é para ser visto por toda a
 -- gente, e um URL assinado expira. O caminho começa pelo `org_id`, verificado
 -- na política de escrita.
+--
+-- Também leva ÁUDIO: a gravação do hino do clube (página "O Clube"). Um hino
+-- em mp3 tem 3 a 8 MB, por isso o teto é 12 MB — as imagens continuam a ser
+-- reduzidas no browser antes de subir (`uploadSiteImage`), e o teto não lhes
+-- muda nada.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values ('site-media', 'site-media', true, 3145728, array['image/jpeg','image/png','image/webp'])
+values ('site-media', 'site-media', true, 12582912, array[
+  'image/jpeg','image/png','image/webp',
+  'audio/mpeg','audio/mp4','audio/x-m4a','audio/aac','audio/ogg','audio/wav','audio/webm'])
 on conflict (id) do update set
   public             = true,
-  file_size_limit    = 3145728,
-  allowed_mime_types = array['image/jpeg','image/png','image/webp'];
+  file_size_limit    = 12582912,
+  allowed_mime_types = array[
+    'image/jpeg','image/png','image/webp',
+    'audio/mpeg','audio/mp4','audio/x-m4a','audio/aac','audio/ogg','audio/wav','audio/webm'];
 
 drop policy if exists "site_media_write"  on storage.objects;
 drop policy if exists "site_media_update" on storage.objects;
@@ -369,6 +379,13 @@ begin
                    'founded',    v_site->>'founded',
                    'text',       v_site->>'history',
                    'milestones', coalesce(v_site->'milestones', '[]'::jsonb)) end,
+    -- "O Clube": os símbolos, a mascote e o hino. Texto e ficheiros escritos
+    -- pelo coordenador para serem públicos (settings.site), sem nada de
+    -- atletas.
+    'identity',  case when coalesce((v_sec->>'clube')::boolean, true) then jsonb_build_object(
+                   'symbols', v_site->>'symbols',
+                   'mascot',  v_site->'mascot',
+                   'anthem',  v_site->'anthem') end,
     'contacts',  jsonb_build_object(
       'email',     v_site->>'email',
       'phone',     v_site->>'phone',
@@ -384,7 +401,8 @@ begin
       'noticias',       coalesce((v_sec->>'noticias')::boolean, true),
       'loja',           coalesce((v_sec->>'loja')::boolean, true),
       'equipas',        coalesce((v_sec->>'equipas')::boolean, true),
-      'historia',       coalesce((v_sec->>'historia')::boolean, true)),
+      'historia',       coalesce((v_sec->>'historia')::boolean, true),
+      'clube',          coalesce((v_sec->>'clube')::boolean, true)),
     'teams',     v_teams,
     'upcoming',  v_next,
     'results',   v_res,

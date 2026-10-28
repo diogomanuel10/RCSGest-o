@@ -2741,6 +2741,31 @@ export async function uploadSiteImage(kind, file, maxPx = SITE_IMAGE_SMALL) {
   return path;
 }
 
+// O áudio do hino (página "O Clube"). Ao contrário das imagens não se reduz:
+// sobe como está, com o tipo do próprio ficheiro, e o teto é o do bucket.
+const SITE_AUDIO_MAX = 12 * 1024 * 1024;
+const AUDIO_EXT = { 'audio/mpeg': 'mp3', 'audio/mp4': 'm4a', 'audio/x-m4a': 'm4a', 'audio/aac': 'aac',
+  'audio/ogg': 'ogg', 'audio/wav': 'wav', 'audio/webm': 'webm' };
+
+export async function uploadSiteAudio(file) {
+  const orgId = state.org?.id || state.profile?.org_id;
+  if (!orgId) throw new Error('Clube por identificar.');
+  if (!file || !file.size) throw new Error('O ficheiro chegou vazio. Tenta escolhê-lo de novo.');
+  // Há telemóveis que entregam o m4a sem tipo nenhum: lê-se da extensão.
+  const fromName = /\.(mp3|m4a|aac|ogg|wav|webm)$/i.exec(file.name || '')?.[1]?.toLowerCase();
+  const type = AUDIO_EXT[file.type] ? file.type
+    : { mp3: 'audio/mpeg', m4a: 'audio/mp4', aac: 'audio/aac', ogg: 'audio/ogg', wav: 'audio/wav', webm: 'audio/webm' }[fromName];
+  if (!type) throw new Error('Esse ficheiro não é um áudio que o site consiga tocar. Usa um MP3 ou M4A.');
+  if (file.size > SITE_AUDIO_MAX) throw new Error('O áudio tem mais de 12 MB. Exporta-o em MP3 para ficar mais leve.');
+  const rand = Math.random().toString(36).slice(2, 10);
+  const path = `${orgId}/hino-${Date.now().toString(36)}-${rand}.${AUDIO_EXT[type]}`;
+  const { error } = await supabase.storage
+    .from(SITE_MEDIA_BUCKET)
+    .upload(path, file, { contentType: type, upsert: false });
+  if (error) throw error;
+  return path;
+}
+
 // Apagar a imagem é um extra (a linha já foi), por isso engole a falha.
 export async function deleteSiteImage(path) {
   if (!path) return;

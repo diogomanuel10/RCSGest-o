@@ -1468,3 +1468,100 @@ a.sponsor:hover { transform: translateY(-2px); }
   font-size: 0.9rem;
   padding: 8px 16px;
 }
+
+/* --- O Clube: mascote, hino e símbolos --- */
+.clubpage [id^="sec-"] { scroll-margin-top: 84px; }
+.clubpage > .chips { margin-bottom: 8px; }
+.mascot {
+  margin-top: 20px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+  align-items: center;
+  padding: 28px;
+  border-radius: calc(var(--radius) + 4px);
+  color: var(--brand-ink);
+  background: var(--stripes), linear-gradient(135deg, var(--brand), var(--brand-deep));
+  overflow: hidden;
+}
+@media (min-width: 760px) {
+  .mascot:has(.mascot__img) { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); }
+}
+.mascot__img {
+  aspect-ratio: 1;
+  max-width: 420px;
+  width: 100%;
+  justify-self: center;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--accent);
+  box-shadow: 0 0 0 6px var(--accent), var(--shadow-lg);
+}
+.mascot__img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.mascot__body { display: grid; gap: 10px; min-width: 0; }
+.mascot .kicker { color: var(--accent); letter-spacing: 0.16em; }
+.mascot__name {
+  font: italic 800 clamp(3rem, 10vw, 6rem)/0.88 var(--display);
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+.mascot .prose { font-size: 1.08rem; opacity: 0.95; }
+
+.anthem__by { color: var(--muted); margin-top: -8px; margin-bottom: 14px; }
+.anthem__play { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 18px; }
+.anthem__play audio { width: min(100%, 420px); }
+.anthem__lyrics {
+  display: grid;
+  gap: 1.2em;
+  padding: 24px 28px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  border-left: 5px solid var(--accent);
+  font-size: 1.1rem;
+  line-height: 1.7;
+  max-width: 62ch;
+}
+
+.symbols__grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; align-items: start; }
+@media (min-width: 760px) { .symbols__grid { grid-template-columns: 160px minmax(0, 1fr); } }
+.symbols__badge { display: grid; place-items: center; }
+.symbols__badge .emblem--hero { width: 140px; height: 140px; margin: 0; font-size: 2.6rem; }
+.symbols__body { display: grid; gap: 14px; min-width: 0; }
+.symbols__colors { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 20px; font-weight: 600; }
+.symbols__colors li { display: flex; align-items: center; gap: 8px; }
+.swatch { width: 28px; height: 28px; border-radius: 8px; box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.12); }
+.swatch--brand { background: var(--brand); }
+.swatch--accent { background: var(--accent); }
+.clubpage__history { display: grid; gap: 28px; }
+
+/* A mascote na página inicial */
+.mteaser {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+  align-items: center;
+  padding: 20px 24px;
+  border-radius: calc(var(--radius) + 2px);
+  background: var(--accent);
+  color: var(--accent-ink);
+  text-decoration: none;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.15s ease;
+}
+.mteaser:hover { transform: translateY(-2px); }
+.mteaser:has(.mteaser__img) { grid-template-columns: 120px minmax(0, 1fr); }
+.mteaser__img { width: 120px; height: 120px; border-radius: 50%; overflow: hidden; background: var(--brand); box-shadow: 0 0 0 4px var(--brand); }
+.mteaser__img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.mteaser__body { display: grid; gap: 4px; min-width: 0; }
+.mteaser .kicker { color: inherit; opacity: 0.75; }
+.mteaser__name { font: italic 800 clamp(1.8rem, 5vw, 2.6rem)/0.95 var(--display); text-transform: uppercase; overflow-wrap: anywhere; }
+.mteaser__text { opacity: 0.85; }
+.mteaser__more { font-weight: 700; margin-top: 4px; }
+@media (max-width: 520px) {
+  .mteaser:has(.mteaser__img) { grid-template-columns: 84px minmax(0, 1fr); }
+  .mteaser__img { width: 84px; height: 84px; }
+  .mascot { padding: 22px 18px; }
+  .anthem__lyrics { padding: 18px; }
+}

@@ -1,5 +1,6 @@
 // Definições → Site: os CONTEÚDOS do site público — galeria, notícias, loja,
-// pedidos da loja e logótipos dos patrocinadores.
+// pedidos da loja, logótipos dos patrocinadores e a página "O Clube"
+// (símbolos, mascote e hino).
 //
 // O cartão de cima (`site-definicoes.js`) decide o que o site é; este decide o
 // que lá está. Só o coordenador, pela mesma razão: publicar é falar em nome do
@@ -7,7 +8,7 @@
 
 import {
   state, loadSiteContent, createRow, updateRow, deleteRow, saveSettings,
-  uploadSiteImage, deleteSiteImage, siteImageUrl, addSitePhotos, reorderSitePhotos,
+  uploadSiteImage, uploadSiteAudio, deleteSiteImage, siteImageUrl, addSitePhotos, reorderSitePhotos,
   SITE_IMAGE_LARGE, SITE_IMAGE_SMALL,
   dbErrorMessage,
 } from '../store.js';
@@ -242,6 +243,123 @@ function sponsorsHTML() {
     </section>`;
 }
 
+// "O Clube": o que faz um clube ser aquele clube e não outro — o emblema e as
+// cores, a mascote e o hino. É o que os sites dos clubes grandes têm numa
+// página própria, e o que os miúdos mais procuram (a mascote). Vive em
+// `settings.site` (symbols, mascot, anthem), como a história.
+function identityHTML() {
+  const site = state.settings.site || {};
+  const m = site.mascot || {};
+  const a = site.anthem || {};
+  const row = (icon, title, meta, act, img = '') => `
+    <li class="site-row">
+      ${img ? `<img class="site-row__img" src="${esc(siteImageUrl(img))}" alt="" loading="lazy" />` : `<span class="site-row__img site-row__img--empty" aria-hidden="true">${icon}</span>`}
+      <div class="site-row__body">
+        <p class="site-row__title">${esc(title)}</p>
+        <p class="muted site-row__meta">${meta}</p>
+      </div>
+      <div class="site-row__actions">
+        <button type="button" class="btn btn--ghost btn--sm" data-act="${act}">Editar</button>
+      </div>
+    </li>`;
+  const anthemBits = [a.lyrics && 'letra', a.audio && 'gravação', a.link && 'link'].filter(Boolean);
+  return `
+    <section class="card settings-card">
+      <h2 class="section-title settings-card__title">O Clube: símbolos, mascote e hino</h2>
+      <p class="muted" style="margin:0 0 1rem;font-size:0.88rem">
+        Aparecem numa página "O Clube" do site, junto com a história. O que
+        ficar por preencher não aparece.
+      </p>
+      <ul class="site-rows">
+        ${row('🛡️', 'Símbolos', site.symbols ? 'O emblema e as cores, com o que significam.' : 'Por preencher', 'id-symbols')}
+        ${row('🐾', m.name ? `Mascote: ${m.name}` : 'Mascote', m.name || m.text || m.photo ? esc([m.photo && 'com foto', m.text && 'com texto'].filter(Boolean).join(' · ') || 'Só o nome') : 'Por preencher', 'id-mascot', m.photo)}
+        ${row('🎵', a.title || 'Hino', anthemBits.length ? esc(`Com ${anthemBits.join(', ')}`) : 'Por preencher', 'id-anthem')}
+      </ul>
+    </section>`;
+}
+
+function saveIdentity(patch) {
+  const site = state.settings.site || {};
+  return saveSettings({ site: { ...site, ...patch } });
+}
+
+const clip = (v, n) => (String(v || '').trim().slice(0, n) || null);
+
+function editSymbols() {
+  const site = state.settings.site || {};
+  openModal({
+    title: 'Símbolos do clube',
+    intro: 'O emblema e as cores usados no site são os das Definições. Aqui escreve-se o que significam.',
+    fields: [
+      { name: 'symbols', label: 'O emblema e as cores', type: 'textarea', full: true,
+        placeholder: 'Ex.: O azul é o do mar de Matosinhos; o amarelo, o das redes dos pescadores que fundaram o clube…' },
+    ],
+    values: { symbols: site.symbols || '' },
+    onSubmit: (v) => saveIdentity({ symbols: clip(v.symbols, 3000) }),
+  });
+}
+
+function editMascot() {
+  const m = (state.settings.site || {}).mascot || {};
+  openModal({
+    title: 'Mascote',
+    intro: 'A mascote tem lugar próprio na página "O Clube" e uma chamada na página inicial: é a primeira coisa que os mais novos procuram.',
+    fields: [
+      { name: 'name', label: 'Nome', placeholder: 'ex.: Bicas', required: true },
+      { name: 'text', label: 'Quem é', type: 'textarea', full: true,
+        placeholder: 'De onde veio, porque tem este nome, onde aparece (jogos em casa, torneios, festas do clube)…' },
+      { name: 'photo', label: m.photo ? 'Substituir foto' : 'Foto', type: 'file', accept: 'image/*',
+        hint: 'Uma foto ou um desenho da mascote. De preferência sem atletas à volta: são quase todos menores.' },
+      ...(m.photo ? [{ name: 'drop', label: 'Foto atual', type: 'select',
+        options: [{ key: 'manter', label: 'Manter' }, { key: 'tirar', label: 'Tirar a foto' }] }] : []),
+    ],
+    values: { name: m.name || '', text: m.text || '', drop: 'manter' },
+    onSubmit: async (v) => {
+      const file = v.photo instanceof File && v.photo.size ? v.photo : null;
+      const old = m.photo || null;
+      let photo = old;
+      if (file) photo = await uploadSiteImage('mascote', file, SITE_IMAGE_SMALL);
+      else if (v.drop === 'tirar') photo = null;
+      await saveIdentity({ mascot: { name: clip(v.name, 60), text: clip(v.text, 3000), photo } });
+      if (old && old !== photo) deleteSiteImage(old);
+    },
+  });
+}
+
+function editAnthem() {
+  const a = (state.settings.site || {}).anthem || {};
+  openModal({
+    title: 'Hino do clube',
+    intro: 'A letra aparece no site; a gravação toca ali mesmo. Basta um dos dois.',
+    fields: [
+      { name: 'title', label: 'Título', placeholder: 'ex.: Hino do Clube' },
+      { name: 'authors', label: 'Autores', placeholder: 'ex.: Letra de … · Música de …' },
+      { name: 'lyrics', label: 'Letra', type: 'textarea', full: true,
+        placeholder: 'Uma estrofe por parágrafo, separadas por uma linha em branco.' },
+      { name: 'audio', label: a.audio ? 'Substituir gravação' : 'Gravação (MP3 ou M4A)', type: 'file',
+        accept: 'audio/*,.mp3,.m4a', hint: 'Até 12 MB.' },
+      ...(a.audio ? [{ name: 'drop', label: 'Gravação atual', type: 'select',
+        options: [{ key: 'manter', label: 'Manter' }, { key: 'tirar', label: 'Tirar a gravação' }] }] : []),
+      { name: 'link', label: 'Ou um link para o ouvir', placeholder: 'ex.: YouTube ou Spotify', full: true },
+    ],
+    values: { title: a.title || '', authors: a.authors || '', lyrics: a.lyrics || '', link: a.link || '', drop: 'manter' },
+    onSubmit: async (v) => {
+      const file = v.audio instanceof File && v.audio.size ? v.audio : null;
+      const old = a.audio || null;
+      let audio = old;
+      if (file) audio = await uploadSiteAudio(file);
+      else if (v.drop === 'tirar') audio = null;
+      await saveIdentity({
+        anthem: {
+          title: clip(v.title, 120), authors: clip(v.authors, 200), lyrics: clip(v.lyrics, 6000),
+          audio, link: clip(v.link, 300),
+        },
+      });
+      if (old && old !== audio) deleteSiteImage(old);
+    },
+  });
+}
+
 // --- Ações --------------------------------------------------------------------
 
 async function addPhotos() {
@@ -444,7 +562,7 @@ export function renderSiteContent(el) {
     return;
   }
 
-  el.innerHTML = `${galleryHTML()}${postsHTML()}${productsHTML()}${ordersHTML()}${sponsorsHTML()}`;
+  el.innerHTML = `${galleryHTML()}${postsHTML()}${productsHTML()}${ordersHTML()}${sponsorsHTML()}${identityHTML()}`;
 
   const find = (list, id) => list.find((x) => x.id === id);
   el.querySelectorAll('[data-act]').forEach((btn) => btn.addEventListener('click', () => {
@@ -464,6 +582,9 @@ export function renderSiteContent(el) {
       case 'order-cancel': setOrderStatus(find(state.siteOrders, id), 'cancelada'); break;
       case 'order-reopen': setOrderStatus(find(state.siteOrders, id), 'nova'); break;
       case 'spons-edit': editSponsor(find(state.sponsors, id)); break;
+      case 'id-symbols': editSymbols(); break;
+      case 'id-mascot': editMascot(); break;
+      case 'id-anthem': editAnthem(); break;
       default: break;
     }
   }));
