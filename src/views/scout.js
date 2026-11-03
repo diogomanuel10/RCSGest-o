@@ -38,6 +38,14 @@ let loading = false;
 let loadError = '';
 const seasonCache = new Map(); // teamId -> { at, games }
 let seasonOpen = false;
+// O detalhe de um jogo abre NA LISTA, por baixo da linha do jogo, e não num
+// modal: lê-se com a lista à vista e fecha-se no mesmo sítio onde se abriu
+// (como os totais da época). Um aberto de cada vez — dois detalhes inteiros
+// um por baixo do outro são três ecrãs de scroll. O estado vive no módulo
+// porque a lista re-desenha a cada notificação do store.
+let openGameId = null;
+const detailState = new Map(); // id -> { g, stamp, filter, season }
+const detailLoading = new Map(); // id -> promessa da descarga em curso
 
 const ACTIVE_KEY = 'rumia-scout-active';
 const backupKey = (id) => `rumia-scout:${id}`;
@@ -219,14 +227,16 @@ export function renderScout(container) {
           ${rows.map((r) => {
             const res = resultOf(r);
             const parc = (r.summary?.sets || []).map(([a, b]) => `${a}-${b}`).join(', ');
-            return `<li>
-              <button class="scout-item" type="button" data-detail="${esc(r.id)}">
+            const isOpen = openGameId === r.id;
+            return `<li class="${isOpen ? 'scout-list__open' : ''}">
+              <button class="scout-item" type="button" data-detail="${esc(r.id)}" aria-expanded="${isOpen}" aria-controls="scd-${esc(r.id)}">
                 <span class="scout-item__date">${esc(fmtDate(r.game_date))}</span>
                 <span class="scout-item__main"><strong>${esc(r.opponent || 'Adversário')}</strong>
                   <span class="muted">${esc([r.competition, parc || 'sem pontos', liveLabel(r)].filter(Boolean).join(' · '))}</span></span>
                 ${r.status === 'terminado'
                   ? `<span class="scout-res scout-res--${res.res}">${res.label}</span>`
                   : '<span class="badge badge--warn">em curso</span>'}
+                <span class="scout-item__chev" aria-hidden="true">▾</span>
               </button>
               <div class="cell-actions">
                 ${r.status === 'em_curso' ? `<button class="btn btn--ghost btn--sm" type="button" data-watch="${esc(r.id)}">Ver ao vivo</button>` : ''}
@@ -234,6 +244,7 @@ export function renderScout(container) {
                 <button class="btn btn--ghost btn--sm" type="button" data-sheet="${esc(r.id)}">Folha A4</button>
                 <button class="btn btn--ghost btn--sm" type="button" data-xlsx="${esc(r.id)}">Excel</button>
               </div>
+              ${isOpen ? `<div class="scout-inline" id="scd-${esc(r.id)}" data-detail-body="${esc(r.id)}"></div>` : ''}
             </li>`;
           }).join('')}
         </ul>
@@ -251,12 +262,17 @@ export function renderScout(container) {
   wireEmptyAction(container, 'scout-new', () => openNewScout());
   container.querySelectorAll('[data-open]').forEach((b) => b.addEventListener('click', () => openScoutById(b.dataset.open)));
   container.querySelectorAll('[data-watch]').forEach((b) => b.addEventListener('click', () => openScoutById(b.dataset.watch, { view: true })));
-  container.querySelectorAll('[data-detail]').forEach((b) => b.addEventListener('click', () => openDetail(b.dataset.detail)));
+  container.querySelectorAll('[data-detail]').forEach((b) => b.addEventListener('click', () => {
+    openGameId = openGameId === b.dataset.detail ? null : b.dataset.detail;
+    renderScout(container);
+  }));
   container.querySelectorAll('[data-sheet]').forEach((b) => b.addEventListener('click', () => exportOne(b.dataset.sheet, 'sheet')));
   container.querySelectorAll('[data-xlsx]').forEach((b) => b.addEventListener('click', () => exportOne(b.dataset.xlsx, 'xlsx')));
   container.querySelector('#season-toggle')?.addEventListener('click', () => { seasonOpen = !seasonOpen; renderScout(container); });
   container.querySelector('#season-sheet')?.addEventListener('click', () => exportSeason('sheet'));
   container.querySelector('#season-xlsx')?.addEventListener('click', () => exportSeason('xlsx'));
+
+  if (openGameId && rows.some((r) => r.id === openGameId)) fillDetail(container, openGameId);
 
   if (seasonOpen && fin.length) {
     const body = container.querySelector('#season-body');
@@ -460,83 +476,89 @@ async function openScoutById(id, { view = false } = {}) {
 }
 
 // --- Detalhe de um jogo (estatísticas, só leitura) --------------------------
+//
+// Abre por baixo da linha do jogo (`openGameId`). As ações carregam-se na
+// primeira abertura e ficam em `detailState` enquanto o jogo não mudar
+// (`updated_at` da lista) — fechar e voltar a abrir não descarrega outra vez,
+// e o set escolhido mantém-se.
 
-async function openDetail(id) {
-  let g;
-  try {
-    const [row] = await loadScoutData(id);
-    if (!row) throw new Error('Este jogo já não existe.');
-    g = toGame(row);
-  } catch (err) {
-    toastError(err.message || dbErrorMessage(err));
-    return;
+const detailBox = (container, id) => container.querySelector(`[data-detail-body="${id}"]`);
+
+async function fillDetail(container, id) {
+  const row = state.scouts.find((r) => r.id === id);
+  if (!row) return;
+  let st = detailState.get(id);
+  if (!st || st.stamp !== row.updated_at) {
+    const box = detailBox(container, id);
+    if (box) box.innerHTML = loadingHTML('A abrir o jogo…');
+    // A lista re-desenha a cada notificação: sem isto, cada re-desenho a meio
+    // da descarga pedia o jogo outra vez.
+    if (!detailLoading.has(id)) {
+      detailLoading.set(id, loadScoutData(id).then(([full]) => {
+        if (!full) throw new Error('Este jogo já não existe.');
+        const prev = detailState.get(id);
+        const next = { g: toGame(full), stamp: full.updated_at, filter: prev?.filter || 'all', season: prev?.season || [] };
+        detailState.set(id, next);
+        return next;
+      }).finally(() => detailLoading.delete(id)));
+    }
+    try {
+      st = await detailLoading.get(id);
+    } catch (err) {
+      const b = detailBox(container, id);
+      if (b) b.innerHTML = errorHTML(err.message || dbErrorMessage(err));
+      return;
+    }
+    // Os outros jogos terminados da equipa, para o "melhor jogo da época" e o
+    // "costuma ter". Chegam depois do primeiro desenho; até lá a análise sai
+    // sem essas duas dicas.
+    if (st.g.status === 'terminado' && st.g.team_id) {
+      seasonGames(st.g.team_id).then((games) => {
+        st.season = games.filter((x) => x.status === 'terminado' && x.id !== id).map((x) => x.data);
+        const b = detailBox(container, id);
+        if (st.season.length >= 2 && b && openGameId === id) paintDetail(container, b, st);
+      }).catch(() => {});
+    }
   }
-  let filter = 'all';
-  // Os outros jogos terminados da equipa, para o "melhor jogo da época" e o
-  // "costuma ter". Chegam depois do primeiro desenho (vêm da cache da época,
-  // ou da rede): até lá a análise sai sem essas duas dicas.
-  let season = [];
+  const box = detailBox(container, id);
+  if (box && openGameId === id) paintDetail(container, box, st);
+}
+
+function paintDetail(container, box, st) {
+  const { g } = st;
   const editable = canEdit('game_scouts');
-  const overlay = document.createElement('div');
-  overlay.className = 'modal-overlay';
-  // `close` só existe depois de `wireDialog`, que precisa do diálogo já
-  // desenhado — por isso o 1.º `paint()` corre antes dele. Os botões chamam-no
-  // ao CLIQUE (já atribuído); passar `close` diretamente ao addEventListener
-  // lia a variável durante o 1.º desenho e rebentava ("Cannot access 'close'
-  // before initialization"), e o detalhe do jogo não abria de todo.
-  let close = () => {};
-  const paint = () => {
-    const r = setsWon(g.data);
-    overlay.innerHTML = `
-      <div class="modal card modal--wide scout-detail" role="dialog" aria-modal="true" aria-labelledby="scd-title">
-        <div class="modal__head">
-          <div>
-            <h2 class="section-title" id="scd-title">${esc(g.teamLabel)} ${r.o}–${r.t} ${esc(g.opponent || 'Adversário')}</h2>
-            <p class="muted" style="margin:0;font-size:0.85rem">${esc([fmtDate(g.game_date), g.competition, g.status === 'terminado' ? '' : 'em curso'].filter(Boolean).join(' · '))}</p>
-          </div>
-          <button class="modal__close" type="button" aria-label="Fechar">&times;</button>
-        </div>
-        <div class="scout-detail__body">
-          ${g.status === 'terminado' ? analysisBlock(g.data, season) : ''}
-          <div class="cell-actions">
-            ${setFilterHTML(g.data, filter)}
-          </div>
-          ${statsBlock([g.data], filter, { played: pointsPlayed(filter === 'all' ? g.data : { ...g.data, events: g.data.events.filter((e) => e.set === Number(filter)) }) })}
-          <div class="modal__actions">
-            ${editable ? '<button class="btn btn--danger btn--sm" type="button" data-del>Apagar scout</button>' : ''}
-            <span style="flex:1"></span>
-            ${g.status === 'em_curso' ? '<button class="btn btn--ghost" type="button" data-watch>Ver ao vivo</button>' : ''}
-            ${editable ? `<button class="btn btn--ghost" type="button" data-resume>${g.status === 'terminado' ? 'Corrigir' : 'Continuar'}</button>` : ''}
-            <button class="btn btn--ghost" type="button" data-sheet>Folha A4</button>
-            <button class="btn btn--primary" type="button" data-xlsx>Excel</button>
-          </div>
-        </div>
-      </div>`;
-    overlay.querySelector('.modal__close').addEventListener('click', () => close());
-    overlay.querySelectorAll('[data-set]').forEach((b) => b.addEventListener('click', () => { filter = b.dataset.set; paint(); }));
-    overlay.querySelector('[data-sheet]').addEventListener('click', () => import('../scout-export.js').then((ex) => ex.openGameSheet(g)).catch((e) => toastError(e.message)));
-    overlay.querySelector('[data-xlsx]').addEventListener('click', () => import('../scout-export.js').then((ex) => ex.exportGameXlsx(g)).catch((e) => toastError(e.message)));
-    overlay.querySelector('[data-resume]')?.addEventListener('click', () => { close(); openScoutById(g.id); });
-    overlay.querySelector('[data-watch]')?.addEventListener('click', () => { close(); openScoutById(g.id, { view: true }); });
-    overlay.querySelector('[data-del]')?.addEventListener('click', async () => {
-      const ok = await confirmDialog('Apagar este scout? As ações marcadas deixam de existir para toda a equipa técnica. O resultado do jogo no calendário fica como está.', { confirmLabel: 'Apagar scout' });
-      if (!ok) return;
-      try {
-        await deleteScout(g.id);
-        LS.del(backupKey(g.id));
-        if (LS.get(ACTIVE_KEY) === g.id) LS.del(ACTIVE_KEY);
-        close();
-      } catch (err) { toastError(dbErrorMessage(err)); }
-    });
-  };
-  paint();
-  close = wireDialog(overlay, {});
-  if (g.status === 'terminado' && g.team_id) {
-    seasonGames(g.team_id).then((games) => {
-      season = games.filter((x) => x.status === 'terminado' && x.id !== g.id).map((x) => x.data);
-      if (season.length >= 2 && overlay.isConnected) paint();
-    }).catch(() => {});
-  }
+  const f = st.filter;
+  box.innerHTML = `
+    ${g.status === 'terminado' ? analysisBlock(g.data, st.season) : ''}
+    <div class="cell-actions">${setFilterHTML(g.data, f)}</div>
+    ${statsBlock([g.data], f, { played: pointsPlayed(f === 'all' ? g.data : { ...g.data, events: g.data.events.filter((e) => e.set === Number(f)) }) })}
+    <div class="scout-inline__actions">
+      ${editable ? '<button class="btn btn--danger btn--sm" type="button" data-d-del>Apagar scout</button>' : ''}
+      <span style="flex:1"></span>
+      ${editable ? `<button class="btn btn--ghost btn--sm" type="button" data-d-resume>${g.status === 'terminado' ? 'Corrigir' : 'Continuar'}</button>` : ''}
+      <button class="btn btn--ghost btn--sm" type="button" data-d-close>Fechar</button>
+    </div>`;
+  box.querySelectorAll('[data-set]').forEach((b) => b.addEventListener('click', () => {
+    st.filter = b.dataset.set;
+    paintDetail(container, box, st);
+  }));
+  box.querySelector('[data-d-resume]')?.addEventListener('click', () => openScoutById(g.id));
+  box.querySelector('[data-d-close]').addEventListener('click', () => {
+    openGameId = null;
+    renderScout(container);
+    container.querySelector(`[data-detail="${g.id}"]`)?.focus();
+  });
+  box.querySelector('[data-d-del]')?.addEventListener('click', async () => {
+    const ok = await confirmDialog('Apagar este scout? As ações marcadas deixam de existir para toda a equipa técnica. O resultado do jogo no calendário fica como está.', { confirmLabel: 'Apagar scout' });
+    if (!ok) return;
+    try {
+      openGameId = null;
+      detailState.delete(g.id);
+      await deleteScout(g.id);
+      LS.del(backupKey(g.id));
+      if (LS.get(ACTIVE_KEY) === g.id) LS.del(ACTIVE_KEY);
+    } catch (err) { toastError(dbErrorMessage(err)); }
+  });
 }
 
 // --- Blocos de estatística (secção, detalhe e ecrã de jogo) -----------------
