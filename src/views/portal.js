@@ -16,8 +16,9 @@ import {
   savePlayerPhoto, saveMyPlayerData, uploadPlayerDocument, loadMyScoutGames,
 } from '../store.js';
 import {
-  setsWon, partials, teamSummary, playerRows, pointsPlayed, usedCols, counts, playerStats,
+  setsWon, partials, teamSummary, playerRows, pointsPlayed, usedCols, counts, QUALITY, qualityOf,
 } from '../scout-engine.js';
+import { evoChart, wireEvo, versus } from '../scout-charts.js';
 import { toastOk, toastError } from '../toast.js';
 import { getNotifications, markRead } from '../notifications.js';
 import { openModal, wireDialog, confirmDialog } from '../modal.js';
@@ -647,19 +648,116 @@ function stackBar(segs, label) {
       `<span><i class="sc-dot sc-tone--${tone}"></i>${n} ${esc(l)}</span>`).join('')}</p>`;
 }
 
-function myFundamentals(datas, used, me) {
+// Por baixo de cada barra vai a QUALIDADE — a parte das ações dela que correu
+// bem ("70% receções boas") — e, havendo com que comparar, se ficou acima ou
+// abaixo do que é normal NELA (`avgs`, dos outros jogos). A quantidade fica no
+// número pequeno do cabeçalho: quem jogou menos tempo faz menos ações, e isso
+// não é jogar pior. Os fundamentos vêm pela ordem do que ela mais faz — a
+// líbero vê primeiro a receção, a oposta o ataque.
+function myFundamentals(datas, used, me, { avgs = null } = {}) {
   const c = counts(datas)[me.id] || {};
-  const rows = FUND_BARS.filter(([k]) => used.has(k)).map(([k, label, segs]) => {
+  const order = QUALITY.map((q) => q.k).filter((k) => used.has(k))
+    .sort((a, b) => qualityOf(c, b).n - qualityOf(c, a).n);
+  const rows = order.map((k) => {
+    const [, label, segs] = FUND_BARS.find(([fk]) => fk === k);
     const n = (qs) => qs.reduce((a, q) => a + (c[`${k}.${q}`] || 0), 0);
     const parts = segs.map(([qs, one, many, tone]) => { const v = n(qs); return [v, v === 1 ? one : many, tone]; });
     const total = parts.reduce((a, [v]) => a + v, 0);
-    return total ? `
+    if (!total) return '';
+    const q = QUALITY.find((x) => x.k === k);
+    const qo = qualityOf(c, k);
+    const vs = avgs && avgs[k] != null && qo.n >= EVO_MIN ? versus(qo.rate, avgs[k]) : null;
+    return `
       <div class="sc-fund">
-        <div class="sc-fund__head"><span>${esc(label)}</span><strong>${total}</strong></div>
+        <div class="sc-fund__head"><span>${esc(label)}</span><strong>${total} ${esc(q.unit)}</strong></div>
         ${stackBar(parts, label)}
-      </div>` : '';
+        <p class="sc-fund__q"><b>${Math.round(qo.rate * 100)}%</b> ${esc(q.what)}${vs
+          ? ` · <span class="${vs.dir === 'eq' ? '' : `sc-fund__vs--${vs.good ? 'good' : 'bad'}`}">${vs.dir === 'up' ? '↑ ' : vs.dir === 'down' ? '↓ ' : ''}${esc(vs.text)}</span>`
+          : ''}</p>
+      </div>`;
   }).join('');
   return rows ? `<div class="sc-funds">${rows}</div>` : '';
+}
+
+// Abaixo disto, a percentagem de um jogo não conta: duas receções boas em duas
+// são 100% e não dizem nada. O ponto do gráfico fica oco e a comparação com a
+// média não se faz.
+const EVO_MIN = 4;
+
+// A média DELA num fundamento, ponderada pelas ações (e não a média das
+// percentagens, que dava a um jogo de 2 receções o peso de um de 30).
+function myAverages(datas, me) {
+  const c = counts(datas)[me.id] || {};
+  const out = {};
+  for (const q of QUALITY) { const o = qualityOf(c, q.k); out[q.k] = o.n >= EVO_MIN ? o.rate : null; }
+  return out;
+}
+
+// O fundamento em que ela mais mexeu na bola: é o que diz o tipo de jogo que
+// fez (receção para a líbero, ataque para a oposta) e é a qualidade que vai
+// para a linha fechada do jogo e para o número grande.
+function mainQuality(datas, me) {
+  const c = counts(datas)[me.id] || {};
+  let best = null;
+  for (const q of QUALITY) {
+    const o = qualityOf(c, q.k);
+    if (o.n && (!best || o.n > best.n)) best = { ...o, q };
+  }
+  return best;
+}
+
+// «Como ler isto»: o que cada cor e cada percentagem querem dizer, em
+// palavras de quem tem catorze anos. Fechado por omissão — quem já sabe não
+// tem de passar por cima disto todas as vezes —, e só com os fundamentos que
+// se marcaram.
+const HELP = {
+  RECEPTION: ['Receção', 'Boa (verde): a bola chegou à distribuidora e deu para atacar. Fraca (cinzento): ficou em jogo, mas difícil de atacar. Erro (vermelho): ponto para o adversário.'],
+  ATTACK: ['Ataque', 'Ponto (verde): a bola caiu no campo delas ou ficou perdida para elas. Continuou (cinzento): defenderam e o jogo seguiu — não é erro. Bloqueado (laranja): o bloco delas parou a bola e ganhou o ponto. Erro (vermelho): fora ou na rede.'],
+  SERVICE: ['Serviço', 'Ás (verde): ponto direto. Em jogo (cinzento): entrou e o jogo seguiu. Erro (vermelho): fora ou na rede. A percentagem é a dos serviços que entraram.'],
+  DEFENSE: ['Defesa', 'Boa (verde): a bola ficou jogável para a equipa. Fraca (cinzento): ficou em jogo, mas difícil. Erro (vermelho): a bola caiu ou ficou impossível de jogar.'],
+  SETTING: ['Passe', 'Bom (verde): a atacante pôde atacar à vontade. Fraco (cinzento): deu para jogar, mas com dificuldade. Erro (vermelho): dupla, condução ou bola perdida.'],
+  BLOCK: ['Bloco', 'Ponto (verde): o teu bloco ganhou o ponto. Toque (cinzento): tocaste e a bola ficou em jogo. Erro (vermelho): rede ou bola que saiu por ti.'],
+};
+function helpHTML(used, { charts = false } = {}) {
+  return `<details class="sc-help">
+    <summary>Como ler isto</summary>
+    <div class="sc-help__body">
+      <dl>
+        <dt>Pontos em campo</dt><dd>Quantos pontos do jogo estiveste dentro de campo. Diz quanto jogaste — não quanto jogaste bem.</dd>
+        ${QUALITY.filter((q) => used.has(q.k)).map((q) => `<dt>${esc(HELP[q.k][0])}</dt><dd>${esc(HELP[q.k][1])}</dd>`).join('')}
+      </dl>
+      <p><strong>A percentagem</strong> é a parte das tuas ações que correu bem: 70% receções boas quer dizer 7 em cada 10. É isso que conta, e não quantas fizeste — quem joga menos tempo faz menos ações.</p>
+      <p><strong>Acima / abaixo da tua média</strong> compara o jogo contigo própria, nos outros jogos. Ninguém mais entra nesta conta.</p>
+      ${charts ? '<p><strong>Os gráficos</strong> mostram cada jogo, do mais antigo para o mais recente. O tracejado é a tua média. Uma bolinha vazia é um jogo com poucas ações, que não conta. Toca num ponto para veres o jogo.</p>' : ''}
+    </div>
+  </details>`;
+}
+
+// A evolução: um gráfico por fundamento com a QUALIDADE jogo a jogo, nos
+// últimos 10 jogos. Só os fundamentos em que ela tem ações que cheguem (10 no
+// total e 3 jogos), pela ordem do que mais faz.
+const EVO_GAMES = 10;
+function qualityEvo(games, me, used) {
+  const recent = games.slice(0, EVO_GAMES).reverse();
+  const fmt = (d) => (d ? d.split('-').reverse().slice(0, 2).join('/') : '');
+  const all = counts(games.map((g) => g.data))[me.id] || {};
+  const per = recent.map((g) => counts([g.data])[me.id] || {});
+  const charts = QUALITY.filter((q) => used.has(q.k))
+    .map((q) => ({ q, tot: qualityOf(all, q.k), withN: per.filter((o) => qualityOf(o, q.k).n > 0).length }))
+    .filter((x) => x.tot.n >= 10 && x.withN >= 3)
+    .sort((a, b) => b.tot.n - a.tot.n)
+    .map(({ q, tot }) => evoChart({
+      title: q.label,
+      what: `% de ${q.what}, jogo a jogo`,
+      unit: q.unit,
+      avg: tot.rate,
+      points: recent.map((g, i) => {
+        const o = qualityOf(per[i], q.k);
+        return { label: fmt(g.game_date), tip: `${fmt(g.game_date)} vs ${g.opponent || 'Adversário'}`, v: o.n ? o.rate : null, n: o.n, weak: o.n < EVO_MIN };
+      }),
+    }));
+  if (!charts.length) return '';
+  return `<h3 class="portal-scout-sub">A tua evolução</h3><div class="evo-grid">${charts.join('')}</div>`;
 }
 
 // De onde vieram os pontos da equipa. "Por mérito próprio" diz-se por
@@ -682,45 +780,25 @@ function teamBlock(datas, { compact = false } = {}) {
     </div>`;
 }
 
-// Os pontos dela jogo a jogo, do mais antigo para o mais recente: é a
-// evolução, e é contra ela própria — nenhuma colega aparece aqui.
-function pointsChart(games, me) {
-  const seq = games.slice().reverse().map((g) => ({
-    pts: (counts([g.data])[me.id] ? playerStats(counts([g.data])[me.id]).pts : 0),
-    played: (pointsPlayed(g.data)[me.id] || 0) > 0,
-    g,
-  }));
-  const max = Math.max(1, ...seq.map((x) => x.pts));
-  const labels = seq.length <= 12;
-  const fmt = (d) => (d ? d.split('-').reverse().slice(0, 2).join('/') : '');
-  return `
-    <div class="sc-chart-wrap">
-      <h3 class="portal-scout-sub">Os teus pontos, jogo a jogo</h3>
-      <div class="sc-chart" role="img" aria-label="${esc(seq.map((x) => `${fmt(x.g.game_date)}: ${x.played ? `${x.pts} pontos` : 'não jogaste'}`).join('; '))}">
-        ${seq.map((x) => `
-          <div class="sc-chart__col" title="${esc(`${fmt(x.g.game_date)} vs ${x.g.opponent || 'Adversário'} — ${x.played ? `${x.pts} pontos` : 'não jogaste'}`)}">
-            ${labels ? `<span class="sc-chart__val">${x.played ? x.pts : ''}</span>` : ''}
-            <span class="sc-chart__bar${x.played ? '' : ' sc-chart__bar--off'}" style="height:${x.played ? Math.max(4, Math.round((x.pts / max) * 76)) : 4}px"></span>
-          </div>`).join('')}
-      </div>
-      <div class="sc-chart__axis"><span>${esc(fmt(seq[0].g.game_date))}</span><span>${esc(fmt(seq[seq.length - 1].g.game_date))}</span></div>
-    </div>`;
-}
-
 // Quantos jogos se veem antes do "Mostrar os restantes": num campeonato são
 // trinta, e a pergunta de quem abre isto é quase sempre o último jogo.
 const SCOUT_VISIBLE = 5;
 
-function scoutGameRow(g, me, { open = false } = {}) {
+function scoutGameRow(g, me, { open = false, others = [] } = {}) {
   const fmt = (d) => (d ? d.split('-').reverse().slice(0, 2).join('/') : '');
   const r = setsWon(g.data);
   const res = r.o > r.t ? 'V' : r.o < r.t ? 'D' : 'E';
   const p = pointsPlayed(g.data)[me.id] || 0;
   const m = playerRows([g.data])[0];
-  const pts = m ? m.s.pts : 0;
+  const main = mainQuality([g.data], me);
   // Fechada, a linha diz o que ela fez nesse jogo — sem isso, trinta linhas
-  // de "data · adversário · resultado" eram o calendário outra vez.
-  const mineShort = p ? `${pts} pt${pts === 1 ? '' : 's'}` : 'não jogaste';
+  // de "data · adversário · resultado" eram o calendário outra vez. Diz a
+  // QUALIDADE do que mais fez ("Receção 70%"), e não os pontos: a líbero
+  // nunca tinha mais do que "0 pts".
+  const mineShort = main && main.n >= EVO_MIN ? `${main.q.label} ${Math.round(main.rate * 100)}%` : p ? 'jogaste' : 'não jogaste';
+  // A média dela nos OUTROS jogos: comparar um jogo com uma média que já o
+  // inclui puxava a média para ele. Só com dois jogos para comparar.
+  const avgs = others.length >= 2 ? myAverages(others, me) : null;
   return `<li><details class="portal-scout-game"${open ? ' open' : ''}>
     <summary>
       <span class="portal-att-row__day">${esc(fmt(g.game_date))}</span>
@@ -732,10 +810,10 @@ function scoutGameRow(g, me, { open = false } = {}) {
       <p class="muted" style="margin:0">Parciais ${esc(partials(g.data).map((x) => `${x.our}-${x.their}`).join(', ') || '—')}${g.competition ? ` · ${esc(g.competition)}` : ''}</p>
       <div class="sc-tiles sc-tiles--sm">
         <div class="sc-tile"><strong>${p}</strong><span>pontos em campo</span></div>
-        <div class="sc-tile"><strong>${pts}</strong><span>ponto${pts === 1 ? '' : 's'} teu${pts === 1 ? '' : 's'}</span></div>
+        <div class="sc-tile"><strong>${main ? `${Math.round(main.rate * 100)}%` : '—'}</strong><span>${main ? esc(main.q.what) : 'sem ações'}</span></div>
         <div class="sc-tile"><strong>${m ? m.s.errs : 0}</strong><span>erro${m && m.s.errs === 1 ? '' : 's'}</span></div>
       </div>
-      ${p || m ? myFundamentals([g.data], usedCols([g.data]), me) : '<p class="muted" style="margin:0.5rem 0 0">Não entraste em campo neste jogo.</p>'}
+      ${p || m ? myFundamentals([g.data], usedCols([g.data]), me, { avgs }) : '<p class="muted" style="margin:0.5rem 0 0">Não entraste em campo neste jogo.</p>'}
       ${teamBlock([g.data], { compact: true })}
     </div>
   </details></li>`;
@@ -773,6 +851,7 @@ function jogosHTML(me) {
     <section class="card portal-section">
       <h2 class="section-title portal-section__title">Os meus jogos</h2>
       ${note}
+      ${helpHTML(usedCols([games[0].data]))}
       <ul class="portal-scout-list portal-scout-list--solo">${scoutGameRow(games[0], me, { open: true })}</ul>
     </section>`;
   }
@@ -780,7 +859,7 @@ function jogosHTML(me) {
   const datas = games.map((g) => g.data);
   const used = usedCols(datas);
   const played = datas.reduce((a, d) => a + (pointsPlayed(d)[me.id] || 0), 0);
-  const mine = playerRows(datas)[0];
+  const main = mainQuality(datas, me);
   const w = games.filter((g) => { const r = setsWon(g.data); return r.o > r.t; }).length;
   const shown = scoutShowAll ? games : games.slice(0, SCOUT_VISIBLE);
   const rest = games.length - shown.length;
@@ -792,9 +871,10 @@ function jogosHTML(me) {
       <div class="sc-tiles">
         <div class="sc-tile"><strong>${games.length}</strong><span>jogos · ${w}V ${games.length - w}D</span></div>
         <div class="sc-tile"><strong>${played}</strong><span>pontos em campo</span></div>
-        <div class="sc-tile"><strong>${mine ? mine.s.pts : 0}</strong><span>pontos teus</span></div>
+        <div class="sc-tile"><strong>${main ? `${Math.round(main.rate * 100)}%` : '—'}</strong><span>${main ? esc(main.q.what) : 'sem ações'}</span></div>
       </div>
-      ${games.length >= 3 ? pointsChart(games, me) : ''}
+      ${helpHTML(used, { charts: games.length >= 3 })}
+      ${games.length >= 3 ? qualityEvo(games, me, used) : ''}
       ${myFundamentals(datas, used, me)}
       ${teamBlock(datas)}
     </section>
@@ -802,7 +882,7 @@ function jogosHTML(me) {
     <section class="card portal-section">
       <h2 class="section-title portal-section__title">Jogo a jogo</h2>
       <ul class="portal-scout-list portal-scout-list--solo">
-        ${shown.map((g) => scoutGameRow(g, me)).join('')}
+        ${shown.map((g) => scoutGameRow(g, me, { others: datas.filter((d) => d !== g.data) })).join('')}
       </ul>
       ${games.length > SCOUT_VISIBLE
         ? `<button class="btn btn--link portal-section__more" data-scout-toggle type="button">
@@ -1194,6 +1274,7 @@ async function cancelMyRequest(id) {
 }
 
 function wire(container, me, team) {
+  wireEvo(container);
   container.querySelectorAll('[data-portal-tab]').forEach((b) =>
     b.addEventListener('click', () => {
       portalTab = b.dataset.portalTab;

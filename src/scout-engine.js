@@ -313,6 +313,40 @@ export function phaseStats(games, f = 'all') {
   return r;
 }
 
+// --- Qualidade por fundamento ------------------------------------------------
+//
+// O que conta como "bem feito" em cada fundamento, escrito UMA vez: é a régua
+// dos destaques do treinador, do portal da atleta e dos gráficos de evolução.
+// Mede-se a qualidade (uma percentagem das ações dela) e não a quantidade: um
+// "ranking de pontos" deixava a líbero sempre em último, como se não tivesse
+// jogado — e a receção dela é muitas vezes o que decide o jogo.
+//
+// `good` são as qualidades que contam como bem feito. No ataque é só o ponto
+// (o que "continuou" não é erro, mas também não é o objetivo); no serviço é
+// a bola que entrou (ás incluído); nos restantes é o # e o +.
+export const QUALITY = [
+  { k: 'RECEPTION', label: 'Receção', good: ['PERFECT', 'OK'], what: 'receções boas', unit: 'receções' },
+  { k: 'ATTACK', label: 'Ataque', good: ['PERFECT'], what: 'ataques que deram ponto', unit: 'ataques' },
+  { k: 'DEFENSE', label: 'Defesa', good: ['PERFECT', 'OK'], what: 'defesas boas', unit: 'defesas' },
+  { k: 'SERVICE', label: 'Serviço', good: ['PERFECT', 'OK', 'BAD'], what: 'serviços que entraram', unit: 'serviços' },
+  { k: 'SETTING', label: 'Passe', good: ['PERFECT', 'OK'], what: 'passes bons', unit: 'passes' },
+  { k: 'BLOCK', label: 'Bloco', good: ['PERFECT', 'OK'], what: 'blocos que deram ponto ou amorteceram', unit: 'blocos' },
+];
+
+// Quantas ações e quantas bem feitas, de um objeto de `counts`.
+export function qualityOf(o, k) {
+  const q = QUALITY.find((x) => x.k === k);
+  let n = 0;
+  let good = 0;
+  for (const key of Object.keys(o || {})) {
+    const [t, ql] = key.split('.');
+    if (t !== k) continue;
+    n += o[key];
+    if (q.good.includes(ql)) good += o[key];
+  }
+  return { n, good, rate: n ? good / n : null };
+}
+
 // --- Estatísticas -------------------------------------------------------
 
 const inSet = (e, f) => f === 'all' || e.set === Number(f);

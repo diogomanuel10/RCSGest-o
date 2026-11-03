@@ -7577,6 +7577,18 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 .sc-funds { display: flex; flex-direction: column; gap: 0.75rem; margin: 1rem 0 0; }
 .sc-fund__head { display: flex; justify-content: space-between; align-items: baseline; font-size: 0.92rem; margin-bottom: 0.25rem; }
 .sc-fund__head strong { font-variant-numeric: tabular-nums; color: var(--text-muted); font-weight: 600; font-size: 0.85rem; }
+.sc-fund__q { margin: 0.25rem 0 0; font-size: 0.82rem; color: var(--text-muted); }
+.sc-fund__q b { color: var(--text); font-variant-numeric: tabular-nums; }
+.sc-fund__vs--good { color: var(--ok-ink); font-weight: 600; }
+.sc-fund__vs--bad { color: var(--danger-ink); font-weight: 600; }
+/* «Como ler isto» — a explicação das estatísticas para quem tem 14 anos. */
+.sc-help { margin: 0.8rem 0 0; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); }
+.sc-help > summary { cursor: pointer; padding: 0.55rem 0.75rem; font-weight: 600; font-size: 0.9rem; }
+.sc-help__body { padding: 0 0.75rem 0.7rem; font-size: 0.86rem; }
+.sc-help__body dl { margin: 0; display: grid; gap: 0.45rem; }
+.sc-help__body dt { font-weight: 600; }
+.sc-help__body dd { margin: 0.1rem 0 0; color: var(--text-muted); }
+.sc-help__body p { margin: 0.5rem 0 0; color: var(--text-muted); }
 .sc-bar { display: flex; height: 12px; border-radius: 999px; overflow: hidden; background: var(--surface-2); gap: 2px; }
 .sc-bar__seg { min-width: 4px; }
 .sc-legend { display: flex; flex-wrap: wrap; gap: 0.15rem 0.8rem; margin: 0.3rem 0 0; font-size: 0.8rem; color: var(--text-muted); }
@@ -7594,13 +7606,28 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 .sc-team__note { margin: 0.35rem 0 0; font-size: var(--portal-note); color: var(--text-muted); }
 .sc-team--compact { margin-top: 0.8rem; padding-top: 0.6rem; }
 
-.sc-chart-wrap { margin: 1rem 0 0; }
-.sc-chart { display: flex; align-items: flex-end; gap: 3px; height: 96px; margin-top: 0.5rem; }
-.sc-chart__col { flex: 1 1 0; min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 2px; }
-.sc-chart__val { font-size: 0.7rem; color: var(--text-muted); font-variant-numeric: tabular-nums; line-height: 1; }
-.sc-chart__bar { width: 100%; max-width: 28px; background: var(--navy-500); border-radius: 3px 3px 0 0; }
-.sc-chart__bar--off { background: var(--border); }
-.sc-chart__axis { display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--text-muted); margin-top: 0.25rem; border-top: 1px solid var(--border); padding-top: 0.2rem; }
+/* --- Evolução por qualidade (scout-charts.js) ---
+   Uma série por gráfico, cores só dos tokens (mudam com o tema escuro). */
+.evo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 0.8rem 1.2rem; margin: 0.6rem 0 0; }
+.evo { margin: 0; min-width: 0; }
+.evo__head { display: flex; flex-direction: column; gap: 0.05rem; margin-bottom: 0.2rem; }
+.evo__head strong { font-size: 0.95rem; }
+.evo__head span { font-size: 0.8rem; color: var(--text-muted); }
+.evo__svg { display: block; width: 100%; height: auto; overflow: visible; touch-action: pan-y; }
+.evo__grid { stroke: var(--border); stroke-width: 1; }
+.evo__grid--zero { stroke: var(--text-muted); stroke-opacity: 0.5; }
+.evo__tick { fill: var(--text-muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+.evo__avg { stroke: var(--text-muted); stroke-width: 1.5; stroke-dasharray: 4 4; }
+.evo__avg-key { display: inline-block; width: 16px; vertical-align: middle; border-top: 1.5px dashed var(--text-muted); }
+.evo__line { fill: none; stroke: var(--navy-500); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.evo__pt { fill: var(--navy-500); stroke: var(--surface); stroke-width: 2; }
+.evo__pt--weak { fill: var(--surface); stroke: var(--silver); stroke-width: 1.5; }
+.evo__pt--on { stroke: var(--text); stroke-width: 2; }
+.evo__hit { fill: transparent; cursor: pointer; }
+.evo__read { margin: 0.25rem 0 0; font-size: 0.82rem; color: var(--text-muted); min-height: 2.4em; display: flex; gap: 0.3rem; align-items: baseline; }
+.evo__arrow { font-weight: 700; }
+.evo__arrow--good { color: var(--ok-ink); }
+.evo__arrow--bad { color: var(--danger-ink); }
 
 /* --- Cartão QR ---
    Aqui o código é o protagonista: é o que se mostra à câmara à entrada. */
