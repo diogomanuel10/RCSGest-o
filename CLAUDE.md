@@ -1727,9 +1727,28 @@ separador antes de navegar (usado pelos cartões do Painel).
       equipa também: de onde vieram os pontos (ataque, serviço, bloco, erros
       do adversário) é uma barra, não uma frase entre parênteses.
     - **Mostra o que ela fez, não uma posição**: números grandes (jogos,
-      pontos em campo, pontos dela) e um gráfico dos pontos DELA jogo a jogo,
-      a partir de 3 jogos — a evolução é contra ela própria. Nenhum ranking,
-      e só os fundamentos que se marcaram (`usedCols`).
+      pontos em campo e a QUALIDADE do fundamento em que mais mexe na bola)
+      — a evolução é contra ela própria. Nenhum ranking, e só os fundamentos
+      que se marcaram (`usedCols`).
+    - **Qualidade e não quantidade** (`QUALITY`/`qualityOf` no motor, a régua
+      única do que é "bem feito" em cada fundamento: receção/defesa/passe #
+      e +, ataque que deu ponto, serviço que entrou, bloco # e +). Havia um
+      gráfico dos pontos dela jogo a jogo e um "pontos teus" no topo, e a
+      líbero via sempre zero, como se não tivesse jogado; um jogo de 5 sets
+      parecia sempre melhor do que um de 3. Agora cada fundamento leva a
+      percentagem por baixo da barra ("70% receções boas") e, no jogo, se
+      ficou acima ou abaixo da média DELA nos OUTROS jogos (com setas e por
+      palavras). Os fundamentos aparecem pela ordem do que ela mais faz, e a
+      linha fechada de cada jogo diz "Receção 70%" e não "0 pts".
+    - **Gráficos de evolução da qualidade** (`scout-charts.js`, `evoChart`):
+      um gráfico por fundamento, nos últimos 10 jogos, com a média dela a
+      tracejado. Um jogo com menos de 4 ações nesse fundamento fica oco e não
+      puxa a linha (2 em 2 são 100% e não dizem nada). Tocar num ponto diz o
+      jogo, a percentagem e EM QUANTAS ações — num telemóvel não há hover. Só
+      aparecem os fundamentos com 10 ações e 3 jogos.
+    - **«Como ler isto»** (`helpHTML`): o que cada cor e cada percentagem
+      querem dizer, em palavras de quem tem catorze anos. Fechado por
+      omissão, só com os fundamentos marcados.
     - **Uma época tem trinta jogos**: o resumo vem em cima e "Jogo a jogo"
       mostra os 5 mais recentes, fechados, com "Mostrar os restantes N".
       Fechada, cada linha já diz os pontos DELA nesse jogo — sem isso era o
@@ -1760,26 +1779,42 @@ separador antes de navegar (usado pelos cartões do Painel).
     em memória (`detailState`) enquanto o `updated_at` do jogo não mudar, com
     o set escolhido; como a lista re-desenha a cada notificação do store, a
     descarga em curso fica em `detailLoading` para não se pedir duas vezes.
+  - **Destaques por QUALIDADE, não por quantidade.** Os quadros "Pontos",
+    "Ases" e "Pontos de bloco" e o "Maior impacto" (pontos − erros) só sabiam
+    premiar atacantes — a líbero nunca lá aparecia. Os Destaques passam a ser
+    a melhor percentagem em cada fundamento (receção e defesa positivas,
+    eficácia de ataque e de serviço, passe e bloco positivos), entre quem tem
+    pelo menos 5 ações nele (15 nos totais da época), com o número de ações
+    entre parênteses; uma eficácia negativa não é destaque. A tabela por
+    atleta ordena-se pelo número da camisola, e não por pontos.
+  - **Evolução da equipa** (`teamEvoBlock`, botão no cartão da época): side-
+    out, break-point, receção positiva, ataque em K1 e em K2, eficácia de
+    serviço e pontos oferecidos, jogo a jogo nos últimos 12 jogos, com a
+    média da época a tracejado (ponderada pelas ações, não a média das
+    percentagens). É onde se vê se o que se treina à semana aparece ao
+    sábado. Os mesmos gráficos do portal (`evoChart`), com mínimos por
+    indicador; cada ponto diz contra quem foi, porque o adversário pesa.
   - **Análise do jogo** (`scout-insights.js`, no topo do detalhe de um jogo
-    TERMINADO): dicas para o treinador tiradas das ações — maior impacto,
+    TERMINADO): dicas para o treinador tiradas das ações — destaques do jogo,
     pontos oferecidos (e em que ação), uma ação a correr mal a uma atleta,
     a rotação mais difícil em side-out e em break-point, receção → ataque,
     ataque em transição e, havendo época, o melhor jogo da época de cada
     atleta. A meio do jogo não aparece: seis rallies não chegam para dizer
     que uma rotação é difícil.
     - **Regras e não "inteligência"**: cada dica diz o número que a sustenta
-      ("6 pontos e 1 erro, saldo +5, em 80 pontos em campo") e a fórmula do
-      impacto é essa — pontos ganhos menos erros. Uma nota opaca não se usa
+      ("Receção: 7 · Gabi N., 70% positiva em 30"). Uma nota opaca não se usa
       no treino de terça; uma conta que se pode verificar, sim. E funciona
       sem rede.
     - **Cada regra tem um mínimo de ações** (e o "melhor da época" pede dois
       jogos anteriores em que a mesma medida contou): dois ataques certos em
       dois é acaso, e uma dica que se engana duas vezes deixa de ser lida.
-    - **O "melhor jogo da época" é contra ela própria**, um por atleta e no
+    - **O "melhor jogo da época" mede qualidade** (receção, eficácia de ataque,
+      defesa, eficácia de serviço, passe; 8 ações no mínimo) e **é contra ela
+      própria**, um por atleta e no
       máximo três, e vai para o FIM da lista: é boa notícia, e o que pede
       trabalho tem de se ler primeiro. "A rever" compara com o que é normal
       NELA ("costuma ter 1,5 por jogo"), não com as colegas.
-    - **Nada disto chega ao portal**: "maior impacto" é um ranking.
+    - **Nada disto chega ao portal**: os destaques são um ranking.
   - **Por rotação** (`rotationStats` no motor): pontos jogados e ganhos em
     cada rotação, com **side-out** (ganhar quando o adversário serve) e
     **break-point** (ganhar quando servimos) à parte — são fases diferentes

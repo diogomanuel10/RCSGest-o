@@ -8,10 +8,10 @@
 // Cada regra tem um MÍNIMO de ações: dois ataques certos em dois não é um
 // jogo bom, é acaso, e uma dica que se engana duas vezes deixa de ser lida.
 //
-// Isto é do treinador e não chega ao portal: "maior impacto" é um ranking, e
+// Isto é do treinador e não chega ao portal: "destaques do jogo" é um ranking, e
 // a atleta não se compara com as colegas (ver `my_scout_games`).
 
-import { counts, playerStats, pointsPlayed, teamSummary, teamCounts, rotationStats, phaseStats, atkEff, findPlayer, ACT } from './scout-engine.js';
+import { counts, playerStats, teamSummary, teamCounts, rotationStats, phaseStats, atkEff, findPlayer, qualityOf, ACT } from './scout-engine.js';
 import { state } from './store.js';
 import { TACTICAL_ROLE_MATCH } from './constants.js';
 
@@ -52,14 +52,17 @@ const ERR_LABEL = {
   BLOCK: 'no bloco', DEFENSE: 'na defesa', SETTING: 'no passe', OTHER: 'noutras ações (rede, invasão…)',
 };
 
-// Medidas por atleta que podem dar "melhor jogo da época". Cada uma com o
-// mínimo de ações para contar e a forma de a dizer.
+// Medidas de QUALIDADE por fundamento: a do "melhor jogo da época" e a dos
+// destaques do jogo. Percentagens e não contagens — contar pontos ou ases
+// deixava a líbero sempre de fora, por mais que a receção dela decidisse o
+// jogo. Cada uma com o mínimo de ações para contar e a forma de a dizer.
+const pctTxt = (v) => `${Math.round(v * 100)}%`;
 const BESTS = [
-  ['pts', 'em pontos', (s) => s.pts, () => true, (v) => `${v} pontos`],
-  ['kill', 'em pontos de ataque', (s) => s.kill, (s) => s.atk >= 5, (v) => `${v} pontos de ataque`],
-  ['posR', 'em receção', (s) => (s.rec ? s.posR : null), (s) => s.rec >= 6, (v) => `${Math.round(v * 100)}% positiva`],
-  ['effA', 'em eficácia de ataque', (s) => (s.atk ? s.effA : null), (s) => s.atk >= 6, (v) => `${Math.round(v * 100)}%`],
-  ['ace', 'em ases', (s) => s.ace, () => true, (v) => `${v} ases`],
+  ['posR', 'em receção', (s) => (s.rec ? s.posR : null), (s) => s.rec >= 8, (v) => `${pctTxt(v)} positiva`, 'rec'],
+  ['effA', 'em eficácia de ataque', (s) => (s.atk ? s.effA : null), (s) => s.atk >= 8, (v) => `${pctTxt(v)} de eficácia`, 'atk'],
+  ['posD', 'em defesa', (s) => (s.def ? s.posD : null), (s) => s.def >= 8, (v) => `${pctTxt(v)} positiva`, 'def'],
+  ['effS', 'em eficácia de serviço', (s) => (s.srv ? s.effS : null), (s) => s.srv >= 8, (v) => `${pctTxt(v)} de eficácia`, 'srv'],
+  ['posP', 'no passe', (s) => (s.pas ? s.posP : null), (s) => s.pas >= 8, (v) => `${pctTxt(v)} positivo`, 'pas'],
 ];
 
 // A dica é { tone, icon, title, text }. `season` são os OUTROS jogos
@@ -68,23 +71,27 @@ export function gameInsights(data, { season = [], isSetter = () => false } = {})
   const out = [];
   const records = [];
   const c = counts([data]);
-  const played = pointsPlayed(data);
   const ts = teamSummary([data]);
   const tc = teamCounts([data]);
 
-  // 1. Maior impacto: pontos ganhos menos erros. A fórmula diz-se, para não
-  //    parecer uma nota inventada.
-  const rows = Object.keys(c)
-    .map((id) => ({ id, p: findPlayer(data, id), s: playerStats(c[id]) }))
-    .filter((r) => r.p && r.s.pts + r.s.errs >= 3)
-    .map((r) => ({ ...r, net: r.s.pts - r.s.errs }))
-    .sort((a, b) => b.net - a.net || b.s.pts - a.s.pts);
-  if (rows.length && rows[0].net > 0) {
-    const [a, b] = rows;
-    out.push({
-      tone: 'ok', icon: '🔥', title: 'Maior impacto',
-      text: `${who(a.p)}: ${a.s.pts} ponto${a.s.pts === 1 ? '' : 's'} e ${a.s.errs} erro${a.s.errs === 1 ? '' : 's'} (saldo +${a.net})${played[a.id] ? ` em ${played[a.id]} pontos em campo` : ''}.${b && b.net > 0 ? ` A seguir: ${who(b.p)} (+${b.net}).` : ''}`,
-    });
+  // 1. Destaques do jogo: a melhor QUALIDADE em cada fundamento, entre quem
+  //    tem ações que cheguem nele. Era "maior impacto" (pontos menos erros),
+  //    e isso só sabia premiar atacantes — uma líbero com 80% de receção
+  //    positiva nunca lá aparecia. Cada linha diz a percentagem e em quantas
+  //    ações, para se ver que não é acaso.
+  const all = Object.keys(c).map((id) => ({ id, p: findPlayer(data, id), s: playerStats(c[id]) })).filter((r) => r.p);
+  const tops = [];
+  for (const [, label, val, ok, fmt, nKey] of BESTS) {
+    const best = all.filter((r) => ok(r.s) && val(r.s) != null)
+      .sort((a, b) => val(b.s) - val(a.s) || b.s[nKey] - a.s[nKey])[0];
+    if (best && val(best.s) > 0) tops.push(`${label.replace(/^(em|no) /, '').replace(/^./, (x) => x.toUpperCase())}: ${who(best.p)}, ${fmt(val(best.s))} em ${best.s[nKey]}`);
+  }
+  // O bloco não tem campo próprio no playerStats para a qualidade.
+  const blk = all.map((r) => ({ r, q: qualityOf(c[r.id], 'BLOCK') })).filter((x) => x.q.n >= 6)
+    .sort((a, b) => b.q.rate - a.q.rate || b.q.n - a.q.n)[0];
+  if (blk && blk.q.rate > 0) tops.push(`Bloco: ${who(blk.r.p)}, ${pctTxt(blk.q.rate)} positivo em ${blk.q.n}`);
+  if (tops.length) {
+    out.push({ tone: 'ok', icon: '🔥', title: 'Destaques do jogo', text: `${tops.slice(0, 4).join(' · ')}.` });
   }
 
   // 2. Melhor jogo da época, contra ela própria. Vão para o FIM da lista: são

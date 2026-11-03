@@ -28,8 +28,9 @@ import { toastOk, toastError, toastInfo } from '../toast.js';
 import {
   ACT, COLS, ROWS, SYM, QN, MAX_SETS, emptyData, derive, court, setWinner, setsWon, hasPoints,
   partials, summarize, pointsPlayed, teamSummary, teamCounts, playerStats, playerRows, findPlayer, numOf, fmtPct,
-  activeCols, usedCols, OPTIONAL_COLS, rotationStats, phaseStats, atkEff, K1_RECEPTIONS,
+  activeCols, usedCols, OPTIONAL_COLS, rotationStats, phaseStats, atkEff, K1_RECEPTIONS, QUALITY, qualityOf, counts,
 } from '../scout-engine.js';
+import { evoChart, wireEvo } from '../scout-charts.js';
 import { gameInsights, setterFinder, rotationLabel } from '../scout-insights.js';
 
 // --- Estado local da secção -------------------------------------------------
@@ -38,6 +39,7 @@ let loading = false;
 let loadError = '';
 const seasonCache = new Map(); // teamId -> { at, games }
 let seasonOpen = false;
+let evoOpen = false; // "Evolução da equipa" aberta no cartão da época
 // O detalhe de um jogo abre NA LISTA, por baixo da linha do jogo, e não num
 // modal: lê-se com a lista à vista e fecha-se no mesmo sítio onde se abriu
 // (como os totais da época). Um aberto de cada vez — dois detalhes inteiros
@@ -214,10 +216,12 @@ export function renderScout(container) {
         </div>
         <div class="cell-actions">
           <button class="btn btn--ghost btn--sm" type="button" id="season-toggle" ${fin.length ? '' : 'disabled'} aria-expanded="${seasonOpen}">${seasonOpen ? 'Esconder totais' : 'Totais por atleta'}</button>
+          <button class="btn btn--ghost btn--sm" type="button" id="evo-toggle" ${fin.length ? '' : 'disabled'} aria-expanded="${evoOpen}">${evoOpen ? 'Esconder evolução' : 'Evolução da equipa'}</button>
           <button class="btn btn--ghost btn--sm" type="button" id="season-sheet" ${fin.length ? '' : 'disabled'}>Folha da época</button>
           <button class="btn btn--ghost btn--sm" type="button" id="season-xlsx" ${rows.length ? '' : 'disabled'}>Excel com todos os dados</button>
         </div>
       </div>
+      <div id="evo-body"></div>
       <div id="season-body"></div>
     </section>
 
@@ -256,7 +260,7 @@ export function renderScout(container) {
   `;
 
   container.querySelector('#scout-team')?.addEventListener('change', (e) => {
-    teamFilter = e.target.value; seasonOpen = false; renderScout(container);
+    teamFilter = e.target.value; seasonOpen = false; evoOpen = false; renderScout(container);
   });
   container.querySelector('#scout-new')?.addEventListener('click', () => openNewScout());
   wireEmptyAction(container, 'scout-new', () => openNewScout());
@@ -269,10 +273,20 @@ export function renderScout(container) {
   container.querySelectorAll('[data-sheet]').forEach((b) => b.addEventListener('click', () => exportOne(b.dataset.sheet, 'sheet')));
   container.querySelectorAll('[data-xlsx]').forEach((b) => b.addEventListener('click', () => exportOne(b.dataset.xlsx, 'xlsx')));
   container.querySelector('#season-toggle')?.addEventListener('click', () => { seasonOpen = !seasonOpen; renderScout(container); });
+  container.querySelector('#evo-toggle')?.addEventListener('click', () => { evoOpen = !evoOpen; renderScout(container); });
   container.querySelector('#season-sheet')?.addEventListener('click', () => exportSeason('sheet'));
   container.querySelector('#season-xlsx')?.addEventListener('click', () => exportSeason('xlsx'));
 
   if (openGameId && rows.some((r) => r.id === openGameId)) fillDetail(container, openGameId);
+
+  if (evoOpen && fin.length) {
+    const body = container.querySelector('#evo-body');
+    body.innerHTML = loadingHTML('A juntar os jogos da época…');
+    seasonGames(teamFilter).then((games) => {
+      body.innerHTML = teamEvoBlock(games.filter((g) => g.status === 'terminado'));
+      wireEvo(body);
+    }).catch((err) => { body.innerHTML = errorHTML(dbErrorMessage(err)); });
+  }
 
   if (seasonOpen && fin.length) {
     const body = container.querySelector('#season-body');
@@ -283,6 +297,63 @@ export function renderScout(container) {
       body.innerHTML = `<div class="scout-season__body">${rotationBlock(datas, { multi: true })}${statsBlock(datas, 'all', { multi: true, played: sumPlayed(done) })}</div>`;
     }).catch((err) => { body.innerHTML = errorHTML(dbErrorMessage(err)); });
   }
+}
+
+// --- Evolução da equipa (treinador) -----------------------------------------
+//
+// Os indicadores que decidem jogos, jogo a jogo, nos últimos 12 jogos
+// terminados: é onde se vê se o que se treina à semana aparece ao sábado. Um
+// gráfico por indicador (cada um tem a sua escala), com a média da época a
+// tracejado. Um jogo com poucas ações nesse indicador fica oco e não puxa a
+// linha — 4 ataques em transição não dizem nada. A força do adversário pesa
+// em qualquer destes números, por isso cada ponto diz contra quem foi.
+const EVO_TEAM_GAMES = 12;
+const TEAM_EVO = [
+  ['Side-out', '% de pontos ganhos quando o adversário serve', 'rallies', 10, 'up',
+    (d) => { const t = rotationStats([d]).tot; return [t.soWon, t.so]; }],
+  ['Break-point', '% de pontos ganhos quando servimos nós', 'rallies', 10, 'up',
+    (d) => { const t = rotationStats([d]).tot; return [t.bpWon, t.bp]; }],
+  ['Receção positiva', '% de receções # ou +', 'receções', 10, 'up',
+    (d) => { const q = qualityOf(teamCounts([d]), 'RECEPTION'); return [q.good, q.n]; }],
+  ['Ataque em side-out (K1)', 'eficácia do 1.º ataque depois da receção', 'ataques', 8, 'up',
+    (d) => { const k = phaseStats([d]).k1; return [k.kill - k.err - k.blk, k.n]; }],
+  ['Ataque em transição (K2)', 'eficácia depois de defesa ou bola que voltou', 'ataques', 8, 'up',
+    (d) => { const k = phaseStats([d]).k2; return [k.kill - k.err - k.blk, k.n]; }],
+  ['Serviço', 'eficácia: (ases − erros) ÷ serviços', 'serviços', 10, 'up',
+    (d) => { const s = playerStats(teamCounts([d])); return [s.ace - s.srvErr, s.srv]; }],
+  ['Pontos oferecidos', '% dos pontos do adversário que foram erros nossos', 'pontos do adversário', 10, 'down',
+    (d) => { const t = teamSummary([d]); return [t.ourErr, t.their]; }],
+];
+
+function teamEvoBlock(done) {
+  if (done.length < 3) {
+    return '<div class="scout-season__body"><p class="muted" style="margin:0">A evolução aparece a partir de 3 jogos terminados com scout.</p></div>';
+  }
+  const games = done.slice().sort((a, b) => String(a.game_date).localeCompare(String(b.game_date))).slice(-EVO_TEAM_GAMES);
+  const fmt = (d) => (d ? d.split('-').reverse().slice(0, 2).join('/') : '');
+  const all = done.map((g) => g.data);
+  const charts = TEAM_EVO.map(([title, what, unit, minN, better, fn]) => {
+    // A média é da época toda e ponderada pelas ações (somam-se numeradores e
+    // denominadores), não a média das percentagens de cada jogo.
+    const tot = all.map(fn).reduce((a, [x, n]) => [a[0] + x, a[1] + n], [0, 0]);
+    if (!tot[1]) return '';
+    return evoChart({
+      title, what, unit, better,
+      avgOf: 'da média da época',
+      avg: tot[0] / tot[1],
+      points: games.map((g) => {
+        const [x, n] = fn(g.data);
+        return { label: fmt(g.game_date), tip: `${fmt(g.game_date)} vs ${g.opponent || 'Adversário'}`, v: n ? x / n : null, n, weak: n < minN };
+      }),
+    });
+  }).join('');
+  return `<div class="scout-season__body">
+    <section class="scout-part">
+      <h3 class="scout-part__title">Evolução da equipa</h3>
+      <div class="evo-grid">${charts}</div>
+      <p class="muted scout-footnote">Últimos ${games.length} jogos terminados, do mais antigo para o mais recente. O tracejado é a média da época. Bolinha vazia = poucas ações nesse jogo para contar. Toca ou passa por cima de um ponto para ver o jogo e em quantas ações assenta — e lembra-te de que o adversário também conta.</p>
+    </section>
+  </div>`;
 }
 
 // "a marcar: Diogo" na lista — do que se sabia quando a lista carregou.
@@ -731,22 +802,30 @@ function phaseBlock(datas, f, used) {
 function statsBlock(datas, f, { multi = false, played = {} } = {}) {
   const ts = teamSummary(datas, f);
   const tc = teamCounts(datas, f);
-  const rows = playerRows(datas, f);
+  // Pela ordem das camisolas e não por pontos: ordenar por pontos punha a
+  // líbero sempre no fundo, como se fosse a que jogou pior.
+  const rows = playerRows(datas, f).sort((a, b) => numOf(a.p) - numOf(b.p));
+  const cnt = counts(datas, f);
   const used = usedCols(datas);
   const groups = STAT_GROUPS.filter(([k]) => used.has(k));
-  const min = multi ? 10 : 3;
+  const min = multi ? 15 : 5;
   const bar = (parts) => {
     const s = parts.reduce((a, p) => a + p[0], 0) || 1;
     return `<div class="scout-bar">${parts.map(([v, c]) => `<span style="width:${(v / s) * 100}%;background:${c}"></span>`).join('')}</div>`;
   };
-  const rank = (title, key, kind, minKey, col) => {
-    if (col && !used.has(col)) return '';
+  // Destaques por QUALIDADE: a melhor percentagem em cada fundamento, entre
+  // quem tem ações que cheguem nele. Contar pontos ou ases deixava a líbero
+  // de fora de todos os quadros, por mais que a receção dela decidisse o jogo.
+  const rank = (title, col, val) => {
+    if (!used.has(col)) return '';
     const list = rows
-      .filter((r) => r.s[key] != null && (kind === 'n' ? r.s[key] > 0 : r.s[minKey] >= min))
-      .sort((a, b) => b.s[key] - a.s[key]).slice(0, 3);
+      .map((r) => ({ r, n: qualityOf(cnt[r.id], col).n, v: val(r.s, cnt[r.id]) }))
+      // Um destaque é bom por definição: uma eficácia negativa não entra.
+      .filter((x) => x.v != null && x.v > 0 && x.n >= min)
+      .sort((a, b) => b.v - a.v || b.n - a.n).slice(0, 3);
     return `<div class="scout-rank"><h3>${title}</h3>${list.length
-      ? `<ol>${list.map((r) => `<li><span>${esc(`${r.p.num} · ${shortName(r.p.name)}`)}</span><span>${kind === 'n' ? r.s[key] : fmtPct(r.s[key])}</span></li>`).join('')}</ol>`
-      : '<p class="muted">Dados insuficientes</p>'}</div>`;
+      ? `<ol>${list.map(({ r, n, v }) => `<li><span>${esc(`${r.p.num} · ${shortName(r.p.name)}`)}</span><span>${fmtPct(v)} <span class="muted">(${n})</span></span></li>`).join('')}</ol>`
+      : '<p class="muted">Sem destaque</p>'}</div>`;
   };
   // Os erros por ação a vermelho quando os há: numa tabela de trinta números
   // por linha, são os que se procuram primeiro.
@@ -789,10 +868,10 @@ function statsBlock(datas, f, { multi = false, played = {} } = {}) {
     <section class="scout-part">
       <h3 class="scout-part__title">Destaques</h3>
       <div class="scout-ranks">
-        ${rank('Pontos', 'pts', 'n')}${rank('Eficácia de ataque', 'effA', 'p', 'atk', 'ATTACK')}${rank('Ases', 'ace', 'n', null, 'SERVICE')}
-        ${rank('Receção positiva', 'posR', 'p', 'rec', 'RECEPTION')}${rank('Pontos de bloco', 'blk', 'n', null, 'BLOCK')}${rank('Defesa positiva', 'posD', 'p', 'def', 'DEFENSE')}
+        ${rank('Receção positiva', 'RECEPTION', (st) => st.posR)}${rank('Eficácia de ataque', 'ATTACK', (st) => st.effA)}${rank('Defesa positiva', 'DEFENSE', (st) => st.posD)}
+        ${rank('Eficácia de serviço', 'SERVICE', (st) => st.effS)}${rank('Passe positivo', 'SETTING', (st) => st.posP)}${rank('Bloco positivo', 'BLOCK', (st, o) => qualityOf(o, 'BLOCK').rate)}
       </div>
-      ${multi ? '<p class="muted scout-footnote">Rankings de percentagem com pelo menos 10 ações.</p>' : ''}
+      <p class="muted scout-footnote">Destaques por qualidade, não por quantidade: a melhor percentagem em cada fundamento, entre quem tem pelo menos ${min} ações nele (entre parênteses). É assim que a líbero entra pela receção e pela defesa. Positiva = (# + +) ÷ total · Eficácia de ataque = (pontos − erros − bloqueados) ÷ total · Eficácia de serviço = (ases − erros) ÷ total.</p>
     </section>`;
 }
 
