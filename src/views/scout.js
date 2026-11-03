@@ -479,6 +479,12 @@ async function openDetail(id) {
   const editable = canEdit('game_scouts');
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
+  // `close` só existe depois de `wireDialog`, que precisa do diálogo já
+  // desenhado — por isso o 1.º `paint()` corre antes dele. Os botões chamam-no
+  // ao CLIQUE (já atribuído); passar `close` diretamente ao addEventListener
+  // lia a variável durante o 1.º desenho e rebentava ("Cannot access 'close'
+  // before initialization"), e o detalhe do jogo não abria de todo.
+  let close = () => {};
   const paint = () => {
     const r = setsWon(g.data);
     overlay.innerHTML = `
@@ -506,7 +512,7 @@ async function openDetail(id) {
           </div>
         </div>
       </div>`;
-    overlay.querySelector('.modal__close').addEventListener('click', close);
+    overlay.querySelector('.modal__close').addEventListener('click', () => close());
     overlay.querySelectorAll('[data-set]').forEach((b) => b.addEventListener('click', () => { filter = b.dataset.set; paint(); }));
     overlay.querySelector('[data-sheet]').addEventListener('click', () => import('../scout-export.js').then((ex) => ex.openGameSheet(g)).catch((e) => toastError(e.message)));
     overlay.querySelector('[data-xlsx]').addEventListener('click', () => import('../scout-export.js').then((ex) => ex.exportGameXlsx(g)).catch((e) => toastError(e.message)));
@@ -524,7 +530,7 @@ async function openDetail(id) {
     });
   };
   paint();
-  const close = wireDialog(overlay, {});
+  close = wireDialog(overlay, {});
   if (g.status === 'terminado' && g.team_id) {
     seasonGames(g.team_id).then((games) => {
       season = games.filter((x) => x.status === 'terminado' && x.id !== g.id).map((x) => x.data);
