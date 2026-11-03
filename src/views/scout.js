@@ -28,7 +28,7 @@ import { toastOk, toastError, toastInfo } from '../toast.js';
 import {
   ACT, COLS, ROWS, SYM, QN, MAX_SETS, emptyData, derive, court, setWinner, setsWon, hasPoints,
   partials, summarize, pointsPlayed, teamSummary, teamCounts, playerStats, playerRows, findPlayer, numOf, fmtPct,
-  activeCols, usedCols, OPTIONAL_COLS, rotationStats,
+  activeCols, usedCols, OPTIONAL_COLS, rotationStats, phaseStats, atkEff, K1_RECEPTIONS,
 } from '../scout-engine.js';
 import { gameInsights, setterFinder, rotationLabel } from '../scout-insights.js';
 
@@ -571,6 +571,18 @@ function rotationBlock(datas, { multi = false } = {}) {
   const p = (a, b) => (b ? `${Math.round((a / b) * 100)}%` : '—');
   const anySetter = list.some((r) => r.setter);
   const rate = (r) => (r.n ? r.won / r.n : 0);
+  // Cada fase compara-se com a MÉDIA DA EQUIPA nessa fase, e não com 50%: o
+  // side-out ganha-se muito mais vezes do que o break-point, e uma rotação a
+  // 45% de break-point pode ser das melhores. O total da linha (Ganhos, %) fica
+  // sem cor pela mesma razão — mistura as duas fases.
+  const phaseCell = (won, n, avg) => {
+    if (!n) return '<td>—</td>';
+    const v = won / n;
+    const tone = n < 5 || avg == null ? '' : v >= avg + 0.1 ? 'ok' : v <= avg - 0.1 ? 'danger' : '';
+    return `<td${tone ? ` class="scout-rot__ph scout-rot__ph--${tone}"` : ''}>${p(won, n)} <span class="muted">${won}/${n}</span></td>`;
+  };
+  const soAvg = tot.so ? tot.soWon / tot.so : null;
+  const bpAvg = tot.bp ? tot.bpWon / tot.bp : null;
   const body = `
     <div class="scout-kpis scout-kpis--sm">
       <div class="scout-kpi"><span class="muted">Side-out</span><strong>${p(tot.soWon, tot.so)}</strong>
@@ -583,17 +595,17 @@ function rotationBlock(datas, { multi = false } = {}) {
       <tbody>${list.map((r) => {
         const l = rotationLabel(r, datas);
         const v = rate(r);
-        const tone = r.n < 6 ? '' : v >= 0.55 ? 'ok' : v < 0.45 ? 'danger' : 'neutral';
         return `<tr${r.n < 6 ? ' class="scout-rot--few"' : ''}>
           <td title="${esc(l.long)}"><strong>${esc(l.short)}</strong>${r.setter ? '' : ' <span class="muted">a servir</span>'}</td>
           <td>${r.n}</td><td>${r.won}</td>
-          <td class="scout-rot__bar"><span class="scout-rot__track"><span class="sc-tone--${tone || 'neutral'}" style="width:${Math.round(v * 100)}%"></span></span>${p(r.won, r.n)}</td>
-          <td>${p(r.soWon, r.so)} <span class="muted">${r.soWon}/${r.so}</span></td>
-          <td>${p(r.bpWon, r.bp)} <span class="muted">${r.bpWon}/${r.bp}</span></td></tr>`;
+          <td class="scout-rot__bar"><span class="scout-rot__track"><span class="sc-tone--neutral" style="width:${Math.round(v * 100)}%"></span></span>${p(r.won, r.n)}</td>
+          ${phaseCell(r.soWon, r.so, soAvg)}
+          ${phaseCell(r.bpWon, r.bp, bpAvg)}</tr>`;
       }).join('')}</tbody></table></div>
     <p class="muted scout-footnote">${anySetter
       ? 'R1 a R6 = zona onde está a distribuidora (lida da posição na ficha).'
       : 'Nenhuma atleta tem "Distribuidora" na posição da ficha, por isso cada rotação diz quem estava a servir (zona 1). Com a posição preenchida passa a R1–R6, que se compara entre jogos.'}
+      Side-out e break-point a verde ou vermelho quando estão 10 pontos acima ou abaixo da média da equipa nessa fase (com 5 rallies ou mais) — compara-se side-out com side-out, porque ganha-se muito mais vezes do que o break-point.
       Rotações com menos de 6 pontos ficam a cinzento: são poucas para concluir.</p>`;
   return multi
     ? `<section class="scout-part"><h3 class="scout-part__title">Por rotação</h3>${body}</section>`
@@ -657,6 +669,37 @@ function actionsBlock(tc, ts, used) {
   </section>`;
 }
 
+// O ataque por FASE: side-out (K1, a partir da receção) e transição (K2, a
+// partir de defesa ou de uma bola que voltou), e o K1 partido pela qualidade
+// da receção. Sai da ordem das ações no rally — não pede nada a mais a quem
+// marca (`phaseStats` no motor). A eficácia de ataque da tabela mistura as
+// duas fases, e são fases que se treinam à parte.
+const REC_LABEL = { PERFECT: 'Receção #', OK: 'Receção +', BAD: 'Receção −', NONE: 'Sem receção marcada' };
+function phaseBlock(datas, f, used) {
+  if (!used.has('ATTACK')) return '';
+  const ph = phaseStats(datas, f);
+  if (!ph.k1.n && !ph.k2.n) return '';
+  const effTxt = (o) => (o.n ? fmtPct(atkEff(o)) : '—');
+  const line = (o) => `${o.kill} pto · ${o.err} err · ${o.blk} blq em ${o.n}`;
+  const recRows = K1_RECEPTIONS.filter((q) => ph.byRec[q].n);
+  return `<section class="scout-part">
+    <h3 class="scout-part__title">Ataque por fase</h3>
+    <div class="scout-kpis scout-kpis--sm">
+      <div class="scout-kpi"><span class="muted">Side-out (K1)</span><strong>${effTxt(ph.k1)}</strong>
+        <span class="muted scout-kpi__legend">eficácia do 1.º ataque depois da receção · ${line(ph.k1)}</span></div>
+      <div class="scout-kpi"><span class="muted">Transição (K2)</span><strong>${effTxt(ph.k2)}</strong>
+        <span class="muted scout-kpi__legend">eficácia depois de defesa ou bola que voltou · ${line(ph.k2)}</span></div>
+    </div>
+    ${recRows.length ? `<div class="table-wrap"><table class="no-stack scout-table">
+      <thead><tr><th>K1 por receção</th><th>Ataques</th><th>Pto</th><th>Err</th><th>Blq</th><th>Ef.</th></tr></thead>
+      <tbody>${recRows.map((q) => {
+        const o = ph.byRec[q];
+        return `<tr${o.n < 6 ? ' class="scout-rot--few"' : ''}><td>${REC_LABEL[q]}</td><td>${o.n}</td><td>${o.kill}</td><td${o.err ? ' class="scout-table__err"' : ''}>${o.err}</td><td>${o.blk}</td><td><strong>${effTxt(o)}</strong></td></tr>`;
+      }).join('')}</tbody></table></div>` : ''}
+    <p class="muted scout-footnote">K1 = o primeiro ataque nosso num rally em que o adversário serviu; K2 = os outros (servimos nós, ou o 1.º ataque não acabou o rally). A receção é a última marcada antes do ataque — para a tabela por receção, marca-se a receção e o ataque do mesmo rally. Grupos com menos de 6 ataques ficam a cinzento.</p>
+  </section>`;
+}
+
 function statsBlock(datas, f, { multi = false, played = {} } = {}) {
   const ts = teamSummary(datas, f);
   const tc = teamCounts(datas, f);
@@ -700,6 +743,7 @@ function statsBlock(datas, f, { multi = false, played = {} } = {}) {
       </div>
     </section>
     ${actionsBlock(tc, ts, used)}
+    ${phaseBlock(datas, f, used)}
     <section class="scout-part">
       <h3 class="scout-part__title">Por atleta</h3>
       ${rows.length ? `<div class="table-wrap"><table class="no-stack scout-table">

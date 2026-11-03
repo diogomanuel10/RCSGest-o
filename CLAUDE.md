@@ -1754,7 +1754,8 @@ separador antes de navegar (usado pelos cartões do Painel).
   - **Análise do jogo** (`scout-insights.js`, no topo do detalhe de um jogo
     TERMINADO): dicas para o treinador tiradas das ações — maior impacto,
     pontos oferecidos (e em que ação), uma ação a correr mal a uma atleta,
-    a rotação mais difícil e, havendo época, o melhor jogo da época de cada
+    a rotação mais difícil em side-out e em break-point, receção → ataque,
+    ataque em transição e, havendo época, o melhor jogo da época de cada
     atleta. A meio do jogo não aparece: seis rallies não chegam para dizer
     que uma rotação é difícil.
     - **Regras e não "inteligência"**: cada dica diz o número que a sustenta
@@ -1781,7 +1782,37 @@ separador antes de navegar (usado pelos cartões do Painel).
       `TACTICAL_ROLE_MATCH.distribuidora`). Sem distribuidora na ficha, ou
       fora de campo, a rotação diz quem estava a servir — e o rodapé explica
       que preenchendo a posição passa a R1–R6.
-    - Rotações com menos de 6 pontos ficam a cinzento e não entram na dica.
+    - Rotações com menos de 6 pontos ficam a cinzento.
+    - **Compara-se side-out com side-out e break-point com break-point.** A
+      dica comparava o total de pontos ganhos por rotação, e isso mistura as
+      duas fases: o side-out ganha-se muito mais vezes do que o break-point,
+      por isso uma rotação em que calhou servirmos mais parecia "a mais
+      difícil" sem jogar pior. São agora duas dicas ("Side-out mais difícil",
+      "Break-point mais difícil"), cada uma com 5 rallies NESSA fase por
+      rotação e 15 pontos de diferença. Na tabela, as células de side-out e
+      break-point ficam a verde/vermelho quando estão 10 pontos acima/abaixo
+      da média DA EQUIPA nessa fase — e não de 50%, que no break-point é uma
+      fasquia que quase ninguém passa. O total da linha ficou sem cor pela
+      mesma razão.
+  - **Ataque por fase: K1 e K2** (`phaseStats` no motor, bloco "Ataque por
+    fase" nas estatísticas): a eficácia de ataque sozinha mistura o ataque
+    que sai da RECEÇÃO (K1, side-out) com o que sai de uma DEFESA ou de uma
+    bola que voltou (K2, transição) — fases que se treinam à parte, e é a
+    transição que decide os sets equilibrados.
+    - **Não se marca nada a mais**: as ações estão gravadas por ordem, e o
+      rally (as ações entre dois pontos, que o `replay` passa ao `onRally`)
+      diz a fase. K1 = o PRIMEIRO ataque nosso num rally em que o adversário
+      serviu; K2 = todos os outros (servimos nós, ou o 1.º ataque não acabou
+      o rally). Não se lê pela defesa marcada: num scout "de receção e
+      ataque" a defesa não se marca, e a transição continuava a existir.
+    - **O K1 parte-se pela qualidade da receção** (a última marcada no rally
+      antes do ataque): é a pergunta "o problema é a receção ou o ataque?".
+      Sem receção marcada vai para "Sem receção marcada" — conta no K1, mas
+      não se inventa uma qualidade.
+    - Duas dicas novas na Análise do jogo, com 6 ataques por grupo no mínimo:
+      **Receção → ataque** (a eficácia cai 20 pontos ou mais com receção −, ou
+      fica abaixo de 15% mesmo com receção boa — aí o problema não é a
+      receção) e **Ataque em transição** (K2 contra K1).
   - **Exportação**: a folha A4 (`openSheet`, como o resumo pós-jogo; o PDF
     sai da janela de impressão) e o Excel com tudo — Jogos, Atletas (época),
     Atleta x Jogo e Ações, uma por linha — porque quem quer cruzar a época
