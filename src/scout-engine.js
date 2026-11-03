@@ -124,7 +124,9 @@ function positions(set, lineup, rot, srv) {
 // Reproduz um set. `onRally(pos, e, srv)` é chamado em cada ponto, com quem
 // estava em campo ANTES de o ponto mudar a rotação — é assim que se contam os
 // pontos jogados por atleta — e com quem servia nesse rally (`OUR`/`THEIR`),
-// que é o que separa o side-out do break-point.
+// que é o que separa o side-out do break-point. O 4.º argumento são as ações
+// do rally por ordem (as que não deram ponto e a que o acabou): é com elas que
+// se sabe se um ataque veio da receção ou de uma defesa (`phaseStats`).
 export function replay(g, si, onRally) {
   const set = g.sets[si];
   let lineup = set.lineup.slice();
@@ -132,6 +134,7 @@ export function replay(g, si, onRally) {
   let srv = set.firstServer;
   let our = 0;
   let their = 0;
+  let rally = [];
   for (const e of g.events) {
     if (e.set !== si) continue;
     if (e.t === 'SUB') {
@@ -140,8 +143,11 @@ export function replay(g, si, onRally) {
       continue;
     }
     const inc = pointTo(e);
-    if (inc === 'NO') continue;
-    if (onRally) onRally(positions(set, lineup, rot, srv), e, srv);
+    if (inc === 'NO') { rally.push(e); continue; }
+    rally.push(e);
+    const acts = rally;
+    rally = [];
+    if (onRally) onRally(positions(set, lineup, rot, srv), e, srv, acts);
     if (inc === 'OUR') {
       if (srv === 'THEIR') rot = (rot + 1) % 6;
       srv = 'OUR';
@@ -247,6 +253,64 @@ export function rotationStats(games, { isSetter = () => false, f = 'all' } = {})
   }
   const list = [...rot.values()].sort((a, b) => (a.setter === b.setter ? (a.setter ? a.zone - b.zone : b.n - a.n) : a.setter ? -1 : 1));
   return { list, tot };
+}
+
+// --- Fases do ataque: K1 (side-out) e K2 (transição) -------------------------
+//
+// A eficácia de ataque sozinha mistura dois ataques diferentes: o que sai da
+// RECEÇÃO (K1, a equipa organizada, o passe a partir de uma bola que se
+// controla) e o que sai de uma DEFESA ou de uma bola que voltou (K2, a
+// transição). Treinam-se à parte, e é a transição que decide os sets
+// equilibrados. Não é preciso marcar nada a mais: as ações estão gravadas por
+// ordem, e o rally diz a fase.
+//
+// - K1 = o PRIMEIRO ataque nosso num rally em que o adversário serviu.
+// - K2 = qualquer outro ataque: num rally em que servimos nós (a bola só pode
+//   ter chegado por defesa ou bola livre) ou depois de um ataque nosso que
+//   não acabou o rally.
+//
+// O K1 parte-se pela qualidade da última receção marcada antes dele — é a
+// pergunta "o problema é a receção ou o ataque?". Sem receção marcada nesse
+// rally (scout só de ataque, ou o toque escapou) vai para `NONE`: conta no
+// K1, mas não inventa uma qualidade.
+//
+// Rallies sem quem serve (set sem `firstServer`) ficam de fora, como no
+// side-out e break-point.
+const emptyAtk = () => ({ n: 0, kill: 0, err: 0, blk: 0 });
+const addAtk = (o, q) => {
+  o.n++;
+  if (q === 'PERFECT') o.kill++;
+  else if (q === 'ERROR') o.err++;
+  else if (q === 'BLOCKED') o.blk++;
+};
+export const atkEff = (o) => (o.n ? (o.kill - o.err - o.blk) / o.n : null);
+export const K1_RECEPTIONS = ['PERFECT', 'OK', 'BAD', 'NONE'];
+
+export function phaseStats(games, f = 'all') {
+  const r = { k1: emptyAtk(), k2: emptyAtk(), byRec: {} };
+  K1_RECEPTIONS.forEach((q) => { r.byRec[q] = emptyAtk(); });
+  for (const g of games) {
+    g.sets.forEach((_, si) => {
+      if (f !== 'all' && si !== Number(f)) return;
+      replay(g, si, (pos, e, srv, acts) => {
+        if (srv !== 'OUR' && srv !== 'THEIR') return;
+        let attacked = false;
+        let rec = 'NONE';
+        for (const a of acts) {
+          if (a.t === 'RECEPTION') rec = a.q;
+          if (a.t !== 'ATTACK') continue;
+          if (srv === 'THEIR' && !attacked) {
+            addAtk(r.k1, a.q);
+            addAtk(r.byRec[r.byRec[rec] ? rec : 'NONE'], a.q);
+          } else {
+            addAtk(r.k2, a.q);
+          }
+          attacked = true;
+        }
+      });
+    });
+  }
+  return r;
 }
 
 // --- Estatísticas -------------------------------------------------------

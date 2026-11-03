@@ -8348,6 +8348,9 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 .scout-rot__track { display: inline-block; vertical-align: middle; width: 70px; height: 8px; border-radius: 999px; background: var(--surface-2); overflow: hidden; margin-right: 0.45rem; }
 .scout-rot__track > span { display: block; height: 100%; }
 .scout-rot--few td { color: var(--text-muted); }
+.scout-rot__ph { font-weight: 600; }
+.scout-rot__ph--ok { color: var(--ok-ink, var(--ok)); }
+.scout-rot__ph--danger { color: var(--danger-ink); }
 @media (max-width: 640px) {
   .scout-rot__track { display: none; }
   .scout-rot__bar { min-width: 0; }

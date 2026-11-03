@@ -11,7 +11,7 @@
 // Isto é do treinador e não chega ao portal: "maior impacto" é um ranking, e
 // a atleta não se compara com as colegas (ver `my_scout_games`).
 
-import { counts, playerStats, pointsPlayed, teamSummary, teamCounts, rotationStats, findPlayer, ACT } from './scout-engine.js';
+import { counts, playerStats, pointsPlayed, teamSummary, teamCounts, rotationStats, phaseStats, atkEff, findPlayer, ACT } from './scout-engine.js';
 import { state } from './store.js';
 import { TACTICAL_ROLE_MATCH } from './constants.js';
 
@@ -40,6 +40,12 @@ export function rotationLabel(r, datas) {
   for (const d of [].concat(datas)) { p = findPlayer(d, r.pid); if (p) break; }
   return { short: p ? who(p) : '—', long: 'a servir' };
 }
+
+// Mínimos das regras de rotação e de fase: rallies de uma rotação NUMA fase
+// (side-out ou break-point), e ataques num grupo (K1, K2, uma qualidade de
+// receção). Abaixo disto a diferença é acaso.
+const ROT_MIN = 5;
+const PHASE_MIN = 6;
 
 const ERR_LABEL = {
   SERVICE: 'no serviço', RECEPTION: 'na receção', ATTACK: 'no ataque',
@@ -150,22 +156,68 @@ export function gameInsights(data, { season = [], isSetter = () => false } = {})
     text: `${who(r.p)}: ${n} erros ${ERR_LABEL[k]}${avg != null ? ` (costuma ter ${avg.toFixed(1).replace('.', ',')} por jogo)` : ''}.`,
   }));
 
-  // 5. A rotação mais difícil e a melhor. Só rotações com rallies que
-  //    cheguem para dizer alguma coisa.
+  // 5. A rotação mais difícil — em side-out e em break-point, cada uma contra
+  //    as outras na MESMA fase. Comparar o total de pontos ganhos misturava as
+  //    duas: o side-out ganha-se muito mais vezes do que o break-point, e uma
+  //    rotação em que calhou servirmos mais parecia "pior" sem jogar pior.
   const rs = rotationStats([data], { isSetter });
-  const ok = rs.list.filter((r) => r.n >= 6);
-  if (ok.length >= 2) {
-    const byRate = ok.slice().sort((a, b) => a.won / a.n - b.won / b.n);
+  for (const [n, won, title, phase] of [
+    ['so', 'soWon', 'Side-out mais difícil', 'quando o adversário servia'],
+    ['bp', 'bpWon', 'Break-point mais difícil', 'quando servíamos nós'],
+  ]) {
+    const ok = rs.list.filter((r) => r[n] >= ROT_MIN);
+    if (ok.length < 2) continue;
+    const byRate = ok.slice().sort((a, b) => a[won] / a[n] - b[won] / b[n]);
     const worst = byRate[0];
     const best = byRate[byRate.length - 1];
-    if (best.won / best.n - worst.won / worst.n >= 0.15) {
-      const wl = rotationLabel(worst, data);
-      const bl = rotationLabel(best, data);
+    if (best[won] / best[n] - worst[won] / worst[n] < 0.15) continue;
+    const wl = rotationLabel(worst, data);
+    const bl = rotationLabel(best, data);
+    out.push({
+      tone: 'warn', icon: '🔄', title,
+      text: `${wl.short} (${wl.long}): ganhámos ${worst[won]} de ${worst[n]} ${phase} (${pct(worst[won], worst[n])}%). A melhor foi ${bl.short}, com ${best[won]} de ${best[n]} (${pct(best[won], best[n])}%).`,
+    });
+  }
+
+  // 6. Receção → ataque (K1): o ataque cai quando a receção é má? Responde a
+  //    "o problema é a receção ou o ataque?" — com receção boa e ataque fraco,
+  //    treina-se o ataque; se só cai com receção má, treina-se a receção (ou
+  //    a bola alta de recurso).
+  const ph = phaseStats([data]);
+  const good = { n: 0, kill: 0, err: 0, blk: 0 };
+  for (const q of ['PERFECT', 'OK']) for (const k of Object.keys(good)) good[k] += ph.byRec[q][k];
+  const bad = ph.byRec.BAD;
+  if (good.n >= PHASE_MIN && bad.n >= PHASE_MIN) {
+    const eg = atkEff(good);
+    const eb = atkEff(bad);
+    if (eg - eb >= 0.2) {
       out.push({
-        tone: 'warn', icon: '🔄', title: 'Rotação mais difícil',
-        text: `${wl.short} (${wl.long}): ganhámos ${worst.won} de ${worst.n} pontos. A melhor foi ${bl.short}, com ${best.won} de ${best.n}.`,
+        tone: 'warn', icon: '📉', title: 'Receção → ataque',
+        text: `Com receção boa (# ou +) a eficácia de ataque foi ${Math.round(eg * 100)}% em ${good.n} ataques; com receção fraca (−) caiu para ${Math.round(eb * 100)}% em ${bad.n}. O ponto a trabalhar é a receção, ou a bola de recurso.`,
+      });
+    } else if (eg < 0.15) {
+      out.push({
+        tone: 'warn', icon: '📉', title: 'Receção → ataque',
+        text: `Mesmo com receção boa (# ou +) a eficácia de ataque ficou em ${Math.round(eg * 100)}% (${good.kill} pontos, ${good.err + good.blk} erros ou bloqueados em ${good.n}). Aqui o problema não é a receção.`,
       });
     }
+  }
+
+  // 7. Transição (K2) contra side-out (K1): quanto do ataque se perde quando a
+  //    bola vem de uma defesa. É a fase que decide os sets equilibrados.
+  if (ph.k1.n >= PHASE_MIN && ph.k2.n >= PHASE_MIN) {
+    const e1 = atkEff(ph.k1);
+    const e2 = atkEff(ph.k2);
+    const gap = e1 - e2;
+    out.push(gap >= 0.15
+      ? {
+        tone: 'warn', icon: '⚡', title: 'Ataque em transição',
+        text: `Em transição (depois de defesa ou bola que voltou) a eficácia foi ${Math.round(e2 * 100)}% em ${ph.k2.n} ataques, contra ${Math.round(e1 * 100)}% no side-out (${ph.k1.n}). É aqui que se perdem os pontos de contra-ataque.`,
+      }
+      : {
+        tone: 'info', icon: '⚡', title: 'Ataque em transição',
+        text: `Transição com ${Math.round(e2 * 100)}% de eficácia em ${ph.k2.n} ataques (${ph.k2.kill} pontos); no side-out foi ${Math.round(e1 * 100)}% em ${ph.k1.n}.`,
+      });
   }
 
   return [...out, ...records];
