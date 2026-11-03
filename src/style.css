@@ -8299,6 +8299,14 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 .scout-item__date { font-variant-numeric: tabular-nums; color: var(--text-muted); font-size: 0.85rem; }
 .scout-item__main { display: flex; flex-direction: column; min-width: 0; }
 .scout-item__main .muted { font-size: 0.82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scout-item { grid-template-columns: auto minmax(0, 1fr) auto auto; }
+.scout-item__chev { color: var(--text-muted); transition: transform 0.15s ease; }
+.scout-item[aria-expanded="true"] .scout-item__chev { transform: rotate(180deg); }
+.scout-item[aria-expanded="true"] { background: var(--surface-2); }
+/* O detalhe de um jogo abre por baixo da linha, a toda a largura. */
+.scout-inline { flex: 1 1 100%; min-width: 0; display: flex; flex-direction: column; gap: 1rem; padding: 0.9rem 0 0.4rem; margin-top: 0.2rem; border-top: 1px dashed var(--border); }
+.scout-inline__actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; padding-top: 0.6rem; border-top: 1px solid var(--border); }
+@media (prefers-reduced-motion: reduce) { .scout-item__chev { transition: none; } }
 .scout-res { font-family: var(--font-title); font-weight: 700; font-size: 1.15rem; padding: 0.1rem 0.6rem; border-radius: var(--radius-xs); font-variant-numeric: tabular-nums; }
 .scout-res--V { background: var(--ok-bg); color: var(--ok-ink); }
 .scout-res--D { background: var(--danger-bg); color: var(--danger-ink); }

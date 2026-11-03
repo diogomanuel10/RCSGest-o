@@ -1751,6 +1751,15 @@ separador antes de navegar (usado pelos cartões do Painel).
       os há, e há uma linha **Equipa** no fim. O total de erros da atleta
       sozinho não dizia se foram cinco serviços na rede ou cinco receções.
       A folha A4 e o Excel levam as mesmas colunas de erro.
+  - **O detalhe de um jogo abre NA LISTA, por baixo da linha do jogo**
+    (`openGameId`, `fillDetail`/`paintDetail` em `views/scout.js`), e não num
+    modal — a mesma forma dos "Totais por atleta" da época. Lê-se com a lista
+    à vista e fecha-se no mesmo sítio onde se abriu (a linha outra vez, ou
+    "Fechar"). Só um aberto de cada vez: dois detalhes inteiros seguidos são
+    três ecrãs de scroll. As ações carregam-se na primeira abertura e ficam
+    em memória (`detailState`) enquanto o `updated_at` do jogo não mudar, com
+    o set escolhido; como a lista re-desenha a cada notificação do store, a
+    descarga em curso fica em `detailLoading` para não se pedir duas vezes.
   - **Análise do jogo** (`scout-insights.js`, no topo do detalhe de um jogo
     TERMINADO): dicas para o treinador tiradas das ações — maior impacto,
     pontos oferecidos (e em que ação), uma ação a correr mal a uma atleta,
