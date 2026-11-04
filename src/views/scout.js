@@ -31,7 +31,7 @@ import {
   activeCols, usedCols, OPTIONAL_COLS, rotationStats, phaseStats, atkEff, K1_RECEPTIONS, QUALITY, qualityOf, counts,
 } from '../scout-engine.js';
 import { evoChart, wireEvo } from '../scout-charts.js';
-import { gameInsights, setterFinder, rotationLabel } from '../scout-insights.js';
+import { gameInsights, gameStandouts, setterFinder, rotationLabel } from '../scout-insights.js';
 
 // --- Estado local da secção -------------------------------------------------
 let teamFilter = '';
@@ -650,7 +650,7 @@ function setFilterHTML(data, cur) {
 function analysisBlock(data, season) {
   const isSetter = setterFinder();
   const tips = gameInsights(data, { season, isSetter });
-  return `<section class="scout-part">
+  return `${standoutsBlock(data)}<section class="scout-part">
     <h3 class="scout-part__title">Análise do jogo</h3>
     ${tips.length
       ? `<ul class="scout-tips">${tips.map((t) => `<li class="scout-tip scout-tip--${t.tone}">
@@ -658,6 +658,26 @@ function analysisBlock(data, season) {
           <div><strong>${esc(t.title)}</strong><p>${esc(t.text)}</p></div></li>`).join('')}</ul>`
       : '<p class="muted" style="margin:0">Ainda não há ações que cheguem para tirar conclusões deste jogo.</p>'}
     ${rotationBlock([data])}
+  </section>`;
+}
+
+// As jogadoras em destaque no jogo: um cartão por jogadora (até 3), cada uma
+// pelo que fez de melhor contra a equipa nesse jogo (`gameStandouts`). Vem à
+// cabeça do detalhe: é a primeira pergunta depois de um jogo, e a que se leva
+// ao balneário. Sem ninguém claramente acima da equipa, não aparece — um
+// destaque inventado num jogo cinzento tira valor aos verdadeiros.
+function standoutsBlock(data) {
+  const list = gameStandouts(data);
+  if (!list.length) return '';
+  const pct = (v) => `${Math.round(v * 100)}%`;
+  return `<section class="scout-part">
+    <h3 class="scout-part__title">Jogadoras em destaque</h3>
+    <ul class="scout-stars">${list.map((r) => `<li class="scout-star">
+      <strong class="scout-star__name">${esc(r.name)}</strong>
+      <ul class="scout-star__why">${r.reasons.slice(0, 2).map((x) => `<li><b>${esc(x.label)}</b> ${pct(x.rate)} ${esc(x.what)} em ${x.n} <span class="muted">· equipa ${pct(x.team)}</span></li>`).join('')}</ul>
+      ${r.played ? `<span class="muted scout-star__played">${r.played} pontos em campo</span>` : ''}
+    </li>`).join('')}</ul>
+    <p class="muted scout-footnote">Cada jogadora medida no seu fundamento contra a equipa neste jogo — por isso a líbero entra pela receção e a oposta pelo ataque. Conta a diferença para a equipa e em quantas ações assenta (mínimo de 6, e 10 pontos acima).</p>
   </section>`;
 }
 
