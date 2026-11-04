@@ -8368,6 +8368,12 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 .scout-act__key { margin-left: auto; font-size: 0.82rem; color: var(--text-muted); }
 .scout-act__key b { color: var(--text); font-variant-numeric: tabular-nums; }
 .scout-table__err { color: var(--danger-ink); font-weight: 600; }
+.scout-stars { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 0.6rem; }
+.scout-star { display: flex; flex-direction: column; gap: 0.3rem; padding: 0.7rem 0.85rem; border: 1px solid var(--border); border-top: 4px solid var(--gold); border-radius: var(--radius-sm); background: var(--surface); min-width: 0; }
+.scout-star__name { font-size: 1.02rem; }
+.scout-star__why { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.15rem; font-size: 0.9rem; }
+.scout-star__why b { font-weight: 600; }
+.scout-star__played { font-size: 0.8rem; }
 .scout-tips { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 0.6rem; }
 .scout-tip { display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.65rem 0.8rem; border: 1px solid var(--border); border-left: 4px solid var(--silver); border-radius: var(--radius-sm); background: var(--surface); }
 .scout-tip--ok { border-left-color: var(--ok); }

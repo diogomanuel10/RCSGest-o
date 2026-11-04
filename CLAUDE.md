@@ -1794,15 +1794,26 @@ separador antes de navegar (usado pelos cartões do Painel).
     percentagens). É onde se vê se o que se treina à semana aparece ao
     sábado. Os mesmos gráficos do portal (`evoChart`), com mínimos por
     indicador; cada ponto diz contra quem foi, porque o adversário pesa.
+  - **Jogadoras em destaque** (`gameStandouts` em `scout-insights.js`, no topo
+    do detalhe de um jogo TERMINADO): até 3 cartões, cada jogadora pelo que
+    fez de melhor. Não há MVP de propósito: pôr posições diferentes numa
+    escala só (pontos, ou um "valor" com pesos) põe sempre a oposta à frente
+    da líbero ou o contrário. Cada uma é medida NO SEU fundamento contra a
+    EQUIPA nesse jogo ("receção 76% boas · equipa 62%"), e o peso do destaque
+    é a diferença vezes as ações em que assenta — quantas bolas bem jogadas a
+    mais do que a equipa faria com as mesmas bolas —, somado pelos
+    fundamentos em que ficou acima. Mínimos: 6 ações (4 no bloco), 10 pontos
+    acima da equipa e um peso de 2; num jogo sem ninguém claramente acima o
+    bloco não aparece, porque um destaque inventado tira valor aos outros. É
+    do treinador e não chega ao portal (é uma escolha entre colegas).
   - **Análise do jogo** (`scout-insights.js`, no topo do detalhe de um jogo
-    TERMINADO): dicas para o treinador tiradas das ações — destaques do jogo,
-    pontos oferecidos (e em que ação), uma ação a correr mal a uma atleta,
+    TERMINADO): dicas para o treinador tiradas das ações — pontos oferecidos (e em que ação), uma ação a correr mal a uma atleta,
     a rotação mais difícil em side-out e em break-point, receção → ataque,
     ataque em transição e, havendo época, o melhor jogo da época de cada
     atleta. A meio do jogo não aparece: seis rallies não chegam para dizer
     que uma rotação é difícil.
     - **Regras e não "inteligência"**: cada dica diz o número que a sustenta
-      ("Receção: 7 · Gabi N., 70% positiva em 30"). Uma nota opaca não se usa
+      ("R3: ganhámos 6 de 14 quando o adversário servia"). Uma nota opaca não se usa
       no treino de terça; uma conta que se pode verificar, sim. E funciona
       sem rede.
     - **Cada regra tem um mínimo de ações** (e o "melhor da época" pede dois
@@ -1814,7 +1825,7 @@ separador antes de navegar (usado pelos cartões do Painel).
       máximo três, e vai para o FIM da lista: é boa notícia, e o que pede
       trabalho tem de se ler primeiro. "A rever" compara com o que é normal
       NELA ("costuma ter 1,5 por jogo"), não com as colegas.
-    - **Nada disto chega ao portal**: os destaques são um ranking.
+    - **Nada disto chega ao portal**: os destaques comparam colegas.
   - **Por rotação** (`rotationStats` no motor): pontos jogados e ganhos em
     cada rotação, com **side-out** (ganhar quando o adversário serve) e
     **break-point** (ganhar quando servimos) à parte — são fases diferentes

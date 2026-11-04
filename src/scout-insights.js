@@ -11,7 +11,7 @@
 // Isto é do treinador e não chega ao portal: "destaques do jogo" é um ranking, e
 // a atleta não se compara com as colegas (ver `my_scout_games`).
 
-import { counts, playerStats, teamSummary, teamCounts, rotationStats, phaseStats, atkEff, findPlayer, qualityOf, ACT } from './scout-engine.js';
+import { counts, playerStats, pointsPlayed, teamSummary, teamCounts, rotationStats, phaseStats, atkEff, findPlayer, qualityOf, ACT } from './scout-engine.js';
 import { state } from './store.js';
 import { TACTICAL_ROLE_MATCH } from './constants.js';
 
@@ -74,25 +74,9 @@ export function gameInsights(data, { season = [], isSetter = () => false } = {})
   const ts = teamSummary([data]);
   const tc = teamCounts([data]);
 
-  // 1. Destaques do jogo: a melhor QUALIDADE em cada fundamento, entre quem
-  //    tem ações que cheguem nele. Era "maior impacto" (pontos menos erros),
-  //    e isso só sabia premiar atacantes — uma líbero com 80% de receção
-  //    positiva nunca lá aparecia. Cada linha diz a percentagem e em quantas
-  //    ações, para se ver que não é acaso.
-  const all = Object.keys(c).map((id) => ({ id, p: findPlayer(data, id), s: playerStats(c[id]) })).filter((r) => r.p);
-  const tops = [];
-  for (const [, label, val, ok, fmt, nKey] of BESTS) {
-    const best = all.filter((r) => ok(r.s) && val(r.s) != null)
-      .sort((a, b) => val(b.s) - val(a.s) || b.s[nKey] - a.s[nKey])[0];
-    if (best && val(best.s) > 0) tops.push(`${label.replace(/^(em|no) /, '').replace(/^./, (x) => x.toUpperCase())}: ${who(best.p)}, ${fmt(val(best.s))} em ${best.s[nKey]}`);
-  }
-  // O bloco não tem campo próprio no playerStats para a qualidade.
-  const blk = all.map((r) => ({ r, q: qualityOf(c[r.id], 'BLOCK') })).filter((x) => x.q.n >= 6)
-    .sort((a, b) => b.q.rate - a.q.rate || b.q.n - a.q.n)[0];
-  if (blk && blk.q.rate > 0) tops.push(`Bloco: ${who(blk.r.p)}, ${pctTxt(blk.q.rate)} positivo em ${blk.q.n}`);
-  if (tops.length) {
-    out.push({ tone: 'ok', icon: '🔥', title: 'Destaques do jogo', text: `${tops.slice(0, 4).join(' · ')}.` });
-  }
+  // 1. As jogadoras em destaque saíram daqui para um bloco próprio, no topo
+  //    da análise (`gameStandouts`): são pessoas e não uma dica, e numa frase
+  //    com quatro nomes e quatro percentagens ninguém as via.
 
   // 2. Melhor jogo da época, contra ela própria. Vão para o FIM da lista: são
   //    boas notícias, e o que pede trabalho (pontos oferecidos, uma ação a
@@ -228,4 +212,58 @@ export function gameInsights(data, { season = [], isSetter = () => false } = {})
   }
 
   return [...out, ...records];
+}
+
+// --- Jogadoras em destaque ---------------------------------------------------
+//
+// Quem se destacou NO JOGO, cada uma pelo que fez de melhor — e não um MVP.
+// Comparar posições diferentes numa escala só (pontos, ou um "valor" com
+// pesos) põe sempre a oposta à frente da líbero ou o contrário; aqui cada uma
+// é medida NO SEU fundamento contra a EQUIPA nesse mesmo jogo: "receção 76%
+// boas, a equipa teve 58%".
+//
+// O peso de um destaque é a diferença para a equipa vezes as ações em que
+// assenta: 15 pontos acima em 30 receções pesa mais do que 20 acima em 6. Dá,
+// em linguagem de treinador, "quantas bolas bem jogadas a mais do que a
+// equipa faria com as mesmas bolas". Soma-se pelos fundamentos em que ela
+// ficou acima, para a atleta completa não perder para quem só fez uma coisa.
+//
+// Mínimos: 6 ações no fundamento (4 no bloco, que tem poucas) e 10 pontos
+// acima da equipa — abaixo disso é acaso de um jogo, não destaque.
+const STAND = [
+  { k: 'RECEPTION', label: 'Receção', min: 6, what: 'receções boas', v: (o) => qualityOf(o, 'RECEPTION') },
+  { k: 'ATTACK', label: 'Ataque', min: 6, what: 'de eficácia', v: (o) => { const s = playerStats(o); return { n: s.atk, rate: s.effA }; } },
+  { k: 'DEFENSE', label: 'Defesa', min: 6, what: 'defesas boas', v: (o) => qualityOf(o, 'DEFENSE') },
+  { k: 'SERVICE', label: 'Serviço', min: 6, what: 'de eficácia', v: (o) => { const s = playerStats(o); return { n: s.srv, rate: s.effS }; } },
+  { k: 'SETTING', label: 'Passe', min: 6, what: 'passes bons', v: (o) => qualityOf(o, 'SETTING') },
+  { k: 'BLOCK', label: 'Bloco', min: 4, what: 'blocos positivos', v: (o) => qualityOf(o, 'BLOCK') },
+];
+const STAND_GAP = 0.10;
+
+export function gameStandouts(data, { max = 3 } = {}) {
+  const c = counts([data]);
+  const tc = teamCounts([data]);
+  const played = pointsPlayed(data);
+  const team = Object.fromEntries(STAND.map((m) => [m.k, m.v(tc)]));
+  const rows = [];
+  for (const id of Object.keys(c)) {
+    const p = findPlayer(data, id);
+    if (!p) continue;
+    const reasons = [];
+    for (const m of STAND) {
+      const me = m.v(c[id]);
+      const t = team[m.k];
+      if (!me.n || me.n < m.min || me.rate == null || t.rate == null) continue;
+      const gap = me.rate - t.rate;
+      if (gap < STAND_GAP || me.rate <= 0) continue;
+      reasons.push({ k: m.k, label: m.label, what: m.what, rate: me.rate, n: me.n, team: t.rate, weight: gap * me.n });
+    }
+    if (!reasons.length) continue;
+    reasons.sort((a, b) => b.weight - a.weight);
+    rows.push({ id, p, reasons, weight: reasons.reduce((a, r) => a + r.weight, 0), played: played[id] || 0 });
+  }
+  // Um destaque tem de valer ao menos duas bolas bem jogadas a mais: uma
+  // diferença de 10 pontos em 6 ações é 0,6, e isso não é um jogo, é um set.
+  return rows.filter((r) => r.weight >= 2).sort((a, b) => b.weight - a.weight).slice(0, max)
+    .map((r) => ({ ...r, name: who(r.p) }));
 }
