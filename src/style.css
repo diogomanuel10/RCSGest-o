@@ -7603,8 +7603,22 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 .sc-fund__head strong { font-variant-numeric: tabular-nums; color: var(--text-muted); font-weight: 600; font-size: 0.85rem; }
 .sc-fund__q { margin: 0.25rem 0 0; font-size: 0.82rem; color: var(--text-muted); }
 .sc-fund__q b { color: var(--text); font-variant-numeric: tabular-nums; }
+/* "Menos do que costumas" é âmbar e sem negrito: vermelho lê-se como
+   avaria, e um jogo abaixo do costume não é uma avaria. */
 .sc-fund__vs--good { color: var(--ok-ink); font-weight: 600; }
-.sc-fund__vs--bad { color: var(--danger-ink); font-weight: 600; }
+.sc-fund__vs--bad { color: var(--warn-ink); }
+.sc-fund__pct { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+/* A frase do topo do jogo: o que se tira dos números, por palavras. */
+.sc-sum { margin: 0.8rem 0 0; display: flex; flex-direction: column; gap: 0.35rem; }
+.sc-sum p { margin: 0; font-size: 0.9rem; line-height: 1.4; padding: 0.5rem 0.65rem; border-radius: var(--radius-sm); border-left: 3px solid var(--border); background: var(--surface-2); }
+.sc-sum__best { border-left-color: var(--ok) !important; }
+.sc-sum__best strong { color: var(--ok-ink); }
+.sc-sum__next { border-left-color: var(--warn) !important; color: var(--text-muted); }
+/* Os fundamentos com poucas ações, fechados por omissão. */
+.sc-more { margin: 0.75rem 0 0; }
+.sc-more > summary { cursor: pointer; font-size: 0.85rem; color: var(--text-muted); min-height: 32px; display: flex; align-items: center; gap: 0.4rem; }
+.sc-more__note { font-size: 0.78rem; opacity: 0.8; }
+.sc-more .sc-funds { margin-top: 0.5rem; }
 /* «Como ler isto» — a explicação das estatísticas para quem tem 14 anos. */
 .sc-help { margin: 0.8rem 0 0; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); }
 .sc-help > summary { cursor: pointer; padding: 0.55rem 0.75rem; font-weight: 600; font-size: 0.9rem; }

@@ -1746,6 +1746,26 @@ separador antes de navegar (usado pelos cartões do Painel).
       puxa a linha (2 em 2 são 100% e não dizem nada). Tocar num ponto diz o
       jogo, a percentagem e EM QUANTAS ações — num telemóvel não há hover. Só
       aparecem os fundamentos com 10 ações e 3 jogos.
+    - **Cada jogo abre com uma FRASE, antes de qualquer número**
+      (`gameSummaryHTML`): "O melhor do teu jogo: o teu serviço. 15 de 17
+      serviços entraram, mais do que costumas (76%)" e, se houver, "Para a
+      próxima, o teu ataque: …". A atleta recebia números e tinha de tirar
+      sozinha a conclusão — e quem não lê gráficos não a tirava. Começa
+      SEMPRE pelo que correu bem; sem com que comparar, diz onde ela mais
+      jogou, sem juízo.
+    - **"9 de 26 ataques deram ponto (35%)"** (`goodPhrase`): a contagem
+      primeiro, a percentagem entre parênteses. "35%" sozinho lia-se como uma
+      negativa da escola. As palavras das barras dizem o que aconteceu
+      ("defendidos", "difíceis") em vez de "continuaram"/"fracas".
+    - **"Menos do que costumas" é âmbar e sem negrito** (`compareToSelf`), a
+      regra das avaliações físicas — e só aparece com 8 ações ou mais no
+      fundamento (`COMPARE_MIN`): com 4, duas defesas boas davam uma seta
+      vermelha.
+    - **O terceiro número grande é "ações bem feitas"** (`goodTotal`) e já não
+      os erros: era desse que ela se lembrava. Os erros continuam nas barras.
+    - **Fundamentos com menos de 5 ações vão para "Ver mais"**: quatro
+      defesas não dizem nada sobre o jogo dela, e cinco barras empilhadas
+      enterravam as duas que dizem.
     - **«Como ler isto»** (`helpHTML`): o que cada cor e cada percentagem
       querem dizer, em palavras de quem tem catorze anos. Fechado por
       omissão, só com os fundamentos marcados.
