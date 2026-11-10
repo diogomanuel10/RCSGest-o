@@ -1749,8 +1749,12 @@ separador antes de navegar (usado pelos cartões do Painel).
     - **«Como ler isto»** (`helpHTML`): o que cada cor e cada percentagem
       querem dizer, em palavras de quem tem catorze anos. Fechado por
       omissão, só com os fundamentos marcados.
-    - **Uma época tem trinta jogos**: o resumo vem em cima e "Jogo a jogo"
-      mostra os 5 mais recentes, fechados, com "Mostrar os restantes N".
+    - **Uma época tem trinta jogos**: "Os meus jogos" mostra os 5 mais
+      recentes, com "Mostrar os restantes N", e o resumo da época vem DEPOIS.
+      Esteve ao contrário, e o jogo de sábado ficava abaixo de quatro
+      gráficos e das barras da época — três ecrãs de scroll para responder à
+      pergunta por que ela abriu o separador. O último jogo nasce ABERTO; os
+      outros fechados.
       Fechada, cada linha já diz os pontos DELA nesse jogo — sem isso era o
       calendário outra vez. Com UM jogo só não há resumo da época: era o
       mesmo bloco duas vezes, e mostra-se o jogo já aberto.

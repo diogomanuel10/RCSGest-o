@@ -864,31 +864,35 @@ function jogosHTML(me) {
   const shown = scoutShowAll ? games : games.slice(0, SCOUT_VISIBLE);
   const rest = games.length - shown.length;
 
+  // Os JOGOS vêm primeiro, com o último já aberto: quem abre isto no sábado à
+  // noite quer saber como lhe correu aquele jogo, e com o resumo da época por
+  // cima (números, gráficos, barras) o jogo de hoje ficava três ecrãs abaixo.
+  // A época é a leitura de fundo, e fica a seguir.
   return `
     <section class="card portal-section">
-      <h2 class="section-title portal-section__title">A minha época</h2>
+      <h2 class="section-title portal-section__title">Os meus jogos</h2>
       ${note}
-      <div class="sc-tiles">
-        <div class="sc-tile"><strong>${games.length}</strong><span>jogos · ${w}V ${games.length - w}D</span></div>
-        <div class="sc-tile"><strong>${played}</strong><span>pontos em campo</span></div>
-        <div class="sc-tile"><strong>${main ? `${Math.round(main.rate * 100)}%` : '—'}</strong><span>${main ? esc(main.q.what) : 'sem ações'}</span></div>
-      </div>
       ${helpHTML(used, { charts: games.length >= 3 })}
-      ${games.length >= 3 ? qualityEvo(games, me, used) : ''}
-      ${myFundamentals(datas, used, me)}
-      ${teamBlock(datas)}
-    </section>
-
-    <section class="card portal-section">
-      <h2 class="section-title portal-section__title">Jogo a jogo</h2>
       <ul class="portal-scout-list portal-scout-list--solo">
-        ${shown.map((g) => scoutGameRow(g, me, { others: datas.filter((d) => d !== g.data) })).join('')}
+        ${shown.map((g, i) => scoutGameRow(g, me, { open: i === 0, others: datas.filter((d) => d !== g.data) })).join('')}
       </ul>
       ${games.length > SCOUT_VISIBLE
         ? `<button class="btn btn--link portal-section__more" data-scout-toggle type="button">
              ${scoutShowAll ? 'Mostrar só os últimos' : `Mostrar os restantes ${rest}`}
            </button>`
         : ''}
+    </section>
+
+    <section class="card portal-section">
+      <h2 class="section-title portal-section__title">A minha época</h2>
+      <div class="sc-tiles">
+        <div class="sc-tile"><strong>${games.length}</strong><span>jogos · ${w}V ${games.length - w}D</span></div>
+        <div class="sc-tile"><strong>${played}</strong><span>pontos em campo</span></div>
+        <div class="sc-tile"><strong>${main ? `${Math.round(main.rate * 100)}%` : '—'}</strong><span>${main ? esc(main.q.what) : 'sem ações'}</span></div>
+      </div>
+      ${games.length >= 3 ? qualityEvo(games, me, used) : ''}
+      ${myFundamentals(datas, used, me)}
+      ${teamBlock(datas)}
     </section>`;
 }
 
