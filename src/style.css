@@ -7559,11 +7559,35 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 .portal-scout-game summary { display: flex; align-items: center; gap: 0.6rem; padding: 0.45rem 0; font-size: 0.92rem; cursor: pointer; min-height: 44px; }
 .portal-scout-game summary .badge { flex: none; }
 .portal-scout-game__body { padding: 0 0 0.7rem; font-size: 0.92rem; }
-.portal-scout-game summary .portal-att-row__title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.portal-scout-game__mine { flex: none; color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .portal-scout-sub { margin: 1rem 0 0; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
 .portal-scout-sub + .portal-scout-list { margin-top: 0.3rem; }
 .portal-scout-list--solo { border-top: 0; padding-top: 0; margin-top: 0.4rem; }
+/* Cada jogo é um CARTÃO com seta, e não uma linha de texto: numa lista de
+   linhas soltas ninguém adivinha que se toca no jogo para o abrir — e o que
+   está lá dentro é a razão por que se abriu o separador. */
+.portal-scout-list--solo .portal-scout-game { border: 1px solid var(--border); border-radius: var(--radius-sm); margin-bottom: 0.5rem; background: var(--surface); overflow: hidden; }
+/* Duas linhas: o ADVERSÁRIO por cima, com a largura toda que sobra, e a data
+   com o que ela fez por baixo. Numa linha só, a data de largura fixa e o
+   "Ataque 35%" comiam o espaço e o nome do jogo ficava "vs …". */
+.portal-scout-list--solo .portal-scout-game summary {
+  list-style: none; padding: 0.5rem 0.7rem;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto; column-gap: 0.6rem; row-gap: 0.05rem;
+  grid-template-areas: "title badge chev" "meta badge chev";
+}
+.portal-scout-game__title { grid-area: title; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.portal-scout-game__meta { grid-area: meta; min-width: 0; font-size: 0.82rem; color: var(--text-muted); font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.portal-scout-list--solo .portal-scout-game summary .badge { grid-area: badge; }
+.portal-scout-list--solo .portal-scout-game__chev { grid-area: chev; }
+.portal-scout-list--solo .portal-scout-game summary::-webkit-details-marker { display: none; }
+.portal-scout-list--solo .portal-scout-game summary:hover,
+.portal-scout-list--solo .portal-scout-game[open] summary { background: var(--surface-2); }
+.portal-scout-list--solo .portal-scout-game[open] summary { border-bottom: 1px solid var(--border); }
+.portal-scout-list--solo .portal-scout-game__body { padding: 0.6rem 0.7rem 0.8rem; }
+.portal-scout-game summary:focus-visible { outline: 2px solid var(--navy-500); outline-offset: -2px; }
+.portal-scout-game__chev { flex: none; color: var(--text-muted); font-size: 1.05rem; line-height: 1; transition: transform 0.15s ease; }
+.portal-scout-game[open] .portal-scout-game__chev { transform: rotate(180deg); }
+.portal-scout-hint { margin: 0.7rem 0 0; font-size: 0.85rem; color: var(--text-muted); }
+@media (prefers-reduced-motion: reduce) { .portal-scout-game__chev { transition: none; } }
 
 /* --- Separador «Jogos»: números grandes, barras em vez de percentagens --- */
 .sc-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; margin: 0.8rem 0 0; }

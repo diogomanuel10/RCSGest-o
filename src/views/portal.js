@@ -801,10 +801,10 @@ function scoutGameRow(g, me, { open = false, others = [] } = {}) {
   const avgs = others.length >= 2 ? myAverages(others, me) : null;
   return `<li><details class="portal-scout-game"${open ? ' open' : ''}>
     <summary>
-      <span class="portal-att-row__day">${esc(fmt(g.game_date))}</span>
-      <span class="portal-att-row__title">vs ${esc(g.opponent || 'Adversário')}</span>
-      <span class="portal-scout-game__mine">${mineShort}</span>
+      <span class="portal-scout-game__title">vs ${esc(g.opponent || 'Adversário')}</span>
+      <span class="portal-scout-game__meta">${esc(fmt(g.game_date))} · ${esc(mineShort)}</span>
       <span class="badge badge--${res === 'V' ? 'ok' : res === 'D' ? 'danger' : 'muted'}">${r.o}–${r.t}</span>
+      <span class="portal-scout-game__chev" aria-hidden="true">▾</span>
     </summary>
     <div class="portal-scout-game__body">
       <p class="muted" style="margin:0">Parciais ${esc(partials(g.data).map((x) => `${x.our}-${x.their}`).join(', ') || '—')}${g.competition ? ` · ${esc(g.competition)}` : ''}</p>
@@ -873,6 +873,7 @@ function jogosHTML(me) {
       <h2 class="section-title portal-section__title">Os meus jogos</h2>
       ${note}
       ${helpHTML(used, { charts: games.length >= 3 })}
+      <p class="portal-scout-hint">Toca num jogo para o abrir e veres o que fizeste.</p>
       <ul class="portal-scout-list portal-scout-list--solo">
         ${shown.map((g, i) => scoutGameRow(g, me, { open: i === 0, others: datas.filter((d) => d !== g.data) })).join('')}
       </ul>

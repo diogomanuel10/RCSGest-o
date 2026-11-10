@@ -1755,6 +1755,10 @@ separador antes de navegar (usado pelos cartões do Painel).
       gráficos e das barras da época — três ecrãs de scroll para responder à
       pergunta por que ela abriu o separador. O último jogo nasce ABERTO; os
       outros fechados.
+    - **Cada jogo é um cartão com seta (▾)**, e por cima diz-se "Toca num
+      jogo para o abrir": em linhas de texto soltas ninguém adivinhava que
+      se tocava no jogo. O adversário vai na 1.ª linha e a data com o que
+      ela fez na 2.ª — numa linha só, o nome do jogo ficava "vs …".
       Fechada, cada linha já diz os pontos DELA nesse jogo — sem isso era o
       calendário outra vez. Com UM jogo só não há resumo da época: era o
       mesmo bloco duas vezes, e mostra-se o jogo já aberto.
