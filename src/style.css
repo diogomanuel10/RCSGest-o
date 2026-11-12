@@ -9747,22 +9747,10 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
    Tudo isto se cala com `prefers-reduced-motion` (regra global, no topo).
    ========================================================================= */
 
-/* Mudar de secção: só o conteúdo passa; as barras ficam quietas. */
-.content__inner {
-  view-transition-name: page;
-}
-::view-transition-old(root),
-::view-transition-new(root) {
-  animation: none;
-}
-::view-transition-old(page) {
-  animation: pageOut 0.12s ease-in both;
-}
-::view-transition-new(page) {
-  animation: pageIn 0.22s cubic-bezier(0.22, 0.9, 0.3, 1) both;
-}
-@keyframes pageOut {
-  to { opacity: 0; }
+/* Mudar de secção: o conteúdo novo entra com um fade curto (classe posta
+   pelo `applyHash`). Só opacidade e uns píxeis — sem fotografias da página. */
+.content__inner--enter {
+  animation: pageIn 0.2s ease;
 }
 
 /* Ao dedo não há `:hover` que confirme o toque: o que se carrega encolhe um

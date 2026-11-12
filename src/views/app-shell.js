@@ -423,23 +423,28 @@ export async function renderAppShell(root, session) {
       if (item && routeAllowed(item)) current = item.key;
       else current = firstAllowedRoute();
     }
-    // Mudar de secção é uma passagem, não um corte: o conteúdo antigo sai e o
-    // novo entra (View Transitions, onde o browser as tem). Só quando o SÍTIO
-    // muda — reabrir o mesmo destino redesenha sem animação — e nunca para
-    // quem pediu menos movimento.
+    // Mudar de secção é uma passagem, não um corte: o conteúdo novo entra
+    // com um fade curto. É uma animação CSS no próprio conteúdo, e NÃO a View
+    // Transitions API, que esteve aqui: ela tira uma fotografia da página
+    // inteira a cada mudança (o Calendário tem cinco mil píxeis de altura) e
+    // congela os toques enquanto corre — num telemóvel, tocar depressa na
+    // barra inferior acabava com a app a recarregar. Só quando o SÍTIO muda:
+    // reabrir o mesmo destino redesenha sem animação.
     const place = detail ? `atleta:${detail.playerId}` : current;
     const moved = place !== lastPlace;
-    const animate = moved && lastPlace !== null && document.startViewTransition
-      && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const animate = moved && lastPlace !== null;
     lastPlace = place;
-    const draw = () => {
-      paint();
+    paint();
+    if (moved) {
       // A página é que desliza (não o `content`): sem isto, trocar de secção
       // a meio de uma lista abria a seguinte a meio também.
-      if (moved) window.scrollTo(0, 0);
-    };
-    if (animate) document.startViewTransition(draw);
-    else draw();
+      window.scrollTo(0, 0);
+    }
+    if (animate) {
+      content.classList.remove('content__inner--enter');
+      void content.offsetWidth; // reinicia a animação
+      content.classList.add('content__inner--enter');
+    }
   }
 
   // Passos de navegação dados dentro da app. Serve para saber se há para onde
@@ -522,8 +527,14 @@ export async function renderAppShell(root, session) {
     return { tabs: ranked.slice(0, TAB_SLOTS), more: true };
   }
   function renderTabbar() {
-    const solo = allRoutes().filter(routeAllowed).length <= 1;
+    // Só se conclui "uma secção só" com os dados carregados: a meio de um
+    // carregamento os planos e as permissões ainda não chegaram, e a barra
+    // desaparecia por um instante (ou de vez, se o carregamento falhasse).
+    const solo = state.loaded
+      ? allRoutes().filter(routeAllowed).length <= 1
+      : state.profile?.role === 'atleta';
     document.documentElement.classList.toggle('has-tabbar', !solo);
+    if (!state.loaded) return; // os destinos só se sabem com os dados
     const { tabs, more } = solo ? { tabs: [], more: false } : tabRoutes();
     const sig = tabs.map((n) => n.key).join(',') + (more ? '+' : '');
     if (sig === tabKeys) return; // só redesenha quando os destinos mudam
