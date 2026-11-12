@@ -470,6 +470,31 @@ browser desfaz o último passo e os links são partilháveis.
 - Uma rota desconhecida ou sem permissão cai na primeira secção permitida.
 - Quando o `paint()` muda de rota por sua conta, `syncHash()` corrige o endereço
   com `replaceState` (sem criar passo no histórico).
+- **No telemóvel a navegação é uma barra em baixo** (`.tabbar`, `TAB_PRIORITY`
+  no `app-shell`): até aos 820px, os QUATRO sítios mais usados por cada papel
+  estão sempre à mão e "Mais" abre a gaveta com tudo. Era só a gaveta, com
+  treze entradas atrás de um hambúrguer no canto mais longe do polegar — e
+  marcar presenças, que o treinador faz todos os dias, eram dois toques e uma
+  lista para ler. A lista é por PAPEL (as Presenças são o segundo sítio do
+  treinador e nem existem para a direção), filtrada pelo que a pessoa pode
+  ver; quem tem cinco secções ou menos vê-as todas, sem "Mais"; quem tem uma
+  só (o atleta, `.app--solo`) não tem barra.
+  - "Mais" fica aceso quando a secção atual só existe na gaveta — senão a
+    barra não dizia onde se está. Tocar no separador atual volta ao topo.
+  - Com a barra, o hambúrguer e o "Sair" saem do topo (`:root.has-tabbar`): o
+    "Sair" é a ação mais rara da app e passou para o fim da gaveta.
+  - A altura da barra é a variável `--tabbar-h` (zero sem barra): a gaveta, a
+    cortina, os toasts e o fundo do conteúdo medem-se por ela.
+- **Tablet deitado: a barra lateral abre com um botão** (`.app--rail`,
+  `rumia.rail` no `localStorage`). Só expandia com `:hover`, que ao dedo não
+  existe: ficavam treze ícones sem legenda. Onde não há rato (`hover: none`) o
+  botão do menu volta a aparecer; a barra nasce aberta a partir dos 1024px.
+- **Zonas seguras** (`--safe-*`, `--topbar-h`): instalada num iPhone a app
+  desenha por baixo da barra de estado (`black-translucent` +
+  `viewport-fit=cover`), por isso o topo, a barra inferior, os modais, o
+  quiosque e o scout levam as margens `env(safe-area-inset-*)`. Alturas de
+  ecrã usam `dvh` (com `vh` como recurso). O manifesto não prende a
+  orientação: o scout e o quiosque usam-se com o tablet deitado.
 - O `renderAppShell` pode ser montado mais do que uma vez (ex.: fim do
   onboarding); `disposeGlobals` limpa os listeners de `window`/`document` e a
   subscrição ao store da montagem anterior.

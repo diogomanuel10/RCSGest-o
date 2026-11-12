@@ -132,6 +132,29 @@ const FOOTER = [
 
 const isMobile = () => window.matchMedia('(max-width: 820px)').matches;
 
+// --- Barra inferior (telemóvel e tablet em pé) ----------------------------
+// Os sítios que cada papel abre todos os dias, pela ordem em que os abre. A
+// barra mostra os primeiros QUATRO a que a pessoa tem acesso e "Mais" (a
+// gaveta com tudo). É por papel e não uma lista única: para quem treina, as
+// Presenças são o segundo sítio mais usado da app; para a direção nem lá
+// estão. Uma secção que falte aqui não desaparece — fica no "Mais".
+const TAB_PRIORITY = {
+  treinador:      ['painel', 'presencas', 'jogos', 'planteis', 'calendario', 'treino'],
+  fisioterapeuta: ['painel', 'saude', 'calendario', 'planteis'],
+  preparador:     ['painel', 'saude', 'calendario', 'presencas', 'planteis'],
+  seccionista:    ['painel', 'planteis', 'equipamentos', 'financeiro', 'calendario'],
+  direcao:        ['painel', 'financeiro', 'planteis', 'calendario', 'jogos'],
+  default:        ['painel', 'planteis', 'calendario', 'presencas', 'jogos'],
+};
+const TAB_SLOTS = 4;
+// Etiquetas que não cabem num quinto da largura de um telemóvel.
+const TAB_LABEL = { saude: 'Saúde', equipamentos: 'Material', marketing: 'Datas', 'plano-jogo': 'Plano' };
+const MORE_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>`;
+const LOGOUT_ICON = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`;
+// A barra lateral aberta ou fechada num ecrã largo de toque (tablet deitado).
+// É estado de UI e depende do dispositivo, por isso vive no `localStorage`.
+const RAIL_KEY = 'rumia.rail';
+
 let current = 'painel';
 
 // Listeners registados fora do `root` (window/document) e a subscrição ao
@@ -314,11 +337,17 @@ export async function renderAppShell(root, session) {
       <div class="app__body">
         <aside class="sidebar" id="sidebar">
           <nav class="sidebar__nav">${groupedNavHTML()}</nav>
-          <div class="sidebar__foot">${navHTML(FOOTER, true)}</div>
+          <div class="sidebar__foot">${navHTML(FOOTER, true)}
+            <button class="navitem navitem--logout" id="logout-drawer" type="button">
+              <span class="navitem__icon">${LOGOUT_ICON}</span>
+              <span>Sair</span>
+            </button>
+          </div>
         </aside>
         <div class="scrim" id="scrim"></div>
         <main class="content"><div class="content__inner" id="content"></div></main>
       </div>
+      <nav class="tabbar" id="tabbar" aria-label="Secções principais"></nav>
     </div>
   `;
 
@@ -432,15 +461,74 @@ export async function renderAppShell(root, session) {
 
   // --- Gaveta (telemóvel) ---
   function toggleMenu() {
-    if (isMobile()) appRoot.classList.toggle('app--drawer');
+    if (isMobile()) {
+      appRoot.classList.toggle('app--drawer');
+      setActive();
+      return;
+    }
+    // Ecrã largo: o botão só existe onde não há rato (ver CSS) e abre ou
+    // fecha a barra lateral — o `:hover` que a expande não existe num tablet.
+    const open = appRoot.classList.toggle('app--rail');
+    try { localStorage.setItem(RAIL_KEY, open ? '1' : '0'); } catch { /* janela privada */ }
   }
   function closeDrawer() {
     appRoot.classList.remove('app--drawer');
+    setActive();
   }
 
-  root.querySelector('#menu-toggle').addEventListener('click', toggleMenu);
-  root.querySelector('#scrim').addEventListener('click', closeDrawer);
-  root.querySelector('#logout').addEventListener('click', () => {
+  // Tablet deitado: a barra abre por omissão quando há largura para ela
+  // (1024px+), e a partir daí vale o que a pessoa escolheu.
+  if (window.matchMedia('(hover: none)').matches) {
+    let saved = null;
+    try { saved = localStorage.getItem(RAIL_KEY); } catch { /* janela privada */ }
+    const open = saved === null ? window.innerWidth >= 1024 : saved === '1';
+    appRoot.classList.toggle('app--rail', open);
+  }
+
+  // --- Barra inferior ---
+  const tabbar = root.querySelector('#tabbar');
+  let tabKeys = '';
+  function tabRoutes() {
+    const allowed = allRoutes().filter(routeAllowed);
+    // Cabe tudo? Então não há "Mais" nenhum para abrir.
+    if (allowed.length <= TAB_SLOTS + 1) return { tabs: allowed, more: false };
+    const order = TAB_PRIORITY[state.profile?.role] || TAB_PRIORITY.default;
+    const ranked = [
+      ...order.map((k) => allowed.find((n) => n.key === k)).filter(Boolean),
+      ...NAV.filter((n) => allowed.includes(n) && !order.includes(n.key)),
+    ];
+    return { tabs: ranked.slice(0, TAB_SLOTS), more: true };
+  }
+  function renderTabbar() {
+    const solo = allRoutes().filter(routeAllowed).length <= 1;
+    document.documentElement.classList.toggle('has-tabbar', !solo);
+    const { tabs, more } = solo ? { tabs: [], more: false } : tabRoutes();
+    const sig = tabs.map((n) => n.key).join(',') + (more ? '+' : '');
+    if (sig === tabKeys) return; // só redesenha quando os destinos mudam
+    tabKeys = sig;
+    tabbar.innerHTML = tabs.map((n) => `
+        <button class="tabbar__item" type="button" data-tab="${n.key}">
+          ${n.icon}<span class="tabbar__label">${esc(TAB_LABEL[n.key] || n.label)}</span>
+        </button>`).join('') + (more ? `
+        <button class="tabbar__item" type="button" data-tab-more aria-haspopup="true">
+          ${MORE_ICON}<span class="tabbar__label">Mais</span>
+        </button>` : '');
+  }
+  tabbar.addEventListener('click', (e) => {
+    const btn = e.target.closest('.tabbar__item');
+    if (!btn) return;
+    if (btn.hasAttribute('data-tab-more')) {
+      toggleMenu();
+      return;
+    }
+    closeDrawer();
+    // Tocar no separador onde já se está volta ao topo, como em qualquer app.
+    if (btn.dataset.tab === current && !detail) window.scrollTo({ top: 0, behavior: 'smooth' });
+    go(btn.dataset.tab);
+  });
+
+  const logout = () => {
+    document.documentElement.classList.remove('has-tabbar');
     // O cartão guardado é pessoal: não deve ficar no dispositivo depois de a
     // conta sair (um tablet partilhado passaria o cartão ao utilizador
     // seguinte).
@@ -449,7 +537,11 @@ export async function renderAppShell(root, session) {
     // do clube aparecia no ecrã de quem já não tem sessão aberta — e num
     // tablet partilhado seria um aviso dirigido a outra pessoa.
     clearPushOnLogout().finally(() => signOut());
-  });
+  };
+  root.querySelector('#menu-toggle').addEventListener('click', toggleMenu);
+  root.querySelector('#scrim').addEventListener('click', closeDrawer);
+  root.querySelector('#logout').addEventListener('click', logout);
+  root.querySelector('#logout-drawer').addEventListener('click', logout);
 
   const onResize = () => {
     if (!isMobile()) closeDrawer();
@@ -511,6 +603,7 @@ export async function renderAppShell(root, session) {
   function refreshChrome() {
     soloRoute = allRoutes().filter(routeAllowed).length <= 1;
     soloChrome(soloRoute);
+    renderTabbar();
 
     root.querySelectorAll('[data-route]').forEach((btn) => {
       const item = allRoutes().find((r) => r.key === btn.dataset.route);
@@ -534,6 +627,22 @@ export async function renderAppShell(root, session) {
     root.querySelectorAll('[data-route]').forEach((btn) => {
       btn.classList.toggle('navitem--active', btn.dataset.route === current);
     });
+    // Barra inferior: "Mais" fica aceso com a gaveta aberta, ou quando a
+    // secção atual só existe lá dentro — senão a barra não dizia onde se está.
+    const drawerOpen = appRoot.classList.contains('app--drawer');
+    let matched = false;
+    tabbar.querySelectorAll('[data-tab]').forEach((btn) => {
+      const on = !drawerOpen && btn.dataset.tab === current;
+      matched = matched || on;
+      btn.classList.toggle('tabbar__item--active', on);
+      if (on) btn.setAttribute('aria-current', 'page');
+      else btn.removeAttribute('aria-current');
+    });
+    const more = tabbar.querySelector('[data-tab-more]');
+    if (more) {
+      more.classList.toggle('tabbar__item--active', drawerOpen || !matched);
+      more.setAttribute('aria-expanded', String(drawerOpen));
+    }
   }
 
   // Mostra um ecrã de espera quando a conta ainda não tem acesso a nada.
@@ -857,6 +966,7 @@ export async function renderAppShell(root, session) {
     document.removeEventListener('keydown', onGlobalKey);
     unsubscribe();
     disposeNotif?.();
+    document.documentElement.classList.remove('has-tabbar');
   };
 
   // --- Notificações (só para coordenador) --------------------------------
