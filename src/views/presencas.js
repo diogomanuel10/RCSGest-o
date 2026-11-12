@@ -304,9 +304,12 @@ export function renderPresencas(container) {
 
   if (editable) {
     container.querySelectorAll('[data-status]').forEach((btn) => {
-      btn.addEventListener('click', () =>
-        handleStatusClick(btn, container, ev)
-      );
+      btn.addEventListener('click', () => {
+        // Um toque curto no telemóvel (onde existe): marcar vinte presenças
+        // de seguida faz-se a olhar para as atletas, não para o ecrã.
+        try { navigator.vibrate?.(8); } catch { /* sem vibração */ }
+        handleStatusClick(btn, container, ev);
+      });
     });
     container.querySelectorAll('[data-justify-aviso]').forEach((btn) => btn.addEventListener('click', () => {
       const r = playerEventResponse(btn.dataset.justifyAviso, selectedEventId);

@@ -574,6 +574,14 @@ nunca confirmar uma ação destrutiva.
   Tab — e para quem navega por teclado a app tinha duas personalidades
   conforme o ecrã. **A exceção é o quiosque**, que desenha os seus diálogos
   dentro do próprio elemento em ecrã inteiro (ver mais abaixo).
+- **No telemóvel um diálogo é uma folha que sobe de baixo** (até aos 640px,
+  no fim do `style.css`): largura toda, cabeçalho e `.modal__actions` fixos
+  (`sticky`) e o corpo a deslizar entre os dois. Como cartão centrado, o
+  "Guardar" de um formulário de oito campos ficava fora do ecrã, no fim de um
+  scroll dentro de outro. É só CSS, por isso vale para o `openModal` e para
+  os diálogos de corpo livre do `wireDialog`. Ficam de fora o `confirmDialog`
+  (duas linhas e dois botões, ao centro) e o plano de treino, que já ocupa o
+  ecrã inteiro.
 - **O estado vazio leva a ação que o resolve**: `emptyHTML(mensagem, { icone,
   action })` + `wireEmptyAction(container, chave, fn)`. Sem isso, o ecrã que
   um clube novo vê mais vezes na primeira sessão dizia "ainda não há equipas"
@@ -2955,6 +2963,13 @@ separador antes de navegar (usado pelos cartões do Painel).
     célula tem 60px de altura e um alvo de 44 tapava-a por inteiro), e a caixa
     de seleção fica em 22px porque o alvo é a etiqueta à volta, essa sim com
     44px.
+- **Movimento: pouco e com função** (secção «Movimento» do `style.css`). Mudar
+  de secção é uma passagem (`document.startViewTransition` no `applyHash`, só
+  o conteúdo — as barras ficam quietas — e só quando o sítio muda), e o que se
+  toca encolhe enquanto o dedo lá está (`:active`, em `hover: none`). **Não se
+  animam entradas dentro das vistas**: o `paint()` volta a correr a cada
+  notificação do store, e uma lista que "entra" de novo sempre que se marca
+  uma presença é ruído. Tudo se cala com `prefers-reduced-motion`.
 - **Larguras: `minmax(0, …)` e não `1fr`.** Uma pista `1fr` nunca encolhe
   abaixo do conteúdo, por isso uma grelha com texto largo lá dentro (a agenda
   do Dept. Médico, a vista de mês do Calendário) empurrava a página inteira

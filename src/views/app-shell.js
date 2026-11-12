@@ -400,6 +400,7 @@ export async function renderAppShell(root, session) {
     return { route: seg };
   }
 
+  let lastPlace = null;
   function applyHash() {
     routeReady = true;
     const parsed = parseHash();
@@ -419,8 +420,23 @@ export async function renderAppShell(root, session) {
       if (item && routeAllowed(item)) current = item.key;
       else current = firstAllowedRoute();
     }
-    paint();
-    content.scrollTop = 0;
+    // Mudar de secção é uma passagem, não um corte: o conteúdo antigo sai e o
+    // novo entra (View Transitions, onde o browser as tem). Só quando o SÍTIO
+    // muda — reabrir o mesmo destino redesenha sem animação — e nunca para
+    // quem pediu menos movimento.
+    const place = detail ? `atleta:${detail.playerId}` : current;
+    const moved = place !== lastPlace;
+    const animate = moved && lastPlace !== null && document.startViewTransition
+      && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    lastPlace = place;
+    const draw = () => {
+      paint();
+      // A página é que desliza (não o `content`): sem isto, trocar de secção
+      // a meio de uma lista abria a seguinte a meio também.
+      if (moved) window.scrollTo(0, 0);
+    };
+    if (animate) document.startViewTransition(draw);
+    else draw();
   }
 
   // Passos de navegação dados dentro da app. Serve para saber se há para onde

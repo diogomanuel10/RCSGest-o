@@ -9619,3 +9619,160 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
     transition: none;
   }
 }
+
+/* =========================================================================
+   Telemóvel: os diálogos são folhas que sobem de baixo
+   -------------------------------------------------------------------------
+   Um cartão centrado com scroll próprio é um desenho de computador: no
+   telemóvel o formulário de um evento tem oito campos e o "Guardar" ficava
+   fora do ecrã, no fim de um scroll dentro de outro. A folha ocupa a largura
+   toda, nasce junto ao polegar, e o cabeçalho (com o fechar) e os botões de
+   ação ficam SEMPRE à vista enquanto o corpo desliza entre os dois.
+   O diálogo de confirmação fica como estava, ao centro: são duas linhas e
+   dois botões, e é lá que se espera um "tens a certeza?". O plano de treino
+   (`.tp-modal`) já ocupa o ecrã inteiro.
+   ========================================================================= */
+@media (max-width: 640px) {
+  .modal-overlay:not(.tp-overlay):not(.imgview) {
+    padding: 0;
+    place-items: end stretch;
+  }
+  .modal-overlay > .modal:not(.modal--confirm):not(.tp-modal) {
+    width: 100%;
+    max-width: none;
+    max-height: calc(100vh - 2.5rem);
+    max-height: calc(100dvh - var(--safe-top) - 1.5rem);
+    padding: 0 1.1rem;
+    border-radius: 20px 20px 0 0;
+    border-bottom: none;
+    overscroll-behavior: contain;
+    animation: sheetIn 0.28s cubic-bezier(0.22, 0.9, 0.3, 1);
+  }
+  .modal-overlay > .modal--confirm {
+    place-self: center;
+  }
+  .modal-overlay > .modal:not(.modal--confirm):not(.tp-modal) .modal__head {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    margin: 0 -1.1rem 1rem;
+    padding: 1.35rem 1.1rem 0.75rem;
+    background: var(--surface);
+    border-radius: 20px 20px 0 0;
+  }
+  /* A pega: diz que isto é uma folha, e que fecha. */
+  .modal-overlay > .modal:not(.modal--confirm):not(.tp-modal) .modal__head::before {
+    content: '';
+    position: absolute;
+    top: 0.5rem;
+    left: 50%;
+    width: 38px;
+    height: 4px;
+    border-radius: 4px;
+    background: var(--border);
+    transform: translateX(-50%);
+  }
+  .modal-overlay > .modal:not(.modal--confirm):not(.tp-modal) .modal__actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    margin: 1.2rem -1.1rem 0;
+    padding: 0.75rem 1.1rem calc(0.75rem + var(--safe-bottom));
+    background: var(--surface);
+    box-shadow: 0 -6px 12px -8px rgba(20, 59, 97, 0.18);
+  }
+  /* Dois botões lado a lado, a toda a largura: o principal é o maior alvo
+     do ecrã em vez de um botão pequeno encostado a um canto. */
+  .modal-overlay > .modal:not(.modal--confirm):not(.tp-modal) .modal__actions > .btn {
+    flex: 1 1 0;
+    justify-content: center;
+    min-height: 48px;
+  }
+  /* Um diálogo de corpo livre sem botões de ação precisa de fundo próprio,
+     senão a última linha encostava à linha do gesto "home". */
+  .modal-overlay > .modal:not(.modal--confirm):not(.tp-modal):not(:has(.modal__actions))::after {
+    content: '';
+    display: block;
+    height: calc(1.1rem + var(--safe-bottom));
+  }
+}
+@keyframes sheetIn {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+/* =========================================================================
+   Telemóvel: marcar presenças numa linha
+   -------------------------------------------------------------------------
+   Os quatro estados partiam em duas linhas ("Falta" sozinha por baixo) e cada
+   atleta ocupava 180px: um plantel de onze eram dois mil píxeis de scroll para
+   uma tarefa de todos os dias. Quatro alvos numa linha só — "Justificado" leva
+   a coluna mais larga, que é a palavra mais comprida.
+   ========================================================================= */
+@media (max-width: 600px) {
+  /* Só onde há os quatro estados: a convocatória usa a mesma linha com um
+     botão só, que numa grelha de quatro ficava espremido. */
+  .pres-actions:has(> .pres-btn:nth-child(4)) {
+    display: grid;
+    grid-template-columns: 1fr 0.85fr 1.25fr 0.8fr;
+    gap: 0.3rem;
+  }
+  .pres-actions > .pres-btn {
+    min-width: 0;
+    padding-left: 0.15rem;
+    padding-right: 0.15rem;
+    font-size: 0.76rem;
+    white-space: nowrap;
+  }
+  .pres-row {
+    gap: 0.5rem;
+  }
+}
+
+/* =========================================================================
+   Movimento
+   -------------------------------------------------------------------------
+   Pouco e com função: dizer que se mudou de sítio e que o toque foi sentido.
+   Tudo isto se cala com `prefers-reduced-motion` (regra global, no topo).
+   ========================================================================= */
+
+/* Mudar de secção: só o conteúdo passa; as barras ficam quietas. */
+.content__inner {
+  view-transition-name: page;
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+::view-transition-old(page) {
+  animation: pageOut 0.12s ease-in both;
+}
+::view-transition-new(page) {
+  animation: pageIn 0.22s cubic-bezier(0.22, 0.9, 0.3, 1) both;
+}
+@keyframes pageOut {
+  to { opacity: 0; }
+}
+
+/* Ao dedo não há `:hover` que confirme o toque: o que se carrega encolhe um
+   pouco enquanto o dedo lá está. */
+@media (hover: none) {
+  .btn,
+  .pres-btn,
+  .tab-btn,
+  .navitem,
+  .alert-item--nav,
+  .stat-strip__item--nav,
+  .team-chip {
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn:active,
+  .pres-btn:active,
+  .navitem:active {
+    transform: scale(0.96);
+  }
+  .alert-item--nav:active,
+  button.stat-strip__item--nav:active {
+    transform: scale(0.985);
+  }
+}
