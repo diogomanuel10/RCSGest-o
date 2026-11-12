@@ -582,6 +582,10 @@ nunca confirmar uma ação destrutiva.
   os diálogos de corpo livre do `wireDialog`. Ficam de fora o `confirmDialog`
   (duas linhas e dois botões, ao centro) e o plano de treino, que já ocupa o
   ecrã inteiro.
+  - **A folha fecha-se puxando-a pelo cabeçalho** (`wireSheetDrag` em
+    `modal.js`): é o gesto que a pega no topo promete. Só no cabeçalho — no
+    corpo, puxar para baixo é deslizar o conteúdo — e quem fecha é o `close`
+    de quem chama, por isso a guarda de alterações por gravar continua a valer.
 - **O estado vazio leva a ação que o resolve**: `emptyHTML(mensagem, { icone,
   action })` + `wireEmptyAction(container, chave, fn)`. Sem isso, o ecrã que
   um clube novo vê mais vezes na primeira sessão dizia "ainda não há equipas"
@@ -2970,6 +2974,23 @@ separador antes de navegar (usado pelos cartões do Painel).
   animam entradas dentro das vistas**: o `paint()` volta a correr a cada
   notificação do store, e uma lista que "entra" de novo sempre que se marca
   uma presença é ruído. Tudo se cala com `prefers-reduced-motion`.
+- **Puxar para atualizar** (`.ptr`, no `app-shell`): fora do scout e das
+  notificações a app não se atualiza sozinha, e instalada no ecrã principal
+  não há botão de recarregar. No telemóvel, puxar a página para baixo no topo
+  chama o `loadAll()`. Só com um dedo, só no conteúdo, nunca com um diálogo,
+  a gaveta, o quiosque ou o scout por cima, e nunca a começar num `svg`
+  (o campo tático arrasta-se) ou num campo de formulário.
+- **O primeiro carregamento é um esqueleto** (`skeletonHTML` em `ui.js`) e não
+  uma roda: mostra a forma da página que vem aí. O `loadingHTML` continua a
+  servir os carregamentos pequenos dentro das vistas.
+- **No telemóvel as ações do cabeçalho são UMA linha que desliza**
+  (`.page-head > .row`, `.page-head__actions`, `.hero-actions`, até aos
+  640px), com a ação principal (`.btn--accent`/`.btn--primary`) puxada para a
+  frente. Em duas ou três linhas, o Calendário só mostrava o primeiro evento
+  a meio do ecrã. Os `.filters` ficam dois por linha.
+- **Um separador segmentado só** (`.cal-toggle` e `.mode-toggle` têm o mesmo
+  desenho); o sublinhado (`.pres-tabs`, `.ap-tabs`) fica para os separadores
+  DENTRO de uma página. `.btn--danger` diz-se pela tinta e não pela moldura.
 - **Larguras: `minmax(0, …)` e não `1fr`.** Uma pista `1fr` nunca encolhe
   abaixo do conteúdo, por isso uma grelha com texto largo lá dentro (a agenda
   do Dept. Médico, a vista de mês do Calendário) empurrava a página inteira

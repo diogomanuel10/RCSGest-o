@@ -7,7 +7,7 @@
 import { logoSrc, branding } from '../branding.js';
 import { signOut } from '../auth.js';
 import { state, subscribe, loadAll, loadProfile, orgAccess, redeemInvitation } from '../store.js';
-import { loadingHTML, errorHTML, esc, initTableLabels } from '../ui.js';
+import { loadingHTML, skeletonHTML, errorHTML, esc, initTableLabels } from '../ui.js';
 import { initImageZoom } from '../modal.js';
 import { renderOfflineCard, clearOfflineCard } from '../offline-card.js';
 import {
@@ -348,6 +348,9 @@ export async function renderAppShell(root, session) {
         <main class="content"><div class="content__inner" id="content"></div></main>
       </div>
       <nav class="tabbar" id="tabbar" aria-label="Secções principais"></nav>
+      <div class="ptr" id="ptr" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+      </div>
     </div>
   `;
 
@@ -503,6 +506,9 @@ export async function renderAppShell(root, session) {
 
   // --- Barra inferior ---
   const tabbar = root.querySelector('#tabbar');
+  // Já durante o carregamento: sem isto o topo nascia com o hambúrguer e o
+  // "Sair" e trocava-os pela barra inferior quando os dados chegavam.
+  document.documentElement.classList.toggle('has-tabbar', state.profile?.role !== 'atleta');
   let tabKeys = '';
   function tabRoutes() {
     const allowed = allRoutes().filter(routeAllowed);
@@ -542,6 +548,76 @@ export async function renderAppShell(root, session) {
     if (btn.dataset.tab === current && !detail) window.scrollTo({ top: 0, behavior: 'smooth' });
     go(btn.dataset.tab);
   });
+
+  // --- Puxar para atualizar (telemóvel) ---
+  // Fora do scout e das notificações a app não se atualiza sozinha: o que
+  // outro treinador marcou só aparecia a quem recarregasse a página, e numa
+  // app instalada no ecrã principal não há botão de recarregar. Puxar a
+  // página para baixo, no topo, volta a ler os dados do clube — o gesto que
+  // qualquer app de telemóvel já ensinou. Só com um dedo, só no conteúdo e
+  // nunca com um diálogo, a gaveta, o quiosque ou o scout por cima.
+  const ptr = root.querySelector('#ptr');
+  const PTR_TRIGGER = 64;
+  let ptrFrom = null;
+  let ptrPull = 0;
+  let ptrBusy = false;
+  const ptrReset = () => {
+    ptrFrom = null;
+    ptrPull = 0;
+    ptr.classList.remove('ptr--pull', 'ptr--ready');
+    ptr.style.transform = '';
+    ptr.firstElementChild.style.transform = '';
+  };
+  const onPtrStart = (e) => {
+    if (ptrBusy || !isMobile() || window.scrollY > 0 || e.touches.length !== 1) return;
+    if (document.body.classList.contains('no-scroll') || appRoot.classList.contains('app--drawer')) return;
+    const t = e.target;
+    if (!t.closest?.('#content') || t.closest('.kiosk, .scout-live, svg, canvas, input, textarea, select')) return;
+    ptrFrom = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  };
+  const onPtrMove = (e) => {
+    if (!ptrFrom) return;
+    const dx = e.touches[0].clientX - ptrFrom.x;
+    const dy = e.touches[0].clientY - ptrFrom.y;
+    // Um gesto para o lado (uma tabela, os separadores) ou a página já a
+    // deslizar não é um puxão.
+    if (window.scrollY > 0 || dy < 0 || (!ptrPull && Math.abs(dx) > Math.abs(dy))) {
+      ptrReset();
+      return;
+    }
+    ptrPull = Math.min(dy * 0.45, 96);
+    ptr.classList.add('ptr--pull');
+    ptr.classList.toggle('ptr--ready', ptrPull >= PTR_TRIGGER);
+    ptr.style.transform = `translate(-50%, ${ptrPull}px)`;
+    ptr.firstElementChild.style.transform = `rotate(${ptrPull * 3}deg)`;
+  };
+  const onPtrEnd = async () => {
+    if (!ptrFrom) return;
+    const go = ptrPull >= PTR_TRIGGER;
+    if (!go) {
+      ptrReset();
+      return;
+    }
+    ptrFrom = null;
+    ptrBusy = true;
+    ptr.classList.remove('ptr--ready');
+    ptr.classList.add('ptr--busy');
+    ptr.firstElementChild.style.transform = '';
+    try {
+      await loadAll();
+    } catch (err) {
+      console.error(err);
+      toastError('Não foi possível atualizar. Verifica a ligação.');
+    } finally {
+      ptrBusy = false;
+      ptr.classList.remove('ptr--busy');
+      ptrReset();
+    }
+  };
+  window.addEventListener('touchstart', onPtrStart, { passive: true });
+  window.addEventListener('touchmove', onPtrMove, { passive: true });
+  window.addEventListener('touchend', onPtrEnd);
+  window.addEventListener('touchcancel', ptrReset);
 
   const logout = () => {
     document.documentElement.classList.remove('has-tabbar');
@@ -980,6 +1056,10 @@ export async function renderAppShell(root, session) {
     window.removeEventListener('hashchange', onHashChange);
     window.removeEventListener('resize', onResize);
     document.removeEventListener('keydown', onGlobalKey);
+    window.removeEventListener('touchstart', onPtrStart);
+    window.removeEventListener('touchmove', onPtrMove);
+    window.removeEventListener('touchend', onPtrEnd);
+    window.removeEventListener('touchcancel', ptrReset);
     unsubscribe();
     disposeNotif?.();
     document.documentElement.classList.remove('has-tabbar');
@@ -1207,7 +1287,7 @@ export async function renderAppShell(root, session) {
 
   // -----------------------------------------------------------------------
 
-  content.innerHTML = loadingHTML('A carregar os dados do clube…');
+  content.innerHTML = skeletonHTML('A carregar os dados do clube…');
   // Etiqueta as células das tabelas com o cabeçalho da coluna, para elas
   // poderem empilhar-se em cartões no telemóvel (ver `.table--stack`).
   initTableLabels();
