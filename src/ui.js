@@ -35,6 +35,25 @@ export function loadingHTML(message = 'A carregar…') {
   `;
 }
 
+// Esqueleto do primeiro carregamento: a forma da página que vem aí (título,
+// faixa de números, cartões) em vez de uma roda a girar num ecrã vazio. Não
+// carrega mais depressa — mas o ecrã deixa de "saltar" quando os dados chegam,
+// e quem espera vê que a app já abriu.
+export function skeletonHTML(message = 'A carregar…') {
+  const card = (lines) => `
+    <div class="skel-card">
+      <div class="skel skel--h"></div>
+      ${Array.from({ length: lines }, (_, i) => `<div class="skel skel--line" style="width:${[92, 78, 85, 60][i % 4]}%"></div>`).join('')}
+    </div>`;
+  return `
+    <div class="skel-page" role="status" aria-live="polite" aria-label="${esc(message)}">
+      <div class="skel skel--title"></div>
+      <div class="skel-strip">${'<div class="skel skel--stat"></div>'.repeat(4)}</div>
+      ${card(3)}${card(4)}${card(2)}
+    </div>
+  `;
+}
+
 // Estado de erro com tom da interface (diz o que falhou).
 export function errorHTML(message) {
   return `

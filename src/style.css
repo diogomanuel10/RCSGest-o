@@ -66,6 +66,20 @@
   --font-title: 'Barlow Semi Condensed', 'Inter', system-ui, sans-serif;
   --font-body: 'Inter', system-ui, -apple-system, sans-serif;
 
+  /* --- Moldura: zonas seguras e alturas das barras ---
+     Instalada no ecrã principal de um iPhone, a app desenha por baixo da barra
+     de estado e da linha do gesto "home" (`black-translucent` +
+     `viewport-fit=cover`). Sem estas margens o topo ficava por baixo do
+     relógio e a barra inferior por baixo do gesto. Num browser normal valem
+     zero. A altura das barras vive aqui porque meia dúzia de coisas se medem
+     por ela (a gaveta, a cortina, os avisos). */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --topbar-h: calc(62px + var(--safe-top));
+  --tabbar-h: 0px;
+
   color-scheme: light;
 }
 
@@ -253,13 +267,19 @@ a {
   background: var(--navy-100);
   border-color: var(--navy-300);
 }
+/* A ação destrutiva de uma linha diz-se pela TINTA e não pela moldura: com
+   borda vermelha, "Eliminar" era o botão mais visível de cada linha do
+   Calendário e dos Plantéis — a ação mais rara a gritar mais do que as que se
+   usam todos os dias. A moldura vermelha aparece ao apontar ou ao focar. */
 .btn--danger {
   background: transparent;
-  border-color: var(--danger);
+  border-color: var(--border);
   color: var(--danger-ink);
 }
-.btn--danger:hover {
+.btn--danger:hover,
+.btn--danger:focus-visible {
   background: var(--danger-bg);
+  border-color: var(--danger);
 }
 .btn--sm {
   padding: 0.38rem 0.7rem;
@@ -545,6 +565,9 @@ tbody tr:hover {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  /* `dvh` e não `vh`: no telemóvel o `vh` conta com a barra do browser
+     recolhida, e a página ficava sempre um pouco mais alta do que o ecrã. */
+  min-height: 100dvh;
 }
 
 /* --- Top bar --- */
@@ -555,8 +578,8 @@ tbody tr:hover {
   display: flex;
   align-items: center;
   gap: 0.7rem;
-  height: 62px;
-  padding: 0 1.2rem 0 0.8rem;
+  height: var(--topbar-h);
+  padding: var(--safe-top) max(1.2rem, var(--safe-right)) 0 max(0.8rem, var(--safe-left));
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   box-shadow: 0 1px 4px rgba(20, 59, 97, 0.06);
@@ -645,8 +668,9 @@ tbody tr:hover {
   flex-direction: column;
   padding: 0.8rem 0.6rem;
   position: sticky;
-  top: 62px;
-  height: calc(100vh - 62px);
+  top: var(--topbar-h);
+  height: calc(100vh - var(--topbar-h));
+  height: calc(100dvh - var(--topbar-h));
   transition: flex-basis 0.2s ease, width 0.2s ease;
   overflow-x: hidden;
   overflow-y: auto;
@@ -774,25 +798,37 @@ tbody tr:hover {
   gap: 0.15rem;
 }
 
-/* --- Desktop: barra lateral expande ao passar o rato --- */
+/* --- Ecrã largo: a barra lateral expande ---
+   Com RATO expande ao passar por cima. Com o DEDO não há "passar por cima":
+   num tablet deitado ficavam treze ícones sem legenda e sem forma de as ver
+   (o `title` também é do rato). Aí o botão do menu volta a aparecer e abre ou
+   fecha a barra (`.app--rail`), e a escolha fica guardada no dispositivo. */
 @media (min-width: 821px) {
-  .sidebar:hover {
+  .sidebar:hover,
+  .app--rail .sidebar {
     flex-basis: 244px;
     width: 244px;
+  }
+  .sidebar:hover {
     box-shadow: 4px 0 20px rgba(10, 22, 40, 0.18);
   }
-  .sidebar:hover .navitem {
+  .sidebar:hover .navitem,
+  .app--rail .navitem {
     justify-content: flex-start;
     padding: 0.55rem 0.75rem;
   }
-  .sidebar:hover .navitem span:not(.navitem__icon) {
+  .sidebar:hover .navitem span:not(.navitem__icon),
+  .app--rail .navitem span:not(.navitem__icon) {
     opacity: 1;
     max-width: 180px;
   }
-  .sidebar:hover .navgroup__title-text {
+  .sidebar:hover .navgroup__title-text,
+  .app--rail .navgroup__title-text {
     opacity: 1;
     max-width: 180px;
   }
+}
+@media (min-width: 821px) and (hover: hover) {
   .topbar__toggle {
     display: none;
   }
@@ -801,7 +837,7 @@ tbody tr:hover {
 /* --- Cortina (scrim) para o drawer em telemóvel --- */
 .scrim {
   position: fixed;
-  inset: 62px 0 0 0;
+  inset: var(--topbar-h) 0 var(--tabbar-h) 0;
   background: rgba(10, 22, 38, 0.5);
   z-index: 40;
   opacity: 0;
@@ -853,13 +889,17 @@ tbody tr:hover {
 }
 
 /* Alternador de modo (segmentado) — ex.: Plantel / Planear época */
+/* Mesmo desenho do `.cal-toggle`: havia três separadores diferentes na app
+   (segmentado, pílula e sublinhado) para a mesma ideia. */
 .mode-toggle {
   display: inline-flex;
   background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 0.2rem;
-  gap: 0.15rem;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.mode-toggle__btn + .mode-toggle__btn {
+  border-left: 1.5px solid var(--border);
 }
 .mode-toggle__btn {
   font-family: var(--font-body);
@@ -868,15 +908,14 @@ tbody tr:hover {
   border: none;
   background: none;
   color: var(--text-muted);
-  padding: 0.4rem 0.85rem;
-  border-radius: 999px;
+  padding: 0.38rem 0.9rem;
+  min-height: 38px;
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
 }
 .mode-toggle__btn.is-active {
   background: var(--navy);
   color: #fff;
-  box-shadow: var(--shadow-sm);
 }
 .mode-toggle__btn:focus-visible {
   outline: 2.5px solid var(--yellow);
@@ -1267,11 +1306,12 @@ button.metric--nav:focus-visible {
    baixo, ao contrário do cartão, onde a etiqueta em maiúsculas vinha à frente
    do dado. */
 .stat-strip {
-  display: grid;
-  /* `auto-fit` com um mínimo REAL (não `minmax(0,…)`, que colapsaria tudo
-     numa coluna só por não haver medida de onde tirar o número de pistas):
-     seis números cabem numa linha no portátil e em duas no telemóvel. */
-  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  /* Flex com quebra de linha e não grelha: seis números cabem numa linha no
+     portátil e em várias no telemóvel, e os da ÚLTIMA linha esticam até ao
+     fim. Em grelha, seis números em cinco colunas (um tablet em pé) deixavam
+     o sexto sozinho e quatro células cinzentas vazias ao lado. */
+  display: flex;
+  flex-wrap: wrap;
   gap: 1px;
   background: var(--border);
   border: 1px solid var(--border);
@@ -1286,6 +1326,7 @@ button.metric--nav:focus-visible {
   padding: 0.85rem 0.9rem;
   background: var(--surface);
   min-width: 0;
+  flex: 1 1 148px;
 }
 .stat-strip__value {
   font-family: var(--font-title);
@@ -3012,7 +3053,7 @@ button.stat-strip__item--nav:hover {
   background: rgba(10, 22, 40, 0.55);
   display: grid;
   place-items: center;
-  padding: 1rem;
+  padding: max(1rem, var(--safe-top)) max(1rem, var(--safe-right)) max(1rem, var(--safe-bottom)) max(1rem, var(--safe-left));
   z-index: 100;
   animation: overlayIn 0.15s ease;
   backdrop-filter: blur(3px);
@@ -3031,6 +3072,7 @@ button.stat-strip__item--nav:hover {
 .modal {
   width: min(560px, 96vw);
   max-height: 92vh;
+  max-height: min(92dvh, 100%);
   overflow-y: auto;
   animation: modalIn 0.18s cubic-bezier(0.34, 1.2, 0.64, 1);
   box-shadow: var(--shadow-lg);
@@ -3173,15 +3215,19 @@ button.stat-strip__item--nav:hover {
 @media (max-width: 820px) {
   .sidebar {
     position: fixed;
-    top: 62px;
+    top: var(--topbar-h);
     left: 0;
     z-index: 45;
     flex-basis: 256px;
     width: 256px;
-    height: calc(100vh - 62px);
+    height: calc(100vh - var(--topbar-h) - var(--tabbar-h));
+    height: calc(100dvh - var(--topbar-h) - var(--tabbar-h));
+    padding-left: max(0.6rem, var(--safe-left));
     transform: translateX(-100%);
     transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 8px 0 32px rgba(10, 22, 40, 0.3);
+    /* A sombra só existe com a gaveta ABERTA: fechada, a gaveta está fora do
+       ecrã mas a sombra de 32px não — ficava uma faixa cinzenta permanente na
+       margem esquerda de todos os ecrãs. */
   }
   .navitem {
     justify-content: flex-start;
@@ -3213,6 +3259,7 @@ button.stat-strip__item--nav:hover {
   }
   .app--drawer .sidebar {
     transform: translateX(0);
+    box-shadow: 8px 0 32px rgba(10, 22, 40, 0.3);
   }
   .app--drawer .scrim {
     opacity: 1;
@@ -3246,6 +3293,7 @@ button.stat-strip__item--nav:hover {
    ========================================================================= */
 .login {
   min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   place-content: center;
   padding: 1.5rem;
@@ -4643,8 +4691,8 @@ button.stat-strip__item--nav:hover {
 }
 .ap-tab:hover { color: var(--text); }
 .ap-tab--active {
-  color: var(--accent, #2563eb);
-  border-bottom-color: var(--accent, #2563eb);
+  color: var(--navy);
+  border-bottom-color: var(--navy);
 }
 /* Perfil do atleta — página inteira num painel branco (como era o modal). */
 .athlete-page {
@@ -5349,7 +5397,7 @@ button.stat-strip__item--nav:hover {
 @media (max-width: 480px) {
   .notif-panel {
     position: fixed;
-    top: 56px;
+    top: calc(var(--safe-top) + 56px);
     left: 8px;
     right: 8px;
     width: auto;
@@ -5608,8 +5656,9 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
    ========================================================================= */
 .toast-host {
   position: fixed;
-  right: 1rem;
-  bottom: 1rem;
+  right: max(1rem, var(--safe-right));
+  /* Por cima da barra inferior, quando ela existe (no telemóvel). */
+  bottom: calc(1rem + var(--tabbar-h));
   z-index: 400;
   display: flex;
   flex-direction: column;
@@ -6118,6 +6167,7 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
   z-index: 90;
   background: var(--bg);
   overflow: auto;
+  padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
 }
 
 .kiosk__setup {
@@ -8439,7 +8489,7 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 .scout-detail__body { display: flex; flex-direction: column; gap: 1rem; overflow-y: auto; max-height: 76vh; }
 
 /* Ecrã de jogo */
-.scout-live { position: fixed; inset: 0; z-index: 90; background: var(--bg); overflow: auto; overscroll-behavior: contain; }
+.scout-live { position: fixed; inset: 0; z-index: 90; background: var(--bg); overflow: auto; overscroll-behavior: contain; padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left); }
 .scout-live, .scout-live button, .scout-live select, .scout-live summary { touch-action: manipulation; }
 .scout-live button { -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
 .scout-board { position: sticky; top: 0; z-index: 2; background: var(--navy); color: #fff; padding: calc(0.5rem + env(safe-area-inset-top, 0px)) max(1rem, env(safe-area-inset-right, 0px)) 0 max(1rem, env(safe-area-inset-left, 0px)); }
@@ -9446,4 +9496,446 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
   .game-card { grid-template-columns: 88px minmax(0, 1fr); gap: 0.4rem 0.7rem; }
   .game-card__score { grid-column: 2; align-items: flex-start; }
   .game-steps { grid-column: 1 / -1; }
+}
+
+
+/* =========================================================================
+   Barra inferior (telemóvel e tablet em pé)
+   -------------------------------------------------------------------------
+   A navegação era uma gaveta com treze entradas atrás de um botão no canto
+   superior esquerdo — o ponto do ecrã mais longe do polegar. Marcar presenças,
+   que um treinador faz todos os dias, eram dois toques e uma lista para ler.
+   Os quatro sítios mais usados por cada papel passam a estar sempre à mão, em
+   baixo; "Mais" abre a gaveta com tudo o resto. Quem só tem uma secção (o
+   atleta) não tem barra: sem sítios para onde ir não há navegação a mostrar.
+   ========================================================================= */
+.tabbar,
+.navitem--logout {
+  display: none;
+}
+/* O foco que o `app-shell` põe no título ao mudar de secção serve para o
+   leitor de ecrã o anunciar; desenhado, era uma caixa amarela à volta do
+   título a cada navegação, para quem nunca tocou num teclado. */
+.content h1[tabindex='-1']:focus {
+  outline: none;
+}
+
+@media (max-width: 820px) {
+  :root.has-tabbar {
+    --tabbar-h: calc(58px + var(--safe-bottom));
+  }
+  .has-tabbar .tabbar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    /* Acima da gaveta e da cortina (45/40), abaixo da barra de topo (50): a
+       barra fica visível com a gaveta aberta, e "Mais" volta a fechá-la. */
+    z-index: 46;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    height: var(--tabbar-h);
+    padding: 0 max(0.25rem, var(--safe-right)) var(--safe-bottom) max(0.25rem, var(--safe-left));
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 10px rgba(20, 59, 97, 0.06);
+  }
+  .tabbar__item {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.2rem;
+    min-width: 0;
+    padding: 0.3rem 0.15rem 0.2rem;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-family: var(--font-body);
+    font-size: 0.68rem;
+    font-weight: 600;
+    line-height: 1.1;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: color 0.15s ease;
+  }
+  .tabbar__item svg {
+    width: 22px;
+    height: 22px;
+    transition: transform 0.18s cubic-bezier(0.34, 1.4, 0.64, 1);
+  }
+  .tabbar__label {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .tabbar__item::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 28px;
+    height: 3px;
+    border-radius: 0 0 3px 3px;
+    background: var(--yellow);
+    transform: translateX(-50%) scaleX(0);
+    transition: transform 0.2s ease;
+  }
+  .tabbar__item--active {
+    color: var(--navy);
+  }
+  .tabbar__item--active::before {
+    transform: translateX(-50%) scaleX(1);
+  }
+  .tabbar__item--active svg {
+    transform: translateY(-1px) scale(1.08);
+  }
+  .tabbar__item:active svg {
+    transform: scale(0.9);
+  }
+  .tabbar__item:focus-visible {
+    outline: 2px solid var(--yellow);
+    outline-offset: -3px;
+    border-radius: var(--radius-sm);
+  }
+
+  .has-tabbar .content {
+    padding-bottom: calc(2rem + var(--tabbar-h));
+  }
+  .content {
+    padding-left: max(1rem, var(--safe-left));
+    padding-right: max(1rem, var(--safe-right));
+  }
+  /* Com a barra em baixo, "Mais" é o menu: o hambúrguer saía a dobrar. E
+     "Sair" deixa o topo — é a ação mais rara da app e ocupava o canto mais
+     visível do ecrã — para o fim da gaveta. */
+  .has-tabbar .topbar__toggle,
+  .has-tabbar #logout {
+    display: none;
+  }
+  .has-tabbar .topbar {
+    padding-left: max(1rem, var(--safe-left));
+  }
+  .has-tabbar .navitem--logout {
+    display: flex;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tabbar__item,
+  .tabbar__item svg,
+  .tabbar__item::before {
+    transition: none;
+  }
+}
+
+/* =========================================================================
+   Telemóvel: os diálogos são folhas que sobem de baixo
+   -------------------------------------------------------------------------
+   Um cartão centrado com scroll próprio é um desenho de computador: no
+   telemóvel o formulário de um evento tem oito campos e o "Guardar" ficava
+   fora do ecrã, no fim de um scroll dentro de outro. A folha ocupa a largura
+   toda, nasce junto ao polegar, e o cabeçalho (com o fechar) e os botões de
+   ação ficam SEMPRE à vista enquanto o corpo desliza entre os dois.
+   O diálogo de confirmação fica como estava, ao centro: são duas linhas e
+   dois botões, e é lá que se espera um "tens a certeza?". O plano de treino
+   (`.tp-modal`) já ocupa o ecrã inteiro.
+   ========================================================================= */
+@media (max-width: 640px) {
+  .modal-overlay:not(.tp-overlay):not(.imgview) {
+    padding: 0;
+    place-items: end stretch;
+  }
+  .modal-overlay > .modal:not(.modal--confirm):not(.tp-modal) {
+    width: 100%;
+    max-width: none;
+    max-height: calc(100vh - 2.5rem);
+    max-height: calc(100dvh - var(--safe-top) - 1.5rem);
+    padding: 0 1.1rem;
+    border-radius: 20px 20px 0 0;
+    border-bottom: none;
+    overscroll-behavior: contain;
+    animation: sheetIn 0.28s cubic-bezier(0.22, 0.9, 0.3, 1);
+  }
+  .modal-overlay > .modal--confirm {
+    place-self: center;
+  }
+  .modal-overlay > .modal:not(.modal--confirm):not(.tp-modal) .modal__head {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    margin: 0 -1.1rem 1rem;
+    padding: 1.35rem 1.1rem 0.75rem;
+    background: var(--surface);
+    border-radius: 20px 20px 0 0;
+  }
+  /* A pega: diz que isto é uma folha, e que fecha. */
+  .modal-overlay > .modal:not(.modal--confirm):not(.tp-modal) .modal__head::before {
+    content: '';
+    position: absolute;
+    top: 0.5rem;
+    left: 50%;
+    width: 38px;
+    height: 4px;
+    border-radius: 4px;
+    background: var(--border);
+    transform: translateX(-50%);
+  }
+  .modal-overlay > .modal:not(.modal--confirm):not(.tp-modal) .modal__actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    margin: 1.2rem -1.1rem 0;
+    padding: 0.75rem 1.1rem calc(0.75rem + var(--safe-bottom));
+    background: var(--surface);
+    box-shadow: 0 -6px 12px -8px rgba(20, 59, 97, 0.18);
+  }
+  /* Dois botões lado a lado, a toda a largura: o principal é o maior alvo
+     do ecrã em vez de um botão pequeno encostado a um canto. */
+  .modal-overlay > .modal:not(.modal--confirm):not(.tp-modal) .modal__actions > .btn {
+    flex: 1 1 0;
+    justify-content: center;
+    min-height: 48px;
+  }
+  /* Um diálogo de corpo livre sem botões de ação precisa de fundo próprio,
+     senão a última linha encostava à linha do gesto "home". */
+  .modal-overlay > .modal:not(.modal--confirm):not(.tp-modal):not(:has(.modal__actions))::after {
+    content: '';
+    display: block;
+    height: calc(1.1rem + var(--safe-bottom));
+  }
+}
+@keyframes sheetIn {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+/* =========================================================================
+   Telemóvel: marcar presenças numa linha
+   -------------------------------------------------------------------------
+   Os quatro estados partiam em duas linhas ("Falta" sozinha por baixo) e cada
+   atleta ocupava 180px: um plantel de onze eram dois mil píxeis de scroll para
+   uma tarefa de todos os dias. Quatro alvos numa linha só — "Justificado" leva
+   a coluna mais larga, que é a palavra mais comprida.
+   ========================================================================= */
+@media (max-width: 600px) {
+  /* Só onde há os quatro estados: a convocatória usa a mesma linha com um
+     botão só, que numa grelha de quatro ficava espremido. */
+  .pres-actions:has(> .pres-btn:nth-child(4)) {
+    display: grid;
+    grid-template-columns: 1fr 0.85fr 1.25fr 0.8fr;
+    gap: 0.3rem;
+  }
+  .pres-actions > .pres-btn {
+    min-width: 0;
+    padding-left: 0.15rem;
+    padding-right: 0.15rem;
+    font-size: 0.76rem;
+    white-space: nowrap;
+  }
+  .pres-row {
+    gap: 0.5rem;
+  }
+}
+
+/* =========================================================================
+   Movimento
+   -------------------------------------------------------------------------
+   Pouco e com função: dizer que se mudou de sítio e que o toque foi sentido.
+   Tudo isto se cala com `prefers-reduced-motion` (regra global, no topo).
+   ========================================================================= */
+
+/* Mudar de secção: só o conteúdo passa; as barras ficam quietas. */
+.content__inner {
+  view-transition-name: page;
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+::view-transition-old(page) {
+  animation: pageOut 0.12s ease-in both;
+}
+::view-transition-new(page) {
+  animation: pageIn 0.22s cubic-bezier(0.22, 0.9, 0.3, 1) both;
+}
+@keyframes pageOut {
+  to { opacity: 0; }
+}
+
+/* Ao dedo não há `:hover` que confirme o toque: o que se carrega encolhe um
+   pouco enquanto o dedo lá está. */
+@media (hover: none) {
+  .btn,
+  .pres-btn,
+  .tab-btn,
+  .navitem,
+  .alert-item--nav,
+  .stat-strip__item--nav,
+  .team-chip {
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn:active,
+  .pres-btn:active,
+  .navitem:active {
+    transform: scale(0.96);
+  }
+  .alert-item--nav:active,
+  button.stat-strip__item--nav:active {
+    transform: scale(0.985);
+  }
+}
+
+
+/* =========================================================================
+   Telemóvel: cabeçalhos que não gastam o ecrã
+   -------------------------------------------------------------------------
+   No Calendário o primeiro evento aparecia aos 530px de um ecrã de 844: dois
+   seletores de vista, cinco botões em duas linhas e dois filtros empilhados
+   antes de qualquer conteúdo. As ações do cabeçalho passam a UMA linha que
+   desliza para o lado (com a principal à frente, para nunca ficar fora do
+   ecrã), o título encolhe e os filtros ficam lado a lado.
+   ========================================================================= */
+@media (max-width: 640px) {
+  .page-head {
+    gap: 0.6rem;
+    margin-bottom: 1rem;
+  }
+  .page-head h1 {
+    font-size: 1.4rem;
+  }
+  .page-head > .row,
+  .page-head__actions,
+  .hero-actions {
+    flex-wrap: nowrap !important;
+    width: calc(100% + 2rem);
+    margin: 0 -1rem;
+    padding: 0.15rem 1rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .page-head > .row::-webkit-scrollbar,
+  .page-head__actions::-webkit-scrollbar,
+  .hero-actions::-webkit-scrollbar {
+    display: none;
+  }
+  .page-head > .row > *,
+  .page-head__actions > *,
+  .hero-actions > * {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+  .page-head > .row > .btn--accent,
+  .page-head > .row > .btn--primary,
+  .page-head__actions > .btn--accent,
+  .page-head__actions > .btn--primary {
+    order: -1;
+  }
+  .section-tabs {
+    margin-bottom: 0.7rem;
+  }
+  /* Dois filtros por linha em vez de um: um seletor de 170px não precisa da
+     largura toda de um telemóvel. */
+  .filters {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.6rem;
+    padding: 0.7rem;
+    align-items: end;
+  }
+  .filters > div,
+  .filters select {
+    min-width: 0;
+    width: 100%;
+  }
+  .filters__count {
+    grid-column: 1 / -1;
+    margin-left: 0;
+  }
+}
+
+/* =========================================================================
+   Puxar para atualizar e esqueleto de carregamento
+   ========================================================================= */
+.ptr {
+  display: none;
+}
+@media (max-width: 820px) {
+  /* O puxão é nosso: sem isto o Chrome do Android recarregava a página
+     inteira por cima do gesto. */
+  html:has(.ptr) {
+    overscroll-behavior-y: contain;
+  }
+  .ptr {
+    position: fixed;
+    top: calc(var(--topbar-h) - 46px);
+    left: 50%;
+    z-index: 49; /* por baixo da barra de topo, de onde sai */
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    color: var(--text-muted);
+    transform: translate(-50%, 0);
+    opacity: 0;
+    transition: transform 0.2s ease, opacity 0.2s ease, color 0.15s ease;
+    pointer-events: none;
+  }
+  .ptr svg {
+    width: 18px;
+    height: 18px;
+  }
+  .ptr--pull {
+    opacity: 1;
+    transition: color 0.15s ease;
+  }
+  .ptr--ready {
+    color: var(--navy);
+  }
+  .ptr--busy {
+    opacity: 1;
+    color: var(--navy);
+    transform: translate(-50%, 58px);
+  }
+  .ptr--busy svg {
+    animation: spin 0.7s linear infinite;
+  }
+}
+
+.skel-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.skel {
+  border-radius: var(--radius-xs);
+  background: linear-gradient(90deg, var(--border) 25%, var(--surface-2) 50%, var(--border) 75%);
+  background-size: 200% 100%;
+  animation: skel 1.3s ease-in-out infinite;
+}
+.skel--title { width: 46%; max-width: 260px; height: 30px; }
+.skel--h { width: 38%; height: 16px; margin-bottom: 0.9rem; }
+.skel--line { height: 12px; margin-top: 0.6rem; }
+.skel--stat { flex: 1 1 120px; height: 62px; border-radius: var(--radius-sm); }
+.skel-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+.skel-card {
+  padding: 1.2rem 1.3rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+@keyframes skel {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
 }

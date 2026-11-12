@@ -470,6 +470,31 @@ browser desfaz o último passo e os links são partilháveis.
 - Uma rota desconhecida ou sem permissão cai na primeira secção permitida.
 - Quando o `paint()` muda de rota por sua conta, `syncHash()` corrige o endereço
   com `replaceState` (sem criar passo no histórico).
+- **No telemóvel a navegação é uma barra em baixo** (`.tabbar`, `TAB_PRIORITY`
+  no `app-shell`): até aos 820px, os QUATRO sítios mais usados por cada papel
+  estão sempre à mão e "Mais" abre a gaveta com tudo. Era só a gaveta, com
+  treze entradas atrás de um hambúrguer no canto mais longe do polegar — e
+  marcar presenças, que o treinador faz todos os dias, eram dois toques e uma
+  lista para ler. A lista é por PAPEL (as Presenças são o segundo sítio do
+  treinador e nem existem para a direção), filtrada pelo que a pessoa pode
+  ver; quem tem cinco secções ou menos vê-as todas, sem "Mais"; quem tem uma
+  só (o atleta, `.app--solo`) não tem barra.
+  - "Mais" fica aceso quando a secção atual só existe na gaveta — senão a
+    barra não dizia onde se está. Tocar no separador atual volta ao topo.
+  - Com a barra, o hambúrguer e o "Sair" saem do topo (`:root.has-tabbar`): o
+    "Sair" é a ação mais rara da app e passou para o fim da gaveta.
+  - A altura da barra é a variável `--tabbar-h` (zero sem barra): a gaveta, a
+    cortina, os toasts e o fundo do conteúdo medem-se por ela.
+- **Tablet deitado: a barra lateral abre com um botão** (`.app--rail`,
+  `rumia.rail` no `localStorage`). Só expandia com `:hover`, que ao dedo não
+  existe: ficavam treze ícones sem legenda. Onde não há rato (`hover: none`) o
+  botão do menu volta a aparecer; a barra nasce aberta a partir dos 1024px.
+- **Zonas seguras** (`--safe-*`, `--topbar-h`): instalada num iPhone a app
+  desenha por baixo da barra de estado (`black-translucent` +
+  `viewport-fit=cover`), por isso o topo, a barra inferior, os modais, o
+  quiosque e o scout levam as margens `env(safe-area-inset-*)`. Alturas de
+  ecrã usam `dvh` (com `vh` como recurso). O manifesto não prende a
+  orientação: o scout e o quiosque usam-se com o tablet deitado.
 - O `renderAppShell` pode ser montado mais do que uma vez (ex.: fim do
   onboarding); `disposeGlobals` limpa os listeners de `window`/`document` e a
   subscrição ao store da montagem anterior.
@@ -549,6 +574,18 @@ nunca confirmar uma ação destrutiva.
   Tab — e para quem navega por teclado a app tinha duas personalidades
   conforme o ecrã. **A exceção é o quiosque**, que desenha os seus diálogos
   dentro do próprio elemento em ecrã inteiro (ver mais abaixo).
+- **No telemóvel um diálogo é uma folha que sobe de baixo** (até aos 640px,
+  no fim do `style.css`): largura toda, cabeçalho e `.modal__actions` fixos
+  (`sticky`) e o corpo a deslizar entre os dois. Como cartão centrado, o
+  "Guardar" de um formulário de oito campos ficava fora do ecrã, no fim de um
+  scroll dentro de outro. É só CSS, por isso vale para o `openModal` e para
+  os diálogos de corpo livre do `wireDialog`. Ficam de fora o `confirmDialog`
+  (duas linhas e dois botões, ao centro) e o plano de treino, que já ocupa o
+  ecrã inteiro.
+  - **A folha fecha-se puxando-a pelo cabeçalho** (`wireSheetDrag` em
+    `modal.js`): é o gesto que a pega no topo promete. Só no cabeçalho — no
+    corpo, puxar para baixo é deslizar o conteúdo — e quem fecha é o `close`
+    de quem chama, por isso a guarda de alterações por gravar continua a valer.
 - **O estado vazio leva a ação que o resolve**: `emptyHTML(mensagem, { icone,
   action })` + `wireEmptyAction(container, chave, fn)`. Sem isso, o ecrã que
   um clube novo vê mais vezes na primeira sessão dizia "ainda não há equipas"
@@ -2930,6 +2967,30 @@ separador antes de navegar (usado pelos cartões do Painel).
     célula tem 60px de altura e um alvo de 44 tapava-a por inteiro), e a caixa
     de seleção fica em 22px porque o alvo é a etiqueta à volta, essa sim com
     44px.
+- **Movimento: pouco e com função** (secção «Movimento» do `style.css`). Mudar
+  de secção é uma passagem (`document.startViewTransition` no `applyHash`, só
+  o conteúdo — as barras ficam quietas — e só quando o sítio muda), e o que se
+  toca encolhe enquanto o dedo lá está (`:active`, em `hover: none`). **Não se
+  animam entradas dentro das vistas**: o `paint()` volta a correr a cada
+  notificação do store, e uma lista que "entra" de novo sempre que se marca
+  uma presença é ruído. Tudo se cala com `prefers-reduced-motion`.
+- **Puxar para atualizar** (`.ptr`, no `app-shell`): fora do scout e das
+  notificações a app não se atualiza sozinha, e instalada no ecrã principal
+  não há botão de recarregar. No telemóvel, puxar a página para baixo no topo
+  chama o `loadAll()`. Só com um dedo, só no conteúdo, nunca com um diálogo,
+  a gaveta, o quiosque ou o scout por cima, e nunca a começar num `svg`
+  (o campo tático arrasta-se) ou num campo de formulário.
+- **O primeiro carregamento é um esqueleto** (`skeletonHTML` em `ui.js`) e não
+  uma roda: mostra a forma da página que vem aí. O `loadingHTML` continua a
+  servir os carregamentos pequenos dentro das vistas.
+- **No telemóvel as ações do cabeçalho são UMA linha que desliza**
+  (`.page-head > .row`, `.page-head__actions`, `.hero-actions`, até aos
+  640px), com a ação principal (`.btn--accent`/`.btn--primary`) puxada para a
+  frente. Em duas ou três linhas, o Calendário só mostrava o primeiro evento
+  a meio do ecrã. Os `.filters` ficam dois por linha.
+- **Um separador segmentado só** (`.cal-toggle` e `.mode-toggle` têm o mesmo
+  desenho); o sublinhado (`.pres-tabs`, `.ap-tabs`) fica para os separadores
+  DENTRO de uma página. `.btn--danger` diz-se pela tinta e não pela moldura.
 - **Larguras: `minmax(0, …)` e não `1fr`.** Uma pista `1fr` nunca encolhe
   abaixo do conteúdo, por isso uma grelha com texto largo lá dentro (a agenda
   do Dept. Médico, a vista de mês do Calendário) empurrava a página inteira

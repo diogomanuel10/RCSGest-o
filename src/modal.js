@@ -206,6 +206,49 @@ function trapFocus(overlay) {
   };
 }
 
+// No telemóvel os diálogos são folhas que sobem de baixo (ver o fim do
+// `style.css`), e uma folha fecha-se puxando-a para baixo pelo cabeçalho — é
+// o gesto que a pega no topo promete. O arrasto começa só no cabeçalho: no
+// corpo, puxar para baixo é deslizar o conteúdo. Largar antes do limiar
+// devolve a folha ao sítio. Quem fecha é o `close` de quem chama, por isso a
+// guarda de "alterações por gravar" do `openModal` continua a valer.
+const SHEET_QUERY = '(max-width: 640px)';
+const SHEET_CLOSE_PX = 90;
+function wireSheetDrag(overlay, close) {
+  const modal = overlay.querySelector('.modal');
+  const head = modal?.querySelector('.modal__head');
+  if (!modal || !head) return;
+  if (modal.classList.contains('modal--confirm') || modal.classList.contains('tp-modal')) return;
+  let startY = null;
+  let dy = 0;
+  const settle = () => {
+    modal.style.transition = 'transform 0.2s ease';
+    modal.style.transform = '';
+    setTimeout(() => { modal.style.transition = ''; }, 220);
+  };
+  head.addEventListener('touchstart', (e) => {
+    if (!window.matchMedia(SHEET_QUERY).matches || e.touches.length !== 1) return;
+    if (e.target.closest('button, a, input, select, textarea')) return;
+    startY = e.touches[0].clientY;
+    dy = 0;
+    modal.style.transition = 'none';
+  }, { passive: true });
+  head.addEventListener('touchmove', (e) => {
+    if (startY === null) return;
+    dy = Math.max(0, e.touches[0].clientY - startY);
+    modal.style.transform = dy ? `translateY(${dy}px)` : '';
+  }, { passive: true });
+  const end = () => {
+    if (startY === null) return;
+    startY = null;
+    const far = dy > SHEET_CLOSE_PX;
+    settle();
+    if (far) close();
+  };
+  head.addEventListener('touchend', end);
+  head.addEventListener('touchcancel', end);
+}
+
 // Dá a um diálogo construído à mão a mesma moldura do `openModal`: entra na
 // pilha partilhada (só o do topo reage ao Escape), prende o Tab lá dentro,
 // devolve o foco ao elemento de origem e fecha no X, no Escape e no clique
@@ -254,6 +297,7 @@ export function wireDialog(overlay, { onClose, initialFocus } = {}) {
   overlay.addEventListener('mousedown', (e) => {
     if (e.target === overlay) close();
   });
+  wireSheetDrag(overlay, close);
 
   return close;
 }
@@ -376,6 +420,7 @@ export function openModal({
   overlay.addEventListener('mousedown', (e) => {
     if (e.target === overlay) requestClose();
   });
+  wireSheetDrag(overlay, requestClose);
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
