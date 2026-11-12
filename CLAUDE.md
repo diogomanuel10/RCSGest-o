@@ -2968,8 +2968,9 @@ separador antes de navegar (usado pelos cartões do Painel).
     de seleção fica em 22px porque o alvo é a etiqueta à volta, essa sim com
     44px.
 - **Movimento: pouco e com função** (secção «Movimento» do `style.css`). Mudar
-  de secção é uma passagem (`document.startViewTransition` no `applyHash`, só
-  o conteúdo — as barras ficam quietas — e só quando o sítio muda), e o que se
+  de secção é um fade curto do conteúdo (classe `content__inner--enter`, posta
+  pelo `applyHash` só quando o sítio muda — **não** a View Transitions API,
+  que fotografa a página inteira e congela os toques enquanto corre), e o que se
   toca encolhe enquanto o dedo lá está (`:active`, em `hover: none`). **Não se
   animam entradas dentro das vistas**: o `paint()` volta a correr a cada
   notificação do store, e uma lista que "entra" de novo sempre que se marca
