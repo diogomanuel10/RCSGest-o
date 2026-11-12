@@ -151,7 +151,7 @@ conforme o `role` + RLS. Ver `supabase/multitenant.sql` (corre DEPOIS de
     coordenador: consentimento obrigatório e escrito na ficha, teto de 20 por
     hora por clube e o mesmo nome+contacto não duplica no mesmo dia.
   - **O site não importa nada da app** (nem o supabase-js): poucas chamadas
-    `fetch`, ~18 KB comprimido. É outro ponto de entrada do Vite
+    `fetch`, ~36 KB comprimido (o movimento e o 3D são código próprio, sem bibliotecas). É outro ponto de entrada do Vite
     (`vite.config.js`) e o `vercel.json` encaminha `*.rumia.pt` (fora
     `www`/`app`) para `site.html`.
   - **É uma página com rotas no hash** (`#/calendario`, `#/equipas/<id>`,
@@ -176,12 +176,51 @@ conforme o `role` + RLS. Ver `supabase/multitenant.sql` (corre DEPOIS de
     e do preço do artigo nesse momento) e avisa o coordenador, que combina
     pagamento e entrega — as mesmas defesas do pedido de inscrição
     (consentimento, 20/hora por clube, sem duplicar no mesmo dia).
-  - **O visual é o de um site de clube, não o de uma app** (`site.css`): letra
-    condensada e pesada (Barlow Condensed), títulos em maiúsculas, a cor do
-    clube em blocos grandes e riscas diagonais na cor de destaque
-    (`--stripes`). Tudo sai das duas cores que o clube já escolhe nas
-    Definições — o coordenador não configura nada a mais. Era uma página de
-    nove blocos de cartões brancos com o mesmo peso, e lia-se como um painel.
+  - **O visual é escuro, imersivo e em movimento** (`site.css`, `fx.js`):
+    letra larga e pesada em itálico (Archivo variável, uma família só),
+    vidro fosco, brilhos na cor do clube, fitas que deslizam e objetos em 3D.
+    Tudo continua a sair das duas cores que o clube já escolhe nas Definições
+    — o coordenador não configura nada a mais. Foi um site claro de blocos e
+    riscas (Barlow Condensed); a estrutura, as rotas e os dados são os mesmos.
+    - **Um fundo escuro não aguenta qualquer cor de clube**: um azul-marinho
+      ou um preto não se leem em cima dele. `applyTheme` deriva `--hi` (a cor
+      de destaque clareada até se ler) e `--glow` (a principal clareada, para
+      os brilhos); `--brand`/`--accent` ficam para os blocos cheios. Só se
+      clareia o que é mesmo escuro — um vermelho vivo fica vermelho, não rosa.
+    - **Os logótipos dos patrocinadores ficam numa placa branca**: são
+      desenhados para fundo claro, e num site escuro um logótipo preto
+      desaparecia — que é o contrário do que o patrocinador pagou.
+    - **Nada do movimento esconde conteúdo se falhar**: o CSS só esconde o que
+      vai "entrar" com a classe `fx` no `<html>`, que é o JS que a põe.
+    - **Só se anima a ENTRADA numa página** (`mountFx({ animate })`): trocar
+      de escalão ou abrir "mostrar mais" re-desenha a mesma, e uma lista que
+      entra outra vez a cada toque é ruído — a regra do «Movimento» da app.
+      No fim da entrada o elemento perde o `data-rv`: a transformação da
+      entrada não pode ficar a disputar a da inclinação 3D.
+    - **O que mexe**: títulos que entram linha a linha (`kinetic`), blocos que
+      se revelam ao deslizar (em escada), números que contam, a fita de
+      resultados e a dos patrocinadores a dar a volta (a lista vai duas vezes;
+      a segunda é `aria-hidden`), paralaxe e Ken Burns no topo, cartões que se
+      inclinam com o rato e um foco de luz que o segue, a barra de progresso
+      e a galeria em ecrã inteiro (`openLightbox`, em vez de abrir a foto
+      noutro separador). Com `prefers-reduced-motion` cala-se tudo e as fitas
+      passam a deslizar com o dedo.
+  - **A loja é em 3D, a partir das FOTOS** (`stage3d` no `site.js`, a montra
+    no `fx.js`): cada artigo é um objeto com espessura — a foto empilhada em
+    nove camadas no eixo Z — que balança sozinho e roda com o dedo, o rato ou
+    as setas, com inércia. Uma foto de fundo transparente (PNG) dá o recorte
+    da peça; uma foto normal dá uma placa com espessura.
+    - **É CSS 3D e não WebGL com modelos**: o clube tem fotos, não tem um
+      `.glb` por artigo, e uma loja 3D que só funciona para quem modelar cada
+      camisola é uma loja 3D que nenhum clube chega a ter. Também não
+      descarrega biblioteca nenhuma. Modelos a sério (upload de `.glb`) são
+      uma decisão à parte — pedem coluna, bucket e ecrã de upload.
+    - **Cada artigo tem página própria** (`#/loja/<id>`, `productHTML`): a
+      montra de um lado, o tamanho e "Encomendar" do outro. O tamanho
+      escolhido lá segue para o diálogo do pedido. O primeiro artigo é a
+      montra grande da loja e do bloco da loja no início (`showcaseHTML`).
+    - **A montra só anima enquanto está à vista** (um `IntersectionObserver`
+      liga e desliga o `requestAnimationFrame`).
   - **O topo do início muda com o dia** (`heroMoment`): há jogos HOJE ("Hoje
     há voleibol", o jogo seguinte e a hora a que começa), a última jornada
     acabou há três dias ou menos (o balanço dela, com os marcadores), o resto
@@ -355,7 +394,7 @@ src/
   sizes-message.js      Mensagem à família para confirmar os dados da encomenda
   encomenda-fornecedor-xlsx.js Folha da encomenda no formato do fornecedor (ExcelJS lazy)
   join-poster.js        Cartaz A4 do guia de entrada (QR da app + QR do grupo)
-  site/                 Site público do clube (<clube>.rumia.pt): site.js + site.css (+ share-card.js), sem dependências da app
+  site/                 Site público do clube (<clube>.rumia.pt): site.js + site.css + fx.js (movimento e 3D) (+ share-card.js), sem dependências da app
   marketing-dates.js    Catálogo de datas para as redes sociais (fixas + móveis)
   player-photo.js       Foto de perfil nos avatares (endereços assinados em lote)
   offline-card.js       Cartão QR guardado no dispositivo (ecrã de recurso sem rede)

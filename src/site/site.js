@@ -13,6 +13,7 @@
 // secção não espera pela rede, e cada endereço continua a ser partilhável.
 
 import './site.css';
+import { initFx, mountFx } from './fx.js';
 
 function cleanEnv(value) {
   if (typeof value !== 'string') return '';
@@ -242,6 +243,28 @@ function inkOn(hex) {
   return lum > 0.45 ? '#111827' : '#ffffff';
 }
 
+function luminance(hex) {
+  const n = parseInt(String(hex).replace('#', ''), 16);
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((c) => {
+    const x = c / 255;
+    return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+// Clareia uma cor (mistura com branco) até ter a luminância pedida.
+function lift(hex, min) {
+  if (!/^#[0-9a-f]{6}$/i.test(hex)) return hex;
+  const n = parseInt(hex.slice(1), 16);
+  const rgb = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  for (let k = 0; k <= 1.001; k += 0.06) {
+    const mixed = rgb.map((c) => Math.round(c + (255 - c) * k));
+    const out = `#${mixed.map((c) => c.toString(16).padStart(2, '0')).join('')}`;
+    if (luminance(out) >= min) return out;
+  }
+  return '#ffffff';
+}
+
 function initials(name) {
   return String(name || '')
     .split(/\s+/)
@@ -412,13 +435,14 @@ function link(page, id = '') {
 
 function headerHTML(page) {
   const items = navItems();
-  const active = page === 'equipa' ? 'equipas' : page === 'noticia' ? 'noticias' : page;
+  const active = page === 'noticia' ? 'noticias' : page;
   const nav = items.map(([id, label]) => `
     <a href="${link(id)}" class="topnav__link${active === id ? ' is-active' : ''}"
        ${active === id ? 'aria-current="page"' : ''}>${label}</a>`).join('');
   return `
+    <div class="progress" aria-hidden="true"></div>
     <header class="topbar">
-      <div class="wrap topbar__inner">
+      <div class="topbar__inner">
         <a class="brand" href="#/" aria-label="${esc(data.club.name)} — início">
           ${emblem('emblem--sm')}
           <span class="brand__name">${esc(data.club.name)}</span>
@@ -430,8 +454,10 @@ function headerHTML(page) {
         </button>
       </div>
       <nav class="menu${menuOpen ? ' is-open' : ''}" id="menu" aria-label="Menu" ${menuOpen ? '' : 'hidden'}>
-        ${nav}
-        ${has('inscricoes') ? '<a class="topnav__link menu__cta" href="#/inscricoes">Inscreve-te</a>' : ''}
+        <div class="menu__links">
+          ${nav}
+        </div>
+        ${has('inscricoes') ? '<a class="btn btn--accent btn--lg menu__cta" href="#/inscricoes">Inscreve-te</a>' : ''}
       </nav>
     </header>`;
 }
@@ -452,6 +478,7 @@ function footerHTML() {
   const mail = c.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.email) ? c.email : '';
   return `
     <footer class="foot">
+      <p class="foot__giant" aria-hidden="true">${esc(initials(data.club.name).length > 1 ? initials(data.club.name) : data.club.name)}</p>
       <div class="wrap foot__grid">
         <div class="foot__club">
           ${emblem('emblem--sm')}
@@ -515,10 +542,18 @@ function pageHead(kicker, title, lead = '') {
     <section class="pagehead">
       <div class="wrap">
         <p class="kicker">${esc(kicker)}</p>
-        <h1 class="pagehead__title">${esc(title)}</h1>
+        <h1 class="pagehead__title">${kinetic(esc(title).replace(/&lt;br&gt;/g, '<br>'))}</h1>
         ${lead ? `<p class="pagehead__lead">${lead}</p>` : ''}
       </div>
     </section>`;
+}
+
+// Um título que entra linha a linha, de baixo para cima. As linhas são as
+// quebras (`<br>`) que o texto já traz.
+function kinetic(html) {
+  return String(html).split(/<br\s*\/?>/i)
+    .map((line, i) => `<span class="kline" style="--k:${i}"><span>${line}</span></span>`)
+    .join('');
 }
 
 function sectionHead(title, more = '') {
@@ -591,17 +626,73 @@ function newsCard(p, labels, big = false) {
     </a>`;
 }
 
+// A montra 3D de um artigo: a foto empilhada em camadas no eixo Z, que é o que
+// lhe dá espessura quando roda. Com uma foto de fundo transparente as camadas
+// seguem o recorte da peça; com uma foto normal fica uma placa com espessura.
+// Quem a faz rodar é o `fx.js`.
+const P3D_LAYERS = 9;
+
+function stage3d(p, { big = false } = {}) {
+  const src = p.photo ? mediaUrl(p.photo) : '';
+  const layers = Array.from({ length: P3D_LAYERS }, (_, i) => {
+    const cls = `p3d__layer${i === P3D_LAYERS - 1 ? ' p3d__layer--front' : i === 0 ? ' p3d__layer--back' : ''}`;
+    return src
+      ? `<img class="${cls}" style="--z:${i}" src="${esc(src)}" alt="" draggable="false" ${i === P3D_LAYERS - 1 ? '' : 'aria-hidden="true"'} />`
+      : `<span class="${cls} p3d__layer--blank" style="--z:${i}" aria-hidden="true">${i === P3D_LAYERS - 1 ? `${emblem('emblem--ghost')}<b>${esc(p.name)}</b>` : ''}</span>`;
+  }).join('');
+  return `
+    <div class="p3d${big ? ' p3d--big' : ''}" data-p3d tabindex="0" role="img"
+         aria-label="${esc(p.name)} em 3D. Arrasta, ou usa as setas, para rodar.">
+      <div class="p3d__halo" aria-hidden="true"></div>
+      <div class="p3d__ring" aria-hidden="true"></div>
+      <div class="p3d__floor" aria-hidden="true"></div>
+      <div class="p3d__obj">
+        ${layers}
+        ${src ? `<span class="p3d__glare" style="--mask:url('${esc(src)}')" aria-hidden="true"></span>` : ''}
+      </div>
+      <p class="p3d__hint" aria-hidden="true">${ROTATE_ICON} Arrasta para rodar</p>
+    </div>`;
+}
+
+const ROTATE_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 4 0 1 0 9-4"/><path d="m9 4 3 4-4 2"/></svg>';
+
+function priceLabel(p) {
+  return p.price == null ? 'Preço sob consulta' : euros(p.price);
+}
+
+// O cartão de um artigo inclina-se em 3D com o rato, com a peça a sair do
+// cartão (`translateZ`). Leva à página do artigo, onde está a montra a rodar.
 function productCard(p) {
   return `
-    <article class="product">
-      <div class="product__img">
+    <a class="product" href="${link('loja', p.id)}" data-tilt="10">
+      <span class="product__tag">3D</span>
+      <span class="product__img">
         ${p.photo ? `<img src="${esc(mediaUrl(p.photo))}" alt="" loading="lazy" />` : `<span class="news__ph" aria-hidden="true">${emblem('emblem--ghost')}</span>`}
-      </div>
-      <div class="product__body">
-        <h3 class="product__name">${esc(p.name)}</h3>
-        <p class="product__price">${p.price == null ? 'Preço sob consulta' : esc(euros(p.price))}</p>
-        ${(p.sizes || []).length ? `<p class="product__sizes">${p.sizes.map((s) => `<span>${esc(s)}</span>`).join('')}</p>` : ''}
-        <button type="button" class="btn btn--brand" data-order="${esc(p.id)}">Encomendar</button>
+      </span>
+      <span class="product__body">
+        <span class="product__name">${esc(p.name)}</span>
+        <span class="product__price">${esc(priceLabel(p))}</span>
+        ${(p.sizes || []).length ? `<span class="product__sizes">${p.sizes.map((x) => `<span>${esc(x)}</span>`).join('')}</span>` : ''}
+        <span class="product__go">Ver em 3D <i aria-hidden="true">→</i></span>
+      </span>
+    </a>`;
+}
+
+// O artigo em destaque: a montra 3D a rodar, grande, ao lado do nome e do
+// preço. É a primeira coisa da loja e o bloco da loja na página inicial.
+function showcaseHTML(p, { kicker = 'Em destaque' } = {}) {
+  return `
+    <article class="showcase">
+      <div class="showcase__stage">${stage3d(p, { big: true })}</div>
+      <div class="showcase__body">
+        <p class="kicker">${esc(kicker)}</p>
+        <h3 class="showcase__name">${esc(p.name)}</h3>
+        <p class="showcase__price">${esc(priceLabel(p))}</p>
+        ${p.description ? `<p class="showcase__text">${esc(String(p.description).split(/\n/)[0])}</p>` : ''}
+        <div class="showcase__ctas">
+          <button type="button" class="btn btn--accent btn--lg" data-order="${esc(p.id)}">Encomendar</button>
+          <a class="btn btn--glass btn--lg" href="${link('loja', p.id)}">Ver o artigo</a>
+        </div>
       </div>
     </article>`;
 }
@@ -829,19 +920,23 @@ function heroHTML(labels, moment) {
   return `
     <section class="hero hero--${moment.kind}${photos.length ? '' : ' hero--plain'}" aria-label="Destaque">
       <div class="hero__slides" data-swipe>${slides}</div>
+      <div class="hero__aurora" aria-hidden="true"><i></i><i></i><i></i></div>
       <div class="hero__shade" aria-hidden="true"></div>
-      <div class="hero__stripes" aria-hidden="true"></div>
+      <div class="hero__tape" aria-hidden="true">
+        <div class="hero__tape-run">${`<span>${esc(data.club.name)}</span><span>✦</span>`.repeat(6)}</div>
+      </div>
       <div class="wrap hero__content${copy.panel ? ' hero__content--split' : ''}">
         <div class="hero__text">
           ${plain && !photos.length ? emblem('emblem--hero') : ''}
-          <p class="kicker kicker--hero">${esc(copy.kicker)}</p>
-          <h1 class="hero__name">${copy.title}</h1>
+          <p class="kicker kicker--hero"><i class="pulse" aria-hidden="true"></i>${esc(copy.kicker)}</p>
+          <h1 class="hero__name${copy.title.replace(/<[^>]+>/g, '').length > 26 ? ' hero__name--long' : ''}">${kinetic(copy.title)}</h1>
           ${copy.sub ? `<p class="hero__motto">${copy.sub}</p>` : ''}
           ${copy.ctas ? `<div class="hero__ctas">${copy.ctas}</div>` : ''}
         </div>
-        ${copy.panel ? `<div class="hero__panel">${copy.panel}</div>` : ''}
+        ${copy.panel ? `<div class="hero__panel" data-tilt="6">${copy.panel}</div>` : ''}
       </div>
       ${controls}
+      <a class="hero__cue" href="#conteudo" data-cue aria-label="Ver mais"><span></span></a>
     </section>`;
 }
 
@@ -912,20 +1007,24 @@ function wireCarousel() {
 function tickerHTML(labels) {
   const list = (has('resultados') ? data.results || [] : []).slice(0, 10);
   if (!list.length) return '';
+  const items = (hidden) => list.map((g) => {
+    const tag = outcome(g);
+    return `<li><a href="${link('resultados')}" ${hidden ? 'tabindex="-1"' : ''}>
+      <span class="ticker__team">${esc(labels[g.team_id] || '')}</span>
+      <strong class="ticker__score ticker__score--${tag[1]}">${esc(g.sets_for)}–${esc(g.sets_against)}</strong>
+      <span class="ticker__opp">${esc(g.opponent || g.title || 'Adversário')}</span>
+    </a></li>`;
+  }).join('');
+  // A lista vai duas vezes para a fita dar a volta sem costura; a segunda é só
+  // desenho (escondida de quem ouve a página e de quem navega por teclado).
   return `
     <nav class="ticker" aria-label="Últimos resultados">
-      <div class="wrap ticker__inner">
-        <span class="ticker__label">Últimos resultados</span>
-        <ul class="ticker__list">
-          ${list.map((g) => {
-            const tag = outcome(g);
-            return `<li><a href="${link('resultados')}">
-              <span class="ticker__team">${esc(labels[g.team_id] || '')}</span>
-              <strong class="ticker__score ticker__score--${tag[1]}">${esc(g.sets_for)}–${esc(g.sets_against)}</strong>
-              <span class="ticker__opp">${esc(g.opponent || g.title || 'Adversário')}</span>
-            </a></li>`;
-          }).join('')}
-        </ul>
+      <span class="ticker__label">Últimos resultados</span>
+      <div class="ticker__view">
+        <div class="ticker__run" style="--n:${list.length}">
+          <ul class="ticker__list">${items(false)}</ul>
+          <ul class="ticker__list" aria-hidden="true">${items(true)}</ul>
+        </div>
       </div>
     </nav>`;
 }
@@ -973,11 +1072,11 @@ function galleryHTML(labels) {
   const photos = data.photos.slice(0, 5);
   return `
     <section class="sec">
-      ${sectionHead('Galeria')}
+      ${sectionHead('Galeria', data.photos.length > 5 ? `<button type="button" class="sechead__more" data-photo="${esc(data.photos[5].id)}">Mais ${data.photos.length - 5} fotos →</button>` : '')}
       <ul class="mosaic mosaic--${photos.length}">
         ${photos.map((ph) => {
           const capt = slideCaption(ph, labels);
-          return `<li><a href="${esc(mediaUrl(ph.path))}" target="_blank" rel="noopener">
+          return `<li><a href="${esc(mediaUrl(ph.path))}" target="_blank" rel="noopener" data-photo="${esc(ph.id)}">
             <img src="${esc(mediaUrl(ph.path))}" alt="${capt.replace(/<[^>]+>/g, '')}" loading="lazy" />
             ${capt ? `<span class="mosaic__cap">${capt}</span>` : ''}
           </a></li>`;
@@ -993,13 +1092,17 @@ function homeSponsorsHTML() {
   const list = data.sponsors;
   const main = list[0]?.tier === 'ouro' ? list[0] : null;
   const rest = main ? list.slice(1) : list;
+  // Com poucos apoios a fita não chega para dar a volta: ficam parados.
+  const run = rest.length >= 4;
   return `
     <section class="sec">
       ${sectionHead('Quem nos apoia', `<a class="sechead__more" href="${link('contactos')}">Patrocinar o clube →</a>`)}
-      <ul class="sponsors sponsors--home">
-        ${main ? sponsorTile(main, 'sponsors__main') : ''}
-        ${rest.map((s) => sponsorTile(s)).join('')}
-      </ul>
+      ${main ? `<ul class="sponsors sponsors--lead">${sponsorTile(main, 'sponsors__main')}</ul>` : ''}
+      ${rest.length ? `
+        <div class="logos${run ? ' logos--run' : ''}">
+          <ul class="sponsors logos__list" style="--n:${rest.length}">${rest.map((x) => sponsorTile(x)).join('')}</ul>
+          ${run ? `<ul class="sponsors logos__list" style="--n:${rest.length}" aria-hidden="true">${rest.map((x) => sponsorTile(x).replace(/<a /g, '<a tabindex="-1" ')).join('')}</ul>` : ''}
+        </div>` : ''}
     </section>`;
 }
 
@@ -1014,7 +1117,7 @@ function bandTitle() {
 function homeHTML(labels) {
   const moment = heroMoment();
   const posts = has('noticias') ? data.posts.slice(moment.kind === 'proximo' ? 1 : 0).slice(0, 3) : [];
-  const prods = has('loja') ? data.products.slice(0, 4) : [];
+  const prods = has('loja') ? data.products : [];
   const founded = Number(data.history?.founded);
   const years = founded ? new Date().getFullYear() - founded : 0;
   const rec = record(data.results || []);
@@ -1026,14 +1129,14 @@ function homeHTML(labels) {
   ].filter(Boolean);
 
   return `
-    ${moment.kind === 'ronda' ? '' : tickerHTML(labels)}
     ${heroHTML(labels, moment)}
-    <div class="wrap home">
+    ${moment.kind === 'ronda' ? '' : tickerHTML(labels)}
+    <div class="wrap home" id="conteudo">
       ${weekHTML(labels, moment)}
 
       ${stats.length ? `
         <ul class="stats">
-          ${stats.map(([n, l]) => `<li><strong>${esc(n)}</strong><span>${esc(l)}</span></li>`).join('')}
+          ${stats.map(([n, l]) => `<li><strong data-count>${esc(n)}</strong><span>${esc(l)}</span></li>`).join('')}
         </ul>` : ''}
 
       ${posts.length ? `
@@ -1049,7 +1152,8 @@ function homeHTML(labels) {
       ${prods.length ? `
         <section class="sec">
           ${sectionHead('Loja do clube', moreLink('loja', 'Ver a loja'))}
-          <div class="shopgrid">${prods.map(productCard).join('')}</div>
+          ${showcaseHTML(prods[0], { kicker: 'Veste as cores do clube' })}
+          ${prods.length > 1 ? `<div class="shopgrid">${prods.slice(1, 4).map(productCard).join('')}</div>` : ''}
         </section>` : ''}
 
       ${homeSponsorsHTML()}
@@ -1057,12 +1161,13 @@ function homeHTML(labels) {
 
     ${has('inscricoes') ? `
       <section class="band">
+        <div class="band__tape" aria-hidden="true"><div class="band__tape-run">${'<span>Vem jogar connosco</span><span>✦</span>'.repeat(8)}</div></div>
         <div class="wrap band__inner">
           <div>
             <h2 class="band__title">${esc(bandTitle())}</h2>
             <p>Marca um treino experimental. Há lugar para ti.</p>
           </div>
-          <a class="btn btn--brand btn--lg" href="${link('inscricoes')}">Marca um treino experimental</a>
+          <a class="btn btn--dark btn--lg" href="${link('inscricoes')}">Marca um treino experimental <i aria-hidden="true">→</i></a>
         </div>
       </section>` : ''}`;
 }
@@ -1202,7 +1307,7 @@ function teamsHTML(labels) {
           const head = (t.coaches || []).find((c) => c.role === 'principal') || (t.coaches || [])[0];
           return `
           <li>
-            <a class="teamcard" href="${link('equipas', t.id)}">
+            <a class="teamcard" href="${link('equipas', t.id)}" data-tilt="7">
               <span class="teamcard__badge">${esc(t.escalao.slice(0, 3).toUpperCase())}</span>
               <span class="teamcard__name">${esc(labels[t.id])}</span>
               <span class="teamcard__meta">${esc(GENDER[t.gender] || '')}${head ? ` · ${esc(head.name)}` : ''}</span>
@@ -1319,11 +1424,51 @@ function postHTML(id, labels) {
 }
 
 function shopHTML() {
+  const list = data.products || [];
   return `
-    ${pageHead('Loja', 'Veste as cores do clube', 'Escolhe o artigo, deixa o teu contacto e o clube combina contigo o pagamento e a entrega.')}
+    ${pageHead('Loja', 'Veste as cores<br>do clube', 'Roda cada artigo em 3D, escolhe o teu e deixa o contacto: o clube combina contigo o pagamento e a entrega.')}
     <div class="wrap page">
-      <div class="shopgrid shopgrid--all">${(data.products || []).map(productCard).join('')}</div>
+      ${list[0] ? showcaseHTML(list[0]) : ''}
+      ${list.length > 1 ? `<div class="shopgrid shopgrid--all">${list.slice(1).map(productCard).join('')}</div>` : ''}
     </div>`;
+}
+
+// A página de um artigo: a montra 3D de um lado, o que é e como se encomenda do
+// outro. Tem endereço próprio (`#/loja/<id>`), para se mandar "olha esta
+// camisola" a alguém.
+function productHTML(id) {
+  const list = data.products || [];
+  const p = list.find((x) => x.id === id);
+  if (!p) return notFoundHTML();
+  const others = list.filter((x) => x.id !== id).slice(0, 3);
+  return `
+    <section class="pdp">
+      <div class="wrap pdp__grid">
+        <div class="pdp__stage">${stage3d(p, { big: true })}</div>
+        <div class="pdp__info">
+          <a class="back" href="${link('loja')}">← Loja</a>
+          <p class="kicker">Loja do clube</p>
+          <h1 class="pdp__name">${esc(p.name)}</h1>
+          <p class="pdp__price">${esc(priceLabel(p))}</p>
+          ${p.description ? `<div class="prose">${paragraphs(p.description)}</div>` : ''}
+          ${(p.sizes || []).length ? `
+            <fieldset class="sizes">
+              <legend>Tamanho</legend>
+              ${p.sizes.map((x) => `<label class="sizes__opt"><input type="radio" name="pdp-size" value="${esc(x)}" /><span>${esc(x)}</span></label>`).join('')}
+            </fieldset>` : ''}
+          <div class="pdp__ctas">
+            <button type="button" class="btn btn--accent btn--lg" data-order="${esc(p.id)}">Encomendar</button>
+            <button type="button" class="btn btn--glass btn--lg" data-share>Partilhar</button>
+          </div>
+          <p class="pdp__note">Não pagas nada agora: o clube contacta-te para combinar o pagamento e a entrega.</p>
+        </div>
+      </div>
+    </section>
+    ${others.length ? `
+      <div class="wrap page">
+        ${sectionHead('Mais da loja', moreLink('loja', 'Ver tudo'))}
+        <div class="shopgrid">${others.map(productCard).join('')}</div>
+      </div>` : ''}`;
 }
 
 // "O Clube": o que faz deste clube este clube — a história, o emblema e as
@@ -1548,7 +1693,7 @@ function pageHTML(page, id, labels) {
     case 'equipas': return has('equipas') ? (id ? teamHTML(id, labels) : teamsHTML(labels)) : notFoundHTML();
     case 'noticias': return has('noticias') ? newsPageHTML(labels) : notFoundHTML();
     case 'noticia': return has('noticias') ? postHTML(id, labels) : notFoundHTML();
-    case 'loja': return has('loja') ? shopHTML() : notFoundHTML();
+    case 'loja': return has('loja') ? (id ? productHTML(id) : shopHTML()) : notFoundHTML();
     case 'clube': return has('clube') ? clubHTML() : notFoundHTML();
     case 'patrocinadores': return has('patrocinadores') ? sponsorsPageHTML() : notFoundHTML();
     case 'inscricoes': return has('inscricoes') ? signupHTML() : notFoundHTML();
@@ -1568,6 +1713,10 @@ function pageTitle(page, id, labels) {
   if (page === 'noticia') {
     const p = (data.posts || []).find((x) => x.id === id);
     if (p) return `${p.title} — ${name}`;
+  }
+  if (page === 'loja' && id) {
+    const p = (data.products || []).find((x) => x.id === id);
+    if (p) return `${p.name} — ${name}`;
   }
   return map[page] ? `${map[page]} — ${name}` : name;
 }
@@ -1643,7 +1792,7 @@ async function openCard(kind, id) {
 
 // --- Encomenda da loja -------------------------------------------------------
 
-function openOrder(productId) {
+function openOrder(productId, size = '') {
   const p = (data.products || []).find((x) => x.id === productId);
   if (!p) return;
   const dlg = document.createElement('dialog');
@@ -1666,7 +1815,7 @@ function openOrder(productId) {
           <span>Tamanho</span>
           <select name="size" required>
             <option value="">Escolher…</option>
-            ${p.sizes.map((s) => `<option value="${esc(s)}">${esc(s)}</option>`).join('')}
+            ${p.sizes.map((s) => `<option value="${esc(s)}"${s === size ? ' selected' : ''}>${esc(s)}</option>`).join('')}
           </select>
         </label>` : ''}
         <label class="field">
@@ -1741,6 +1890,60 @@ function openOrder(productId) {
   dlg.showModal();
 }
 
+// --- Galeria em ecrã inteiro ---------------------------------------------------
+
+// As fotos abriam num separador novo, e quem as via saía do site. Aqui abrem
+// por cima da página: setas, teclado e deslizar com o dedo.
+function openLightbox(photoId) {
+  const photos = data.photos || [];
+  let i = Math.max(0, photos.findIndex((ph) => ph.id === photoId));
+  if (!photos.length) return;
+  const labels = teamLabels();
+  const dlg = document.createElement('dialog');
+  dlg.className = 'lightbox';
+  dlg.setAttribute('aria-label', 'Galeria');
+  dlg.innerHTML = `
+    <button type="button" class="iconbtn lightbox__x" data-close aria-label="Fechar">×</button>
+    <button type="button" class="iconbtn lightbox__nav lightbox__nav--prev" data-step="-1" aria-label="Foto anterior">‹</button>
+    <figure class="lightbox__fig"><img alt="" /><figcaption></figcaption></figure>
+    <button type="button" class="iconbtn lightbox__nav lightbox__nav--next" data-step="1" aria-label="Foto seguinte">›</button>`;
+  document.body.appendChild(dlg);
+  const img = dlg.querySelector('img');
+  const cap = dlg.querySelector('figcaption');
+  const show = (n) => {
+    i = (n + photos.length) % photos.length;
+    const ph = photos[i];
+    const text = slideCaption(ph, labels);
+    img.classList.remove('is-in');
+    img.src = mediaUrl(ph.path);
+    img.alt = text.replace(/<[^>]+>/g, '');
+    cap.innerHTML = `${text ? `<span>${text}</span>` : ''}<small>${i + 1} / ${photos.length}</small>`;
+    // Reinicia a animação de entrada da foto.
+    requestAnimationFrame(() => img.classList.add('is-in'));
+  };
+  dlg.addEventListener('close', () => dlg.remove());
+  dlg.addEventListener('click', (e) => {
+    if (e.target === dlg || e.target.closest('[data-close]')) dlg.close();
+    const step = e.target.closest('[data-step]');
+    if (step) show(i + Number(step.dataset.step));
+  });
+  dlg.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft') show(i - 1);
+    if (e.key === 'ArrowRight') show(i + 1);
+  });
+  let x0 = null;
+  dlg.addEventListener('pointerdown', (e) => { x0 = e.clientX; });
+  dlg.addEventListener('pointerup', (e) => {
+    if (x0 == null) return;
+    const dx = e.clientX - x0;
+    x0 = null;
+    if (Math.abs(dx) > 50) show(i + (dx < 0 ? 1 : -1));
+  });
+  if (photos.length < 2) dlg.querySelectorAll('[data-step]').forEach((b) => { b.hidden = true; });
+  show(i);
+  dlg.showModal();
+}
+
 // --- Página ----------------------------------------------------------------
 
 function clubColors() {
@@ -1759,7 +1962,15 @@ function applyTheme() {
   s.setProperty('--brand-ink', inkOn(primary));
   s.setProperty('--accent', accent);
   s.setProperty('--accent-ink', inkOn(accent));
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', primary);
+  // O site é escuro. As duas cores do clube continuam a mandar, mas uma cor
+  // escura (um azul-marinho, um preto) não se lê em cima de um fundo escuro:
+  // `--hi` é a cor de destaque clareada até se ler, e `--glow` a cor principal
+  // clareada para os brilhos. Um clube de cores claras fica como está.
+  const hi = lift(accent, 0.17);
+  s.setProperty('--hi', hi);
+  s.setProperty('--hi-ink', inkOn(hi));
+  s.setProperty('--glow', lift(primary, 0.14));
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '#06080c');
   const desc = [c.motto, 'Calendário, resultados, equipas, notícias e loja do clube.'].filter(Boolean).join(' · ');
   document.querySelector('meta[name="description"]')?.setAttribute('content', desc);
   if (c.logo) document.querySelector('link[rel="icon"]')?.setAttribute('href', c.logo);
@@ -1787,7 +1998,7 @@ function render() {
   root.innerHTML = `
     ${preview}
     ${headerHTML(page)}
-    <main id="main" class="main main--${page || 'inicio'}">${pageHTML(page, id, labels)}</main>
+    <main id="main" class="main main--${page || 'inicio'}${lastRoute !== key ? ' main--enter' : ''}">${pageHTML(page, id, labels)}</main>
     ${footerHTML()}
     ${dockHTML(page)}`;
   root.classList.toggle('has-dock', Boolean(root.querySelector('.dock')));
@@ -1798,9 +2009,15 @@ function render() {
     });
     form.consent.checked = Boolean(kept.consent);
   }
-  if (lastRoute !== null && lastRoute !== key) window.scrollTo(0, 0);
+  document.documentElement.classList.toggle('menu-open', menuOpen);
+  // Só se anima a ENTRADA numa página: trocar de escalão ou abrir "mostrar
+  // mais" re-desenha a mesma, e uma lista que entra outra vez a cada toque é
+  // ruído.
+  const entering = lastRoute !== key;
+  if (lastRoute !== null && entering) window.scrollTo({ top: 0, behavior: 'instant' });
   lastRoute = key;
   wire();
+  mountFx({ animate: entering });
 }
 
 // O menu passa a gaveta quando não cabe na barra — e isso depende do nome do
@@ -1821,6 +2038,7 @@ function wire() {
     const menu = root.querySelector('#menu');
     menu.hidden = !menuOpen;
     menu.classList.toggle('is-open', menuOpen);
+    document.documentElement.classList.toggle('menu-open', menuOpen);
     root.querySelector('[data-menu]').setAttribute('aria-expanded', String(menuOpen));
   });
   root.querySelectorAll('[data-team]').forEach((btn) =>
@@ -1861,8 +2079,18 @@ function wire() {
     btn.addEventListener('click', () => root.querySelector(`#sec-${btn.dataset.jump}`)?.scrollIntoView({ block: 'start' }))
   );
   root.querySelectorAll('[data-order]').forEach((btn) =>
-    btn.addEventListener('click', () => openOrder(btn.dataset.order))
+    btn.addEventListener('click', () => openOrder(btn.dataset.order, root.querySelector('input[name="pdp-size"]:checked')?.value || ''))
   );
+  root.querySelectorAll('[data-photo]').forEach((el) =>
+    el.addEventListener('click', (e) => {
+      e.preventDefault();
+      openLightbox(el.dataset.photo);
+    })
+  );
+  root.querySelector('[data-cue]')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    (root.querySelector('.ticker') || root.querySelector('#conteudo'))?.scrollIntoView({ block: 'start' });
+  });
   root.querySelectorAll('[data-ics]').forEach((btn) =>
     btn.addEventListener('click', () => downloadIcs(btn.dataset.ics))
   );
@@ -1870,12 +2098,13 @@ function wire() {
     btn.addEventListener('click', () => openCard(btn.dataset.card, btn.dataset.id))
   );
   root.querySelector('[data-share]')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
     const url = location.href;
     try {
       if (navigator.share) await navigator.share({ title: document.title, url });
       else {
         await navigator.clipboard.writeText(url);
-        e.currentTarget.textContent = 'Link copiado';
+        btn.textContent = 'Link copiado';
       }
     } catch { /* quem cancela a partilha não fez nada de errado */ }
   });
@@ -1952,6 +2181,7 @@ function normalize(d) {
 }
 
 async function start() {
+  initFx(root);
   if (!API_URL || !API_KEY) {
     message('Site por configurar', 'Faltam as variáveis do Supabase neste alojamento.');
     return;
