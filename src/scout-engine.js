@@ -14,7 +14,8 @@
 //              libero, liberoDef,        // líbero de receção (ou única) e de defesa (opcional)
 //              liberoFor: [ids],         // quem a líbero substitui na zona de defesa
 //              firstServer: 'OUR'|'THEIR'|null }],
-//     events: [{ set, t, q, pid, ts }    // ação de uma atleta (ou do adversário)
+//     events: [{ set, t, q, pid, ts,     // ação de uma atleta (ou do adversário)
+//                z?, et? }               // zona e tipo de erro (opcionais, `data.extras`)
 //            | { set, t: 'SUB', out, in, ts }],
 //     cur: 0                             // set ativo
 //   }
@@ -64,6 +65,42 @@ export function usedCols(datas) {
   return set;
 }
 // Notação de qualidade do DataVolley — a que os treinadores já leem.
+// --- Detalhe opcional: zona e tipo de erro ----------------------------------
+//
+// Uma ação pode levar, além da qualidade, a ZONA (`z`, 1–6) e o TIPO DE ERRO
+// (`et`). São opcionais por jogo (`data.extras`), como as ações: quem marca
+// sozinho no banco não tem tempo para mais um toque, e quem marca depois do
+// jogo, a ver o vídeo, tem. Uma ação sem zona continua a contar para tudo o
+// resto — os jogos antigos não mudam.
+//
+// - Zona do SERVIÇO: onde a bola caiu no campo adversário.
+// - Zona da RECEÇÃO: onde estava a recetora no nosso campo.
+// A zona do ataque não se marca: deduz-se da posição (`scout-patterns.js`).
+export const ZONE_ACTS = ['SERVICE', 'RECEPTION'];
+export const ERR_TYPES = {
+  SERVICE: [['rede', 'Rede'], ['fora', 'Fora'], ['pe', 'Falta de pé']],
+  ATTACK: [['rede', 'Rede'], ['fora', 'Fora'], ['antena', 'Antena'], ['invasao', 'Invasão']],
+  SETTING: [['dois', 'Dois toques'], ['conducao', 'Condução'], ['rede', 'Rede']],
+  BLOCK: [['rede', 'Rede'], ['invasao', 'Invasão']],
+  OTHER: [['rede', 'Rede'], ['invasao', 'Invasão'], ['rotacao', 'Rotação'], ['outro', 'Outro']],
+};
+export const errTypeLabel = (t, k) => (ERR_TYPES[t] || []).find(([x]) => x === k)?.[1] || null;
+// O que se pede neste jogo. Sem escolha gravada não se pede nada: o detalhe é
+// um toque a mais, e quem não o escolheu não o quer.
+export function activeExtras(data) {
+  const x = data?.extras || {};
+  return { zones: ZONE_ACTS.filter((k) => (x.zones || []).includes(k)), errTypes: !!x.errTypes };
+}
+// Esta ação acabada de marcar pede detalhe? Devolve o que perguntar.
+export function extrasFor(data, e) {
+  if (!e || e.t === 'SUB' || e.t === 'OPPONENT') return null;
+  const x = activeExtras(data);
+  // Um serviço falhado não caiu em zona nenhuma: aí pergunta-se o tipo de erro.
+  const zone = x.zones.includes(e.t) && !(e.t === 'SERVICE' && e.q === 'ERROR');
+  const err = x.errTypes && e.q === 'ERROR' && !!ERR_TYPES[e.t];
+  return zone || err ? { zone, err } : null;
+}
+
 export const SYM = { PERFECT: '#', OK: '+', BAD: '−', BLOCKED: '/', ERROR: '=' };
 export const QN = { PERFECT: 'Perfeito', OK: 'Bom', BAD: 'Fraco', BLOCKED: 'Bloqueado', ERROR: 'Erro' };
 
@@ -87,6 +124,7 @@ export function emptyData(roster, base = {}) {
     events: [],
     cur: 0,
     ...(Array.isArray(base.cols) ? { cols: OPTIONAL_COLS.filter((k) => base.cols.includes(k)) } : {}),
+    ...(base.extras ? { extras: { zones: ZONE_ACTS.filter((k) => (base.extras.zones || []).includes(k)), errTypes: !!base.extras.errTypes } } : {}),
   };
 }
 

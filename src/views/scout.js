@@ -29,12 +29,13 @@ import {
   ACT, COLS, ROWS, SYM, QN, MAX_SETS, emptyData, derive, court, setWinner, setsWon, hasPoints,
   partials, summarize, pointsPlayed, teamSummary, teamCounts, playerStats, playerRows, findPlayer, numOf, fmtPct,
   activeCols, usedCols, OPTIONAL_COLS, rotationStats, phaseStats, atkEff, K1_RECEPTIONS, QUALITY, qualityOf, counts,
+  ZONE_ACTS, ERR_TYPES, activeExtras, extrasFor, errTypeLabel,
 } from '../scout-engine.js';
 import { evoChart, wireEvo } from '../scout-charts.js';
 import { gameInsights, gameStandouts, setterFinder, rotationLabel, roleFinder, startPhrase } from '../scout-insights.js';
 import {
   runsLost, pressureStats, serveStats, receptionByRotation, onCourtStats, setBySet, firstVsLast,
-  attackZoneStats, zoneTotal, ATTACK_ZONES, ZONE_LABEL,
+  attackZoneStats, zoneTotal, ATTACK_ZONES, ZONE_LABEL, serveZoneStats, receptionZoneStats, errorTypeStats, ZONES,
 } from '../scout-patterns.js';
 
 // --- Estado local da secção -------------------------------------------------
@@ -515,7 +516,7 @@ async function startScout(values) {
 function summaryOf(data) {
   const s1 = data.sets[0];
   // As ações escolhidas vão na base: o jogo seguinte da equipa começa com as mesmas.
-  return { ...summarize(data), base: { lineup: s1.lineup, libero: s1.libero, liberoDef: s1.liberoDef || null, liberoFor: s1.liberoFor, cols: data.cols || null } };
+  return { ...summarize(data), base: { lineup: s1.lineup, libero: s1.libero, liberoDef: s1.liberoDef || null, liberoFor: s1.liberoFor, cols: data.cols || null, extras: data.extras || null } };
 }
 
 // Do botão "Scout" de um jogo no Calendário: abre o scout desse jogo ou cria-o.
@@ -875,6 +876,9 @@ function patternsBlock(datas, f, { multi = false, open = new Set() } = {}) {
     servePattern(datas, f, open),
     receptionPattern(datas, f, isSetter, used, open),
     courtPattern(datas, f, multi, open),
+    serveZonesPattern(datas, f, open),
+    recZonesPattern(datas, f, open),
+    errTypesPattern(datas, f, open),
     f === 'all' ? setsPattern(datas, multi, used, open) : '',
   ].join('');
   if (!parts) return '';
@@ -1038,6 +1042,93 @@ function courtPattern(datas, f, multi, open) {
     <p class="muted scout-footnote">O side-out e o break-point da equipa nos rallies em que a atleta estava em campo e nos outros. Mostra o valor que não aparece em contagem nenhuma (a central que fecha o bloco, a líbero que segura a receção). A verde ou vermelho com 10 pontos de diferença, quando os dois lados têm ${PAT_MIN} rallies ou mais.${!multi || !anyOff ? ' Num jogo, quem joga tudo não tem "sem ela" com que comparar: é nos totais da época que isto fala.' : ''}</p>`, open);
 }
 
+// --- Zonas marcadas (detalhe opcional) ---
+// O campo desenhado como se vê do nosso lado: no serviço o ADVERSÁRIO (a fila
+// de trás deles mais longe, por cima), na receção o nosso (rede por cima).
+function zoneMapHTML(far, cell) {
+  const rows = far ? [[1, 6, 5], [2, 3, 4]] : [[4, 3, 2], [5, 6, 1]];
+  const net = '<div class="scout-zmap__net">rede</div>';
+  const grid = rows.map((r) => r.map((z) => cell(z)).join('')).join('');
+  return `<div class="scout-zmap${far ? ' scout-zmap--far' : ''}">${far ? `${grid}${net}` : `${net}${grid}`}</div>`;
+}
+function zoneCell(z, main, sub, tone) {
+  return `<div class="scout-zmap__cell${tone ? ` scout-zmap__cell--${tone}` : ''}"><span class="scout-zmap__z">Z${z}</span><strong>${main}</strong><span class="muted">${sub}</span></div>`;
+}
+const toneVs = (v, ref, n, min = 5, gap = 0.1) => (v == null || ref == null || n < min ? '' : v >= ref + gap ? 'ok' : v <= ref - gap ? 'danger' : '');
+
+function serveZonesPattern(datas, f, open) {
+  const st = serveZoneStats(datas, { f });
+  if (!st.marked) return '';
+  const all = Object.values(st.team).reduce((a, o) => ({ n: a.n + o.n, won: a.won + o.won }), { n: 0, won: 0 });
+  const ref = all.n ? all.won / all.n : null;
+  const map = zoneMapHTML(true, (z) => {
+    const o = st.team[z];
+    return o.n ? zoneCell(z, pctN(o.won, o.n), `${o.n} serv.${o.ace ? ` · ${o.ace} ase${o.ace === 1 ? '' : 's'}` : ''}`, toneVs(o.won / o.n, ref, o.n)) : zoneCell(z, '—', '0 serv.');
+  });
+  const ids = Object.keys(st.byPid);
+  const table = ids.length ? `<div class="table-wrap"><table class="no-stack scout-table">
+    <thead><tr><th>Atleta</th>${ZONES.map((z) => `<th>Z${z}</th>`).join('')}</tr></thead>
+    <tbody>${ids.map((id) => `<tr><td>${esc(nameIn(datas, id))}</td>${ZONES.map((z) => {
+      const o = st.byPid[id][z];
+      return o.n ? `<td>${pctN(o.won, o.n)} <span class="muted">${o.n}</span></td>` : '<td class="muted">—</td>';
+    }).join('')}</tr>`).join('')}</tbody></table></div>` : '';
+  return patGroup('srvzonas', 'Serviço por zona', `${st.marked} serviços`, `${map}${table}
+    <p class="muted scout-footnote">Onde caíram os nossos serviços (campo adversário, visto do nosso lado) e em quantos desses rallies ganhámos o ponto. A verde ou vermelho com 10 pontos de diferença para a média (5 serviços ou mais na zona). Na tabela, em quantos dos rallies de cada atleta ganhámos o ponto, por zona, com o número de serviços ao lado. Conta só os serviços que entraram e têm zona marcada: ${st.marked} de ${st.total}.</p>`, open);
+}
+
+function recZonesPattern(datas, f, open) {
+  const st = receptionZoneStats(datas, { f });
+  if (!st.marked) return '';
+  const all = Object.values(st.team).reduce((a, o) => ({ n: a.n + o.n, good: a.good + o.good }), { n: 0, good: 0 });
+  const ref = all.n ? all.good / all.n : null;
+  const map = zoneMapHTML(false, (z) => {
+    const o = st.team[z];
+    return o.n ? zoneCell(z, pctN(o.good, o.n), `${o.n} rec. · side-out ${pctN(o.soWon, o.n)}`, toneVs(o.good / o.n, ref, o.n)) : zoneCell(z, '—', '0 rec.');
+  });
+  const ids = Object.keys(st.byPid);
+  const table = ids.length ? `<div class="table-wrap"><table class="no-stack scout-table">
+    <thead><tr><th>Atleta</th>${ZONES.map((z) => `<th>Z${z}</th>`).join('')}<th>Total</th></tr></thead>
+    <tbody>${ids.map((id) => {
+      const zs = st.byPid[id];
+      const tot = ZONES.reduce((a, z) => ({ n: a.n + zs[z].n, good: a.good + zs[z].good }), { n: 0, good: 0 });
+      const own = tot.n ? tot.good / tot.n : null;
+      return `<tr><td>${esc(nameIn(datas, id))}</td>${ZONES.map((z) => {
+        const o = zs[z];
+        if (!o.n) return '<td class="muted">—</td>';
+        const tone = toneVs(o.good / o.n, own, o.n, 4, 0.15);
+        return `<td${tone ? ` class="scout-rot__ph scout-rot__ph--${tone}"` : ''}>${pctN(o.good, o.n)} <span class="muted">${o.n}</span></td>`;
+      }).join('')}<td><strong>${pctN(tot.good, tot.n)}</strong> <span class="muted">${tot.n}</span></td></tr>`;
+    }).join('')}</tbody></table></div>` : '';
+  return patGroup('reczonas', 'Receção por zona', `${st.marked} receções`, `${map}${table}
+    <p class="muted scout-footnote">Receções boas (# ou +) por zona onde estava a recetora, e o side-out a partir dela. No mapa, a verde ou vermelho com 10 pontos de diferença para a média da equipa; na tabela, com 15 pontos de diferença para o total DELA (4 receções ou mais). Conta só as receções com zona marcada: ${st.marked} de ${st.total}.</p>`, open);
+}
+
+function errTypesPattern(datas, f, open) {
+  const st = errorTypeStats(datas, { f });
+  const fund = Object.keys(ERR_TYPES).filter((t) => st.team[t] && st.team[t].total > st.team[t].none);
+  if (!fund.length) return '';
+  const label = (t) => (t === 'OTHER' ? 'Outros' : ACT[t].l);
+  const line = (o, t) => [...ERR_TYPES[t].filter(([k]) => o[k]).map(([k, l]) => [o[k], l]).sort((a, b) => b[0] - a[0]).map(([n, l]) => `${l} <strong>${n}</strong>`),
+    ...(o.none ? [`<span class="muted">sem tipo ${o.none}</span>`] : [])].join(' · ');
+  const team = `<ul class="scout-errlist">${fund.map((t) => {
+    const o = st.team[t];
+    const parts = ERR_TYPES[t].filter(([k]) => o[k]);
+    return `<li><div class="scout-errlist__head"><strong>${esc(label(t))}</strong><span class="muted">${o.total} erro${o.total === 1 ? '' : 's'}</span></div>
+      <div class="sc-bar" role="img" aria-label="${esc(`${label(t)}: ${parts.map(([k, l]) => `${o[k]} ${l}`).join(', ')}`)}">${parts.map(([k], i) => `<span class="sc-bar__seg scout-errseg--${i}" style="flex-grow:${o[k]}"></span>`).join('')}${o.none ? `<span class="sc-bar__seg sc-tone--neutral" style="flex-grow:${o.none}"></span>` : ''}</div>
+      <p class="sc-legend">${parts.map(([k, l], i) => `<span><i class="sc-dot scout-errseg--${i}"></i>${esc(l)} ${o[k]}</span>`).join('')}${o.none ? `<span><i class="sc-dot sc-tone--neutral"></i>sem tipo ${o.none}</span>` : ''}</p></li>`;
+  }).join('')}</ul>`;
+  const ids = Object.keys(st.byPid).filter((id) => fund.some((t) => st.byPid[id][t] && st.byPid[id][t].total > st.byPid[id][t].none));
+  const table = ids.length ? `<div class="table-wrap"><table class="no-stack scout-table">
+    <thead><tr><th>Atleta</th>${fund.map((t) => `<th>${esc(label(t))}</th>`).join('')}</tr></thead>
+    <tbody>${ids.map((id) => `<tr><td>${esc(nameIn(datas, id))}</td>${fund.map((t) => {
+      const o = st.byPid[id][t];
+      return o ? `<td class="scout-errcell">${line(o, t)}</td>` : '<td class="muted">—</td>';
+    }).join('')}</tr>`).join('')}</tbody></table></div>` : '';
+  const typed = fund.reduce((a, t) => a + st.team[t].total - st.team[t].none, 0);
+  return patGroup('erros', 'Tipo de erro', `${typed} com tipo`, `${team}${table}
+    <p class="muted scout-footnote">"5 erros de serviço" e "5 serviços na rede" pedem treinos diferentes. Os erros sem tipo marcado contam-se à parte. Receção e defesa não têm tipo: o erro já diz que a bola caiu.</p>`, open);
+}
+
 // --- Set a set (jogo) / 1.º contra o último (época) ---
 function setsPattern(datas, multi, used, open) {
   const buckets = multi ? firstVsLast(datas).rows : setBySet(datas[0]);
@@ -1186,6 +1277,9 @@ export function openScoutLive(row, { view = false } = {}) {
   const ui = {
     sel: null, tab: 'jogo', statSet: 'all', logOpen: window.matchMedia('(min-width: 700px)').matches,
     sync: 'ok', hit: null,
+    // Índice da última ação à espera de detalhe (zona / tipo de erro). Não
+    // bloqueia nada: marcar a ação seguinte larga-a, e ela fica sem detalhe.
+    pend: null,
   };
   let saveTimer = null;
   let retryTimer = null;
@@ -1283,7 +1377,7 @@ export function openScoutLive(row, { view = false } = {}) {
     if (closed) { toastInfo(msg); return; }
     toastInfo(`${msg} Aqui ficas a ver ao vivo.`);
     lineupDlg?.close();
-    ui.sel = null; ui.sync = 'ok';
+    ui.sel = null; ui.pend = null; ui.sync = 'ok';
     startViewing();
     paint();
     refresh();
@@ -1298,6 +1392,7 @@ export function openScoutLive(row, { view = false } = {}) {
       g.data = normalize(r.data, g);
       g.updated_at = r.updated_at;
       ui.sel = null;
+      ui.pend = null;
       paint();
       lineupDlg?.render();
     } else paintSync();
@@ -1421,7 +1516,9 @@ export function openScoutLive(row, { view = false } = {}) {
       return;
     }
     const before = derive(D(), D().cur);
-    D().events.push({ set: D().cur, t, q, pid: t === 'OPPONENT' ? null : ui.sel, ts: Date.now() });
+    const ev = { set: D().cur, t, q, pid: t === 'OPPONENT' ? null : ui.sel, ts: Date.now() };
+    D().events.push(ev);
+    ui.pend = extrasFor(D(), ev) ? D().events.length - 1 : null;
     ui.hit = `${t}.${q}`;
     try { navigator.vibrate?.(15); } catch { /* sem vibração */ }
     const after = derive(D(), D().cur);
@@ -1435,7 +1532,7 @@ export function openScoutLive(row, { view = false } = {}) {
     for (let i = D().events.length - 1; i >= 0; i--) {
       if (D().events[i].set === D().cur) {
         const [e] = D().events.splice(i, 1);
-        ui.sel = null; touch(); paint();
+        ui.sel = null; ui.pend = null; touch(); paint();
         toastInfo(`Anulado: ${describe(e)}`);
         return;
       }
@@ -1446,7 +1543,56 @@ export function openScoutLive(row, { view = false } = {}) {
   function describe(e) {
     if (e.t === 'SUB') return `substituição (${pname(e.out)} ⇄ ${pname(e.in)})`;
     if (e.t === 'OPPONENT') return e.q === 'ERROR' ? 'erro do adversário' : 'mérito do adversário';
-    return `${ACT[e.t].l} ${SYM[e.q]} · ${pname(e.pid)}`;
+    return `${ACT[e.t].l} ${SYM[e.q]} · ${pname(e.pid)}${detailTxt(e)}`;
+  }
+  // " · zona 5 · rede": o detalhe que a ação leva, para o registo e o anular.
+  function detailTxt(e) {
+    const et = e.et ? errTypeLabel(e.t, e.et) : null;
+    return `${e.z ? ` · zona ${e.z}` : ''}${et ? ` · ${et.toLowerCase()}` : ''}`;
+  }
+
+  // --- Detalhe da última ação (zona / tipo de erro) ----------------------------
+  // A faixa vive POR BAIXO dos botões das ações: por cima, empurrava-os a cada
+  // toque, e quem marca ao ritmo do jogo carregava no botão errado.
+  // O que ainda falta perguntar sobre a ação pendente (o que já foi dado sai).
+  function pendingAsk() {
+    if (ui.pend == null) return null;
+    const e = D().events[ui.pend];
+    const ex = extrasFor(D(), e);
+    if (!e || !ex || e.set !== D().cur) return null;
+    const zone = ex.zone && !e.z;
+    const err = ex.err && !e.et;
+    return zone || err ? { e, zone, err } : null;
+  }
+  // As zonas desenham-se como se veem do nosso lado do campo. No serviço é o
+  // campo ADVERSÁRIO (do outro lado da rede: a fila de trás deles fica mais
+  // longe); na receção é o nosso, com a mesma disposição dos cartões do campo.
+  function zoneGridHTML(t) {
+    const btn = (n) => `<button class="scout-zbtn" type="button" data-xz="${n}" aria-label="Zona ${n}">${n}</button>`;
+    const net = '<div class="scout-zgrid__net">rede</div>';
+    const rows = t === 'SERVICE' ? [[1, 6, 5], [2, 3, 4]] : [[4, 3, 2], [5, 6, 1]];
+    const grid = rows.map((r) => r.map(btn).join('')).join('');
+    return `<div class="scout-zgrid${t === 'SERVICE' ? ' scout-zgrid--far' : ''}">${t === 'SERVICE' ? `${grid}${net}` : `${net}${grid}`}</div>`;
+  }
+  function extraHTML() {
+    const ask = pendingAsk();
+    if (!ask || !canWrite) return '';
+    const { e } = ask;
+    const what = e.t === 'SERVICE' ? 'Onde caiu o serviço? (campo adversário, visto do nosso lado)' : 'Onde estava a recetora?';
+    return `<div class="scout-extra" role="group" aria-label="Detalhe da última ação">
+      <div class="scout-extra__head"><span><strong>${esc(ACT[e.t].l)} ${SYM[e.q]}</strong> · ${esc(pname(e.pid))}${e.z ? ` · zona ${e.z}` : ''}</span>
+        <button class="scout-linkbtn" type="button" data-xskip>Saltar</button></div>
+      ${ask.zone ? `<p class="scout-extra__q">${what}</p>${zoneGridHTML(e.t)}` : ''}
+      ${ask.err ? `<p class="scout-extra__q">Que erro foi?</p><div class="scout-extra__chips">${ERR_TYPES[e.t].map(([k, l]) => `<button class="btn btn--ghost btn--sm" type="button" data-xe="${k}">${esc(l)}</button>`).join('')}</div>` : ''}
+    </div>`;
+  }
+  function setDetail(field, value) {
+    if (!canWrite) return;
+    const ask = pendingAsk();
+    if (!ask) return;
+    ask.e[field] = value;
+    if (!pendingAsk()) ui.pend = null;
+    touch(); paint();
   }
 
   function selectPos(n) {
@@ -1620,7 +1766,7 @@ export function openScoutLive(row, { view = false } = {}) {
       if (e.t === 'SUB') return `<li><span class="scout-q">⇄</span><span class="scout-log__wh">Sai ${esc(pname(e.out))}, entra ${esc(pname(e.in))}</span><span class="scout-log__sc">${sc}</span></li>`;
       const q = e.t === 'OPPONENT' ? (e.q === 'ERROR' ? 'PERFECT' : 'ERROR') : e.q;
       const who = e.t === 'OPPONENT' ? (e.q === 'ERROR' ? 'Erro do adversário' : 'Mérito do adversário') : `${ACT[e.t].l} · ${esc(pname(e.pid))}`;
-      return `<li><span class="scout-q scout-q--${q}">${e.t === 'OPPONENT' ? '◦' : SYM[e.q]}</span><span class="scout-log__wh">${who}</span><span class="scout-log__sc">${sc}</span></li>`;
+      return `<li><span class="scout-q scout-q--${q}">${e.t === 'OPPONENT' ? '◦' : SYM[e.q]}</span><span class="scout-log__wh">${who}${esc(detailTxt(e))}</span><span class="scout-log__sc">${sc}</span></li>`;
     }).join('') || '<li><span></span><span class="muted">Ainda sem ações neste set.</span><span></span></li>';
 
     // Só as colunas escolhidas para este jogo, e só as linhas que ainda têm
@@ -1674,6 +1820,7 @@ export function openScoutLive(row, { view = false } = {}) {
             </span>
           </div>
           <div class="scout-agrid" style="grid-template-columns:repeat(${cols.length}, minmax(0, 1fr))">${head}${body}</div>
+          ${extraHTML()}
           <div class="scout-legend">
             <span><code>#</code> perfeito</span><span><code>+</code> bom</span><span><code>−</code> fraco</span><span><code>/</code> bloqueado</span><span><code>=</code> erro</span>
             <span><i class="scout-dot" style="background:var(--ok)"></i>ponto nosso</span><span><i class="scout-dot" style="background:var(--danger)"></i>ponto do adversário</span>
@@ -1744,9 +1891,12 @@ export function openScoutLive(row, { view = false } = {}) {
     on('[data-undo]', 'click', undo);
     on('[data-newset]', 'click', newSet);
     on('[data-finish]', 'click', finish);
-    on('[data-goset]', 'click', (e) => { D().cur = Number(e.currentTarget.dataset.goset); ui.sel = null; if (canWrite) touch(); paint(); });
+    on('[data-goset]', 'click', (e) => { D().cur = Number(e.currentTarget.dataset.goset); ui.sel = null; ui.pend = null; if (canWrite) touch(); paint(); });
     on('[data-lineup]', 'click', () => openLineup());
     on('[data-cols]', 'click', openCols);
+    on('[data-xz]', 'click', (e) => setDetail('z', Number(e.currentTarget.dataset.xz)));
+    on('[data-xe]', 'click', (e) => setDetail('et', e.currentTarget.dataset.xe));
+    on('[data-xskip]', 'click', () => { ui.pend = null; paint(); });
     on('[data-subout]', 'click', (e) => openLineup({ out: e.currentTarget.dataset.subout }));
     on('details[data-toggle]', 'toggle', (e) => { ui.logOpen = e.currentTarget.open; });
     on('[data-set]', 'click', (e) => { ui.statSet = e.currentTarget.dataset.set; paint(); });
@@ -1762,6 +1912,7 @@ export function openScoutLive(row, { view = false } = {}) {
   // botões saem, os registos ficam nas estatísticas.
   function colsHTML() {
     const on = activeCols(D());
+    const ex = activeExtras(D());
     const dis = canWrite ? '' : 'disabled';
     return `<fieldset class="scout-cols">
       <legend>Ações a marcar neste jogo</legend>
@@ -1770,6 +1921,15 @@ export function openScoutLive(row, { view = false } = {}) {
         <label class="scout-cols__opt scout-cols__opt--fixed"><input type="checkbox" checked disabled> Adversário <span class="muted">(sempre)</span></label>
       </div>
       <p class="muted scout-footnote">Menos ações, menos botões no ecrã — dá para marcar sozinho no banco. Os próximos jogos desta equipa começam com esta escolha.</p>
+    </fieldset>
+    <fieldset class="scout-cols">
+      <legend>Detalhe (opcional)</legend>
+      <div class="scout-cols__list">
+        <label class="scout-cols__opt"><input type="checkbox" data-extra="zone:SERVICE" ${ex.zones.includes('SERVICE') ? 'checked' : ''} ${dis}> Zona do serviço</label>
+        <label class="scout-cols__opt"><input type="checkbox" data-extra="zone:RECEPTION" ${ex.zones.includes('RECEPTION') ? 'checked' : ''} ${dis}> Zona da receção</label>
+        <label class="scout-cols__opt"><input type="checkbox" data-extra="err" ${ex.errTypes ? 'checked' : ''} ${dis}> Tipo de erro</label>
+      </div>
+      <p class="muted scout-footnote">Um toque a mais depois da ação: onde caiu o serviço, onde estava a recetora, que erro foi (rede, fora…). Dá jeito a quem marca depois do jogo, a ver o vídeo. Pode saltar-se: a ação conta na mesma. A zona do ataque não se marca: sai da posição da ficha.</p>
     </fieldset>`;
   }
   function wireCols(root, rerender) {
@@ -1778,6 +1938,16 @@ export function openScoutLive(row, { view = false } = {}) {
       const picked = [...root.querySelectorAll('[data-col]:checked')].map((x) => x.dataset.col);
       if (!picked.length) { toastInfo('Escolhe pelo menos uma ação.'); rerender(); return; }
       D().cols = OPTIONAL_COLS.filter((k) => picked.includes(k));
+      touch(); paint(); rerender();
+    }));
+    root.querySelectorAll('[data-extra]').forEach((el) => el.addEventListener('change', () => {
+      if (!canWrite) return;
+      const on = [...root.querySelectorAll('[data-extra]:checked')].map((x) => x.dataset.extra);
+      D().extras = {
+        zones: ZONE_ACTS.filter((k) => on.includes(`zone:${k}`)),
+        errTypes: on.includes('err'),
+      };
+      if (!extrasFor(D(), D().events[ui.pend])) ui.pend = null;
       touch(); paint(); rerender();
     }));
   }
@@ -1952,7 +2122,7 @@ export function openScoutLive(row, { view = false } = {}) {
     if (ev.target.closest?.('input, select, textarea')) return;
     if (document.querySelector('.modal-overlay')) return;
     if (/^[1-6]$/.test(ev.key)) { selectPos(Number(ev.key)); ev.preventDefault(); }
-    else if (ev.key === 'Escape') { ui.sel = null; paint(); }
+    else if (ev.key === 'Escape') { ui.sel = null; ui.pend = null; paint(); }
     else if ((ev.key === 'z' || ev.key === 'Z') && !ev.ctrlKey && !ev.metaKey && !ev.altKey) { undo(); ev.preventDefault(); }
   }
   document.addEventListener('keydown', onKey);

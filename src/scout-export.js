@@ -9,6 +9,7 @@
 import {
   ACT, SYM, QN, derive, partials, setsWon, teamSummary, playerRows, pointsPlayed,
   findPlayer, pointTo, fmtPct, usedCols,
+  errTypeLabel,
 } from './scout-engine.js';
 import { openSheet, section, stat, empty } from './report-sheet.js';
 import { esc, safeFileName } from './ui.js';
@@ -73,13 +74,15 @@ function actionRows(games) {
           : `${SYM[e.q] === '−' ? '-' : SYM[e.q]} ${QN[e.q]}`;
       const hora = e.ts ? new Date(e.ts).toTimeString().slice(0, 8) : '';
       rows.push([g.game_date || '', g.opponent || '', e.set + 1, `${s.o}-${s.t}`, fundamento, qualidade,
-        p ? p.num : '', p ? p.name : '', para, hora]);
+        e.z || '', (e.et && errTypeLabel(e.t, e.et)) || '', p ? p.num : '', p ? p.name : '', para, hora]);
     }
   }
   return rows;
 }
-const ACTION_HEADER = ['Data', 'Adversário', 'Set', 'Marcador', 'Fundamento', 'Qualidade', 'Nº', 'Atleta', 'Ponto para', 'Hora'];
-const ACTION_WIDTHS = [11, 20, 5, 9, 12, 22, 5, 22, 11, 9];
+// Zona e tipo de erro ficam vazios quando não se marcaram (o detalhe é
+// opcional por jogo): uma célula vazia numa tabela dinâmica é "(vazio)", não 0.
+const ACTION_HEADER = ['Data', 'Adversário', 'Set', 'Marcador', 'Fundamento', 'Qualidade', 'Zona', 'Tipo de erro', 'Nº', 'Atleta', 'Ponto para', 'Hora'];
+const ACTION_WIDTHS = [11, 20, 5, 9, 12, 22, 6, 13, 5, 22, 11, 9];
 
 function sheet(XLSX, aoa, widths) {
   const ws = XLSX.utils.aoa_to_sheet(aoa);

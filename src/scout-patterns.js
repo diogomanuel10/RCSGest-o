@@ -13,7 +13,7 @@
 // por funções (`isSetter`, `roleOf`), lidas da ficha por quem chama: o plantel
 // copiado para o jogo não guarda posições, e este ficheiro não lê o `state`.
 
-import { replay, pointTo, setTarget, emptyAtk, addAtk, K1_RECEPTIONS } from './scout-engine.js';
+import { replay, pointTo, setTarget, emptyAtk, addAtk, K1_RECEPTIONS, ERR_TYPES } from './scout-engine.js';
 
 const inF = (si, f) => f === 'all' || si === Number(f);
 
@@ -322,3 +322,91 @@ export function attackZoneStats(games, { roleOf = () => null, f = 'all' } = {}) 
 
 // Quantos ataques há num grupo de zonas.
 export const zoneTotal = (zs) => ATTACK_ZONES.reduce((a, k) => a + zs[k].n, 0);
+
+// --- Zonas marcadas: serviço e receção -----------------------------------------
+//
+// Só contam as ações com zona marcada (`z`, ver `extrasFor` no motor): um jogo
+// sem detalhe, ou uma ação em que o toque da zona se saltou, não entra — e
+// quem lê vê em quantas ações assenta cada número.
+export const ZONES = [1, 2, 3, 4, 5, 6];
+const emptyZones = (mk) => Object.fromEntries(ZONES.map((z) => [z, mk()]));
+
+// Para onde servimos e com que efeito: ases e, sobretudo, em quantos desses
+// rallies ganhámos o ponto. É a pergunta "para onde é que o nosso serviço
+// faz estragos?".
+export function serveZoneStats(games, { f = 'all' } = {}) {
+  const mk = () => ({ n: 0, ace: 0, won: 0 });
+  const team = emptyZones(mk);
+  const byPid = {};
+  let marked = 0;
+  let total = 0;
+  eachRally(games, f, () => false, ({ srv, won, acts }) => {
+    if (srv !== 'OUR') return;
+    const s = acts.find((a) => a.t === 'SERVICE');
+    if (!s || s.q === 'ERROR') return;
+    total++;
+    if (!s.z || !team[s.z]) return;
+    marked++;
+    const zs = s.pid ? (byPid[s.pid] || (byPid[s.pid] = emptyZones(mk))) : null;
+    for (const o of [team[s.z], zs && zs[s.z]]) {
+      if (!o) continue;
+      o.n++;
+      if (s.q === 'PERFECT') o.ace++;
+      if (won) o.won++;
+    }
+  });
+  return { team, byPid, marked, total };
+}
+
+// Onde recebemos e com que qualidade, da equipa e de cada recetora — e o
+// side-out a partir de cada zona.
+export function receptionZoneStats(games, { f = 'all' } = {}) {
+  const mk = () => ({ n: 0, good: 0, err: 0, soWon: 0 });
+  const team = emptyZones(mk);
+  const byPid = {};
+  let marked = 0;
+  let total = 0;
+  eachRally(games, f, () => false, ({ srv, won, acts }) => {
+    if (srv !== 'THEIR') return;
+    for (const a of acts) {
+      if (a.t !== 'RECEPTION') continue;
+      total++;
+      if (!a.z || !team[a.z]) continue;
+      marked++;
+      const zs = a.pid ? (byPid[a.pid] || (byPid[a.pid] = emptyZones(mk))) : null;
+      for (const o of [team[a.z], zs && zs[a.z]]) {
+        if (!o) continue;
+        o.n++;
+        if (a.q === 'PERFECT' || a.q === 'OK') o.good++;
+        if (a.q === 'ERROR') o.err++;
+        if (won) o.soWon++;
+      }
+    }
+  });
+  return { team, byPid, marked, total };
+}
+
+// --- Tipo de erro ---------------------------------------------------------------
+//
+// "5 erros de serviço" e "5 serviços na rede" pedem treinos diferentes. Conta
+// por fundamento e por tipo, da equipa e de cada atleta; os erros sem tipo
+// marcado contam-se à parte (`none`) em vez de desaparecerem.
+export function errorTypeStats(games, { f = 'all' } = {}) {
+  const team = {};
+  const byPid = {};
+  for (const g of games) {
+    for (const e of g.events) {
+      if (e.t === 'SUB' || e.t === 'OPPONENT' || e.q !== 'ERROR' || !inF(e.set, f) || !ERR_TYPES[e.t]) continue;
+      const k = e.et && ERR_TYPES[e.t].some(([x]) => x === e.et) ? e.et : 'none';
+      const t = team[e.t] || (team[e.t] = { total: 0, none: 0 });
+      t.total++;
+      if (k === 'none') t.none++; else t[k] = (t[k] || 0) + 1;
+      if (!e.pid) continue;
+      const p = byPid[e.pid] || (byPid[e.pid] = {});
+      const pt = p[e.t] || (p[e.t] = { total: 0, none: 0 });
+      pt.total++;
+      if (k === 'none') pt.none++; else pt[k] = (pt[k] || 0) + 1;
+    }
+  }
+  return { team, byPid };
+}
