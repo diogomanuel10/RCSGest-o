@@ -7,7 +7,7 @@
 <script>document.documentElement.classList.add('js');</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Rumia — Gestão desportiva para clubes</title>
-<meta name="description" content="A tua gestão desportiva, simples. Plantéis, calendário, presenças por QR, departamento médico, preparação física, finanças e patrocínios — todo o clube numa só plataforma." />
+<meta name="description" content="A tua gestão desportiva, simples. Plantéis, presenças por QR, scout ao vivo, fisioterapia, preparação física, quotas, equipamento, portal do atleta e o site do clube — todo o clube numa só plataforma." />
 <meta name="theme-color" content="#143b61" />
 <link rel="icon" type="image/png" href="logo-mark.png" />
 <link rel="apple-touch-icon" href="logo-mark.png" />
@@ -317,7 +317,7 @@
   section { padding: 5.5rem 0; }
   /* Compensa a barra fixa (68px) quando se salta por âncora, para o título não
      ficar escondido por baixo dela. */
-  #funcionalidades, #papeis, #por-dentro, #como-funciona, #precos, #faq, #acesso, #topo { scroll-margin-top: 84px; }
+  #funcionalidades, #scout, #quiosque, #portal, #site-do-clube, #papeis, #por-dentro, #como-funciona, #precos, #faq, #acesso, #topo { scroll-margin-top: 84px; }
   .section-head { max-width: 640px; margin: 0 auto 3rem; text-align: center; }
   .section-head h2 { font-size: clamp(2rem, 3.6vw, 2.8rem); font-weight: 700; margin: 0.8rem 0 0.8rem; letter-spacing: -0.01em; }
   .section-head p { color: var(--muted); font-size: 1.1rem; margin: 0; }
@@ -347,7 +347,7 @@
 
   /* --- Destaques (alternado) --- */
   .highlight { background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-  .highlight__row { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; align-items: center; }
+  .highlight__row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 3rem; align-items: center; }
   .highlight__row + .highlight__row { margin-top: 4.5rem; }
   .highlight__row.rev .txt { order: 2; }
   @media (max-width: 860px) {
@@ -398,6 +398,88 @@
   .kioskcard__log { display: flex; flex-direction: column; }
   .kioskcard__log .mock-row { font-size: 0.88rem; }
   .kioskcard__log .pill { font-size: 0.72rem; }
+
+  /* --- Grupos de funcionalidades (por quem as usa) --- */
+  .fgroup + .fgroup { margin-top: 3rem; }
+  .fgroup__head { display: flex; align-items: baseline; gap: 0.8rem; flex-wrap: wrap; margin: 0 0 1.1rem; }
+  .fgroup__head h3 { font-size: 1.45rem; font-weight: 700; margin: 0; }
+  .fgroup__head p { margin: 0; color: var(--muted); font-size: 0.95rem; }
+  .feature .new {
+    display: inline-block; vertical-align: middle; margin-left: 0.4rem;
+    font-family: var(--font-body); font-size: 0.66rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 0.15rem 0.45rem; border-radius: 999px; background: var(--yellow); color: #1b1300;
+  }
+
+  /* Visuais escuros dos destaques novos: são "ecrãs", por isso ficam escuros
+     nos dois temas — como a janela do hero. */
+  .darkcard { background: #0d1b2c; color: #e9eff7; border-radius: var(--radius); padding: 1.3rem; box-shadow: var(--shadow-lg); border: 1px solid #22374f; }
+  .darkcard .muted { color: #8fa6c0; }
+
+  /* Scout ao vivo */
+  .sc-board { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 0.6rem; padding: 0.4rem 0 1rem; border-bottom: 1px solid #22374f; }
+  .sc-team { font-family: var(--font-display); font-weight: 700; font-size: 1rem; letter-spacing: 0.03em; text-transform: uppercase; }
+  .sc-team:last-child { text-align: right; color: #8fa6c0; }
+  .sc-score { font-family: var(--font-display); font-weight: 700; font-size: 2.4rem; line-height: 1; text-align: center; }
+  .sc-score small { display: block; font-size: 0.72rem; font-family: var(--font-body); font-weight: 600; color: #8fa6c0; letter-spacing: 0.04em; margin-top: 0.3rem; }
+  .sc-score .serve { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--yellow); vertical-align: middle; margin-right: 0.35rem; }
+  .sc-court { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.4rem; margin: 1rem 0 0.9rem; padding: 0.6rem; border: 1px solid #2b4664; border-radius: 10px; position: relative; }
+  .sc-court::before { content: 'REDE'; position: absolute; top: -0.55rem; left: 50%; transform: translateX(-50%); background: #0d1b2c; padding: 0 0.4rem; font-size: 0.6rem; letter-spacing: 0.12em; color: #8fa6c0; font-weight: 700; }
+  .sc-p { background: #162b44; border-radius: 8px; padding: 0.45rem 0.3rem; text-align: center; font-size: 0.72rem; color: #b9c9db; }
+  .sc-p b { display: block; font-family: var(--font-display); font-size: 1.15rem; color: #fff; }
+  .sc-p.sel { outline: 2px solid var(--yellow); background: #1e3a5c; }
+  .sc-p.lib b { color: var(--yellow); }
+  .sc-acts { display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.3rem; }
+  .sc-acts span { background: #162b44; border-radius: 7px; padding: 0.45rem 0; text-align: center; font-size: 0.7rem; font-weight: 600; }
+  .sc-acts span.on { background: var(--yellow); color: #1b1300; }
+  .sc-q { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.3rem; margin-top: 0.3rem; }
+  .sc-q span { border: 1px solid #2b4664; border-radius: 7px; padding: 0.35rem 0; text-align: center; font-family: var(--font-display); font-weight: 700; font-size: 1rem; }
+  .sc-tip { margin-top: 1rem; background: #13263d; border-left: 3px solid var(--yellow); border-radius: 0 8px 8px 0; padding: 0.65rem 0.8rem; font-size: 0.84rem; line-height: 1.45; }
+  .sc-tip b { color: var(--yellow); font-weight: 600; }
+
+  /* Portal do atleta (telemóvel) */
+  .phonewrap { display: grid; place-items: center; }
+  .phone { width: min(300px, 100%); background: #0b1622; border: 8px solid #1d2c3f; border-radius: 34px; padding: 1.1rem 0.9rem 1.2rem; box-shadow: var(--shadow-lg); color: #e9eff7; }
+  .phone__notch { width: 90px; height: 6px; border-radius: 3px; background: #1d2c3f; margin: -0.3rem auto 0.9rem; }
+  .phone__hi { font-family: var(--font-display); font-weight: 700; font-size: 1.2rem; margin: 0 0 0.6rem; }
+  .ph-next { background: #12233a; border: 1px solid #22374f; border-radius: 14px; padding: 0.75rem; margin-bottom: 0.7rem; }
+  .ph-next .k { font-size: 0.64rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--yellow); }
+  .ph-next .t { font-weight: 600; font-size: 0.92rem; margin: 0.15rem 0 0.5rem; }
+  .ph-next .t span { color: #8fa6c0; font-weight: 500; }
+  .ph-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; }
+  .ph-btns span { text-align: center; border-radius: 9px; padding: 0.4rem 0; font-size: 0.8rem; font-weight: 600; background: #1b3150; }
+  .ph-btns span:first-child { background: #1f7a4d; }
+  .ph-game { background: linear-gradient(160deg, #143b61, #0f2e4b); border-radius: 14px; padding: 0.85rem; }
+  .ph-game .vs { font-size: 0.72rem; color: #9db7d4; }
+  .ph-game .big { font-family: var(--font-display); font-weight: 700; font-size: 1.25rem; margin: 0.15rem 0 0.1rem; }
+  .ph-game .sub { font-size: 0.8rem; color: #c9d7e6; margin: 0 0 0.6rem; }
+  .balls { display: flex; gap: 5px; flex-wrap: wrap; }
+  .ball { width: 17px; height: 17px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 700; line-height: 1; }
+  .ball--ok { background: #34c47c; }
+  .ball--cont { border: 2px solid #9db7d4; }
+  .ball--blk { background: #f08a24; border-radius: 4px; }
+  .ball--err { background: #e5484d; color: #fff; }
+  .ph-legend { font-size: 0.7rem; color: #9db7d4; margin-top: 0.45rem; }
+
+  /* Site do clube */
+  .sitecard { --club: #b3122e; --club-hi: #ff5a74; padding: 0; overflow: hidden; background: #07090f; }
+  .site__bar { display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 0.8rem; background: #121722; font-size: 0.75rem; color: #8fa6c0; }
+  .site__bar .url { flex: 1; background: #07090f; border-radius: 6px; padding: 0.25rem 0.6rem; }
+  .site__bar .url b { color: #e9eff7; font-weight: 600; }
+  .site__hero { position: relative; padding: 1.4rem 1.2rem 1.2rem; background: radial-gradient(120% 90% at 85% 0%, color-mix(in srgb, var(--club) 55%, transparent), transparent 60%), #07090f; }
+  .site__nav { display: flex; gap: 0.9rem; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #8fa6c0; margin-bottom: 1.2rem; flex-wrap: wrap; }
+  .site__nav .crest { width: 18px; height: 18px; border-radius: 50%; background: var(--club); border: 2px solid #fff; margin-right: auto; }
+  .site__kicker { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--club-hi); }
+  .site__title { font-family: var(--font-display); font-style: italic; font-weight: 700; font-size: clamp(1.7rem, 4vw, 2.3rem); line-height: 0.95; text-transform: uppercase; margin: 0.3rem 0 0.7rem; }
+  .site__game { display: inline-flex; gap: 0.6rem; align-items: center; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12); border-radius: 999px; padding: 0.35rem 0.8rem; font-size: 0.78rem; }
+  .site__game b { color: var(--club-hi); }
+  .site__ticker { display: flex; gap: 1.2rem; overflow: hidden; white-space: nowrap; padding: 0.55rem 1.2rem; background: var(--club); font-size: 0.74rem; font-weight: 600; }
+  .site__ticker span { opacity: 0.95; }
+  .site__blocks { display: grid; grid-template-columns: 1.3fr 1fr; gap: 0.6rem; padding: 0.9rem 1.2rem 1.2rem; }
+  .site__block { background: #121722; border: 1px solid #1f2633; border-radius: 10px; padding: 0.7rem; font-size: 0.74rem; color: #8fa6c0; }
+  .site__block b { display: block; color: #e9eff7; font-size: 0.82rem; margin-bottom: 0.3rem; }
+  .site__photo { height: 54px; border-radius: 7px; background: linear-gradient(135deg, #2a3446, #121722); margin-top: 0.4rem; }
+  .site__swatches { display: flex; gap: 0.4rem; margin-top: 0.4rem; }
+  .site__swatches i { width: 20px; height: 20px; border-radius: 6px; border: 1px solid #2a3446; }
 
   /* --- Como funciona (3 passos) --- */
   .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.1rem; }
@@ -606,7 +688,7 @@
       "applicationCategory": "BusinessApplication",
       "operatingSystem": "Web",
       "inLanguage": "pt-PT",
-      "description": "Plataforma de gestão desportiva para clubes: plantéis, calendário, presenças por QR, departamento médico, preparação física, quotas, finanças e patrocínios.",
+      "description": "Plataforma de gestão desportiva para clubes: plantéis, calendário, presenças por QR, scout ao vivo, departamento médico, preparação física, quotas, equipamento, finanças, patrocínios, portal do atleta e site público do clube.",
       "offers": [
         { "@type": "Offer", "name": "Treinador", "price": "150", "priceCurrency": "EUR", "description": "Por época (ano), sem IVA. Ou 15 EUR/mes." },
         { "@type": "Offer", "name": "Clube", "price": "290", "priceCurrency": "EUR", "description": "Por época (ano), sem IVA. Ou 29 EUR/mes." },
@@ -634,12 +716,22 @@
         {
           "@type": "Question",
           "name": "Preciso de instalar alguma coisa?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Não. A Rumia funciona no navegador, no telemóvel, tablet ou computador. Pode ser adicionada ao ecrã inicial como uma app." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Não. A Rumia funciona no navegador, no telemóvel, tablet ou computador, e adiciona-se ao ecrã inicial como uma app — é assim que recebe notificações, também no iPhone." }
         },
         {
           "@type": "Question",
           "name": "Como funcionam as presenças por cartão QR?",
           "acceptedAnswer": { "@type": "Answer", "text": "Cada atleta tem um cartão com um código próprio. Um tablet à entrada fica em modo quiosque e regista a presença quando o cartão passa — é o servidor que decide a que treino corresponde e se conta como presença ou atraso. Se a rede falhar, as leituras ficam guardadas e são enviadas quando voltar. O treinador continua a poder marcar tudo à mão." }
+        },
+        {
+          "@type": "Question",
+          "name": "O clube fica com um site?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Fica. Cada clube pode publicar o seu site em oteuclube.rumia.pt, com as cores e o emblema que já usa na app: resultados, calendário de jogos, equipas, notícias, galeria, loja, patrocinadores e um formulário de inscrição. Os dados vêm da app, por isso o resultado aparece no site quando é registado. Publicar é decisão do coordenador, e nenhum atleta aparece no site sem o clube escolher publicar o plantel — e mesmo aí só com o nome abreviado." }
+        },
+        {
+          "@type": "Question",
+          "name": "O scout funciona no pavilhão, sem rede?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Funciona. Cada ação fica primeiro guardada no próprio dispositivo e sobe quando a ligação responder; o ecrã diz quando está a guardar só no dispositivo. Um dispositivo marca de cada vez e os outros podem ver o jogo ao vivo. O scout é para voleibol." }
         },
         {
           "@type": "Question",
@@ -683,8 +775,9 @@
     </a>
     <nav class="nav__links" id="nav-links" aria-label="Principal">
       <a href="#funcionalidades">Funcionalidades</a>
+      <a href="#scout">Scout</a>
+      <a href="#site-do-clube">Site do clube</a>
       <a href="#por-dentro">Por dentro</a>
-      <a href="#como-funciona">Como funciona</a>
       <a href="#precos">Preços</a>
       <a href="#faq">FAQ</a>
     </nav>
@@ -705,7 +798,7 @@
     <div>
       <span class="eyebrow eyebrow--light">Gestão desportiva para clubes</span>
       <h1>Todo o teu clube numa <span class="accent">só plataforma</span>.</h1>
-      <p class="lead">Plantéis, calendário, presenças, departamento médico, preparação física, finanças e patrocínios — reunidos, com cada pessoa a ver só o que precisa.</p>
+      <p class="lead">Do treino de logo ao jogo de sábado, da quota ao equipamento, da fisioterapia ao site do clube — reunidos, com cada pessoa a ver só o que precisa. Os atletas e as famílias também entram, no telemóvel.</p>
       <div class="hero__actions">
         <a class="btn btn--primary" href="#por-dentro">Ver por dentro</a>
         <a class="btn btn--on-navy" href="#acesso">Pedir acesso</a>
@@ -769,66 +862,104 @@
       <h2>O que andava espalhado, agora reunido</h2>
       <p>Cada área do clube com a sua ferramenta — ligadas entre si, sem folhas de cálculo perdidas.</p>
     </div>
-    <div class="features">
-      <div class="feature reveal">
-        <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
-        <h3>Plantéis & atletas</h3>
-        <p>Equipas por escalão, fichas completas, importação de atletas por Excel e avaliação de plantel para a época seguinte.</p>
+    <div class="fgroup">
+      <div class="fgroup__head reveal"><h3>No pavilhão</h3><p>Para quem treina: o plantel, o treino de logo e o jogo de sábado.</p></div>
+      <div class="features">
+        <div class="feature reveal">
+          <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+          <h3>Plantéis &amp; atletas</h3>
+          <p>Equipas por escalão, fichas com foto e data de nascimento, importação por Excel, aniversários e avaliação de plantel para a época seguinte.</p>
+        </div>
+        <div class="feature reveal">
+          <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3z"/><path d="M20 14v3"/><path d="M17 20h4"/></svg></div>
+          <h3>Presenças num toque ou por QR</h3>
+          <p>&laquo;Todos presentes&raquo; num gesto, ou um tablet à entrada onde o atleta passa o cartão. As sessões fecham-se sozinhas e as faltas avisadas já lá estão.</p>
+        </div>
+        <div class="feature reveal">
+          <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+          <h3>Jogos, do plano ao resumo</h3>
+          <p>Cada jogo com o seu percurso — plano, convocatória, scout, resultado e resumo — e o passo que falta destacado. As respostas dos atletas ao lado de cada nome.</p>
+        </div>
+        <div class="feature reveal">
+          <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a15 15 0 0 1 4 10 15 15 0 0 1-4 10"/><path d="M2 12h20"/><path d="M12 2a15 15 0 0 0-4 10 15 15 0 0 0 4 10"/></svg></div>
+          <h3>Scout ao vivo <span class="new">Novo</span></h3>
+          <p>No voleibol, toca na atleta e na ação: a app conta o marcador, roda a equipa e mete a líbero. No fim, a análise do jogo — side-out por rotação, K1 e K2, séries perdidas.</p>
+        </div>
+        <div class="feature reveal">
+          <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 8l3 3 4-4 3 3"/></svg></div>
+          <h3>Treino &amp; decisão tática</h3>
+          <p>Biblioteca de exercícios do clube, plano de treino com vídeos e cenários táticos que a atleta resolve no telemóvel, arrastando a bola.</p>
+        </div>
       </div>
-      <div class="feature reveal">
-        <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
-        <h3>Calendário & convocatórias</h3>
-        <p>Treinos e jogos organizados por equipa, com convocatórias, plano de jogo e mapa de jogos sempre atualizado.</p>
+    </div>
+    <div class="fgroup">
+      <div class="fgroup__head reveal"><h3>No clube</h3><p>Para quem gere: o dinheiro, o material e o que não pode falhar.</p></div>
+      <div class="features">
+        <div class="feature reveal">
+          <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+          <h3>Financeiro &amp; quotas</h3>
+          <p>Receitas e despesas, quotas por atleta e uma visão clara das contas — para a direção decidir com números.</p>
+        </div>
+        <div class="feature reveal">
+          <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/></svg></div>
+          <h3>Equipamento &amp; encomendas <span class="new">Novo</span></h3>
+          <p>Pedidos do treinador e da própria atleta, do &laquo;confirmado&raquo; ao &laquo;pronto a levantar&raquo;. Tamanhos confirmados pela família, quem já pagou e a folha pronta para o fornecedor.</p>
+        </div>
+        <div class="feature reveal">
+          <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>
+          <h3>Patrocínios</h3>
+          <p>Funil de contactos, níveis de patrocínio e meta da época com o total angariado sempre à vista.</p>
+        </div>
+        <div class="feature reveal">
+          <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg></div>
+          <h3>Recrutamento</h3>
+          <p>Funil de prospetos do observado ao confirmado — incluindo os pedidos de inscrição que chegam pelo site do clube.</p>
+        </div>
+        <div class="feature reveal">
+          <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></div>
+          <h3>Avisos que vão ter contigo</h3>
+          <p>Exames a caducar, quotas em dívida, a atleta que deixou de aparecer, quem treina muito e joga pouco — no Painel e no telemóvel, por ordem de urgência.</p>
+        </div>
+        <div class="feature reveal">
+          <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg></div>
+          <h3>Relatórios imprimíveis</h3>
+          <p>Ficha do atleta para a família, resumo do jogo para o balneário, cartões QR e talões de convite — em A4, prontos a imprimir.</p>
+        </div>
       </div>
-      <div class="feature reveal">
-        <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg></div>
-        <h3>Presenças</h3>
-        <p>Marcação rápida de presenças e faltas, com lembretes ao treinador e estatísticas de comparência por atleta.</p>
+    </div>
+    <div class="fgroup">
+      <div class="fgroup__head reveal"><h3>Saúde &amp; físico</h3><p>Para a fisioterapia e a preparação física — com o sigilo que lhes cabe.</p></div>
+      <div class="features">
+        <div class="feature reveal">
+          <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
+          <h3>Fisioterapia</h3>
+          <p>Processo clínico, agenda de atendimentos (também no Google Calendar), pedidos do treinador com fila de triagem e plano de recuperação que a atleta lê em casa.</p>
+        </div>
+        <div class="feature reveal">
+          <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
+          <h3>Preparação física</h3>
+          <p>Periodização, sessões de musculação com o grupo escolhido, avaliações com valores de referência e a evolução de cada atleta, teste a teste.</p>
+        </div>
       </div>
-      <div class="feature reveal">
-        <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3z"/><path d="M20 14v3"/><path d="M17 20h4"/></svg></div>
-        <h3>Presenças por cartão QR</h3>
-        <p>Um tablet à entrada, o atleta passa o cartão e a presença fica registada — sem chamada, sem papel. Funciona mesmo com a rede em baixo.</p>
-      </div>
-      <div class="feature reveal">
-        <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></div>
-        <h3>Avisos que vão ter contigo</h3>
-        <p>Exames a caducar, quotas em dívida, comparência a cair, atletas que treinam muito e jogam pouco — chegam por notificação, sem alguém ter de ir procurar.</p>
-      </div>
-      <div class="feature reveal">
-        <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg></div>
-        <h3>Relatórios imprimíveis</h3>
-        <p>Ficha do atleta para o encarregado de educação, resumo do jogo para o balneário, cartões QR por equipa — em A4, prontos a imprimir.</p>
-      </div>
-      <div class="feature reveal">
-        <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
-        <h3>Departamento médico</h3>
-        <p>Processo clínico digital: episódios, sessões de fisioterapia, atendimentos agendados e estado de disponibilidade.</p>
-      </div>
-      <div class="feature reveal">
-        <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
-        <h3>Preparação física</h3>
-        <p>Periodização (macro e mesociclos), treinos de ginásio, testes físicos e controlo de minutos de jogo.</p>
-      </div>
-      <div class="feature reveal">
-        <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
-        <h3>Financeiro & quotas</h3>
-        <p>Receitas e despesas, quotas mensais por atleta e uma visão clara das contas do clube.</p>
-      </div>
-      <div class="feature reveal">
-        <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>
-        <h3>Patrocínios</h3>
-        <p>Funil de contactos, níveis de patrocínio e meta da época com o total angariado sempre à vista.</p>
-      </div>
-      <div class="feature reveal">
-        <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg></div>
-        <h3>Recrutamento</h3>
-        <p>Funil de prospetos observados a confirmados, com conversão direta em atleta do plantel.</p>
-      </div>
-      <div class="feature reveal">
-        <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div>
-        <h3>Portal do atleta</h3>
-        <p>Cada atleta com a sua página pessoal: responde às convocatórias, avisa que falta ao treino e consulta presenças, quotas e o seu cartão QR.</p>
+    </div>
+    <div class="fgroup">
+      <div class="fgroup__head reveal"><h3>Para fora</h3><p>Para os atletas, as famílias e quem segue o clube.</p></div>
+      <div class="features">
+        <div class="feature reveal">
+          <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div>
+          <h3>Portal do atleta</h3>
+          <p>O treino de logo com &laquo;Vou&raquo; e &laquo;Não vou&raquo;, o cartão QR mesmo sem rede, a encomenda e o que custa — e o seu jogo contado em frases, não em tabelas.</p>
+        </div>
+        <div class="feature reveal">
+          <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></div>
+          <h3>Convites &amp; guia de entrada <span class="new">Novo</span></h3>
+          <p>Um link por atleta, ligado à ficha certa, enviado por WhatsApp ou email — já com os passos para instalar a app e ligar as notificações. E um cartaz A4 para a parede.</p>
+        </div>
+        <div class="feature reveal">
+          <div class="feature__ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="2" y1="8" x2="22" y2="8"/><line x1="6" y1="5.5" x2="6.01" y2="5.5"/><line x1="9" y1="5.5" x2="9.01" y2="5.5"/><path d="M6 13h7"/><path d="M6 16h4"/></svg></div>
+          <h3>O site do teu clube <span class="new">Novo</span></h3>
+          <p><em>oteuclube</em>.rumia.pt: resultados, calendário, equipas, notícias, loja e patrocinadores — alimentado pela app, sem nada para manter à parte.</p>
+        </div>
       </div>
     </div>
   </div>
@@ -876,31 +1007,42 @@
 </section>
 
 <!-- ================= DESTAQUES ================= -->
-<div class="highlight" id="papeis">
+<div class="highlight" id="destaques">
   <div class="wrap" style="padding-top:5.5rem;padding-bottom:5.5rem">
 
-    <div class="highlight__row reveal">
+    <div class="highlight__row reveal" id="scout">
       <div class="txt">
-        <span class="eyebrow">Papéis & permissões</span>
-        <h3>Cada pessoa vê só o que precisa</h3>
-        <p>Do coordenador ao atleta, cada papel tem o seu acesso. A informação sensível fica reservada a quem a deve ver — garantido pela base de dados, não só pela interface.</p>
+        <span class="eyebrow">Scout ao vivo · voleibol</span>
+        <h3>O jogo marcado no banco, lido na terça</h3>
+        <p>A folha de cálculo copiada jogo a jogo dá lugar a um ecrã feito para o banco: toca-se na atleta, na ação e na qualidade, e a app faz o resto. No fim, a pergunta que decide o treino de terça — <em>onde é que perdemos pontos?</em> — tem resposta com números.</p>
         <ul class="checklist">
-          <li><span class="tick">✓</span> Coordenador com visão total do clube</li>
-          <li><span class="tick">✓</span> Treinador restrito às suas equipas</li>
-          <li><span class="tick">✓</span> Fisioterapeuta e preparador com áreas próprias</li>
-          <li><span class="tick">✓</span> Atleta com o seu portal pessoal</li>
+          <li><span class="tick">✓</span> Marcador, rotação e líbero contados sozinhos, substituições incluídas</li>
+          <li><span class="tick">✓</span> Side-out e break-point por rotação, ataque em K1 e K2, séries perdidas</li>
+          <li><span class="tick">✓</span> Sem rede no pavilhão? Fica no dispositivo e sobe quando voltar</li>
+          <li><span class="tick">✓</span> Resultado e pontos jogados vão para a app; Excel e folha A4 no fim</li>
         </ul>
       </div>
-      <div class="roles" aria-hidden="true">
-        <div class="role"><span class="tag">C</span><div><div class="who">Coordenador</div><div class="sees">Tudo: gestão, finanças, utilizadores</div></div></div>
-        <div class="role"><span class="tag" style="background:#1e5080">T</span><div><div class="who">Treinador</div><div class="sees">Plantéis e presenças das suas equipas</div></div></div>
-        <div class="role"><span class="tag" style="background:#2563eb">F</span><div><div class="who">Fisioterapeuta</div><div class="sees">Departamento médico</div></div></div>
-        <div class="role"><span class="tag" style="background:#16a34a">P</span><div><div class="who">Preparador</div><div class="sees">Preparação física e mapa de jogos</div></div></div>
-        <div class="role"><span class="tag" style="background:#d39f00">A</span><div><div class="who">Atleta</div><div class="sees">A sua página pessoal</div></div></div>
+      <div class="darkcard" aria-hidden="true">
+        <div class="sc-board">
+          <span class="sc-team">O teu clube</span>
+          <span class="sc-score"><span class="serve"></span>18 – 15<small>3.º SET · SETS 1–1</small></span>
+          <span class="sc-team">Adversário</span>
+        </div>
+        <div class="sc-court">
+          <span class="sc-p"><b>7</b>Ponta</span>
+          <span class="sc-p"><b>12</b>Central</span>
+          <span class="sc-p"><b>4</b>Oposta</span>
+          <span class="sc-p lib"><b>1</b>Líbero</span>
+          <span class="sc-p sel"><b>9</b>Ponta</span>
+          <span class="sc-p"><b>3</b>Distrib.</span>
+        </div>
+        <div class="sc-acts"><span>Rec</span><span>Pas</span><span class="on">Ata</span><span>Ser</span><span>Blo</span><span>Def</span></div>
+        <div class="sc-q"><span>#</span><span>+</span><span>&minus;</span><span>/</span><span>=</span></div>
+        <div class="sc-tip"><b>Side-out mais difícil: R3</b><br/>Ganhámos 6 de 14 quando o adversário servia — a média da equipa foi 62%.</div>
       </div>
     </div>
 
-    <div class="highlight__row rev reveal">
+    <div class="highlight__row rev reveal" id="quiosque">
       <div class="txt">
         <span class="eyebrow">Presenças sem chamada</span>
         <h3>O cartão passa, a presença fica</h3>
@@ -925,35 +1067,87 @@
       </div>
     </div>
 
-    <div class="highlight__row reveal">
+    <div class="highlight__row reveal" id="portal">
       <div class="txt">
-        <span class="eyebrow">Marca própria</span>
-        <h3>A tua identidade, não a nossa</h3>
-        <p>A Rumia veste a camisola do teu clube. Define o nome, o lema, as cores e o emblema — e toda a aplicação passa a falar a tua língua visual. Um produto, muitos clubes.</p>
+        <span class="eyebrow">Portal do atleta</span>
+        <h3>Trinta segundos no telemóvel, e está tudo dito</h3>
+        <p>Quem abre o portal é uma atleta, não um diretor. Por isso abre no que importa — o treino de logo, com «Vou» e «Não vou» à mão — e conta o jogo de sábado em frases e bolas, não em tabelas. Comparada sempre consigo própria, nunca com as colegas.</p>
         <ul class="checklist">
-          <li><span class="tick">✓</span> Cores principais e de destaque</li>
-          <li><span class="tick">✓</span> Emblema do clube</li>
-          <li><span class="tick">✓</span> Nome e lema personalizados</li>
+          <li><span class="tick">✓</span> Responde a treinos e convocatórias; o treinador sabe com quem conta</li>
+          <li><span class="tick">✓</span> Notificações no telemóvel: convocada, treino mudado, material pronto</li>
+          <li><span class="tick">✓</span> Pede equipamento, vê quanto custa e em que ponto está</li>
+          <li><span class="tick">✓</span> O cartão QR guardado no dispositivo, para a porta do pavilhão sem rede</li>
         </ul>
       </div>
-      <div class="brandcard" aria-hidden="true">
-        <div class="swatches">
-          <span class="sw" style="background:#143b61"></span>
-          <span class="sw" style="background:#f2b705"></span>
-          <span class="sw" style="background:#7a1f2b"></span>
-          <span class="sw" style="background:#1f7a4d"></span>
-          <span class="sw" style="background:#4b2e83"></span>
-        </div>
-        <div class="previews">
-          <div class="miniapp">
-            <div class="top" style="background:#143b61"><span class="em" style="border-color:#f2b705"></span>O teu clube</div>
-            <div class="content"><span class="bar"></span><span class="bar short"></span><span class="bar"></span></div>
+      <div class="phonewrap" aria-hidden="true">
+        <div class="phone">
+          <div class="phone__notch"></div>
+          <p class="phone__hi">Olá, Beatriz</p>
+          <div class="ph-next">
+            <div class="k">A seguir · Hoje</div>
+            <div class="t">Treino 19:00 <span>· Pavilhão Municipal</span></div>
+            <div class="ph-btns"><span>Vou</span><span>Não vou</span></div>
           </div>
-          <div class="miniapp">
-            <div class="top" style="background:#7a1f2b"><span class="em" style="border-color:#e8b4bc"></span>Outro clube</div>
-            <div class="content"><span class="bar"></span><span class="bar short"></span><span class="bar"></span></div>
+          <div class="ph-game">
+            <div class="vs">Sábado · vs Académico · 3–1</div>
+            <div class="big">Boa receção!</div>
+            <p class="sub">27 de 42 receções foram boas. Mais do que costumas.</p>
+            <div class="balls">
+              <span class="ball ball--ok"></span><span class="ball ball--ok"></span><span class="ball ball--ok"></span><span class="ball ball--ok"></span><span class="ball ball--ok"></span><span class="ball ball--ok"></span><span class="ball ball--cont"></span><span class="ball ball--cont"></span><span class="ball ball--cont"></span><span class="ball ball--err">&times;</span>
+            </div>
+            <div class="ph-legend">Em cada 10 receções</div>
           </div>
         </div>
+      </div>
+    </div>
+
+    <div class="highlight__row rev reveal" id="site-do-clube">
+      <div class="txt">
+        <span class="eyebrow">Site do clube · marca própria</span>
+        <h3>O site que o clube nunca teve tempo de fazer</h3>
+        <p>Cada clube ganha o seu endereço — <strong>oteuclube.rumia.pt</strong> — com as cores e o emblema que já escolheu na app. O resultado de sábado aparece no site quando o treinador o regista: não há um segundo sítio para atualizar.</p>
+        <ul class="checklist">
+          <li><span class="tick">✓</span> Resultados, calendário de jogos, equipas, notícias e galeria</li>
+          <li><span class="tick">✓</span> Loja do clube e pedidos de inscrição que chegam à app</li>
+          <li><span class="tick">✓</span> Patrocinadores com logótipo — a montra que eles pagaram</li>
+          <li><span class="tick">✓</span> Nenhum atleta sai da app sem o clube decidir publicar</li>
+        </ul>
+      </div>
+      <div class="darkcard sitecard" aria-hidden="true">
+        <div class="site__bar"><span class="url"><b>oteuclube</b>.rumia.pt</span></div>
+        <div class="site__hero">
+          <div class="site__nav"><span class="crest"></span><span>Jogos</span><span>Equipas</span><span>Loja</span></div>
+          <div class="site__kicker">Hoje há voleibol</div>
+          <div class="site__title">Séniores F<br/>vs Académico</div>
+          <span class="site__game"><b>18:00</b> Pavilhão Municipal · Como chegar</span>
+        </div>
+        <div class="site__ticker"><span>Juvenis F 3–0</span><span>Cadetes M 1–3</span><span>Iniciadas F 3–2</span><span>Infantis 2–0</span></div>
+        <div class="site__blocks">
+          <div class="site__block"><b>Galeria</b>vs Leixões · 3–1<div class="site__photo"></div></div>
+          <div class="site__block"><b>As nossas cores</b>Do emblema às camisolas<div class="site__swatches"><i style="background:#b3122e"></i><i style="background:#fff"></i><i style="background:#111"></i></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="highlight__row reveal" id="papeis">
+      <div class="txt">
+        <span class="eyebrow">Papéis & permissões</span>
+        <h3>Cada pessoa vê só o que precisa</h3>
+        <p>Do coordenador ao atleta, cada papel tem o seu acesso. A informação sensível fica reservada a quem a deve ver — garantido pela base de dados, não só pela interface.</p>
+        <ul class="checklist">
+          <li><span class="tick">✓</span> Coordenador com visão total; direção com a parte de gestão</li>
+          <li><span class="tick">✓</span> Treinador restrito às suas equipas</li>
+          <li><span class="tick">✓</span> Fisioterapeuta e preparador com áreas próprias</li>
+          <li><span class="tick">✓</span> Atleta com o seu portal pessoal</li>
+        </ul>
+      </div>
+      <div class="roles" aria-hidden="true">
+        <div class="role"><span class="tag">C</span><div><div class="who">Coordenador</div><div class="sees">Tudo: gestão, finanças, utilizadores</div></div></div>
+        <div class="role"><span class="tag" style="background:#7a1f2b">D</span><div><div class="who">Direção</div><div class="sees">Finanças, patrocínios e supervisão do clube</div></div></div>
+        <div class="role"><span class="tag" style="background:#1e5080">T</span><div><div class="who">Treinador</div><div class="sees">Plantéis e presenças das suas equipas</div></div></div>
+        <div class="role"><span class="tag" style="background:#2563eb">F</span><div><div class="who">Fisioterapeuta</div><div class="sees">Departamento médico</div></div></div>
+        <div class="role"><span class="tag" style="background:#16a34a">P</span><div><div class="who">Preparador</div><div class="sees">Preparação física e mapa de jogos</div></div></div>
+        <div class="role"><span class="tag" style="background:#d39f00">A</span><div><div class="who">Atleta</div><div class="sees">A sua página pessoal</div></div></div>
       </div>
     </div>
 
@@ -972,17 +1166,17 @@
       <div class="step reveal">
         <div class="step__n">1</div>
         <h3>Cria o teu clube</h3>
-        <p>Regista-te, escolhe a modalidade e veste a aplicação com as cores e o emblema do clube.</p>
+        <p>Recebes o acesso, escolhes a modalidade e veste a aplicação com as cores e o emblema do clube.</p>
       </div>
       <div class="step reveal">
         <div class="step__n">2</div>
         <h3>Traz os teus dados</h3>
-        <p>Importa os atletas por Excel e convida a equipa técnica — cada pessoa entra com o seu papel e acesso.</p>
+        <p>Importa os atletas por Excel, convida a equipa técnica e manda a cada família o seu link para o portal — cada pessoa entra com o seu papel e acesso.</p>
       </div>
       <div class="step reveal">
         <div class="step__n">3</div>
         <h3>Gere o dia a dia</h3>
-        <p>Calendário, presenças, plano de jogo, quotas e muito mais — tudo ligado, num só sítio.</p>
+        <p>Presenças, jogos, scout, quotas, material — e o site do clube a atualizar-se sozinho com o que acontece na app.</p>
       </div>
     </div>
   </div>
@@ -1064,15 +1258,15 @@
           <tr><th scope="row">Calendário de treinos e jogos</th><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td></tr>
           <tr><th scope="row">Presenças por cartão QR (modo quiosque)</th><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td></tr>
           <tr><th scope="row">Convocatórias e respostas dos atletas</th><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td></tr>
-          <tr><th scope="row">Portal do atleta e avisos no telemóvel</th><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td></tr>
           <tr><th scope="row">Biblioteca de exercícios e plano de treino</th><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td></tr>
           <tr><th scope="row">Decisão tática (cenários no portal)</th><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td></tr>
           <tr><th scope="row">Resultados, parciais e participação em jogo</th><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td></tr>
+          <tr><th scope="row">Scout ao vivo e análise de jogo (voleibol)</th><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td></tr>
           <tr><th scope="row">Quedas de comparência e &laquo;treina muito, joga pouco&raquo;</th><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td></tr>
 
           <tr class="grp"><th scope="colgroup" colspan="4">Gestão do clube</th></tr>
           <tr><th scope="row">Quotas e ficha de sócio</th><td><span class="no">&mdash;</span></td><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td></tr>
-          <tr><th scope="row">Equipamentos e encomendas</th><td><span class="no">&mdash;</span></td><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td></tr>
+          <tr><th scope="row">Equipamentos, pedidos e encomendas (com pagamentos)</th><td><span class="no">&mdash;</span></td><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td></tr>
           <tr><th scope="row">Documentos e validades (RGPD, exames médicos)</th><td><span class="no">&mdash;</span></td><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td></tr>
           <tr><th scope="row">Recrutamento e avaliação de plantel</th><td><span class="no">&mdash;</span></td><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td></tr>
           <tr><th scope="row">Viragem de época e arquivo</th><td><span class="no">&mdash;</span></td><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td></tr>
@@ -1082,8 +1276,13 @@
           <tr><th scope="row">Disponibilidade e limitações ao treino</th><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td></tr>
           <tr><th scope="row">Dados antropométricos e avaliações físicas</th><td><span class="no">&mdash;</span></td><td><span class="part">Base</span></td><td><span class="yes">&#10003;</span></td></tr>
           <tr><th scope="row">Registo de lesões e histórico por zona do corpo</th><td><span class="no">&mdash;</span></td><td><span class="part">Base</span></td><td><span class="yes">&#10003;</span></td></tr>
-          <tr><th scope="row">Processo clínico: episódios, sessões, agenda de tratamentos</th><td><span class="no">&mdash;</span></td><td><span class="no">&mdash;</span></td><td><span class="yes">&#10003;</span></td></tr>
-          <tr><th scope="row">Periodização: macrociclos, mesociclos, treino de ginásio</th><td><span class="no">&mdash;</span></td><td><span class="no">&mdash;</span></td><td><span class="yes">&#10003;</span></td></tr>
+          <tr><th scope="row">Processo clínico: episódios, agenda, pedidos do treinador e plano de recuperação</th><td><span class="no">&mdash;</span></td><td><span class="no">&mdash;</span></td><td><span class="yes">&#10003;</span></td></tr>
+          <tr><th scope="row">Periodização e sessões de musculação</th><td><span class="no">&mdash;</span></td><td><span class="no">&mdash;</span></td><td><span class="yes">&#10003;</span></td></tr>
+
+          <tr class="grp"><th scope="colgroup" colspan="4">Atletas, famílias e público</th></tr>
+          <tr><th scope="row">Portal do atleta e avisos no telemóvel</th><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td></tr>
+          <tr><th scope="row">Convites ao portal em lote e guia de entrada</th><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td></tr>
+          <tr><th scope="row">Site público do clube (resultados, notícias, loja)</th><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td></tr>
 
           <tr class="grp"><th scope="colgroup" colspan="4">Direção</th></tr>
           <tr><th scope="row">Patrocínios e objetivos da época</th><td><span class="no">&mdash;</span></td><td><span class="yes">&#10003;</span></td><td><span class="yes">&#10003;</span></td></tr>
@@ -1118,11 +1317,19 @@
       </details>
       <details class="qa">
         <summary>Preciso de instalar alguma coisa?</summary>
-        <p>Não. A Rumia funciona no navegador, no telemóvel, tablet ou computador. Pode ser adicionada ao ecrã inicial como uma app.</p>
+        <p>Não. A Rumia funciona no navegador, no telemóvel, tablet ou computador, e adiciona-se ao ecrã inicial como uma app — é assim que recebe notificações, também no iPhone.</p>
       </details>
       <details class="qa">
         <summary>Como funcionam as presenças por cartão QR?</summary>
         <p>Cada atleta tem um cartão com um código próprio (imprimes uma folha A4 por equipa, ou o atleta mostra-o no telemóvel). Um tablet à entrada fica em modo quiosque e regista a presença quando o cartão passa — é o servidor que decide a que treino corresponde e se conta como presença ou atraso. Se a rede falhar, as leituras ficam guardadas e são enviadas quando voltar. O treinador continua a poder marcar tudo à mão: a decisão humana ganha sempre à câmara.</p>
+      </details>
+      <details class="qa">
+        <summary>O clube fica com um site?</summary>
+        <p>Fica. Cada clube pode publicar o seu site em oteuclube.rumia.pt, com as cores e o emblema que já usa na app: resultados, calendário de jogos, equipas, notícias, galeria, loja, patrocinadores e um formulário de inscrição. Os dados vêm da app, por isso o resultado aparece no site quando é registado. Publicar é decisão do coordenador, e nenhum atleta aparece no site sem o clube escolher publicar o plantel — e mesmo aí só com o nome abreviado.</p>
+      </details>
+      <details class="qa">
+        <summary>O scout funciona no pavilhão, sem rede?</summary>
+        <p>Funciona. Cada ação fica primeiro guardada no próprio dispositivo e sobe quando a ligação responder; o ecrã diz quando está a guardar só no dispositivo. Um dispositivo marca de cada vez e os outros podem ver o jogo ao vivo. O scout é para voleibol.</p>
       </details>
       <details class="qa">
         <summary>E os dados clínicos dos atletas? E o RGPD?</summary>

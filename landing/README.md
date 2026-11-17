@@ -112,8 +112,16 @@ Depois, aponta o teu domínio (ex.: `rumia.pt`) para o alojamento escolhido.
 - Identidade alinhada com a app: azul-marinho `#143b61` + amarelo `#f2b705`,
   tipos **Barlow Semi Condensed** (títulos) e **Inter** (corpo).
 - Suporta tema claro e escuro automaticamente (`prefers-color-scheme`).
-- A janela do produto no hero, o cartão de papéis e o quiosque QR são mocks em
-  CSS (não são imagens); a secção "Por dentro" usa capturas reais da app.
+- A janela do produto no hero e os visuais dos destaques (scout, quiosque QR,
+  portal do atleta no telemóvel, site do clube, papéis) são mocks em CSS (não
+  são imagens); a secção "Por dentro" usa capturas reais da app. Os do scout,
+  do portal e do site são escuros nos dois temas, como a janela do hero: são
+  "ecrãs", não blocos da página.
+- As funcionalidades agrupam-se por QUEM as usa (no pavilhão, no clube, saúde e
+  físico, para fora). Doze cartões iguais em grelha liam-se como uma lista de
+  módulos; agrupados, cada visitante encontra a parte que é dele.
+- O crachá "Novo" é para tirar: marca o que entrou desde a última versão da
+  página e deixa de ser novidade ao fim de uns meses.
 - O menu do telemóvel só se transforma em painel quando há JS. Sem JS, os links
   ficam numa segunda linha da barra — nunca escondidos, que era o que acontecia
   antes.
