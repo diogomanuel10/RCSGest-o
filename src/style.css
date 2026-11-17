@@ -9974,3 +9974,16 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 .scout-errseg--2 { background: var(--info); }
 .scout-errseg--3 { background: var(--navy-300); }
 .scout-errcell { font-size: 0.8rem; white-space: nowrap; }
+
+/* Portal — o detalhe dela (zonas e tipos de erro) e a equipa sem nomes. */
+.sc-details { display: flex; flex-direction: column; gap: 0.9rem; margin-top: 0.9rem; }
+.sc-detail { display: flex; flex-direction: column; gap: 0.4rem; }
+.sc-detail__title { margin: 0; font-size: 0.85rem; font-weight: 700; }
+.sc-detail .sc-sum__best, .sc-detail .sc-sum__next { margin: 0; font-size: 0.9rem; line-height: 1.4; padding: 0.5rem 0.65rem; border-radius: var(--radius-sm); border-left: 3px solid var(--border); background: var(--surface-2); }
+.sc-detail__note { margin: 0; font-size: 0.78rem; color: var(--text-muted); }
+.sc-detail__list { margin: 0; padding-left: 1.1rem; font-size: 0.9rem; }
+.scout-zmap--sm { max-width: 300px; }
+.scout-zmap__cell--warn { border-color: var(--warn); box-shadow: inset 0 0 0 1px var(--warn); }
+.scout-zmap__cell--warn strong { color: var(--warn-ink); }
+.sc-team-pat { margin-top: 0.6rem; font-size: 0.88rem; }
+.sc-team-pat p { margin: 0.3rem 0 0; }

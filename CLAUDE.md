@@ -1862,6 +1862,29 @@ separador antes de navegar (usado pelos cartões do Painel).
     - Carrega-se só ao abrir o separador (`loadMyScoutGames`): são as ações
       da época inteira, e o portal abre-se quase sempre para ver o treino de
       logo. Sem a migração a chamada falha e diz que ainda não há jogos.
+    - **O detalhe dela** (`myDetailHTML`, em cada jogo e na época), só nos
+      jogos em que o treinador marcou o detalhe opcional: **para onde serviu**
+      (o campo delas, quantos serviços em cada zona e em quantos ganhámos o
+      ponto), **onde recebeu** (receção boa por zona, com a cor a comparar
+      cada zona com ELA PRÓPRIA) e **que erros foram** ("Serviço: 1 rede, 1
+      fora"). A frase do serviço só diz a BOA notícia (a zona que deu mais
+      pontos); a da receção diz a melhor zona e, havendo 15 pontos de
+      diferença, "na zona 6 custou mais" — em âmbar, a regra do
+      `compareToSelf`. Mínimo de 3 ações numa zona para entrar na frase.
+    - **A equipa, sem nomes** (`teamPatternsHTML`): a série mais difícil do
+      jogo (4+ pontos seguidos, e como começou) ou, na época, quantas séries
+      houve e como começou a maioria; e os erros que mais se repetiram na
+      equipa por tipo. **Nunca se diz de quem foi o erro que começou uma
+      série** — nem quando foi dela: lido sozinho no telemóvel, é culpa.
+    - **Fica só para o treinador**, de propósito: "com e sem em campo"
+      (compara colegas por definição) e o final de set disputado por atleta
+      ("jogas pior quando aperta" é conversa cara a cara). A reunião de grupo
+      também não chega ao portal. O nível de detalhe é o mesmo para todos os
+      escalões.
+    - **Ainda não chega ao portal o que depende da posição das COLEGAS**: a
+      distribuição (para onde foi a bola depois do passe dela) e as rotações
+      R1–R6. O servidor tira o dono às ações das outras, e sem ele não se
+      sabe de que zona atacaram nem quem é a distribuidora.
   - **As estatísticas do treinador dividem-se em quatro partes** (`statsBlock`):
     **Equipa** (de onde vieram os pontos), **Por ação**, **Por atleta** e
     **Destaques**. A tabela sozinha respondia a "quem", e a pergunta que

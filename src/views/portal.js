@@ -17,7 +17,9 @@ import {
 } from '../store.js';
 import {
   setsWon, partials, teamSummary, playerRows, pointsPlayed, usedCols, counts, QUALITY, qualityOf,
+  ACT, ERR_TYPES,
 } from '../scout-engine.js';
+import { serveZoneStats, receptionZoneStats, errorTypeStats, runsLost, ZONES } from '../scout-patterns.js';
 import { evoChart, wireEvo } from '../scout-charts.js';
 import { toastOk, toastError } from '../toast.js';
 import { getNotifications, markRead } from '../notifications.js';
@@ -891,6 +893,129 @@ function teamBlock(datas, { compact = false } = {}) {
     </div>`;
 }
 
+// --- O detalhe dela: zonas e tipos de erro -----------------------------------
+//
+// Só existe nos jogos em que o treinador marcou o detalhe (zona do serviço,
+// zona da receção, tipo de erro — `data.extras`). As regras do resto do
+// separador valem aqui: as ações DELA, comparadas com ela própria, primeiro o
+// que correu bem e por palavras antes do desenho. Nada sobre as colegas: o
+// servidor já tira o dono às ações delas (`my_scout_games`).
+const ZONE_MIN = 3; // ações numa zona para entrar numa frase
+
+// O campo com um número em cada zona. No serviço é o campo ADVERSÁRIO (visto
+// do nosso lado, a fila de trás delas mais longe); na receção é o nosso.
+function myZoneMap(far, cell) {
+  const rows = far ? [[1, 6, 5], [2, 3, 4]] : [[4, 3, 2], [5, 6, 1]];
+  const net = '<div class="scout-zmap__net">rede</div>';
+  const grid = rows.map((r) => r.map(cell).join('')).join('');
+  return `<div class="scout-zmap scout-zmap--sm${far ? ' scout-zmap--far' : ''}">${far ? `${grid}${net}` : `${net}${grid}`}</div>`;
+}
+const zcell = (z, main, sub, tone = '') => `<div class="scout-zmap__cell${tone ? ` scout-zmap__cell--${tone}` : ''}"><span class="scout-zmap__z">Z${z}</span><strong>${main}</strong><span class="muted">${sub}</span></div>`;
+
+function myServeZones(datas, me) {
+  const zs = serveZoneStats(datas).byPid[me.id];
+  if (!zs) return '';
+  const n = ZONES.reduce((a, z) => a + zs[z].n, 0);
+  if (!n) return '';
+  // A frase é só a BOA notícia: a zona para onde o serviço dela deu mais
+  // pontos. "Serviste mal para a zona 2" não se diz aqui — é conversa.
+  const best = ZONES.filter((z) => zs[z].n >= ZONE_MIN).sort((a, b) => zs[b].won / zs[b].n - zs[a].won / zs[a].n || zs[b].n - zs[a].n)[0];
+  const line = best
+    ? `<p class="sc-sum__best">Quando serviste para a <strong>zona ${best}</strong>, ganhámos ${zs[best].won} de ${zs[best].n} pontos.</p>`
+    : '';
+  const map = myZoneMap(true, (z) => (zs[z].n
+    ? zcell(z, String(zs[z].n), `ganhámos ${zs[z].won}`, z === best ? 'ok' : '')
+    : zcell(z, '—', '')));
+  return `<div class="sc-detail"><h4 class="sc-detail__title">Para onde serviste</h4>${line}${map}
+    <p class="sc-detail__note">Quantos serviços teus caíram em cada zona do campo delas (vista do nosso lado) e em quantos desses pontos ganhámos.</p></div>`;
+}
+
+function myReceptionZones(datas, me) {
+  const zs = receptionZoneStats(datas).byPid[me.id];
+  if (!zs) return '';
+  const tot = ZONES.reduce((a, z) => ({ n: a.n + zs[z].n, good: a.good + zs[z].good }), { n: 0, good: 0 });
+  if (!tot.n) return '';
+  const ok = ZONES.filter((z) => zs[z].n >= ZONE_MIN);
+  const rate = (z) => zs[z].good / zs[z].n;
+  const best = ok.slice().sort((a, b) => rate(b) - rate(a))[0];
+  const worst = ok.slice().sort((a, b) => rate(a) - rate(b))[0];
+  // Comparada com ELA: a zona onde recebe melhor e, se houver uma clara
+  // diferença (15 pontos), a zona onde lhe custa mais — dita com cuidado.
+  let line = '';
+  if (best) {
+    line = `<p class="sc-sum__best">Recebeste melhor na <strong>zona ${best}</strong>: ${zs[best].good} de ${zs[best].n} receções boas.</p>`;
+    if (worst && worst !== best && rate(best) - rate(worst) >= 0.15) {
+      line += `<p class="sc-sum__next">Na zona ${worst} custou mais: ${zs[worst].good} de ${zs[worst].n}.</p>`;
+    }
+  }
+  const own = tot.good / tot.n;
+  const map = myZoneMap(false, (z) => {
+    const c = zs[z];
+    if (!c.n) return zcell(z, '—', '');
+    const v = c.good / c.n;
+    const tone = c.n < ZONE_MIN ? '' : v >= own + 0.15 ? 'ok' : v <= own - 0.15 ? 'warn' : '';
+    return zcell(z, `${Math.round(v * 100)}%`, `${c.good} de ${c.n} boas`, tone);
+  });
+  return `<div class="sc-detail"><h4 class="sc-detail__title">Onde recebeste</h4>${line}${map}
+    <p class="sc-detail__note">Receções boas em cada zona do nosso campo. A cor compara cada zona contigo própria, no total das tuas receções.</p></div>`;
+}
+
+const ERR_FUND = { SERVICE: 'serviço', ATTACK: 'ataque', SETTING: 'passe', BLOCK: 'bloco', OTHER: 'outros' };
+function myErrorTypes(datas, me) {
+  const mine = errorTypeStats(datas).byPid[me.id];
+  if (!mine) return '';
+  const rows = Object.keys(ERR_TYPES).filter((t) => mine[t] && mine[t].total > mine[t].none).map((t) => {
+    const o = mine[t];
+    const parts = ERR_TYPES[t].filter(([k]) => o[k]).sort((a, b) => o[b[0]] - o[a[0]]).map(([k, l]) => `${o[k]} ${l.toLowerCase()}`);
+    return `<li><strong>${esc(ERR_FUND[t] === 'outros' ? 'Outros' : ERR_FUND[t].charAt(0).toUpperCase() + ERR_FUND[t].slice(1))}</strong>: ${esc(parts.join(', '))}</li>`;
+  });
+  if (!rows.length) return '';
+  return `<div class="sc-detail"><h4 class="sc-detail__title">Que erros foram</h4>
+    <ul class="sc-detail__list">${rows.join('')}</ul>
+    <p class="sc-detail__note">Saber se o serviço vai à rede ou sai fora ajuda a perceber o que treinar.</p></div>`;
+}
+
+function myDetailHTML(datas, me) {
+  const parts = [myServeZones(datas, me), myReceptionZones(datas, me), myErrorTypes(datas, me)].filter(Boolean);
+  return parts.length ? `<div class="sc-details">${parts.join('')}</div>` : '';
+}
+
+// --- A equipa, sem nomes --------------------------------------------------------
+// As séries de pontos perdidos e os erros da equipa por tipo. Nunca se diz
+// DE QUEM foi o erro que começou uma série: lido sozinho no telemóvel, "a
+// série começou num erro teu" é culpa, e não ajuda ninguém a melhorar.
+const START_TEAM = {
+  SERVICE: 'num erro de serviço', RECEPTION: 'num erro de receção', ATTACK: 'num erro de ataque',
+  BLOCK: 'num erro de bloco', DEFENSE: 'num erro de defesa', SETTING: 'num erro de passe', OTHER: 'num erro nosso',
+};
+function teamStart(run) {
+  const e = run.start;
+  if (e.t !== 'OPPONENT') return START_TEAM[e.t] || 'num erro nosso';
+  const prev = run.startActs[run.startActs.length - 2];
+  return prev && prev.t === 'ATTACK' && prev.q === 'BLOCKED' ? 'num ataque bloqueado' : 'com um ponto delas';
+}
+function teamPatternsHTML(datas, { season = false } = {}) {
+  const out = [];
+  const rl = runsLost(datas);
+  if (!season && rl.runs[0] && rl.runs[0].len >= 4) {
+    const r = rl.runs[0];
+    out.push(`<p><strong>A série mais difícil:</strong> ${r.len} pontos seguidos no ${r.set + 1}º set (de ${r.from.our}-${r.from.their} para ${r.to.our}-${r.to.their}). Começou ${esc(teamStart(r))}.</p>`);
+  } else if (season && rl.runs.length >= 3) {
+    const by = {};
+    rl.runs.forEach((r) => { const k = teamStart(r); by[k] = (by[k] || 0) + 1; });
+    const [top, n] = Object.entries(by).sort((a, b) => b[1] - a[1])[0];
+    out.push(`<p><strong>Séries de pontos perdidos:</strong> ${rl.runs.length} vezes perdemos 3 ou mais pontos seguidos. ${n} começaram ${esc(top)}.</p>`);
+  }
+  const te = errorTypeStats(datas).team;
+  const errs = Object.keys(ERR_TYPES).filter((t) => te[t] && te[t].total > te[t].none).map((t) => {
+    const o = te[t];
+    const [k, l] = ERR_TYPES[t].filter(([x]) => o[x]).sort((a, b) => o[b[0]] - o[a[0]])[0];
+    return `no ${ERR_FUND[t] === 'outros' ? 'resto' : ERR_FUND[t]}, ${l.toLowerCase()} (${o[k]})`;
+  });
+  if (errs.length) out.push(`<p><strong>Os erros que mais se repetiram na equipa:</strong> ${esc(errs.join(' · '))}.</p>`);
+  return out.length ? `<div class="sc-team-pat">${out.join('')}</div>` : '';
+}
+
 // Quantos jogos se veem antes do "Mostrar os restantes": num campeonato são
 // trinta, e a pergunta de quem abre isto é quase sempre o último jogo.
 const SCOUT_VISIBLE = 5;
@@ -926,7 +1051,9 @@ function scoutGameRow(g, me, { open = false, others = [] } = {}) {
       </div>
       ${p || m ? gameSummaryHTML(g.data, me, avgs) : ''}
       ${p || m ? myFundamentals([g.data], usedCols([g.data]), me, { avgs }) : '<p class="muted" style="margin:0.5rem 0 0">Não entraste em campo neste jogo.</p>'}
+      ${p || m ? myDetailHTML([g.data], me) : ''}
       ${teamBlock([g.data], { compact: true })}
+      ${teamPatternsHTML([g.data])}
     </div>
   </details></li>`;
 }
@@ -1005,7 +1132,9 @@ function jogosHTML(me) {
       </div>
       ${games.length >= 3 ? qualityEvo(games, me, used) : ''}
       ${myFundamentals(datas, used, me)}
+      ${myDetailHTML(datas, me)}
       ${teamBlock(datas)}
+      ${teamPatternsHTML(datas, { season: true })}
     </section>`;
 }
 
