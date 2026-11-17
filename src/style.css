@@ -8592,7 +8592,7 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 .scout-cols { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0.6rem 0.8rem 0.4rem; margin: 0.9rem 0 0; }
 .scout-cols legend { font-weight: 600; padding: 0 0.3rem; }
 .scout-cols__list { display: flex; flex-wrap: wrap; gap: 0.3rem 1rem; }
-.scout-cols__opt { display: inline-flex; align-items: center; gap: 0.4rem; min-height: 36px; cursor: pointer; }
+.scout-cols__opt { display: inline-flex; align-items: center; gap: 0.4rem; min-height: 36px; cursor: pointer; white-space: nowrap; }
 .scout-cols__opt--fixed { cursor: default; }
 .scout-legend { display: flex; flex-wrap: wrap; gap: 0.3rem 0.9rem; margin-top: 0.7rem; font-size: 0.78rem; color: var(--text-muted); }
 .scout-legend code { font-weight: 700; color: var(--text); }
@@ -9944,3 +9944,33 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 .scout-dist td { white-space: nowrap; }
 .scout-dist__eff { display: block; font-size: 0.75rem; }
 .scout-pat .group__count { white-space: nowrap; }
+
+/* Scout — detalhe opcional da última ação (zona / tipo de erro). Vive por
+   cima dos botões das ações e não bloqueia nada: marcar a ação seguinte larga-o. */
+.scout-extra { display: flex; flex-direction: column; gap: 0.45rem; padding: 0.6rem 0.75rem; margin-top: 0.6rem; border: 1px solid var(--info); border-left-width: 4px; border-radius: var(--radius-sm); background: var(--surface-2); }
+.scout-extra__head { display: flex; justify-content: space-between; align-items: center; gap: 0.6rem; font-size: 0.9rem; }
+.scout-extra__q { margin: 0; font-size: 0.82rem; color: var(--text-muted); }
+.scout-extra__chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.scout-zgrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.3rem; max-width: 260px; }
+.scout-zgrid__net, .scout-zmap__net { grid-column: 1 / -1; text-align: center; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); border-top: 3px solid var(--text-muted); padding-top: 0.1rem; }
+.scout-zgrid--far .scout-zgrid__net, .scout-zmap--far .scout-zmap__net { border-top: none; border-bottom: 3px solid var(--text-muted); padding: 0 0 0.1rem; }
+.scout-zbtn { min-height: 44px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); font-weight: 700; font-size: 1rem; cursor: pointer; }
+.scout-zbtn:hover { background: var(--navy-100); }
+.scout-zbtn:focus-visible { outline: 2px solid var(--navy); outline-offset: 1px; }
+
+/* Scout — mapas de zonas e tipos de erro nos Padrões. */
+.scout-zmap { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.35rem; max-width: 420px; }
+.scout-zmap__cell { display: flex; flex-direction: column; gap: 0.05rem; padding: 0.45rem 0.55rem; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); font-size: 0.78rem; }
+.scout-zmap__cell strong { font-size: 1.15rem; }
+.scout-zmap__z { font-size: 0.7rem; font-weight: 700; color: var(--text-muted); }
+.scout-zmap__cell--ok { border-color: var(--ok); box-shadow: inset 0 0 0 1px var(--ok); }
+.scout-zmap__cell--ok strong { color: var(--ok-ink); }
+.scout-zmap__cell--danger { border-color: var(--danger); box-shadow: inset 0 0 0 1px var(--danger); }
+.scout-zmap__cell--danger strong { color: var(--danger-ink); }
+.scout-errlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.6rem; }
+.scout-errlist__head { display: flex; gap: 0.5rem; align-items: baseline; font-size: 0.88rem; margin-bottom: 0.2rem; }
+.scout-errseg--0 { background: var(--danger); }
+.scout-errseg--1 { background: var(--warn); }
+.scout-errseg--2 { background: var(--info); }
+.scout-errseg--3 { background: var(--navy-300); }
+.scout-errcell { font-size: 0.8rem; white-space: nowrap; }

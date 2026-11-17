@@ -2021,6 +2021,33 @@ separador antes de navegar (usado pelos cartões do Painel).
       repetiram na mesma rotação), o final de set (15 pontos de diferença para
       o resto, com 10 rallies no mínimo) e a distribuição com receção − quando
       70% ou mais vai para a mesma zona.
+  - **Detalhe opcional: zona e tipo de erro** (`data.extras`, `ZONE_ACTS`,
+    `ERR_TYPES` e `extrasFor` no motor): cada ação pode levar a ZONA (`z`,
+    1–6) e o TIPO DE ERRO (`et`). Liga-se por jogo no mesmo sítio das ações
+    ("Detalhe (opcional)") e o jogo seguinte da equipa herda a escolha
+    (`summary.base.extras`). **Nasce desligado**: é um toque a mais, que
+    sozinho no banco não há; quem marca depois do jogo, a ver o vídeo, tem.
+    - **Zona do SERVIÇO** = onde caiu no campo adversário (um serviço falhado
+      não caiu em zona nenhuma: pergunta-se o tipo de erro). **Zona da
+      RECEÇÃO** = onde estava a recetora. A zona do ATAQUE não se marca: sai
+      da posição da ficha (ver «Padrões do jogo»).
+    - **Tipos de erro por fundamento**: serviço (rede, fora, falta de pé),
+      ataque (rede, fora, antena, invasão), passe (dois toques, condução,
+      rede), bloco (rede, invasão), outros (rede, invasão, rotação, outro).
+      Receção e defesa não têm tipo: o erro já diz que a bola caiu.
+    - **Não bloqueia**: depois da ação aparece uma faixa POR BAIXO dos
+      botões (por cima empurrava-os a cada toque, e carregava-se no botão
+      errado) com as zonas desenhadas como se veem do nosso lado (no serviço,
+      o campo adversário com a fila de trás deles mais longe) e/ou os tipos.
+      Marcar a ação seguinte larga-a e a anterior fica sem detalhe, que é o
+      mesmo que "Saltar": a ação conta na mesma para tudo o resto.
+    - **Três quadros nos Padrões, só quando há detalhe marcado**: Serviço por
+      zona (mapa com o break-point a partir de cada zona, e por servidora),
+      Receção por zona (receção boa e side-out por zona; por recetora contra o
+      total DELA) e Tipo de erro (barra por fundamento, e por atleta). Cada um
+      diz em quantas ações assenta; os erros sem tipo contam-se à parte.
+    - O Excel leva as colunas "Zona" e "Tipo de erro" na folha das Ações,
+      vazias quando não se marcaram.
   - **Exportação**: a folha A4 (`openSheet`, como o resumo pós-jogo; o PDF
     sai da janela de impressão) e o Excel com tudo — Jogos, Atletas (época),
     Atleta x Jogo e Ações, uma por linha — porque quem quer cruzar a época
