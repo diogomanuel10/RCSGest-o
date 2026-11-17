@@ -405,6 +405,7 @@ src/
   scout-engine.js       Scout ao vivo: lógica pura (marcador, rotação, líbero, estatísticas)
   scout-export.js       Scout: Excel (.xlsx, SheetJS lazy) e folha A4 do jogo/época
   scout-insights.js     Scout: análise pós-jogo (dicas ao treinador) e nomes das rotações
+  scout-patterns.js     Scout: padrões do jogo (séries, final de set, serviço, zonas…), lógica pura
   assets/logo.svg       Logótipo do clube (emblema SVG)
   views/
     config-help.js      Ecrã quando faltam as variáveis do Supabase
@@ -1972,6 +1973,54 @@ separador antes de navegar (usado pelos cartões do Painel).
       **Receção → ataque** (a eficácia cai 20 pontos ou mais com receção −, ou
       fica abaixo de 15% mesmo com receção boa — aí o problema não é a
       receção) e **Ataque em transição** (K2 contra K1).
+  - **Padrões do jogo** (`scout-patterns.js`, `patternsBlock` em
+    `views/scout.js`, no detalhe de um jogo e nos totais da época): a tabela
+    por atleta responde a "o quê" e "quanto"; a conversa com a equipa — que se
+    faz em grupo, a olhar para a folha — precisa de "ONDE" e "QUANDO". "55% de
+    receção" fecha a conversa; "as três séries foram na R4 e começaram numa
+    receção" abre-a.
+    - **Nenhum toque a mais no banco**: tudo sai da ordem das ações, do
+      marcador e da rotação que o `replay` já reconstrói (passou a dar também o
+      marcador ANTES do ponto, 5.º argumento do `onRally`). Por isso serve os
+      jogos scoutados antes de isto existir.
+    - **Sete padrões, cada um num `<details>` fechado** com o número que o
+      resume no cabeçalho — abertos de uma vez eram cinco ecrãs entre a análise
+      e a tabela. O que está aberto sobrevive ao re-desenho (`open` no
+      `detailState`; `seasonPatOpen` na época).
+    - **Séries de pontos perdidos** (3+ seguidos): como começou cada uma (o
+      primeiro ponto — erro nosso em que ação, ataque bloqueado, ou mérito do
+      adversário) e em que rotação. Uma série acontece TODA na mesma rotação
+      (só se roda ao ganhar o side-out), por isso a rotação é "a que ficou
+      presa".
+    - **Final de set disputado**: alguma equipa com 20+ (10 no 5.º set) E a
+      diferença em 3 ou menos — um 22-12 não tem nada em jogo. Compara com o
+      resto do jogo; por atleta, cada uma contra ELA PRÓPRIA no resto do jogo,
+      nunca contra as colegas.
+    - **Serviço pelo efeito**: por quem SERVIU (a atleta na zona 1 quando
+      servimos), em quantos rallies ganhámos o ponto, e "com a bola em jogo"
+      (sem ases nem erros) — "o meu serviço dificultou a vida ao adversário?",
+      que o "entrou" não responde.
+    - **Receção por rotação**: a cor compara com o total DELA (15 pontos), não
+      com a equipa — a mesma recetora pode estar bem em quatro rotações e
+      perdida numa.
+    - **Com e sem cada atleta em campo**: side-out e break-point da equipa nos
+      rallies com ela e sem ela. É onde aparece o valor que nenhuma contagem
+      mostra; num jogo, quem joga tudo não tem "sem ela" — fala na época.
+    - **Set a set** (num jogo) e **1.º set contra o último** (na época — o 3.º
+      set de um jogo de três não é o 3.º de um de cinco).
+    - **Ataque por zona e distribuição, sem marcar a zona**: deduz-se da
+      POSIÇÃO da ficha (`roleFinder` em `scout-insights.js`, por palavra-chave,
+      "Universal" = oposta) e de onde a atleta estava em campo nesse rally: à
+      frente ponta 4, central 3, oposta 2; atrás oposta 1 e ponta de pipe;
+      "2.º toque" é a distribuidora. Como o passe e a receção vêm marcados
+      antes, sai a DISTRIBUIÇÃO — para onde foi a bola com receção #, +, − e
+      em transição. Uma ponta que ataca da 2 numa combinação conta como zona
+      4: para padrões chega, e marcar a zona à mão é o que isto evita. Quem não
+      tem posição na ficha fica em "?", e diz-se quantos.
+    - Três dicas novas na Análise do jogo: a série mais longa (4+, e se se
+      repetiram na mesma rotação), o final de set (15 pontos de diferença para
+      o resto, com 10 rallies no mínimo) e a distribuição com receção − quando
+      70% ou mais vai para a mesma zona.
   - **Exportação**: a folha A4 (`openSheet`, como o resumo pós-jogo; o PDF
     sai da janela de impressão) e o Excel com tudo — Jogos, Atletas (época),
     Atleta x Jogo e Ações, uma por linha — porque quem quer cruzar a época
