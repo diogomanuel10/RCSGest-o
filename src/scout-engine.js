@@ -126,7 +126,10 @@ function positions(set, lineup, rot, srv) {
 // pontos jogados por atleta — e com quem servia nesse rally (`OUR`/`THEIR`),
 // que é o que separa o side-out do break-point. O 4.º argumento são as ações
 // do rally por ordem (as que não deram ponto e a que o acabou): é com elas que
-// se sabe se um ataque veio da receção ou de uma defesa (`phaseStats`).
+// se sabe se um ataque veio da receção ou de uma defesa (`phaseStats`). O 5.º
+// é o marcador ANTES do ponto (`{ our, their }`): é com ele que se sabe se o
+// rally foi jogado no fim do set (`pressureStats`) e onde começou uma série
+// de pontos perdidos (`runsLost`).
 export function replay(g, si, onRally) {
   const set = g.sets[si];
   let lineup = set.lineup.slice();
@@ -147,7 +150,7 @@ export function replay(g, si, onRally) {
     rally.push(e);
     const acts = rally;
     rally = [];
-    if (onRally) onRally(positions(set, lineup, rot, srv), e, srv, acts);
+    if (onRally) onRally(positions(set, lineup, rot, srv), e, srv, acts, { our, their });
     if (inc === 'OUR') {
       if (srv === 'THEIR') rot = (rot + 1) % 6;
       srv = 'OUR';
@@ -276,8 +279,8 @@ export function rotationStats(games, { isSetter = () => false, f = 'all' } = {})
 //
 // Rallies sem quem serve (set sem `firstServer`) ficam de fora, como no
 // side-out e break-point.
-const emptyAtk = () => ({ n: 0, kill: 0, err: 0, blk: 0 });
-const addAtk = (o, q) => {
+export const emptyAtk = () => ({ n: 0, kill: 0, err: 0, blk: 0 });
+export const addAtk = (o, q) => {
   o.n++;
   if (q === 'PERFECT') o.kill++;
   else if (q === 'ERROR') o.err++;

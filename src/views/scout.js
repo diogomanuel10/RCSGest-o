@@ -31,7 +31,11 @@ import {
   activeCols, usedCols, OPTIONAL_COLS, rotationStats, phaseStats, atkEff, K1_RECEPTIONS, QUALITY, qualityOf, counts,
 } from '../scout-engine.js';
 import { evoChart, wireEvo } from '../scout-charts.js';
-import { gameInsights, gameStandouts, setterFinder, rotationLabel } from '../scout-insights.js';
+import { gameInsights, gameStandouts, setterFinder, rotationLabel, roleFinder, startPhrase } from '../scout-insights.js';
+import {
+  runsLost, pressureStats, serveStats, receptionByRotation, onCourtStats, setBySet, firstVsLast,
+  attackZoneStats, zoneTotal, ATTACK_ZONES, ZONE_LABEL,
+} from '../scout-patterns.js';
 
 // --- Estado local da secção -------------------------------------------------
 let teamFilter = '';
@@ -48,6 +52,10 @@ let evoOpen = false; // "Evolução da equipa" aberta no cartão da época
 let openGameId = null;
 const detailState = new Map(); // id -> { g, stamp, filter, season }
 const detailLoading = new Map(); // id -> promessa da descarga em curso
+// Que secções dos "Padrões" estão abertas nos totais da época (as do detalhe
+// de um jogo vivem no `detailState`): a lista re-desenha a cada notificação e
+// um `<details>` aberto voltava a fechar-se.
+const seasonPatOpen = new Set();
 
 const ACTIVE_KEY = 'rumia-scout-active';
 const backupKey = (id) => `rumia-scout:${id}`;
@@ -294,7 +302,8 @@ export function renderScout(container) {
     seasonGames(teamFilter).then((games) => {
       const done = games.filter((g) => g.status === 'terminado');
       const datas = done.map((g) => g.data);
-      body.innerHTML = `<div class="scout-season__body">${rotationBlock(datas, { multi: true })}${statsBlock(datas, 'all', { multi: true, played: sumPlayed(done) })}</div>`;
+      body.innerHTML = `<div class="scout-season__body">${rotationBlock(datas, { multi: true })}${patternsBlock(datas, 'all', { multi: true, open: seasonPatOpen })}${statsBlock(datas, 'all', { multi: true, played: sumPlayed(done) })}</div>`;
+      wirePatterns(body, seasonPatOpen);
     }).catch((err) => { body.innerHTML = errorHTML(dbErrorMessage(err)); });
   }
 }
@@ -568,7 +577,7 @@ async function fillDetail(container, id) {
       detailLoading.set(id, loadScoutData(id).then(([full]) => {
         if (!full) throw new Error('Este jogo já não existe.');
         const prev = detailState.get(id);
-        const next = { g: toGame(full), stamp: full.updated_at, filter: prev?.filter || 'all', season: prev?.season || [] };
+        const next = { g: toGame(full), stamp: full.updated_at, filter: prev?.filter || 'all', season: prev?.season || [], open: prev?.open || new Set() };
         detailState.set(id, next);
         return next;
       }).finally(() => detailLoading.delete(id)));
@@ -602,6 +611,7 @@ function paintDetail(container, box, st) {
   box.innerHTML = `
     ${g.status === 'terminado' ? analysisBlock(g.data, st.season) : ''}
     <div class="cell-actions">${setFilterHTML(g.data, f)}</div>
+    ${patternsBlock([g.data], f, { open: st.open || (st.open = new Set()) })}
     ${statsBlock([g.data], f, { played: pointsPlayed(f === 'all' ? g.data : { ...g.data, events: g.data.events.filter((e) => e.set === Number(f)) }) })}
     <div class="scout-inline__actions">
       ${editable ? '<button class="btn btn--danger btn--sm" type="button" data-d-del>Apagar scout</button>' : ''}
@@ -609,6 +619,7 @@ function paintDetail(container, box, st) {
       ${editable ? `<button class="btn btn--ghost btn--sm" type="button" data-d-resume>${g.status === 'terminado' ? 'Corrigir' : 'Continuar'}</button>` : ''}
       <button class="btn btn--ghost btn--sm" type="button" data-d-close>Fechar</button>
     </div>`;
+  wirePatterns(box, st.open);
   box.querySelectorAll('[data-set]').forEach((b) => b.addEventListener('click', () => {
     st.filter = b.dataset.set;
     paintDetail(container, box, st);
@@ -649,7 +660,7 @@ function setFilterHTML(data, cur) {
 
 function analysisBlock(data, season) {
   const isSetter = setterFinder();
-  const tips = gameInsights(data, { season, isSetter });
+  const tips = gameInsights(data, { season, isSetter, roleOf: roleFinder() });
   return `${standoutsBlock(data)}<section class="scout-part">
     <h3 class="scout-part__title">Análise do jogo</h3>
     ${tips.length
@@ -817,6 +828,243 @@ function phaseBlock(datas, f, used) {
       }).join('')}</tbody></table></div>` : ''}
     <p class="muted scout-footnote">K1 = o primeiro ataque nosso num rally em que o adversário serviu; K2 = os outros (servimos nós, ou o 1.º ataque não acabou o rally). A receção é a última marcada antes do ataque — para a tabela por receção, marca-se a receção e o ataque do mesmo rally. Grupos com menos de 6 ataques ficam a cinzento.</p>
   </section>`;
+}
+
+// =============================================================================
+// Padrões do jogo (`scout-patterns.js`)
+// =============================================================================
+//
+// "Onde" e "quando", e não só "quanto": séries de pontos perdidos, final de
+// set, serviço pelo efeito, receção por rotação, com e sem cada atleta em
+// campo, set a set e ataque por zona. Tudo sai das ações já marcadas — nenhum
+// toque a mais no banco, e serve também os jogos antigos.
+//
+// Cada padrão é um `<details>` fechado com o número que o resume no cabeçalho:
+// são sete quadros, e abertos de uma vez eram cinco ecrãs entre a análise e a
+// tabela por atleta. Quem prepara a conversa com a equipa abre os que lhe
+// interessam; o estado sobrevive ao re-desenho (`open`).
+
+const pctN = (a, b) => (b ? `${Math.round((a / b) * 100)}%` : '—');
+const PAT_MIN = 10; // rallies para uma percentagem de equipa contar
+function nameIn(datas, id) {
+  for (const d of datas) { const p = findPlayer(d, id); if (p) return `${p.num} · ${shortName(p.name)}`; }
+  return '—';
+}
+// Uma célula de percentagem com cor quando se afasta de uma referência.
+function cmpCell(won, n, ref, { min = 5, gap = 0.1, few = '—' } = {}) {
+  if (!n) return `<td class="muted">${few}</td>`;
+  const v = won / n;
+  const tone = n < min || ref == null ? '' : v >= ref + gap ? 'ok' : v <= ref - gap ? 'danger' : '';
+  return `<td${tone ? ` class="scout-rot__ph scout-rot__ph--${tone}"` : ''}>${pctN(won, n)} <span class="muted">${won}/${n}</span></td>`;
+}
+function patGroup(key, title, count, body, open) {
+  if (!body) return '';
+  return `<details class="group scout-pat" data-pat="${key}"${open.has(key) ? ' open' : ''}>
+    <summary class="group__head"><span class="group__title">${esc(title)}</span>${count ? `<span class="group__count">${esc(count)}</span>` : ''}</summary>
+    <div class="scout-pat__body">${body}</div>
+  </details>`;
+}
+
+function patternsBlock(datas, f, { multi = false, open = new Set() } = {}) {
+  const isSetter = setterFinder();
+  const used = usedCols(datas);
+  const parts = [
+    zonesPattern(datas, f, used, open),
+    runsPattern(datas, f, isSetter, multi, open),
+    pressurePattern(datas, f, used, open),
+    servePattern(datas, f, open),
+    receptionPattern(datas, f, isSetter, used, open),
+    courtPattern(datas, f, multi, open),
+    f === 'all' ? setsPattern(datas, multi, used, open) : '',
+  ].join('');
+  if (!parts) return '';
+  return `<section class="scout-part">
+    <h3 class="scout-part__title">Padrões ${multi ? 'da época' : 'do jogo'}</h3>
+    <p class="muted scout-footnote">Onde e quando se ganharam e perderam os pontos. Sai da ordem das ações já marcadas, sem marcar nada a mais.${f === 'all' ? '' : ' Só o set escolhido.'}</p>
+    <div class="scout-pats">${parts}</div>
+  </section>`;
+}
+
+function wirePatterns(root, open) {
+  root.querySelectorAll('details[data-pat]').forEach((d) => d.addEventListener('toggle', () => {
+    if (d.open) open.add(d.dataset.pat); else open.delete(d.dataset.pat);
+  }));
+}
+
+// --- Ataque por zona e distribuição ---
+function zonesPattern(datas, f, used, open) {
+  if (!used.has('ATTACK')) return '';
+  const az = attackZoneStats(datas, { roleOf: roleFinder(), f });
+  const total = zoneTotal(az.all);
+  if (!total) return '';
+  const zs = ATTACK_ZONES.filter((k) => az.all[k].n);
+  const eff = (o) => (o.n ? fmtPct(atkEff(o)) : '—');
+  const table = `<div class="table-wrap"><table class="no-stack scout-table">
+    <thead><tr><th>Zona</th><th>Ataques</th><th>% do total</th><th>Pto</th><th>Err</th><th>Blq</th><th>Ef.</th></tr></thead>
+    <tbody>${zs.map((k) => {
+      const o = az.all[k];
+      return `<tr${o.n < 6 ? ' class="scout-rot--few"' : ''}><td>${esc(ZONE_LABEL[k])}</td><td>${o.n}</td><td>${pctN(o.n, total)}</td><td>${o.kill}</td><td${o.err ? ' class="scout-table__err"' : ''}>${o.err}</td><td>${o.blk}</td><td><strong>${eff(o)}</strong></td></tr>`;
+    }).join('')}</tbody></table></div>`;
+  // A distribuição: para onde foi a bola em cada situação, em % da linha, com a
+  // eficácia de cada zona por baixo.
+  const REC = { PERFECT: 'K1 · receção #', OK: 'K1 · receção +', BAD: 'K1 · receção −', NONE: 'K1 · sem receção marcada' };
+  const lines = [...K1_RECEPTIONS.map((q) => [REC[q], az.byRec[q]]), ['Transição (K2)', az.k2]]
+    .map(([l, z]) => [l, z, zoneTotal(z)]).filter(([, , n]) => n);
+  const dz = ATTACK_ZONES.filter((k) => lines.some(([, z]) => z[k].n));
+  const dist = lines.length ? `<h4 class="scout-part__sub">Distribuição: para onde foi a bola</h4>
+    <div class="table-wrap"><table class="no-stack scout-table scout-dist">
+      <thead><tr><th>Situação</th><th>Ataques</th>${dz.map((k) => `<th>${esc(ZONE_LABEL[k])}</th>`).join('')}</tr></thead>
+      <tbody>${lines.map(([l, z, n]) => `<tr${n < 6 ? ' class="scout-rot--few"' : ''}><td>${esc(l)}</td><td>${n}</td>${dz.map((k) => {
+        const o = z[k];
+        return o.n ? `<td><strong>${pctN(o.n, n)}</strong><span class="muted scout-dist__eff">ef. ${eff(o)} · ${o.n}</span></td>` : '<td class="muted">—</td>';
+      }).join('')}</tr>`).join('')}</tbody></table></div>` : '';
+  const unknown = az.all['?'].n;
+  return patGroup('zonas', 'Ataque por zona e distribuição', `${total} ataques`, `${table}${dist}
+    <p class="muted scout-footnote">A zona deduz-se da posição da ficha e de onde a atleta estava em campo: à frente, ponta na 4, central na 3, oposta na 2; atrás, oposta na 1 e ponta de pipe. "2.º toque" é a distribuidora a atacar. Uma ponta que ataca da 2 numa combinação conta como zona 4.${unknown ? ` ${unknown} ataque${unknown === 1 ? '' : 's'} de atletas sem posição na ficha.` : ''} Na distribuição, a percentagem é da linha (para onde foi a bola nessa situação) e por baixo vem a eficácia dessa zona.</p>`, open);
+}
+
+// --- Séries de pontos perdidos ---
+function runsPattern(datas, f, isSetter, multi, open) {
+  const rl = runsLost(datas, { isSetter, f });
+  if (!rl.runs.length) {
+    return patGroup('series', 'Séries de pontos perdidos', 'nenhuma', '<p class="muted" style="margin:0">Nunca perdemos 3 ou mais pontos seguidos.</p>', open);
+  }
+  const START = { SERVICE: 'Erro de serviço', RECEPTION: 'Erro de receção', ATTACK: 'Erro de ataque', BLOCK: 'Erro de bloco', DEFENSE: 'Erro de defesa', SETTING: 'Erro de passe', OTHER: 'Outro erro nosso', OPPONENT: 'Ponto do adversário' };
+  const byRot = `<div class="table-wrap"><table class="no-stack scout-table">
+    <thead><tr><th>Rotação</th><th>Séries</th><th>Pontos perdidos</th></tr></thead>
+    <tbody>${rl.byRot.map((r) => `<tr><td><strong>${esc(rotationLabel(r, datas).short)}</strong></td><td>${r.runs}</td><td>${r.points}</td></tr>`).join('')}</tbody></table></div>`;
+  const starts = `<p class="scout-pat__line"><strong>Como começaram:</strong> ${Object.entries(rl.starts).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${START[k] || k} ${n}`).join(' · ')}</p>`;
+  const list = multi ? '' : `<ul class="scout-runs">${rl.runs.map((r) => {
+    const d = r.g;
+    return `<li><span><strong>${r.len} pontos</strong> · ${r.set + 1}º set, de ${r.from.our}-${r.from.their} para ${r.to.our}-${r.to.their} · ${esc(rotationLabel(r.rot, d).short)}</span>
+      <span class="muted">Começou ${esc(startPhrase(r, d))}; ${r.errs} erro${r.errs === 1 ? '' : 's'} nosso${r.errs === 1 ? '' : 's'}.</span></li>`;
+  }).join('')}</ul>`;
+  return patGroup('series', 'Séries de pontos perdidos', `${rl.runs.length} · ${rl.points} pts`, `${list}${starts}${byRot}
+    <p class="muted scout-footnote">Séries de 3 ou mais pontos seguidos para o adversário. Uma série acontece toda na mesma rotação (só se roda ao ganhar o side-out), por isso a rotação é a que ficou presa. O que mais importa é como começou.</p>`, open);
+}
+
+// --- Final de set disputado ---
+function pressurePattern(datas, f, used, open) {
+  const pr = pressureStats(datas, { f });
+  const P = pr.pressure.r;
+  const R = pr.rest.r;
+  if (!P.n) return '';
+  const rate = (o) => (o.n ? o.won / o.n : null);
+  const kpi = (label, a, an, b, bn, legend) => `<div class="scout-kpi"><span class="muted">${label}</span><strong>${pctN(a, an)}</strong>
+    <span class="muted scout-kpi__legend">${legend} · resto do jogo ${pctN(b, bn)}</span></div>`;
+  const kpis = `<div class="scout-kpis scout-kpis--sm">
+    ${kpi('Pontos ganhos', P.won, P.n, R.won, R.n, `${P.won} de ${P.n}`)}
+    ${kpi('Side-out', P.soWon, P.so, R.soWon, R.so, `${P.soWon} de ${P.so}`)}
+    ${kpi('Break-point', P.bpWon, P.bp, R.bpWon, R.bp, `${P.bpWon} de ${P.bp}`)}
+    ${kpi('Perdidos por erro nosso', P.lostErr, P.lost, R.lostErr, R.lost, `${P.lostErr} de ${P.lost}`)}
+  </div>`;
+  const fund = QUALITY.filter((q) => used.has(q.k)).map((q) => [q, qualityOf(pr.pressure.team, q.k), qualityOf(pr.rest.team, q.k)]).filter(([, a]) => a.n);
+  const fundTable = fund.length ? `<div class="table-wrap"><table class="no-stack scout-table">
+    <thead><tr><th>Fundamento</th><th>No final</th><th>No resto</th></tr></thead>
+    <tbody>${fund.map(([q, a, b]) => `<tr${a.n < 5 ? ' class="scout-rot--few"' : ''}><td>${esc(q.label)} <span class="muted">${esc(q.what)}</span></td>${cmpCell(a.good, a.n, b.rate)}<td>${pctN(b.good, b.n)} <span class="muted">${b.good}/${b.n}</span></td></tr>`).join('')}</tbody></table></div>` : '';
+  // Por atleta: o fundamento em que ela mais mexe na bola no final, contra o
+  // que é normal NELA no resto do jogo (não contra as colegas).
+  const rows = [];
+  for (const id of Object.keys(pr.pressure.byPid)) {
+    for (const q of QUALITY) {
+      const a = qualityOf(pr.pressure.byPid[id], q.k);
+      const b = qualityOf(pr.rest.byPid[id] || {}, q.k);
+      if (a.n < 4 || b.n < 5) continue;
+      rows.push({ id, q, a, b, gap: a.rate - b.rate });
+    }
+  }
+  rows.sort((x, y) => x.gap - y.gap);
+  const pl = rows.length ? `<h4 class="scout-part__sub">Cada atleta contra ela própria</h4>
+    <div class="table-wrap"><table class="no-stack scout-table">
+      <thead><tr><th>Atleta</th><th>Fundamento</th><th>No final</th><th>No resto</th></tr></thead>
+      <tbody>${rows.slice(0, 10).map((r) => `<tr><td>${esc(nameIn(datas, r.id))}</td><td>${esc(r.q.label)}</td>${cmpCell(r.a.good, r.a.n, r.b.rate, { min: 4 })}<td>${pctN(r.b.good, r.b.n)} <span class="muted">${r.b.good}/${r.b.n}</span></td></tr>`).join('')}</tbody></table></div>` : '';
+  const dir = R.n >= 15 && P.n >= PAT_MIN ? (rate(P) - rate(R) <= -0.1 ? ' ↓' : rate(P) - rate(R) >= 0.1 ? ' ↑' : '') : '';
+  return patGroup('pressao', 'Final de set disputado', `${P.n} rallies${dir}`, `${kpis}${fundTable}${pl}
+    <p class="muted scout-footnote">Final de set disputado = alguma equipa com 20 pontos ou mais (10 no 5.º set) e a diferença em 3 ou menos. A cor compara com o resto do jogo (10 pontos acima ou abaixo). Por atleta, só quem tem 4 ações ou mais no final, comparada com ela própria, e no máximo dez linhas, primeiro as que mais caem.</p>`, open);
+}
+
+// --- Serviço pelo efeito ---
+function servePattern(datas, f, open) {
+  const ss = serveStats(datas, { f });
+  if (!ss.tot.n) return '';
+  const ref = ss.tot.n ? ss.tot.won / ss.tot.n : null;
+  const anyMarked = ss.tot.marked > 0;
+  const body = `<div class="table-wrap"><table class="no-stack scout-table">
+    <thead><tr><th>Atleta</th><th>Serviços</th><th>Ganhámos o ponto</th>${anyMarked ? '<th>Ases</th><th>Erros</th><th>Com a bola em jogo</th>' : ''}</tr></thead>
+    <tbody>${ss.list.map((o) => `<tr${o.n < 5 ? ' class="scout-rot--few"' : ''}><td>${esc(nameIn(datas, o.pid))}</td><td>${o.n}</td>${cmpCell(o.won, o.n, ref)}${anyMarked ? `<td>${o.ace}</td><td${o.err ? ' class="scout-table__err"' : ''}>${o.err}</td><td>${o.inPlay ? `${pctN(o.inPlayWon, o.inPlay)} <span class="muted">${o.inPlayWon}/${o.inPlay}</span>` : '—'}</td>` : ''}</tr>`).join('')}</tbody>
+    <tfoot><tr class="scout-table__total"><td>Equipa</td><td>${ss.tot.n}</td><td>${pctN(ss.tot.won, ss.tot.n)}</td>${anyMarked ? `<td>${ss.tot.ace}</td><td>${ss.tot.err}</td><td>${ss.tot.inPlay ? pctN(ss.tot.inPlayWon, ss.tot.inPlay) : '—'}</td>` : ''}</tr></tfoot></table></div>`;
+  return patGroup('servico', 'Serviço: o que acontece depois', `break-point ${pctN(ss.tot.won, ss.tot.n)}`, `${body}
+    <p class="muted scout-footnote">Cada linha são os rallies em que a atleta serviu. "Ganhámos o ponto" é o break-point dela (a verde ou vermelho quando está 10 pontos acima ou abaixo da equipa). "Com a bola em jogo" tira os ases e os erros: é a pergunta "o meu serviço dificultou a vida ao adversário?", que o serviço que só entra não responde.</p>`, open);
+}
+
+// --- Receção por rotação ---
+function receptionPattern(datas, f, isSetter, used, open) {
+  if (!used.has('RECEPTION')) return '';
+  const rr = receptionByRotation(datas, { isSetter, f });
+  if (!rr.rows.length) return '';
+  const cell = (c, avg) => {
+    if (!c || !c.n) return '<td class="muted">—</td>';
+    const v = c.good / c.n;
+    const tone = c.n < 4 || avg == null ? '' : v >= avg + 0.15 ? 'ok' : v <= avg - 0.15 ? 'danger' : '';
+    return `<td${tone ? ` class="scout-rot__ph scout-rot__ph--${tone}"` : ''}>${pctN(c.good, c.n)} <span class="muted">${c.n}</span></td>`;
+  };
+  const body = `<div class="table-wrap"><table class="no-stack scout-table">
+    <thead><tr><th>Atleta</th>${rr.rots.map((r) => `<th>${esc(rotationLabel(r, datas).short)}</th>`).join('')}<th>Total</th></tr></thead>
+    <tbody>${rr.rows.map((row) => {
+      const avg = row.tot.n ? row.tot.good / row.tot.n : null;
+      return `<tr><td>${esc(nameIn(datas, row.pid))}</td>${rr.rots.map((r) => cell(row.byRot[r.key], avg)).join('')}<td><strong>${pctN(row.tot.good, row.tot.n)}</strong> <span class="muted">${row.tot.n}</span></td></tr>`;
+    }).join('')}</tbody>
+    <tfoot><tr class="scout-table__total"><td>Equipa</td>${rr.rots.map((r) => { const c = rr.team[r.key]; return `<td>${c ? pctN(c.good, c.n) : '—'}</td>`; }).join('')}<td></td></tr></tfoot></table></div>`;
+  return patGroup('rececao', 'Receção por rotação', `${rr.rows.length} recetora${rr.rows.length === 1 ? '' : 's'}`, `${body}
+    <p class="muted scout-footnote">Receções boas (# ou +) de cada atleta em cada rotação, com o número de receções ao lado. A verde ou vermelho quando está 15 pontos acima ou abaixo do total DELA (com 4 receções ou mais): a mesma recetora pode estar bem em quatro rotações e perdida numa.</p>`, open);
+}
+
+// --- Com e sem a atleta em campo ---
+function courtPattern(datas, f, multi, open) {
+  const list = onCourtStats(datas, { f }).filter((r) => r.on.n >= PAT_MIN);
+  if (!list.length) return '';
+  const pair = (onW, onN, offW, offN) => {
+    const ok = onN >= PAT_MIN && offN >= PAT_MIN;
+    const gap = ok ? onW / onN - offW / offN : 0;
+    const tone = ok && gap >= 0.1 ? 'ok' : ok && gap <= -0.1 ? 'danger' : '';
+    return `<td${tone ? ` class="scout-rot__ph scout-rot__ph--${tone}"` : ''}>${pctN(onW, onN)}</td><td class="muted">${offN >= PAT_MIN ? pctN(offW, offN) : '—'}</td>`;
+  };
+  const anyOff = list.some((r) => r.off.n >= PAT_MIN);
+  const body = `<div class="table-wrap"><table class="no-stack scout-table">
+    <thead><tr><th rowspan="2">Atleta</th><th rowspan="2">Rallies em campo</th><th colspan="2" class="scout-table__grp">Side-out</th><th colspan="2" class="scout-table__grp">Break-point</th></tr>
+      <tr><th>com ela</th><th>sem ela</th><th>com ela</th><th>sem ela</th></tr></thead>
+    <tbody>${list.map((r) => `<tr><td>${esc(nameIn(datas, r.pid))}</td><td>${r.on.n}</td>${pair(r.on.soWon, r.on.so, r.off.soWon, r.off.so)}${pair(r.on.bpWon, r.on.bp, r.off.bpWon, r.off.bp)}</tr>`).join('')}</tbody></table></div>`;
+  return patGroup('campo', 'Com e sem cada atleta em campo', '', `${body}
+    <p class="muted scout-footnote">O side-out e o break-point da equipa nos rallies em que a atleta estava em campo e nos outros. Mostra o valor que não aparece em contagem nenhuma (a central que fecha o bloco, a líbero que segura a receção). A verde ou vermelho com 10 pontos de diferença, quando os dois lados têm ${PAT_MIN} rallies ou mais.${!multi || !anyOff ? ' Num jogo, quem joga tudo não tem "sem ela" com que comparar: é nos totais da época que isto fala.' : ''}</p>`, open);
+}
+
+// --- Set a set (jogo) / 1.º contra o último (época) ---
+function setsPattern(datas, multi, used, open) {
+  const buckets = multi ? firstVsLast(datas).rows : setBySet(datas[0]);
+  if (buckets.length < 2) return '';
+  const metric = (label, fn, show = true) => (show ? `<tr><td>${label}</td>${buckets.map((b) => `<td>${fn(b)}</td>`).join('')}</tr>` : '');
+  const q = (b, k) => { const o = qualityOf(b.team, k); return o.n ? `${fmtPct(o.rate)} <span class="muted">${o.n}</span>` : '—'; };
+  const st = (b) => playerStats(b.team);
+  // Uma linha só entra se houver ações dessa ação em algum set: "—" em todas
+  // as colunas lê-se como "não fizemos nenhuma defesa".
+  const has = (k) => used.has(k) && buckets.some((b) => qualityOf(b.team, k).n);
+  const body = `<div class="table-wrap"><table class="no-stack scout-table">
+    <thead><tr><th></th>${buckets.map((b) => `<th>${esc(b.label)}</th>`).join('')}</tr></thead>
+    <tbody>
+      ${metric('Pontos ganhos', (b) => `${pctN(b.r.won, b.r.n)} <span class="muted">${b.r.won}/${b.r.n}</span>`)}
+      ${metric('Side-out', (b) => pctN(b.r.soWon, b.r.so))}
+      ${metric('Break-point', (b) => pctN(b.r.bpWon, b.r.bp))}
+      ${metric('Perdidos por erro nosso', (b) => `${pctN(b.r.lostErr, b.r.lost)} <span class="muted">${b.r.lostErr}/${b.r.lost}</span>`)}
+      ${metric('Receção positiva', (b) => q(b, 'RECEPTION'), has('RECEPTION'))}
+      ${metric('Eficácia de ataque', (b) => { const s = st(b); return s.atk ? `${fmtPct(s.effA)} <span class="muted">${s.atk}</span>` : '—'; }, has('ATTACK'))}
+      ${metric('Eficácia de serviço', (b) => { const s = st(b); return s.srv ? `${fmtPct(s.effS)} <span class="muted">${s.srv}</span>` : '—'; }, has('SERVICE'))}
+      ${metric('Defesa positiva', (b) => q(b, 'DEFENSE'), has('DEFENSE'))}
+    </tbody></table></div>`;
+  const games = multi ? firstVsLast(datas).games : 0;
+  return patGroup('sets', multi ? '1.º set contra o último' : 'Set a set', multi ? `${games} jogos` : `${buckets.length} sets`, `${body}
+    <p class="muted scout-footnote">${multi
+      ? `O 1.º set de cada jogo contra o último, nos ${games} jogos com dois sets ou mais. Diz se a equipa cai ao longo do jogo (cansaço, concentração) ou se entra a dormir.`
+      : 'Os mesmos números em cada set: diz se a equipa caiu ao longo do jogo ou se entrou a dormir.'} O número pequeno é em quantas ações assenta.</p>`, open);
 }
 
 function statsBlock(datas, f, { multi = false, played = {} } = {}) {

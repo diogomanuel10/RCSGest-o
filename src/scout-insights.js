@@ -14,6 +14,7 @@
 import { counts, playerStats, pointsPlayed, teamSummary, teamCounts, rotationStats, phaseStats, atkEff, findPlayer, qualityOf, ACT } from './scout-engine.js';
 import { state } from './store.js';
 import { TACTICAL_ROLE_MATCH } from './constants.js';
+import { runsLost, pressureStats, attackZoneStats, zoneTotal, ATTACK_ZONES } from './scout-patterns.js';
 
 const pct = (a, b) => (b ? Math.round((a / b) * 100) : null);
 const short = (p) => {
@@ -30,6 +31,28 @@ export function setterFinder() {
     .filter((p) => p.position && keys.some((k) => p.position.toLowerCase().includes(k)))
     .map((p) => p.id));
   return (pid) => ids.has(pid);
+}
+
+// O papel de cada atleta no ataque, lido da POSIÇÃO da ficha (é dela que sai
+// a zona de ataque — `attackZoneStats`). As posições são configuráveis pelo
+// clube, por isso lê-se por palavra-chave, e a ORDEM conta: "Distribuidor"
+// antes de tudo, e a líbero antes da ponta (há fichas com "Líbero / Recetora").
+// "Universal" é o oposto, como se diz em Portugal.
+const ROLE_KEYS = [
+  ['distribuidora', TACTICAL_ROLE_MATCH.distribuidora],
+  ['libero', ['libero', 'líbero']],
+  ['central', ['central', 'zona 3', 'meio']],
+  ['oposta', ['oposto', 'oposta', 'universal', 'zona 2']],
+  ['ponta', ['ponta', 'zona 4', 'extremo', 'recetor']],
+];
+export function roleFinder() {
+  const m = new Map();
+  for (const p of state.players) {
+    const pos = String(p.position || '').toLowerCase();
+    const hit = ROLE_KEYS.find(([, keys]) => keys.some((k) => pos.includes(k)));
+    if (hit) m.set(p.id, hit[0]);
+  }
+  return (pid) => m.get(pid) || null;
 }
 
 // O nome de uma rotação, para a tabela e para as dicas. `datas` é um jogo ou
@@ -67,7 +90,7 @@ const BESTS = [
 
 // A dica é { tone, icon, title, text }. `season` são os OUTROS jogos
 // terminados da equipa (pode vir vazio: as dicas de época ficam de fora).
-export function gameInsights(data, { season = [], isSetter = () => false } = {}) {
+export function gameInsights(data, { season = [], isSetter = () => false, roleOf = () => null } = {}) {
   const out = [];
   const records = [];
   const c = counts([data]);
@@ -211,7 +234,88 @@ export function gameInsights(data, { season = [], isSetter = () => false } = {})
       });
   }
 
+  // 8. Séries de pontos perdidos: a mais longa (4 ou mais) e, havendo várias,
+  //    se se repetiram na mesma rotação. Uma série acontece toda numa
+  //    rotação (só se roda ao ganhar o side-out), por isso é a rotação presa.
+  const rl = runsLost([data], { isSetter });
+  const longest = rl.runs[0];
+  if (longest && longest.len >= 4) {
+    const rot = rotationLabel(longest.rot, data);
+    const start = startPhrase(longest, data);
+    const same = rl.byRot[0];
+    const repeat = rl.runs.length >= 2 && same.runs >= 2
+      ? ` ${same.runs} das ${rl.runs.length} séries de 3 ou mais foram na ${rotationLabel(same, data).short}.`
+      : '';
+    out.push({
+      tone: 'warn', icon: '🧱', title: 'Série de pontos perdidos',
+      text: `${longest.len} pontos seguidos no ${longest.set + 1}º set (de ${longest.from.our}-${longest.from.their} para ${longest.to.our}-${longest.to.their}), na ${rot.short}. Começou ${start}; ${longest.errs} dos ${longest.len} pontos foram erros nossos.${repeat}`,
+    });
+  }
+
+  // 9. Final de set disputado (20+ e diferença de 3 ou menos) contra o resto
+  //    do jogo. Só com rallies que cheguem nos dois lados, e só quando a
+  //    diferença é grande: 15 pontos de percentagem.
+  const pr = pressureStats([data]);
+  const P = pr.pressure.r;
+  const R = pr.rest.r;
+  if (P.n >= PRESSURE_MIN && R.n >= 15) {
+    const gap = P.won / P.n - R.won / R.n;
+    if (Math.abs(gap) >= 0.15) {
+      out.push(gap < 0
+        ? {
+          tone: 'warn', icon: '⏱️', title: 'Final de set',
+          text: `Nos finais de set disputados ganhámos ${P.won} de ${P.n} pontos (${pct(P.won, P.n)}%), contra ${pct(R.won, R.n)}% no resto do jogo. ${P.lostErr} dos ${P.lost} pontos perdidos aí foram erros nossos.`,
+        }
+        : {
+          tone: 'ok', icon: '⏱️', title: 'Final de set',
+          text: `Nos finais de set disputados ganhámos ${P.won} de ${P.n} pontos (${pct(P.won, P.n)}%), melhor do que no resto do jogo (${pct(R.won, R.n)}%).`,
+        });
+    }
+  }
+
+  // 10. Distribuição com receção −: para onde foi a bola. Quando 70% ou mais
+  //     vai para a mesma zona, o bloco adversário também sabe.
+  const az = attackZoneStats([data], { roleOf });
+  const badRec = az.byRec.BAD;
+  const nBad = zoneTotal(badRec);
+  if (nBad >= PHASE_MIN) {
+    const top = ATTACK_ZONES.filter((k) => k !== '?').map((k) => [k, badRec[k]]).sort((a, b) => b[1].n - a[1].n)[0];
+    if (top && top[1].n / nBad >= 0.7) {
+      const e = atkEff(top[1]);
+      out.push({
+        tone: e < 0.15 ? 'warn' : 'info', icon: '🎯', title: 'Distribuição com receção −',
+        text: `Com receção fraca, ${top[1].n} de ${nBad} ataques foram ${ZONE_TO[top[0]]} (eficácia ${Math.round(e * 100)}%). Com a bola tão previsível, o bloco adversário também sabe para onde ir.`,
+      });
+    }
+  }
+
   return [...out, ...records];
+}
+
+const ZONE_TO = { 4: 'para a zona 4', 3: 'para a zona 3', 2: 'para a zona 2', P: 'para o pipe', 1: 'para a zona 1', S: 'para o 2.º toque da distribuidora' };
+
+// Mínimo de rallies no final de set para comparar com o resto do jogo.
+const PRESSURE_MIN = 10;
+
+// Como começou uma série: o primeiro ponto perdido.
+const START_WORD = {
+  SERVICE: 'num erro de serviço', RECEPTION: 'num erro de receção', ATTACK: 'num erro de ataque',
+  BLOCK: 'num erro de bloco', DEFENSE: 'num erro de defesa', SETTING: 'num erro de passe', OTHER: 'num erro (rede, invasão…)',
+};
+// Um ataque bloqueado não acaba o rally por si (o ponto entra como ponto do
+// adversário), por isso lê-se na ação ANTES do ponto.
+export function startPhrase(run, data) {
+  const e = run.start;
+  if (e.t === 'OPPONENT') {
+    const prev = run.startActs[run.startActs.length - 2];
+    if (prev && prev.t === 'ATTACK' && prev.q === 'BLOCKED') {
+      const bp = prev.pid ? findPlayer(data, prev.pid) : null;
+      return `num ataque bloqueado${bp ? ` (${who(bp)})` : ''}`;
+    }
+    return 'com um ponto do adversário';
+  }
+  const p = e.pid ? findPlayer(data, e.pid) : null;
+  return `${START_WORD[e.t] || 'num erro nosso'}${p ? ` (${who(p)})` : ''}`;
 }
 
 // --- Jogadoras em destaque ---------------------------------------------------

@@ -9927,3 +9927,20 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
   from { background-position: 200% 0; }
   to   { background-position: -200% 0; }
 }
+
+/* ---------------------------------------------------------------------------
+   Scout — Padrões do jogo (`patternsBlock` em views/scout.js). Cada padrão é
+   um grupo colapsável (`.group`), fechado por omissão com o número que o
+   resume no cabeçalho: sete quadros abertos eram cinco ecrãs de scroll.
+   --------------------------------------------------------------------------- */
+.scout-pats { display: flex; flex-direction: column; }
+.scout-pats .group { margin-bottom: 0.45rem; }
+.scout-pat__body { display: flex; flex-direction: column; gap: 0.6rem; padding: 0.75rem 0.9rem; }
+.scout-pat__body .table-wrap { border: 1px solid var(--border); border-radius: var(--radius); }
+.scout-pat__line { margin: 0; font-size: 0.88rem; }
+.scout-runs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+.scout-runs li { display: flex; flex-direction: column; gap: 0.1rem; padding: 0.45rem 0.6rem; border-left: 3px solid var(--danger); background: var(--surface-2); border-radius: 0 var(--radius) var(--radius) 0; font-size: 0.88rem; }
+.scout-runs li .muted { font-size: 0.82rem; }
+.scout-dist td { white-space: nowrap; }
+.scout-dist__eff { display: block; font-size: 0.75rem; }
+.scout-pat .group__count { white-space: nowrap; }
