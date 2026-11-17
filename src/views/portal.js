@@ -596,47 +596,18 @@ function hojeHTML(me, upcoming) {
 //
 // Mostra-se o que ela FEZ e não uma nota. "Eficácia −9%" é linguagem de
 // treinador: a uma miúda de catorze anos lê-se como "sou má" sem dizer
-// porquê. Cada fundamento é uma BARRA com o que correu bem, o que continuou
-// e o que foi erro, e a legenda diz as três coisas por palavras — o mesmo
-// número, explicado. Os fundamentos são só os que se marcaram (`usedCols`):
+// porquê. Cada jogo conta uma pequena história em três passos (decidido sobre
+// uma maqueta, à frente de três versões):
+//   1. O teu jogo numa FRASE — uma coisa boa e, no máximo, uma para a próxima.
+//   2. O que fizeste em BOLAS — uma por ação, com forma E cor (verde cheia,
+//      círculo vazio, quadrado laranja, vermelha com ×). Contar bolas lê-se sem
+//      explicação; uma barra proporcional com percentagens não.
+//   3. No CAMPO — desenhado a sério, "lado delas" e "o nosso lado", sem números
+//      de zona: uma miúda de 14 anos não sabe onde fica a zona 5.
+// Tudo o resto (evolução, barras da equipa, tipos de erro, como ler) vai para
+// um "Ver mais" fechado. Os fundamentos são só os que se marcaram (`usedCols`):
 // num jogo em que o treinador não scoutou bloco, "Bloco 0" dizia que ela não
 // blocou.
-
-// Por fundamento, os segmentos da barra: [qualidades, singular, plural, tom].
-// O tom `neutral` é a bola que continuou em jogo — nem ponto nem erro.
-const FUND_BARS = [
-  ['ATTACK', 'Ataque', [
-    [['PERFECT'], 'ponto', 'pontos', 'ok'],
-    [['OK', 'BAD'], 'defendido', 'defendidos', 'neutral'],
-    [['BLOCKED'], 'bloqueado', 'bloqueados', 'warn'],
-    [['ERROR'], 'erro', 'erros', 'danger'],
-  ]],
-  ['SERVICE', 'Serviço', [
-    [['PERFECT'], 'ás', 'ases', 'ok'],
-    [['OK', 'BAD'], 'em jogo', 'em jogo', 'neutral'],
-    [['ERROR'], 'erro', 'erros', 'danger'],
-  ]],
-  ['RECEPTION', 'Receção', [
-    [['PERFECT', 'OK'], 'boa', 'boas', 'ok'],
-    [['BAD'], 'difícil', 'difíceis', 'neutral'],
-    [['ERROR'], 'erro', 'erros', 'danger'],
-  ]],
-  ['BLOCK', 'Bloco', [
-    [['PERFECT'], 'ponto', 'pontos', 'ok'],
-    [['OK', 'BAD'], 'toque', 'toques', 'neutral'],
-    [['ERROR'], 'erro', 'erros', 'danger'],
-  ]],
-  ['DEFENSE', 'Defesa', [
-    [['PERFECT', 'OK'], 'boa', 'boas', 'ok'],
-    [['BAD'], 'difícil', 'difíceis', 'neutral'],
-    [['ERROR'], 'erro', 'erros', 'danger'],
-  ]],
-  ['SETTING', 'Passe', [
-    [['PERFECT', 'OK'], 'bom', 'bons', 'ok'],
-    [['BAD'], 'difícil', 'difíceis', 'neutral'],
-    [['ERROR'], 'erro', 'erros', 'danger'],
-  ]],
-];
 
 // Uma barra empilhada + a legenda por palavras. `segs` = [[n, rótulo, tom]].
 function stackBar(segs, label) {
@@ -650,50 +621,6 @@ function stackBar(segs, label) {
       `<span><i class="sc-dot sc-tone--${tone}"></i>${n} ${esc(l)}</span>`).join('')}</p>`;
 }
 
-// Por baixo de cada barra vai a QUALIDADE — a parte das ações dela que correu
-// bem ("70% receções boas") — e, havendo com que comparar, se ficou acima ou
-// abaixo do que é normal NELA (`avgs`, dos outros jogos). A quantidade fica no
-// número pequeno do cabeçalho: quem jogou menos tempo faz menos ações, e isso
-// não é jogar pior. Os fundamentos vêm pela ordem do que ela mais faz — a
-// líbero vê primeiro a receção, a oposta o ataque.
-function myFundamentals(datas, used, me, { avgs = null } = {}) {
-  const c = counts(datas)[me.id] || {};
-  const order = QUALITY.map((q) => q.k).filter((k) => used.has(k))
-    .sort((a, b) => qualityOf(c, b).n - qualityOf(c, a).n);
-  const rows = order.map((k) => {
-    const [, label, segs] = FUND_BARS.find(([fk]) => fk === k);
-    const n = (qs) => qs.reduce((a, q) => a + (c[`${k}.${q}`] || 0), 0);
-    const parts = segs.map(([qs, one, many, tone]) => { const v = n(qs); return [v, v === 1 ? one : many, tone]; });
-    const total = parts.reduce((a, [v]) => a + v, 0);
-    if (!total) return null;
-    const q = QUALITY.find((x) => x.k === k);
-    const qo = qualityOf(c, k);
-    const vs = avgs ? compareToSelf(qo, avgs[k]) : null;
-    // "9 de 26 ataques deram ponto (35%)": a contagem primeiro, porque é o
-    // que se lê sem esforço; a percentagem vai entre parênteses para quem a
-    // quiser. "35%" sozinho lia-se como uma negativa da escola.
-    return { k, label, n: total, html: `
-      <div class="sc-fund">
-        <div class="sc-fund__head"><span>${esc(label)}</span><strong>${total} ${esc(q.unit)}</strong></div>
-        ${stackBar(parts, label)}
-        <p class="sc-fund__q">${esc(goodPhrase(k, qo))} <span class="sc-fund__pct">(${Math.round(qo.rate * 100)}%)</span>${vs
-          ? ` · <span class="sc-fund__vs--${vs.tone}">${vs.arrow}${esc(vs.text)}</span>`
-          : ''}</p>
-      </div>` };
-  }).filter(Boolean);
-  if (!rows.length) return '';
-  // Um fundamento com poucas ações vai para "Ver mais": quatro defesas não
-  // dizem nada sobre o jogo dela, e cinco barras empilhadas enterravam as
-  // duas que dizem. O primeiro fica sempre à vista, mesmo que tenha poucas.
-  const shown = rows.filter((r, i) => i === 0 || r.n >= FUND_SHOW_MIN);
-  const more = rows.filter((r) => !shown.includes(r));
-  const moreNames = more.map((r) => r.label);
-  return `<div class="sc-funds">${shown.map((r) => r.html).join('')}</div>${more.length ? `
-    <details class="sc-more">
-      <summary>Ver mais (${esc(moreNames.join(', '))}) <span class="sc-more__note">poucas ações</span></summary>
-      <div class="sc-funds">${more.map((r) => r.html).join('')}</div>
-    </details>` : ''}`;
-}
 
 // Fundamentos com menos ações do que isto vão para "Ver mais".
 const FUND_SHOW_MIN = 5;
@@ -743,45 +670,6 @@ function compareToSelf(qo, avg) {
     : { dir: 'down', d, tone: 'bad', arrow: '↓ ', text: `menos do que costumas (${ref})` };
 }
 
-// A frase do topo do jogo: o que se tira dos números, por palavras, antes
-// de qualquer barra. Quem não lê gráficos fica com a ideia; quem lê tem as
-// barras por baixo. Começa SEMPRE pelo que correu bem — o primeiro sítio
-// para onde se olha não pode ser o vermelho.
-//  - Com jogos para comparar: o fundamento que mais subiu em relação ao
-//    costume dela ("O melhor do teu jogo") e, se houver, o que mais desceu
-//    ("Para a próxima"), dito com cuidado.
-//  - Sem jogos para comparar (os primeiros da época): onde ela mais jogou.
-// Só entram fundamentos com ações que cheguem (`COMPARE_MIN`).
-function gameSummaryHTML(data, me, avgs) {
-  const c = counts([data])[me.id] || {};
-  const used = usedCols([data]);
-  const rows = QUALITY.filter((q) => used.has(q.k))
-    .map((q) => ({ k: q.k, qo: qualityOf(c, q.k) }))
-    .filter((r) => r.qo.n >= COMPARE_MIN)
-    .map((r) => ({ ...r, vs: avgs ? compareToSelf(r.qo, avgs[r.k]) : null }));
-  const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
-
-  const best = rows.filter((r) => r.vs && r.vs.dir === 'up').sort((a, b) => b.vs.d - a.vs.d)[0];
-  const worst = rows.filter((r) => r.vs && r.vs.dir === 'down').sort((a, b) => a.vs.d - b.vs.d)[0];
-  const lines = [];
-  if (best) {
-    const w = FUND_WORDS[best.k];
-    lines.push(`<p class="sc-sum__best"><strong>O melhor do teu jogo: ${esc(w.the)} ${esc(w.name)}.</strong> ${esc(cap(goodPhrase(best.k, best.qo)))}, ${esc(best.vs.text)}.</p>`);
-  } else {
-    // Sem nada acima do costume (ou sem com que comparar): o fundamento em
-    // que ela mais jogou, dito como facto e sem juízo.
-    const main = rows.slice().sort((a, b) => b.qo.n - a.qo.n)[0];
-    if (main) {
-      const w = FUND_WORDS[main.k];
-      lines.push(`<p class="sc-sum__best">Neste jogo jogaste sobretudo ${esc(w.in)} ${esc(w.name)}: ${esc(goodPhrase(main.k, main.qo))}${main.vs ? `, ${esc(main.vs.text)}` : ''}.</p>`);
-    }
-  }
-  if (worst && (!best || worst.k !== best.k)) {
-    const w = FUND_WORDS[worst.k];
-    lines.push(`<p class="sc-sum__next">Para a próxima, ${esc(w.the)} ${esc(w.name)}: ${esc(goodPhrase(worst.k, worst.qo))}, um pouco ${esc(worst.vs.text)}.</p>`);
-  }
-  return lines.length ? `<div class="sc-sum">${lines.join('')}</div>` : '';
-}
 
 // Abaixo disto, a percentagem de um jogo não conta: duas receções boas em duas
 // são 100% e não dizem nada. O ponto do gráfico fica oco e a comparação com a
@@ -810,26 +698,18 @@ function mainQuality(datas, me) {
   return best;
 }
 
-// Quantas ações dela correram bem, somadas por todos os fundamentos (a régua
-// de `QUALITY`). Substitui o quadrado dos ERROS, que era um dos três números
-// grandes do jogo — e era desse que ela se lembrava. Os erros não
-// desapareceram: estão em cada barra, a vermelho, onde se veem pelo que são.
-function goodTotal(datas, me) {
-  const c = counts(datas)[me.id] || {};
-  return QUALITY.reduce((a, q) => a + qualityOf(c, q.k).good, 0);
-}
 
 // «Como ler isto»: o que cada cor e cada percentagem querem dizer, em
 // palavras de quem tem catorze anos. Fechado por omissão — quem já sabe não
 // tem de passar por cima disto todas as vezes —, e só com os fundamentos que
 // se marcaram.
 const HELP = {
-  RECEPTION: ['Receção', 'Boa (verde): a bola chegou à distribuidora e deu para atacar. Difícil (cinzento): ficou em jogo, mas difícil de atacar. Erro (vermelho): ponto para o adversário.'],
-  ATTACK: ['Ataque', 'Ponto (verde): a bola caiu no campo delas ou ficou perdida para elas. Defendido (cinzento): elas defenderam e o jogo seguiu — não é erro. Bloqueado (laranja): o bloco delas parou a bola e ganhou o ponto. Erro (vermelho): fora ou na rede.'],
-  SERVICE: ['Serviço', 'Ás (verde): ponto direto. Em jogo (cinzento): entrou e o jogo seguiu. Erro (vermelho): fora ou na rede. A percentagem é a dos serviços que entraram.'],
-  DEFENSE: ['Defesa', 'Boa (verde): a bola ficou jogável para a equipa. Difícil (cinzento): ficou em jogo, mas difícil de jogar. Erro (vermelho): a bola caiu ou ficou impossível de jogar.'],
-  SETTING: ['Passe', 'Bom (verde): a atacante pôde atacar à vontade. Difícil (cinzento): deu para jogar, mas com dificuldade. Erro (vermelho): dupla, condução ou bola perdida.'],
-  BLOCK: ['Bloco', 'Ponto (verde): o teu bloco ganhou o ponto. Toque (cinzento): tocaste e a bola ficou em jogo. Erro (vermelho): rede ou bola que saiu por ti.'],
+  RECEPTION: ['Receção', 'Boa (bola verde): a bola chegou à distribuidora e deu para atacar. Difícil (círculo vazio): ficou em jogo, mas difícil de atacar. Erro (bola com ×): ponto para o adversário.'],
+  ATTACK: ['Ataque', 'Ponto (bola verde): a bola caiu no campo delas ou ficou perdida para elas. Defendido (círculo vazio): elas defenderam e o jogo seguiu — não é erro. Bloqueado (quadrado laranja): o bloco delas parou a bola e ganhou o ponto. Erro (bola com ×): fora ou na rede.'],
+  SERVICE: ['Serviço', 'Ás (bola verde): ponto direto. Em jogo (círculo vazio): entrou e o jogo seguiu. Erro (bola com ×): fora ou na rede. A percentagem é a dos serviços que entraram.'],
+  DEFENSE: ['Defesa', 'Boa (bola verde): a bola ficou jogável para a equipa. Difícil (círculo vazio): ficou em jogo, mas difícil de jogar. Erro (bola com ×): a bola caiu ou ficou impossível de jogar.'],
+  SETTING: ['Passe', 'Bom (bola verde): a atacante pôde atacar à vontade. Difícil (círculo vazio): deu para jogar, mas com dificuldade. Erro (bola com ×): dupla, condução ou bola perdida.'],
+  BLOCK: ['Bloco', 'Ponto (bola verde): o teu bloco ganhou o ponto. Toque (círculo vazio): tocaste e a bola ficou em jogo. Erro (bola com ×): rede ou bola que saiu por ti.'],
 };
 function helpHTML(used, { charts = false } = {}) {
   return `<details class="sc-help">
@@ -839,7 +719,8 @@ function helpHTML(used, { charts = false } = {}) {
         <dt>Pontos que jogaste</dt><dd>Quantos pontos do jogo estiveste dentro de campo. Diz quanto jogaste — não quanto jogaste bem.</dd>
         ${QUALITY.filter((q) => used.has(q.k)).map((q) => `<dt>${esc(HELP[q.k][0])}</dt><dd>${esc(HELP[q.k][1])}</dd>`).join('')}
       </dl>
-      <p><strong>«7 de 10 receções foram boas (70%)»</strong> quer dizer que, de cada 10 receções, 7 correram bem. É isso que conta, e não quantas fizeste — quem joga menos tempo faz menos ações.</p>
+      <p><strong>Cada bola é uma ação tua.</strong> Quando fazes 10 ou mais, a fila passa a ser <strong>«em cada 10»</strong>: as tuas 42 receções viram 10 bolas, na mesma proporção, e os números certos estão escritos por baixo. Conta a proporção, e não quantas fizeste — quem joga menos tempo faz menos ações.</p>
+      <p><strong>No campo</strong>, em cima é o lado delas e em baixo o nosso. O contorno marca a tua melhor zona. Numa zona com muitas ações aparece a conta («12 de 15») em vez das bolas.</p>
       <p><strong>Mais / menos do que costumas</strong> compara este jogo contigo própria, nos teus outros jogos. Ninguém mais entra nesta conta, e só aparece quando fizeste pelo menos ${COMPARE_MIN} ações nesse fundamento — com menos, uma bola mudava tudo.</p>
       ${charts ? '<p><strong>Os gráficos</strong> mostram cada jogo, do mais antigo para o mais recente. O tracejado é a tua média. Uma bolinha vazia é um jogo com poucas ações, que não conta. Toca num ponto para veres o jogo.</p>' : ''}
     </div>
@@ -902,64 +783,6 @@ function teamBlock(datas, { compact = false } = {}) {
 // servidor já tira o dono às ações delas (`my_scout_games`).
 const ZONE_MIN = 3; // ações numa zona para entrar numa frase
 
-// O campo com um número em cada zona. No serviço é o campo ADVERSÁRIO (visto
-// do nosso lado, a fila de trás delas mais longe); na receção é o nosso.
-function myZoneMap(far, cell) {
-  const rows = far ? [[1, 6, 5], [2, 3, 4]] : [[4, 3, 2], [5, 6, 1]];
-  const net = '<div class="scout-zmap__net">rede</div>';
-  const grid = rows.map((r) => r.map(cell).join('')).join('');
-  return `<div class="scout-zmap scout-zmap--sm${far ? ' scout-zmap--far' : ''}">${far ? `${grid}${net}` : `${net}${grid}`}</div>`;
-}
-const zcell = (z, main, sub, tone = '') => `<div class="scout-zmap__cell${tone ? ` scout-zmap__cell--${tone}` : ''}"><span class="scout-zmap__z">Z${z}</span><strong>${main}</strong><span class="muted">${sub}</span></div>`;
-
-function myServeZones(datas, me) {
-  const zs = serveZoneStats(datas).byPid[me.id];
-  if (!zs) return '';
-  const n = ZONES.reduce((a, z) => a + zs[z].n, 0);
-  if (!n) return '';
-  // A frase é só a BOA notícia: a zona para onde o serviço dela deu mais
-  // pontos. "Serviste mal para a zona 2" não se diz aqui — é conversa.
-  const best = ZONES.filter((z) => zs[z].n >= ZONE_MIN).sort((a, b) => zs[b].won / zs[b].n - zs[a].won / zs[a].n || zs[b].n - zs[a].n)[0];
-  const line = best
-    ? `<p class="sc-sum__best">Quando serviste para a <strong>zona ${best}</strong>, ganhámos ${zs[best].won} de ${zs[best].n} pontos.</p>`
-    : '';
-  const map = myZoneMap(true, (z) => (zs[z].n
-    ? zcell(z, String(zs[z].n), `ganhámos ${zs[z].won}`, z === best ? 'ok' : '')
-    : zcell(z, '—', '')));
-  return `<div class="sc-detail"><h4 class="sc-detail__title">Para onde serviste</h4>${line}${map}
-    <p class="sc-detail__note">Quantos serviços teus caíram em cada zona do campo delas (vista do nosso lado) e em quantos desses pontos ganhámos.</p></div>`;
-}
-
-function myReceptionZones(datas, me) {
-  const zs = receptionZoneStats(datas).byPid[me.id];
-  if (!zs) return '';
-  const tot = ZONES.reduce((a, z) => ({ n: a.n + zs[z].n, good: a.good + zs[z].good }), { n: 0, good: 0 });
-  if (!tot.n) return '';
-  const ok = ZONES.filter((z) => zs[z].n >= ZONE_MIN);
-  const rate = (z) => zs[z].good / zs[z].n;
-  const best = ok.slice().sort((a, b) => rate(b) - rate(a))[0];
-  const worst = ok.slice().sort((a, b) => rate(a) - rate(b))[0];
-  // Comparada com ELA: a zona onde recebe melhor e, se houver uma clara
-  // diferença (15 pontos), a zona onde lhe custa mais — dita com cuidado.
-  let line = '';
-  if (best) {
-    line = `<p class="sc-sum__best">Recebeste melhor na <strong>zona ${best}</strong>: ${zs[best].good} de ${zs[best].n} receções boas.</p>`;
-    if (worst && worst !== best && rate(best) - rate(worst) >= 0.15) {
-      line += `<p class="sc-sum__next">Na zona ${worst} custou mais: ${zs[worst].good} de ${zs[worst].n}.</p>`;
-    }
-  }
-  const own = tot.good / tot.n;
-  const map = myZoneMap(false, (z) => {
-    const c = zs[z];
-    if (!c.n) return zcell(z, '—', '');
-    const v = c.good / c.n;
-    const tone = c.n < ZONE_MIN ? '' : v >= own + 0.15 ? 'ok' : v <= own - 0.15 ? 'warn' : '';
-    return zcell(z, `${Math.round(v * 100)}%`, `${c.good} de ${c.n} boas`, tone);
-  });
-  return `<div class="sc-detail"><h4 class="sc-detail__title">Onde recebeste</h4>${line}${map}
-    <p class="sc-detail__note">Receções boas em cada zona do nosso campo. A cor compara cada zona contigo própria, no total das tuas receções.</p></div>`;
-}
-
 const ERR_FUND = { SERVICE: 'serviço', ATTACK: 'ataque', SETTING: 'passe', BLOCK: 'bloco', OTHER: 'outros' };
 function myErrorTypes(datas, me) {
   const mine = errorTypeStats(datas).byPid[me.id];
@@ -975,10 +798,6 @@ function myErrorTypes(datas, me) {
     <p class="sc-detail__note">Saber se o serviço vai à rede ou sai fora ajuda a perceber o que treinar.</p></div>`;
 }
 
-function myDetailHTML(datas, me) {
-  const parts = [myServeZones(datas, me), myReceptionZones(datas, me), myErrorTypes(datas, me)].filter(Boolean);
-  return parts.length ? `<div class="sc-details">${parts.join('')}</div>` : '';
-}
 
 // --- A equipa, sem nomes --------------------------------------------------------
 // As séries de pontos perdidos e os erros da equipa por tipo. Nunca se diz
@@ -1016,6 +835,363 @@ function teamPatternsHTML(datas, { season = false } = {}) {
   return out.length ? `<div class="sc-team-pat">${out.join('')}</div>` : '';
 }
 
+// --- Bolas ----------------------------------------------------------------------
+//
+// Uma bola por ação, e a forma diz tanto como a cor (quem não distingue o
+// verde do vermelho distingue um círculo cheio de um com ×):
+//   good — correu bem (a régua de `QUALITY`: receção # e +, ataque que deu
+//          ponto, serviço que entrou…) · cont — a bola continuou em jogo ·
+//   blk  — bloqueado (só no ataque) · err — erro.
+// **Uma fila nunca passa de 10 bolas.** Com 10 ações ou mais a fila é "em cada
+// 10", na proporção certa (maior resto, para somar sempre 10), e os números
+// reais vão escritos por baixo. Com 50 receções eram quatro linhas de bolas. A
+// proporção é FIEL: um erro em 42 pode arredondar para zero bolas vermelhas —
+// o texto por baixo diz que houve um, e inventar uma bola era mentir na forma.
+const BALL_ORDER = ['good', 'cont', 'blk', 'err'];
+const BALL_WORD = { good: 'correu bem', cont: 'a bola continuou', blk: 'bloqueado', err: 'erro' };
+function ballKinds(c, k) {
+  const q = QUALITY.find((x) => x.k === k);
+  const out = { good: 0, cont: 0, blk: 0, err: 0 };
+  for (const key of Object.keys(c || {})) {
+    const [t, ql] = key.split('.');
+    if (t !== k) continue;
+    const kind = q.good.includes(ql) ? 'good' : ql === 'ERROR' ? 'err' : ql === 'BLOCKED' ? 'blk' : 'cont';
+    out[kind] += c[key];
+  }
+  return out;
+}
+function toBalls(kinds, { per10 = false } = {}) {
+  const n = BALL_ORDER.reduce((a, k) => a + kinds[k], 0);
+  if (!n) return { balls: [], scaled: false };
+  if (n < 10 && !per10) return { balls: BALL_ORDER.flatMap((k) => Array(kinds[k]).fill(k)), scaled: false };
+  const raw = BALL_ORDER.map((k) => (kinds[k] * 10) / n);
+  const fl = raw.map(Math.floor);
+  let left = 10 - fl.reduce((a, x) => a + x, 0);
+  raw.map((x, i) => [x - fl[i], i]).sort((a, b) => b[0] - a[0]).forEach(([, i]) => { if (left > 0) { fl[i] += 1; left -= 1; } });
+  return { balls: BALL_ORDER.flatMap((k, i) => Array(fl[i]).fill(k)), scaled: true };
+}
+function ballRow(kinds, label, { per10 = false, scaleLabel = true } = {}) {
+  const { balls, scaled } = toBalls(kinds, { per10 });
+  const aria = `${label}: ${BALL_ORDER.filter((k) => kinds[k]).map((k) => `${kinds[k]} ${BALL_WORD[k]}`).join(', ')}`;
+  return `<div class="sb-row"><span class="sb-balls" role="img" aria-label="${esc(aria)}">${balls.map((k) => `<span class="sb sb--${k}"></span>`).join('')}</span>${scaled && scaleLabel ? '<span class="sb-scale">em cada 10</span>' : ''}</div>`;
+}
+function ballLegend(kinds = BALL_ORDER, words = BALL_WORD) {
+  return `<p class="sb-legend">${kinds.map((k) => `<span><span class="sb sb--${k}" aria-hidden="true"></span>${words[k]}</span>`).join('')}</p>`;
+}
+
+// Um fundamento: nome, quantas ações, a fila de bolas e UMA linha ("27 de 42
+// receções foram boas") com a comparação com ela própria ao lado.
+function fundRow(c, k, { avg = null } = {}) {
+  const q = QUALITY.find((x) => x.k === k);
+  const qo = qualityOf(c, k);
+  if (!qo.n) return null;
+  const vs = avg != null ? compareToSelf(qo, avg) : null;
+  const chip = vs ? `<span class="sb-chip sb-chip--${vs.tone}">${vs.arrow}${esc(vs.text.replace(/ \(.*\)$/, ''))}</span>` : '';
+  return { k, n: qo.n, html: `<div class="sb-fund">
+      <div class="sb-fund__head"><strong>${esc(q.label)}</strong><span>${qo.n} ${esc(q.unit)}</span></div>
+      ${ballRow(ballKinds(c, k), q.label)}
+      <p class="sb-fund__line">${esc(goodPhrase(k, qo))}${chip}</p>
+    </div>` };
+}
+
+// --- A frase do jogo ----------------------------------------------------------
+const BEST_TITLE = {
+  RECEPTION: 'Boa receção!', ATTACK: 'Bom ataque!', SERVICE: 'Bom serviço!',
+  DEFENSE: 'Boa defesa!', SETTING: 'Bom passe!', BLOCK: 'Bom bloco!',
+};
+// O erro mais repetido dela num fundamento, dito por palavras ("foram à rede").
+const ERR_WORDS = {
+  rede: 'à rede', fora: 'fora', pe: 'com falta de pé', antena: 'à antena', invasao: 'com invasão',
+  dois: 'com dois toques', conducao: 'com condução', rotacao: 'com erro de rotação', outro: 'com outro erro',
+};
+function topErrorLine(data, me, k) {
+  const mine = errorTypeStats([data]).byPid[me.id]?.[k];
+  if (!mine || !ERR_TYPES[k]) return null;
+  const [type] = ERR_TYPES[k].filter(([x]) => mine[x]).sort((a, b) => mine[b[0]] - mine[a[0]])[0] || [];
+  if (!type || mine[type] < 2) return null;
+  const n = qualityOf(counts([data])[me.id] || {}, k).n;
+  const unit = QUALITY.find((q) => q.k === k)?.unit || 'ações';
+  return `${mine[type]} dos teus ${n} ${unit} foram ${ERR_WORDS[type] || type}`;
+}
+// Começa SEMPRE pelo que correu bem. Com jogos para comparar: o fundamento que
+// mais subiu em relação ao costume dela e, se houver, o que mais desceu (ou o
+// erro que mais se repetiu). Sem com que comparar: onde ela mais jogou, sem
+// juízo. Só fundamentos com ações que cheguem (`COMPARE_MIN`).
+function gameHero(data, me, avgs) {
+  const c = counts([data])[me.id] || {};
+  const used = usedCols([data]);
+  const rows = QUALITY.filter((q) => used.has(q.k))
+    .map((q) => ({ k: q.k, qo: qualityOf(c, q.k) }))
+    .filter((r) => r.qo.n >= COMPARE_MIN)
+    .map((r) => ({ ...r, vs: avgs ? compareToSelf(r.qo, avgs[r.k]) : null }));
+  const cap = (x) => x.charAt(0).toUpperCase() + x.slice(1);
+  const best = rows.filter((r) => r.vs && r.vs.dir === 'up').sort((a, b) => b.vs.d - a.vs.d)[0];
+  const worst = rows.filter((r) => r.vs && r.vs.dir === 'down' && (!best || r.k !== best.k)).sort((a, b) => a.vs.d - b.vs.d)[0];
+  let title;
+  let sub;
+  if (best) {
+    title = BEST_TITLE[best.k];
+    sub = `${cap(goodPhrase(best.k, best.qo))}. Mais do que costumas.`;
+  } else {
+    const main = rows.slice().sort((a, b) => b.qo.n - a.qo.n)[0];
+    if (!main) return '';
+    const w = FUND_WORDS[main.k];
+    title = `Jogaste sobretudo ${w.in} ${w.name}`;
+    sub = `${cap(goodPhrase(main.k, main.qo))}${main.vs ? `, ${main.vs.text.replace(/ \(.*\)$/, '')}` : ''}.`;
+  }
+  // "Para a próxima": o fundamento que desceu e, se houver, o erro que lá se
+  // repetiu — que é o que diz O QUE treinar. Sem descida, um erro repetido.
+  let next = '';
+  if (worst) {
+    const w = FUND_WORDS[worst.k];
+    next = `${cap(w.the)} ${w.name}: ${topErrorLine(data, me, worst.k) || `${goodPhrase(worst.k, worst.qo)}, um pouco menos do que costumas`}.`;
+  } else {
+    const k = QUALITY.map((q) => q.k).find((x) => (!best || x !== best.k) && topErrorLine(data, me, x));
+    if (k) next = `${cap(FUND_WORDS[k].the)} ${FUND_WORDS[k].name}: ${topErrorLine(data, me, k)}.`;
+  }
+  return `<section class="sb-hero">
+      <span class="sb-hero__label">O teu jogo</span>
+      <strong class="sb-hero__title">${esc(title)}</strong>
+      <p class="sb-hero__sub">${esc(sub)}</p>
+      ${next ? `<div class="sb-hero__next"><span class="sb-hero__label sb-hero__label--next">Para a próxima</span><p class="sb-hero__sub">${esc(next)}</p></div>` : ''}
+    </section>`;
+}
+
+// --- O campo ------------------------------------------------------------------
+//
+// Desenhado como se vê do nosso lado: em cima o campo DELAS (a fila de trás
+// delas mais longe), a rede, em baixo o nosso. Sem números de zona: as frases
+// dizem o sítio por palavras ("o fundo do campo delas, à esquerda").
+// **Até 6 ações numa zona desenham-se as bolas; acima disso, a fração** — uma
+// líbero com 42 receções punha vinte bolas numa zona.
+const THEIR_ROWS = [[1, 6, 5], [2, 3, 4]];
+const OUR_ROWS = [[4, 3, 2], [5, 6, 1]];
+const THEIR_WORDS = {
+  1: 'o fundo do campo delas, à esquerda', 6: 'o fundo do campo delas, ao meio', 5: 'o fundo do campo delas, à direita',
+  2: 'junto à rede delas, à esquerda', 3: 'junto à rede delas, ao meio', 4: 'junto à rede delas, à direita',
+};
+const OUR_WORDS = {
+  4: 'à frente, à esquerda', 3: 'à frente, ao meio', 2: 'à frente, à direita',
+  5: 'atrás, à esquerda', 6: 'atrás, ao meio', 1: 'atrás, à direita',
+};
+const DOTS_MAX = 6;
+function zoneHTML(z, cell, hl) {
+  if (!cell || !cell.n) return '<div class="sb-zone"></div>';
+  const body = cell.n <= DOTS_MAX
+    ? `<span class="sb-zone__dots">${cell.dots.map((k) => `<span class="sb sb--sm sb--${k}"></span>`).join('')}</span>`
+    : `<span class="sb-zone__frac"><strong>${cell.good} de ${cell.n}</strong><span>${esc(cell.word)}</span></span>`;
+  return `<div class="sb-zone${hl ? ' sb-zone--hl' : ''}">${body}</div>`;
+}
+function courtHTML({ their = {}, ours = {}, best = null, side }) {
+  const half = (rows, cells, mine) => `<div class="sb-court__half">${rows.flat().map((z) => zoneHTML(z, cells[z], mine && z === best)).join('')}</div>`;
+  return `<div class="sb-court" role="img" aria-label="${side === 'their' ? 'O campo delas, com os teus serviços' : 'O nosso campo, com as tuas receções'}">
+      <div class="sb-court__label">Lado delas</div>
+      ${half(THEIR_ROWS, their, side === 'their')}
+      <div class="sb-court__net" aria-hidden="true"></div>
+      ${half(OUR_ROWS, ours, side === 'ours')}
+      <div class="sb-court__label">O nosso lado</div>
+    </div>`;
+}
+// O serviço dela: onde caiu e se ganhámos esse ponto (verde) ou não (vazio).
+function serveCourt(datas, me) {
+  const zs = serveZoneStats(datas).byPid[me.id];
+  if (!zs || !ZONES.some((z) => zs[z].n)) return null;
+  const cells = {};
+  for (const z of ZONES) {
+    const o = zs[z];
+    cells[z] = { n: o.n, good: o.won, word: 'ganhámos', dots: [...Array(o.won).fill('good'), ...Array(o.n - o.won).fill('cont')] };
+  }
+  const best = ZONES.filter((z) => zs[z].n >= ZONE_MIN).sort((a, b) => zs[b].won / zs[b].n - zs[a].won / zs[a].n || zs[b].n - zs[a].n)[0] || null;
+  const title = best ? `Quando serviste para ${THEIR_WORDS[best]}, ganhámos ${zs[best].won} de ${zs[best].n} pontos.` : 'Para onde serviste, e se ganhámos esse ponto.';
+  return { title, html: courtHTML({ their: cells, best, side: 'their' }), legend: ballLegend(['good', 'cont'], { good: 'ganhámos o ponto', cont: 'perdemos o ponto' }) };
+}
+// A receção dela: onde estava e como correu. A melhor zona e, havendo uma
+// diferença clara (15 pontos), a que custou mais — comparada com ELA.
+function receptionCourt(datas, me) {
+  const zs = receptionZoneStats(datas).byPid[me.id];
+  if (!zs || !ZONES.some((z) => zs[z].n)) return null;
+  const cells = {};
+  for (const z of ZONES) {
+    const o = zs[z];
+    cells[z] = { n: o.n, good: o.good, word: 'boas', dots: [...Array(o.good).fill('good'), ...Array(o.n - o.good - o.err).fill('cont'), ...Array(o.err).fill('err')] };
+  }
+  const ok = ZONES.filter((z) => zs[z].n >= ZONE_MIN);
+  const rate = (z) => zs[z].good / zs[z].n;
+  const best = ok.slice().sort((a, b) => rate(b) - rate(a))[0] || null;
+  const worst = ok.slice().sort((a, b) => rate(a) - rate(b))[0];
+  let title = 'Onde recebeste, e como correu.';
+  let next = '';
+  if (best) {
+    title = `Onde recebeste melhor: ${OUR_WORDS[best]}. ${zs[best].good} de ${zs[best].n} receções boas.`;
+    if (worst && worst !== best && rate(best) - rate(worst) >= 0.15) next = `Custou mais ${OUR_WORDS[worst]}: ${zs[worst].good} de ${zs[worst].n}.`;
+  }
+  return { title, next, html: courtHTML({ ours: cells, best, side: 'ours' }), legend: ballLegend(['good', 'cont', 'err'], { good: 'receção boa', cont: 'difícil', err: 'erro' }) };
+}
+// Os dois campos vivem no mesmo cartão, com um seletor quando há os dois. A
+// escolha guarda-se por cartão (`courtView`) e troca-se só esse cartão — sem
+// re-desenhar o portal, que fecharia o jogo aberto.
+const courtView = new Map(); // chave do cartão -> 'serve' | 'rec'
+const courtData = new Map(); // chave do cartão -> { datas, me }
+function courtCardHTML(key, datas, me) {
+  const sv = serveCourt(datas, me);
+  const rc = receptionCourt(datas, me);
+  if (!sv && !rc) return '';
+  courtData.set(key, { datas, me });
+  const view = (courtView.get(key) === 'rec' && rc) || !sv ? 'rec' : 'serve';
+  const cur = view === 'rec' ? rc : sv;
+  const tog = sv && rc ? `<div class="sb-tog" role="group" aria-label="O que mostrar no campo">
+      <button type="button" class="sb-tog__btn" data-court="${esc(key)}" data-view="serve" aria-pressed="${view === 'serve'}">Serviço</button>
+      <button type="button" class="sb-tog__btn" data-court="${esc(key)}" data-view="rec" aria-pressed="${view === 'rec'}">Receção</button>
+    </div>` : '';
+  return `<section class="sb-card" data-court-card="${esc(key)}">
+      <h3 class="sb-card__title">No campo</h3>
+      ${tog}
+      <p class="sb-card__lead">${esc(cur.title)}</p>
+      ${cur.next ? `<p class="sb-card__next">${esc(cur.next)}</p>` : ''}
+      ${cur.html}
+      ${cur.legend}
+    </section>`;
+}
+function wireCourts(root) {
+  root.querySelectorAll('[data-court]').forEach((b) => b.addEventListener('click', () => {
+    const key = b.dataset.court;
+    const card = b.closest('[data-court-card]');
+    const d = courtData.get(key);
+    if (!card || !d) return;
+    courtView.set(key, b.dataset.view);
+    const tpl = document.createElement('template');
+    tpl.innerHTML = courtCardHTML(key, d.datas, d.me).trim();
+    const fresh = tpl.content.firstElementChild;
+    card.replaceWith(fresh);
+    wireCourts(fresh);
+    fresh.querySelector(`[data-view="${b.dataset.view}"]`)?.focus();
+  }));
+}
+
+// --- Um jogo, aberto ------------------------------------------------------------
+function gameBody(g, me, avgs) {
+  const data = g.data;
+  const c = counts([data])[me.id] || {};
+  const used = usedCols([data]);
+  const order = QUALITY.map((q) => q.k).filter((k) => used.has(k)).sort((a, b) => qualityOf(c, b).n - qualityOf(c, a).n);
+  const rows = order.map((k) => fundRow(c, k, { avg: avgs?.[k] ?? null })).filter(Boolean);
+  // Com poucas ações (menos de 5) o fundamento vai para "Ver mais": quatro
+  // defesas não dizem nada do jogo dela. O primeiro fica sempre à vista.
+  const shown = rows.filter((r, i) => i === 0 || r.n >= FUND_SHOW_MIN);
+  const few = rows.filter((r) => !shown.includes(r));
+  const kindsUsed = BALL_ORDER.filter((kind) => order.some((k) => ballKinds(c, k)[kind]));
+  const sets = partials(data);
+  const team = teamPatternsHTML([data]);
+  const errs = myErrorTypes([data], me);
+  return `
+    ${gameHero(data, me, avgs)}
+    ${rows.length ? `<section class="sb-card">
+      <h3 class="sb-card__title">O que fizeste</h3>
+      ${ballLegend(kindsUsed)}
+      ${shown.map((r) => r.html).join('')}
+    </section>` : ''}
+    ${courtCardHTML(`g:${g.id}`, [data], me)}
+    <section class="sb-card">
+      <h3 class="sb-card__title">A equipa</h3>
+      <div class="sb-sets">${sets.map((x) => `<span class="sb-set sb-set--${x.our > x.their ? 'won' : 'lost'}">${x.our}–${x.their}</span>`).join('')}</div>
+      ${team || ''}
+    </section>
+    <details class="sb-more">
+      <summary>Ver mais${few.length ? `: ${esc(few.map((r) => QUALITY.find((q) => q.k === r.k).label).join(', '))}` : ''}</summary>
+      <div class="sb-more__body">
+        ${few.map((r) => r.html).join('')}
+        ${errs}
+        ${teamBlock([data])}
+      </div>
+    </details>`;
+}
+
+// --- A época (B) ----------------------------------------------------------------
+//
+// "Antes e agora": por fundamento, 10 bolas dos primeiros jogos e 10 dos
+// últimos — sempre "em cada 10", para as duas filas se compararem à vista.
+// A frase do topo é a maior melhoria (1 bola em cada 10, com 10 ações de cada
+// lado); sem melhoria, o fundamento em que ela mais joga, como facto.
+// Quantas bolas verdes em 10 — o número que as filas "Antes/Agora" mostram,
+// para a frase e o desenho dizerem o mesmo.
+const goodIn10 = (c, k) => toBalls(ballKinds(c, k), { per10: true }).balls.filter((x) => x === 'good').length;
+const PAST_VERB = {
+  RECEPTION: 'eram boas', DEFENSE: 'eram boas', SETTING: 'eram bons',
+  ATTACK: 'davam ponto', SERVICE: 'entravam', BLOCK: 'davam ponto ou amorteciam',
+};
+function seasonSplit(games) {
+  // `games` vem do mais recente para o mais antigo.
+  const k = Math.min(3, Math.floor(games.length / 2));
+  return { now: games.slice(0, k).map((g) => g.data), before: games.slice(-k).map((g) => g.data), k };
+}
+function seasonHero(games, me, used) {
+  const cap = (x) => x.charAt(0).toUpperCase() + x.slice(1);
+  const all = counts(games.map((g) => g.data))[me.id] || {};
+  if (games.length >= 4) {
+    const { now, before, k } = seasonSplit(games);
+    const cn = counts(now)[me.id] || {};
+    const cb = counts(before)[me.id] || {};
+    const gains = QUALITY.filter((q) => used.has(q.k)).map((q) => {
+      const a = qualityOf(cb, q.k);
+      const b = qualityOf(cn, q.k);
+      return { q, a, b, d: a.n >= 10 && b.n >= 10 ? b.rate - a.rate : null };
+    }).filter((x) => x.d != null && x.d >= 0.1).sort((x, y) => y.d - x.d);
+    if (gains[0]) {
+      const { q, a, b } = gains[0];
+      const w = FUND_WORDS[q.k];
+      return `<section class="sb-hero">
+        <span class="sb-hero__label">A tua época</span>
+        <strong class="sb-hero__title">${esc(cap(w.the))} ${esc(w.name)} está a melhorar.</strong>
+        <p class="sb-hero__sub">Nos primeiros jogos, ${goodIn10(cb, q.k)} em cada 10 ${esc(q.unit)} ${esc(PAST_VERB[q.k])}. Nos últimos ${k}, são ${goodIn10(cn, q.k)} em cada 10.</p>
+      </section>`;
+    }
+  }
+  const main = QUALITY.filter((q) => used.has(q.k)).map((q) => ({ q, o: qualityOf(all, q.k) })).filter((x) => x.o.n).sort((x, y) => y.o.n - x.o.n)[0];
+  if (!main) return '';
+  const w = FUND_WORDS[main.q.k];
+  return `<section class="sb-hero">
+      <span class="sb-hero__label">A tua época</span>
+      <strong class="sb-hero__title">Jogas sobretudo ${esc(w.in)} ${esc(w.name)}</strong>
+      <p class="sb-hero__sub">${esc(cap(goodPhrase(main.q.k, main.o)))}.</p>
+    </section>`;
+}
+function seasonBallsHTML(games, me, used) {
+  if (games.length < 4) {
+    const c = counts(games.map((g) => g.data))[me.id] || {};
+    const rows = QUALITY.map((q) => q.k).filter((k) => used.has(k)).sort((a, b) => qualityOf(c, b).n - qualityOf(c, a).n)
+      .map((k) => fundRow(c, k)).filter((r) => r && r.n >= FUND_SHOW_MIN);
+    return rows.length ? `<section class="sb-card"><h3 class="sb-card__title">O que fizeste</h3>${ballLegend()}${rows.map((r) => r.html).join('')}</section>` : '';
+  }
+  const { now, before } = seasonSplit(games);
+  const cn = counts(now)[me.id] || {};
+  const cb = counts(before)[me.id] || {};
+  const rows = QUALITY.filter((q) => used.has(q.k)).map((q) => {
+    const a = qualityOf(cb, q.k);
+    const b = qualityOf(cn, q.k);
+    if (a.n < FUND_SHOW_MIN || b.n < FUND_SHOW_MIN) return null;
+    const ka = ballKinds(cb, q.k);
+    const kb = ballKinds(cn, q.k);
+    const ga = goodIn10(cb, q.k);
+    const gb = goodIn10(cn, q.k);
+    const tag = gb > ga ? ['up', '↑ a melhorar'] : gb < ga ? ['down', '↓ a descer'] : ['eq', 'igual'];
+    const unit = q.unit;
+    const line = gb !== ga ? `De ${ga} para ${gb} em cada 10 ${unit}` : `${gb} em cada 10 ${unit}`;
+    return { n: a.n + b.n, html: `<div class="sb-fund">
+        <div class="sb-fund__head"><strong>${esc(q.label)}</strong></div>
+        <div class="sb-ba"><span class="sb-ba__l">Antes</span>${ballRow(ka, `${q.label}, antes`, { per10: true, scaleLabel: false })}
+          <span class="sb-ba__l sb-ba__l--now">Agora</span>${ballRow(kb, `${q.label}, agora`, { per10: true, scaleLabel: false })}</div>
+        <p class="sb-fund__line">${esc(line)} <span class="sb-chip sb-chip--${tag[0] === 'up' ? 'good' : tag[0] === 'down' ? 'bad' : 'eq'}">${tag[1]}</span></p>
+      </div>` };
+  }).filter(Boolean).sort((x, y) => y.n - x.n);
+  if (!rows.length) return '';
+  return `<section class="sb-card">
+      <h3 class="sb-card__title">Antes e agora</h3>
+      <p class="sb-card__lead sb-card__lead--sm">Cada fila são 10 bolas tuas: como eram nos primeiros jogos e como são nos últimos.</p>
+      ${rows.map((r) => r.html).join('')}
+      ${ballLegend()}
+    </section>`;
+}
+
 // Quantos jogos se veem antes do "Mostrar os restantes": num campeonato são
 // trinta, e a pergunta de quem abre isto é quase sempre o último jogo.
 const SCOUT_VISIBLE = 5;
@@ -1043,17 +1219,8 @@ function scoutGameRow(g, me, { open = false, others = [] } = {}) {
       <span class="portal-scout-game__chev" aria-hidden="true">▾</span>
     </summary>
     <div class="portal-scout-game__body">
-      <p class="muted" style="margin:0">Parciais ${esc(partials(g.data).map((x) => `${x.our}-${x.their}`).join(', ') || '—')}${g.competition ? ` · ${esc(g.competition)}` : ''}</p>
-      <div class="sc-tiles sc-tiles--sm">
-        <div class="sc-tile"><strong>${p}</strong><span>pontos que jogaste</span></div>
-        <div class="sc-tile"><strong>${main ? `${Math.round(main.rate * 100)}%` : '—'}</strong><span>${main ? esc(goodPhrase(main.q.k, main)) : 'sem ações'}</span></div>
-        <div class="sc-tile"><strong>${goodTotal([g.data], me)}</strong><span>ações bem feitas</span></div>
-      </div>
-      ${p || m ? gameSummaryHTML(g.data, me, avgs) : ''}
-      ${p || m ? myFundamentals([g.data], usedCols([g.data]), me, { avgs }) : '<p class="muted" style="margin:0.5rem 0 0">Não entraste em campo neste jogo.</p>'}
-      ${p || m ? myDetailHTML([g.data], me) : ''}
-      ${teamBlock([g.data], { compact: true })}
-      ${teamPatternsHTML([g.data])}
+      <p class="sb-meta">${p ? `${p} pontos em campo` : 'Não entraste em campo neste jogo.'}${g.competition ? ` · ${esc(g.competition)}` : ''}</p>
+      ${p || m ? gameBody(g, me, avgs) : ''}
     </div>
   </details></li>`;
 }
@@ -1098,8 +1265,8 @@ function jogosHTML(me) {
   const datas = games.map((g) => g.data);
   const used = usedCols(datas);
   const played = datas.reduce((a, d) => a + (pointsPlayed(d)[me.id] || 0), 0);
-  const main = mainQuality(datas, me);
   const w = games.filter((g) => { const r = setsWon(g.data); return r.o > r.t; }).length;
+  const teamSeason = teamPatternsHTML(datas, { season: true });
   const shown = scoutShowAll ? games : games.slice(0, SCOUT_VISIBLE);
   const rest = games.length - shown.length;
 
@@ -1125,16 +1292,21 @@ function jogosHTML(me) {
 
     <section class="card portal-section">
       <h2 class="section-title portal-section__title">A minha época</h2>
-      <div class="sc-tiles">
-        <div class="sc-tile"><strong>${games.length}</strong><span>jogos · ${w}V ${games.length - w}D</span></div>
-        <div class="sc-tile"><strong>${played}</strong><span>pontos que jogaste</span></div>
-        <div class="sc-tile"><strong>${main ? `${Math.round(main.rate * 100)}%` : '—'}</strong><span>${main ? esc(goodPhrase(main.q.k, main)) : 'sem ações'}</span></div>
+      <p class="sb-meta">${games.length} jogos · ${w} vitória${w === 1 ? '' : 's'} · ${played} pontos em campo</p>
+      <div class="sb-stack">
+        ${seasonHero(games, me, used)}
+        ${seasonBallsHTML(games, me, used)}
+        ${courtCardHTML('season', datas, me)}
+        ${teamSeason ? `<section class="sb-card"><h3 class="sb-card__title">A equipa</h3>${teamSeason}</section>` : ''}
+        <details class="sb-more">
+          <summary>Ver mais: a tua evolução jogo a jogo, todos os números</summary>
+          <div class="sb-more__body">
+            ${games.length >= 3 ? qualityEvo(games, me, used) : ''}
+            ${myErrorTypes(datas, me)}
+            ${teamBlock(datas)}
+          </div>
+        </details>
       </div>
-      ${games.length >= 3 ? qualityEvo(games, me, used) : ''}
-      ${myFundamentals(datas, used, me)}
-      ${myDetailHTML(datas, me)}
-      ${teamBlock(datas)}
-      ${teamPatternsHTML(datas, { season: true })}
     </section>`;
 }
 
@@ -1542,6 +1714,7 @@ function wire(container, me, team) {
     btn.addEventListener('click', () => cancelMyRequest(btn.dataset.cancelReq))
   );
 
+  wireCourts(container);
   container.querySelector('[data-scout-toggle]')?.addEventListener('click', () => {
     scoutShowAll = !scoutShowAll;
     renderPortal(container);
