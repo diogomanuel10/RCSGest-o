@@ -1796,13 +1796,38 @@ separador antes de navegar (usado pelos cartões do Painel).
       memória): saber se há scout obrigava a descarregar as ações da época
       só para decidir se se desenha um botão. Sem scout ainda, o separador
       diz porquê.
-    - **Barras e não percentagens.** "Eficácia −9%" é linguagem de
-      treinador, e a uma miúda de catorze anos lê-se como "sou má" sem dizer
-      porquê. Cada fundamento é uma barra com o que correu bem, o que
-      continuou e o que foi erro, e a legenda diz as três coisas por palavras
-      ("4 pontos · 9 continuaram · 4 erros") — o mesmo número, explicado. A
-      equipa também: de onde vieram os pontos (ataque, serviço, bloco, erros
-      do adversário) é uma barra, não uma frase entre parênteses.
+    - **Um jogo conta-se em três passos, e não com barras** (decidido sobre
+      uma maqueta com três versões — `gameBody`, `gameHero`, `fundRow`,
+      `courtCardHTML` em `portal.js`). As barras proporcionais com
+      percentagens e os mapas com "Z5" não se liam aos 14 anos: o mesmo número
+      aparecia três vezes, tudo tinha o mesmo peso e cada desenho precisava de
+      uma nota a explicar como se lia.
+      1. **A frase** num cartão escuro no topo ("Boa receção! 27 de 42 foram
+         boas. Mais do que costumas.") e, no máximo, um "Para a próxima" — de
+         preferência o erro que se repetiu ("2 dos teus 8 serviços foram à
+         rede"), que é o que diz o que treinar.
+      2. **Bolas, uma por ação**, com FORMA além da cor: verde cheia (correu
+         bem, a régua de `QUALITY`), círculo vazio (continuou), quadrado
+         laranja (bloqueado), vermelha com × (erro). **Uma fila nunca passa de
+         10 bolas**: com 10 ações ou mais é "em cada 10", na proporção certa
+         (maior resto), com os números reais escritos por baixo. A proporção
+         é FIEL — um erro em 42 pode não ter bola, e o texto di-lo.
+      3. **O campo desenhado** ("lado delas", rede, "o nosso lado"), sem
+         números de zona: as frases dizem o sítio por palavras ("o fundo do
+         campo delas, à esquerda"). Até 6 ações numa zona desenham-se as
+         bolas; acima disso, a fração ("12 de 15 boas"). Serviço e Receção
+         trocam-se num seletor que só re-desenha esse cartão (`wireCourts`) —
+         re-desenhar o portal fechava o jogo aberto.
+      A equipa vem a seguir (os parciais e a série mais difícil) e o resto —
+      fundamentos com menos de 5 ações, os tipos de erro, a barra dos pontos
+      da equipa — fica num "Ver mais" fechado.
+    - **A época é "antes e agora"** (`seasonHero`, `seasonBallsHTML`): por
+      fundamento, 10 bolas dos primeiros jogos e 10 dos últimos (até 3 de
+      cada lado), sempre "em cada 10", para as duas filas se compararem à
+      vista. A frase do topo é a maior melhoria (1 bola em cada 10, com 10
+      ações de cada lado); sem melhoria, o fundamento em que ela mais joga,
+      como facto. Com menos de 4 jogos não há antes e agora: mostra-se a
+      época numa fila só. A evolução jogo a jogo foi para o "Ver mais".
     - **Mostra o que ela fez, não uma posição**: números grandes (jogos,
       pontos em campo e a QUALIDADE do fundamento em que mais mexe na bola)
       — a evolução é contra ela própria. Nenhum ranking, e só os fundamentos
@@ -1824,27 +1849,23 @@ separador antes de navegar (usado pelos cartões do Painel).
       jogo, a percentagem e EM QUANTAS ações — num telemóvel não há hover. Só
       aparecem os fundamentos com 10 ações e 3 jogos.
     - **Cada jogo abre com uma FRASE, antes de qualquer número**
-      (`gameSummaryHTML`): "O melhor do teu jogo: o teu serviço. 15 de 17
-      serviços entraram, mais do que costumas (76%)" e, se houver, "Para a
-      próxima, o teu ataque: …". A atleta recebia números e tinha de tirar
+      (`gameHero`): "Bom serviço! 15 de 17 serviços entraram. Mais do que
+      costumas." e, se houver, "Para a próxima: …". A atleta recebia números e tinha de tirar
       sozinha a conclusão — e quem não lê gráficos não a tirava. Começa
       SEMPRE pelo que correu bem; sem com que comparar, diz onde ela mais
       jogou, sem juízo.
     - **"9 de 26 ataques deram ponto (35%)"** (`goodPhrase`): a contagem
       primeiro, a percentagem entre parênteses. "35%" sozinho lia-se como uma
-      negativa da escola. As palavras das barras dizem o que aconteceu
-      ("defendidos", "difíceis") em vez de "continuaram"/"fracas".
+      negativa da escola.
     - **"Menos do que costumas" é âmbar e sem negrito** (`compareToSelf`), a
       regra das avaliações físicas — e só aparece com 8 ações ou mais no
       fundamento (`COMPARE_MIN`): com 4, duas defesas boas davam uma seta
       vermelha.
-    - **O terceiro número grande é "ações bem feitas"** (`goodTotal`) e já não
-      os erros: era desse que ela se lembrava. Os erros continuam nas barras.
     - **Fundamentos com menos de 5 ações vão para "Ver mais"**: quatro
-      defesas não dizem nada sobre o jogo dela, e cinco barras empilhadas
+      defesas não dizem nada sobre o jogo dela, e cinco filas empilhadas
       enterravam as duas que dizem.
-    - **«Como ler isto»** (`helpHTML`): o que cada cor e cada percentagem
-      querem dizer, em palavras de quem tem catorze anos. Fechado por
+    - **«Como ler isto»** (`helpHTML`): o que cada bola, o "em cada 10" e o
+      campo querem dizer, em palavras de quem tem catorze anos. Fechado por
       omissão, só com os fundamentos marcados.
     - **Uma época tem trinta jogos**: "Os meus jogos" mostra os 5 mais
       recentes, com "Mostrar os restantes N", e o resumo da época vem DEPOIS.
@@ -1862,6 +1883,26 @@ separador antes de navegar (usado pelos cartões do Painel).
     - Carrega-se só ao abrir o separador (`loadMyScoutGames`): são as ações
       da época inteira, e o portal abre-se quase sempre para ver o treino de
       logo. Sem a migração a chamada falha e diz que ainda não há jogos.
+    - **O detalhe dela** (zona do serviço, zona da receção, tipo de erro) só
+      existe nos jogos em que o treinador o marcou, e entra no campo e na
+      frase: para onde serviu e em quantos ganhámos o ponto (só a BOA notícia
+      na frase), onde recebeu (a melhor zona e, havendo 15 pontos de
+      diferença, "custou mais…" em âmbar — comparada com ELA PRÓPRIA) e que
+      erros foram (no "Ver mais"). Mínimo de 3 ações numa zona para a frase.
+    - **A equipa, sem nomes** (`teamPatternsHTML`): a série mais difícil do
+      jogo (4+ pontos seguidos, e como começou) ou, na época, quantas séries
+      houve e como começou a maioria; e os erros que mais se repetiram na
+      equipa por tipo. **Nunca se diz de quem foi o erro que começou uma
+      série** — nem quando foi dela: lido sozinho no telemóvel, é culpa.
+    - **Fica só para o treinador**, de propósito: "com e sem em campo"
+      (compara colegas por definição) e o final de set disputado por atleta
+      ("jogas pior quando aperta" é conversa cara a cara). A reunião de grupo
+      também não chega ao portal. O nível de detalhe é o mesmo para todos os
+      escalões.
+    - **Ainda não chega ao portal o que depende da posição das COLEGAS**: a
+      distribuição (para onde foi a bola depois do passe dela) e as rotações
+      R1–R6. O servidor tira o dono às ações das outras, e sem ele não se
+      sabe de que zona atacaram nem quem é a distribuidora.
   - **As estatísticas do treinador dividem-se em quatro partes** (`statsBlock`):
     **Equipa** (de onde vieram os pontos), **Por ação**, **Por atleta** e
     **Destaques**. A tabela sozinha respondia a "quem", e a pergunta que
