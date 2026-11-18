@@ -1098,6 +1098,34 @@ export function teamsOverview(days = 30) {
     });
 }
 
+// Encomendas de equipamento ainda por fechar, do clube inteiro: quem falta
+// PAGAR (e quanto, ao preço de hoje) e que famílias ainda não CONFIRMARAM os
+// dados. São as duas perguntas das Encomendas, e a conta é a mesma do
+// `orderCost` de lá — só tem encomenda quem tem algum tamanho preenchido, e
+// os artigos sem preço contam-se à parte em vez de somarem zero.
+export function ordersPending() {
+  const articles = equipmentArticles();
+  const porPagar = [];
+  const porConfirmar = [];
+  let total = 0;
+  let semPreco = 0;
+  state.players.forEach((p) => {
+    const sizes = playerSizes(p.id);
+    if (!Object.keys(sizes).length) return;
+    const row = state.playerSizes.find((s) => s.player_id === p.id) || {};
+    if (!row.confirmed_at) porConfirmar.push(p);
+    if (!row.paid_at) {
+      porPagar.push(p);
+      articles.forEach((a) => {
+        if (!sizes[a.key]) return;
+        if (a.price != null) total += Number(a.price) || 0;
+        else semPreco += 1;
+      });
+    }
+  });
+  return { porPagar, porConfirmar, total, semPreco };
+}
+
 // Jogos que se aproximam sem ninguém convocado. A convocatória é trabalho do
 // treinador, mas um jogo de sábado sem lista na quinta é o esquecimento que só
 // se descobre no pavilhão — e ao coordenador isto é supervisão, como as

@@ -2448,6 +2448,27 @@ separador antes de navegar (usado pelos cartões do Painel).
     resultado só conta 30 dias para trás porque um clube que nunca regista
     resultados teria ali a época inteira para sempre; os antigos continuam
     contados no cartão "Por equipa". Avisos `convocatorias` e `resultados`.
+  - **No telemóvel o cartão não é uma tabela**: empilhada, dava cinco linhas
+    por equipa, quase todas "—". Passa a uma linha por equipa (nome, balanço,
+    comparência) com crachás SÓ para o que pede alguma coisa (`.team-ov__list`).
+- **O que chega de fora entra na lista de trabalho** (`painel.js`): os pedidos
+  de inscrição do site (`prospects` com `source='site'` ainda em `observado`)
+  e as encomendas da loja por tratar (`site_orders` em `nova`) chegavam só por
+  notificação, e uma notificação lê-se uma vez — do outro lado está uma
+  família à espera. Um por linha, com a família `inscricoes_site`/`loja`;
+  passados 3 dias sobem a `agora`. Saem sozinhos quando se responde (mudar o
+  estado do prospeto, tratar a encomenda).
+  - As encomendas da loja **não vão no `loadAll`**: `loadOpenSiteOrders` traz
+    só as `nova`, uma vez por sessão e só com o site publicado, para o mesmo
+    `state.siteOrders` — o ecrã do site continua a fazer a sua carga inteira.
+- **As Encomendas de equipamento também** (`ordersPending` em `compute.js`):
+  quanto falta cobrar (`encomendas_pagar`, "Esta semana", com os artigos sem
+  preço ditos à parte) e quantas famílias ainda não confirmaram os dados
+  (`encomendas_confirmar`, "Quando puderes"). Uma linha cada e não uma por
+  atleta — o trabalho faz-se nas Encomendas, e a linha abre-as já no filtro
+  certo (`setEncomendasFilter`). Os separadores que uma linha escolhe antes de
+  navegar vivem num sítio só (`openTargetTabs`): o painel e o diálogo de grupo
+  tinham cada um a sua cópia.
 - **Painel personalizável** (`supabase/painel-avisos.sql`): dois catálogos em
   `painel.js` — `METRIC_CATALOG` (os cartões de números) e `ALERT_CATALOG` (a
   lista "A precisar da tua atenção"). Cada entrada declara quem a **pode** ver

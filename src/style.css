@@ -1337,10 +1337,34 @@ button.metric--nav:focus-visible {
 }
 .team-ov__delta--down { color: var(--warn-ink); }
 .team-ov__delta--up   { color: var(--ok-ink); }
+/* No telemóvel a tabela de seis colunas dava cinco linhas por equipa, quase
+   todas "—". Passa a uma linha por equipa (nome, balanço, comparência) e
+   só os números que pedem alguma coisa, como crachás. */
+.team-ov__list { display: none; list-style: none; margin: 0; padding: 0; }
+.team-ov__item {
+  padding: 0.6rem 0 0.6rem 0.7rem;
+  border-bottom: 1px solid var(--border);
+}
+.team-ov__item:last-child { border-bottom: none; }
+.team-ov__item.team-ov__row--attn { box-shadow: inset 3px 0 0 var(--warn); }
+.team-ov__line {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.team-ov__meta { font-size: 0.78rem; flex: 1 1 auto; min-width: 0; }
+.team-ov__pct { flex: 0 0 auto; }
+.team-ov__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+.team-ov__chips .badge { border: none; cursor: pointer; font: inherit; font-size: 0.75rem; }
 @media (max-width: 640px) {
-  .team-ov__row--attn > td:first-child { box-shadow: none; }
-  .team-ov__row--attn { box-shadow: inset 3px 0 0 var(--warn); }
-  .team-ov__sub { display: inline; margin-left: 0.4rem; }
+  .team-ov .stat-table-wrap { display: none; }
+  .team-ov__list { display: block; }
 }
 
 /* No telemóvel a saudação enchia duas linhas em maiúsculas de 1.75rem — cem
