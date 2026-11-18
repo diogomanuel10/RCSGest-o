@@ -184,7 +184,7 @@ export function sortSizes(values, article) {
 // Cor de identidade por escalão / posição: índice na lista configurada (que é
 // estável) -> paleta cíclica, para cada escalão/posição ter sempre a mesma cor.
 // Partilhado pelos Plantéis (plantel + avaliação) e pelos Treinadores.
-const ESCALAO_COLORS = ['#143b61', '#1e5080', '#0d9488', '#b45309', '#7c3aed', '#be185d', '#0369a1', '#4d7c0f'];
+const ESCALAO_COLORS = ['#0d6efd', '#198754', '#6f42c1', '#d63384', '#0a7d94', '#b45309', '#495057', '#4d7c0f'];
 const POSITION_COLORS = ['#7c3aed', '#2563eb', '#0d9488', '#dc2626', '#d39f00', '#be185d', '#0369a1', '#4d7c0f'];
 function colorFrom(list, value, palette) {
   const i = list.indexOf(value);

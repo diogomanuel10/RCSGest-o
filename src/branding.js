@@ -22,8 +22,8 @@ export const DEFAULT_BRANDING = {
   club_name: 'Rumia',
   app_name: 'Rumia',
   motto: 'A tua gestão desportiva, simples',
-  brand_primary: '#143b61',
-  brand_accent: '#f2b705',
+  brand_primary: '#0d6efd',
+  brand_accent: '#ffc107',
   logo: null,
 };
 
@@ -93,7 +93,7 @@ function applyPalette(primary, accent) {
   s.setProperty('--navy-700', mix(p, '#000000', 0.22));
   s.setProperty('--navy-500', mix(p, '#ffffff', 0.16));
   s.setProperty('--navy-300', mix(p, softTint, dark ? 0.48 : 0.34));
-  s.setProperty('--navy-100', mix(p, softTint, dark ? 0.80 : 0.88));
+  s.setProperty('--navy-100', mix(p, softTint, dark ? 0.80 : 0.9));
   s.setProperty('--yellow', a);
   s.setProperty('--yellow-600', mix(a, '#000000', 0.16));
 }
@@ -122,8 +122,10 @@ export function applyBranding(settings) {
   current = normalize(settings);
   applyPalette(current.brand_primary, current.brand_accent);
   document.title = current.app_name;
+  // A barra de topo é branca (desenho à Bootstrap): a barra do browser no
+  // Android acompanha-a, em vez de ser um bloco da cor do clube por cima dela.
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute('content', current.brand_primary);
+  if (meta) meta.setAttribute('content', '#ffffff');
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
   } catch {

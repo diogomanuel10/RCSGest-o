@@ -300,7 +300,7 @@ function collectFormData(form) {
 // impressão). Abre uma janela com o plano formatado e dispara a impressão.
 function printPlan(plan) {
   const team = state.teams.find((t) => t.id === plan.team_id);
-  const color = team ? escalaoColor(team.escalao) : '#143b61';
+  const color = team ? escalaoColor(team.escalao) : '#0d6efd';
 
   const row = (label, val) =>
     val && String(val).trim()

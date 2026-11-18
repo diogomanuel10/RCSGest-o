@@ -15,7 +15,7 @@ import { branding, logoSrc } from './branding.js';
 // A janela nova é um documento à parte: não tem as variáveis CSS da app, por
 // isso as cores da marca têm de ir como valor literal — e um valor inválido
 // (ou vazio) tem de cair no azul de origem em vez de partir a folha.
-export function cssColor(value, fallback = '#143b61') {
+export function cssColor(value, fallback = '#0d6efd') {
   return /^#[0-9a-f]{3,8}$/i.test(String(value || '')) ? value : fallback;
 }
 
@@ -33,7 +33,7 @@ export function openSheet({ title, subtitle, body }) {
   // resolveria lá. Data URLs passam intactas.
   const logo = new URL(logoSrc(), window.location.href).href;
   const primary = cssColor(b.brand_primary);
-  const accent = cssColor(b.brand_accent, '#f2b705');
+  const accent = cssColor(b.brand_accent, '#ffc107');
 
   const win = window.open('', '_blank');
   if (!win) {

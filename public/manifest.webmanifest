@@ -4,8 +4,8 @@
   "description": "Rumia — a tua gestão desportiva, simples",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#143B61",
-  "theme_color": "#143B61",
+  "background_color": "#FFFFFF",
+  "theme_color": "#FFFFFF",
   "lang": "pt-PT",
   "icons": [
     {

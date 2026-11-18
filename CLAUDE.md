@@ -3137,6 +3137,22 @@ separador antes de navegar (usado pelos cartões do Painel).
 ## Convenções
 
 - Interface 100% em **português europeu**, com acentos.
+- **Linguagem visual: as convenções do Bootstrap 5** (topo do `style.css`).
+  Não se carrega o Bootstrap — `.btn`, `.modal`, `.card`, `.badge` colidiam
+  com as classes da app, e o `.modal` dele nasce escondido —, adotam-se os
+  valores e as regras: escala de cinzentos `--gray-100…900`, UMA cor de ação
+  (a primária do clube, `--navy*`, escrita por `branding.js`), raios de
+  0.375/0.5rem, sombras discretas, anel de foco `--focus-ring` (a primária a
+  25%), uma só família (Inter) e nada de maiúsculas forçadas. A barra de topo
+  e a lateral são brancas; o item ativo é a primária a 10%.
+  - **`.btn--primary` e `.btn--accent` são o mesmo botão** (o `btn-primary`):
+    duas ações "principais" de cores diferentes no mesmo cabeçalho disputavam
+    o olhar. `.btn--ghost` é o `btn-outline-secondary`.
+  - **A cor de destaque do clube (`--yellow*`) não é fundo de ação**: fica em
+    marcas pequenas (a bola e os pontos do campo tático, o scout). Os avisos
+    usam `--warn`, não o destaque — o amarelo de um clube não é um alerta.
+  - Os nomes `--navy`/`--yellow` ficaram por razões históricas: são
+    "primária" e "destaque", seja qual for a cor que o clube escolher.
 - **Cada estado tem duas cores.** O tom cheio (`--ok`, `--warn`, `--danger`,
   `--info`, `--gold`, `--silver`, `--bronze`) é o **sinal**: pontos, barras,
   bordas e fundos, formas grandes onde 3:1 de contraste chega. O par `-ink`

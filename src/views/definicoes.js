@@ -698,7 +698,7 @@ export function renderDefinicoes(container) {
     const primary = container.querySelector('#brand_primary_hex').value.trim();
     const accent = container.querySelector('#brand_accent_hex').value.trim();
     if (!parseHex(primary) || !parseHex(accent)) {
-      showMsg(brandMsg, 'As cores têm de estar em formato hexadecimal (ex.: #143b61).', 'error');
+      showMsg(brandMsg, 'As cores têm de estar em formato hexadecimal (ex.: #0d6efd).', 'error');
       return;
     }
     const values = {
