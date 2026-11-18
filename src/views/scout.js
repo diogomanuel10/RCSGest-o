@@ -32,6 +32,7 @@ import {
   ZONE_ACTS, ERR_TYPES, activeExtras, extrasFor, errTypeLabel,
 } from '../scout-engine.js';
 import { evoChart, wireEvo } from '../scout-charts.js';
+import { renderPositions } from './scout-positions.js';
 import { gameInsights, gameStandouts, setterFinder, rotationLabel, roleFinder, startPhrase } from '../scout-insights.js';
 import {
   runsLost, pressureStats, serveStats, receptionByRotation, onCourtStats, setBySet, firstVsLast,
@@ -45,6 +46,13 @@ let loadError = '';
 const seasonCache = new Map(); // teamId -> { at, games }
 let seasonOpen = false;
 let evoOpen = false; // "Evolução da equipa" aberta no cartão da época
+// "Jogos" (a lista e os totais) ou "Por posição" (as atletas da mesma posição
+// lado a lado — `views/scout-positions.js`).
+let scoutMode = 'jogos';
+const modeToggleHTML = () => `<div class="cal-toggle scout-mode" role="group" aria-label="Ver">
+  <button class="cal-toggle__btn ${scoutMode === 'jogos' ? 'cal-toggle__btn--active' : ''}" type="button" data-scout-mode="jogos" aria-pressed="${scoutMode === 'jogos'}">Jogos</button>
+  <button class="cal-toggle__btn ${scoutMode === 'posicao' ? 'cal-toggle__btn--active' : ''}" type="button" data-scout-mode="posicao" aria-pressed="${scoutMode === 'posicao'}">Por posição</button>
+</div>`;
 // O detalhe de um jogo abre NA LISTA, por baixo da linha do jogo, e não num
 // modal: lê-se com a lista à vista e fecha-se no mesmo sítio onde se abriu
 // (como os totais da época). Um aberto de cada vez — dois detalhes inteiros
@@ -188,12 +196,42 @@ export function renderScout(container) {
   const v = fin.filter((r) => resultOf(r).res === 'V').length;
   const activeId = LS.get(ACTIVE_KEY);
   const active = activeId && state.scouts.find((r) => r.id === activeId && r.status === 'em_curso');
+  const teamSelectHTML = teams.length > 1 ? `
+      <div class="filter-bar">
+        <div class="field">
+          <label for="scout-team">Equipa</label>
+          <select id="scout-team">
+            ${teams.map((t) => `<option value="${esc(t.id)}" ${t.id === teamFilter ? 'selected' : ''}>${esc(teamName(t))}</option>`).join('')}
+          </select>
+        </div>
+      </div>` : '';
+
+  // "Por posição": as contas são da época toda, por isso carregam-se as ações
+  // dos jogos terminados (a mesma cache dos totais da época).
+  if (scoutMode === 'posicao' && teams.length) {
+    container.innerHTML = `
+      <header class="page-head"><h1 class="section-title">Scout</h1></header>
+      ${modeToggleHTML()}
+      ${teamSelectHTML}
+      <section class="card" id="pz-box">${fin.length ? loadingHTML('A juntar os jogos da época…') : '<p class="muted" style="margin:0">Ainda não há jogos terminados com scout nesta equipa.</p>'}</section>`;
+    container.querySelectorAll('[data-scout-mode]').forEach((b) => b.addEventListener('click', () => { scoutMode = b.dataset.scoutMode; renderScout(container); }));
+    container.querySelector('#scout-team')?.addEventListener('change', (e) => { teamFilter = e.target.value; renderScout(container); });
+    if (fin.length) {
+      const box = container.querySelector('#pz-box');
+      seasonGames(teamFilter).then((games) => {
+        if (!box.isConnected) return;
+        renderPositions(box, games.filter((g) => g.status === 'terminado'));
+      }).catch((err) => { box.innerHTML = errorHTML(dbErrorMessage(err)); });
+    }
+    return;
+  }
 
   container.innerHTML = `
     <header class="page-head">
       <h1 class="section-title">Scout</h1>
       ${editable && teams.length ? '<button class="btn btn--accent" id="scout-new" type="button">+ Scout de um jogo</button>' : ''}
     </header>
+    ${teams.length ? modeToggleHTML() : ''}
 
     ${active ? `
       <section class="card scout-resume">
@@ -202,15 +240,7 @@ export function renderScout(container) {
         <button class="btn btn--primary" type="button" data-open="${esc(active.id)}">Retomar</button>
       </section>` : ''}
 
-    ${teams.length > 1 ? `
-      <div class="filter-bar">
-        <div class="field">
-          <label for="scout-team">Equipa</label>
-          <select id="scout-team">
-            ${teams.map((t) => `<option value="${esc(t.id)}" ${t.id === teamFilter ? 'selected' : ''}>${esc(teamName(t))}</option>`).join('')}
-          </select>
-        </div>
-      </div>` : ''}
+    ${teamSelectHTML}
 
     ${!teams.length ? emptyHTML('Ainda não tens equipas atribuídas. O coordenador liga-te às tuas equipas em Treinadores.', { icone: '🏐' }) : `
     <section class="card">
@@ -271,6 +301,7 @@ export function renderScout(container) {
   container.querySelector('#scout-team')?.addEventListener('change', (e) => {
     teamFilter = e.target.value; seasonOpen = false; evoOpen = false; renderScout(container);
   });
+  container.querySelectorAll('[data-scout-mode]').forEach((b) => b.addEventListener('click', () => { scoutMode = b.dataset.scoutMode; renderScout(container); }));
   container.querySelector('#scout-new')?.addEventListener('click', () => openNewScout());
   wireEmptyAction(container, 'scout-new', () => openNewScout());
   container.querySelectorAll('[data-open]').forEach((b) => b.addEventListener('click', () => openScoutById(b.dataset.open)));
