@@ -2219,6 +2219,10 @@ separador antes de navegar (usado pelos cartões do Painel).
   - Ficam dois blocos que existiam mas estavam a três cliques: **jogos por
     registar** resultado e quem **não está a 100%** (disponibilidade, sem
     detalhe clínico).
+  - **Na linha de HOJE os botões (Plano, Marcar) descem para baixo**
+    (`.mark-item--today`, `.mark-item__actions`): ao lado do texto, numa
+    coluna estreita, comiam a largura toda e a equipa e o pavilhão partiam-se
+    letra a letra — ou, no telemóvel, ficavam escondidos debaixo deles.
   - **Quem não vem HOJE é o aviso principal** (`absenceAlert`), no topo e
     ACIMA da faixa de números: é a única coisa deste ecrã que muda o que o
     treinador vai fazer daqui a duas horas, e a faixa responde a "como vai a
@@ -2517,6 +2521,8 @@ separador antes de navegar (usado pelos cartões do Painel).
     funções do ecrã inteiro (`playerRow`, `handleStatusClick`). Marca-se por
     EXCEÇÃO: todos presentes e depois só quem faltou. Subscreve o store
     enquanto está aberto, para se re-desenhar a cada gravação.
+    No telemóvel cada linha é o nome e os quatro botões (sem posição e ano,
+    que estão na ficha): cabiam dois atletas e meio por ecrã.
   - **"Por equipa" nas Estatísticas** (`teamsOverviewHTML`, com duas equipas
     ou mais): a comparência dos últimos 30 dias e os treinos por fechar de
     cada escalão lado a lado. Responder a "como está cada equipa?" escolhendo
