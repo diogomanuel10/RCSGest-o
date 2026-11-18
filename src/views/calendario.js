@@ -129,6 +129,17 @@ let calView = 'lista'; // 'lista' | 'semana' | 'grelha'
 let gridMonth = new Date(); // mês exibido na grelha
 let weekRef = new Date();   // qualquer dia da semana exibida na vista Semana
 
+// A Lista desenhava a época inteira de uma vez: com os treinos lançados até
+// junho eram 774 eventos — no telemóvel, centenas de ecrãs de scroll e um
+// segundo de espera a cada filtro. Mostram-se os próximos 7 dias (pelo menos
+// 10 eventos) e os 20 passados mais recentes; o resto está a um toque. Para
+// saltar para um mês concreto há a vista Mês.
+const LIST_NEXT_DAYS = 7;
+const LIST_NEXT_MIN = 10;
+const LIST_PAST = 20;
+let listAllFuture = false;
+let listAllPast = false;
+
 export function renderCalendario(container) {
   // "Pode criar alguma coisa neste calendário?" — o coordenador cria tudo, o
   // preparador físico só musculação. Quem pode editar CADA evento decide-se
@@ -211,8 +222,12 @@ export function renderCalendario(container) {
   container.querySelector('#week-prev')?.addEventListener('click', () => { weekRef = new Date(weekRef.getFullYear(), weekRef.getMonth(), weekRef.getDate() - 7); renderCalendario(container); });
   container.querySelector('#week-next')?.addEventListener('click', () => { weekRef = new Date(weekRef.getFullYear(), weekRef.getMonth(), weekRef.getDate() + 7); renderCalendario(container); });
   container.querySelector('#week-today')?.addEventListener('click', () => { weekRef = new Date(); renderCalendario(container); });
-  container.querySelector('#f-type')?.addEventListener('change', (e) => { filters.type = e.target.value; renderCalendario(container); });
-  container.querySelector('#f-team')?.addEventListener('change', (e) => { filters.team = e.target.value; renderCalendario(container); });
+  container.querySelector('#f-type')?.addEventListener('change', (e) => { filters.type = e.target.value; listAllFuture = listAllPast = false; renderCalendario(container); });
+  container.querySelector('#f-team')?.addEventListener('change', (e) => { filters.team = e.target.value; listAllFuture = listAllPast = false; renderCalendario(container); });
+  container.querySelectorAll('[data-cal-more]').forEach((b) => b.addEventListener('click', () => {
+    if (b.dataset.calMore === 'future') listAllFuture = true; else listAllPast = true;
+    renderCalendario(container);
+  }));
   container.querySelector('#grid-prev')?.addEventListener('click', () => { gridMonth = new Date(gridMonth.getFullYear(), gridMonth.getMonth() - 1, 1); renderCalendario(container); });
   container.querySelector('#grid-next')?.addEventListener('click', () => { gridMonth = new Date(gridMonth.getFullYear(), gridMonth.getMonth() + 1, 1); renderCalendario(container); });
   container.querySelector('#grid-today')?.addEventListener('click', () => { gridMonth = new Date(); renderCalendario(container); });
@@ -239,6 +254,20 @@ function renderLista(events, future, past, editable, showAppts, tab) {
     ? `${nAppts} atendimento${nAppts === 1 ? '' : 's'}`
     : `${events.length} evento${events.length === 1 ? '' : 's'}`;
   const rows = (list, isPast) => (focus ? focusRows(list, isPast) : list.map((e) => eventRow(e, isPast, editable)).join(''));
+  const limite = new Date(Date.now() + LIST_NEXT_DAYS * 86400000);
+  // Nos Atendimentos a lista é curta e vem agrupada por dia (`focusRows`):
+  // aí não se corta nem se inverte.
+  const futureShown = listAllFuture || focus
+    ? future
+    : future.filter((e, i) => i < LIST_NEXT_MIN || eventDateTime(e) <= limite);
+  // Passados do mais RECENTE para trás: o que se procura é o de ontem, e na
+  // ordem cronológica estava no fim de tudo.
+  const pastDesc = focus ? past : [...past].reverse();
+  const pastShown = listAllPast || focus ? pastDesc : pastDesc.slice(0, LIST_PAST);
+  const more = (key, n, extra = '') => n > 0
+    ? `<button class="btn btn--ghost btn--sm cal-more" data-cal-more="${key}" type="button">Mostrar os restantes ${n}${extra}</button>`
+    : '';
+  const lastFuture = future[future.length - 1];
   return `
     <section class="card">
       <div class="filters">
@@ -260,8 +289,9 @@ function renderLista(events, future, past, editable, showAppts, tab) {
         <span class="filters__count muted">${count}</span>
       </div>
       ${events.length
-        ? `${future.length ? `<h3 class="cal-group">Próximos</h3>${rows(future, false)}` : ''}
-           ${past.length ? `<h3 class="cal-group cal-group--past">Passados</h3>${rows(past, true)}` : ''}`
+        ? `${future.length ? `<h3 class="cal-group">Próximos</h3>${rows(futureShown, false)}${more('future', future.length - futureShown.length,
+              lastFuture ? ` (até ${eventDateTime(lastFuture).toLocaleDateString('pt-PT', { day: '2-digit', month: 'short' }).replace('.', '')})` : '')}` : ''}
+           ${past.length ? `<h3 class="cal-group cal-group--past">Passados</h3>${rows(pastShown, true)}${more('past', past.length - pastShown.length)}` : ''}`
         : state.events.length
           // Sem eventos NENHUNS é um clube a começar; sem eventos NESTE filtro
           // é um filtro apertado. A mesma frase para os dois casos mandava
@@ -625,7 +655,7 @@ function eventRow(ev, isPast, editable) {
           ? `<span class="badge badge--info" style="margin-top:0.3rem;display:inline-block">${nConvocados} convocado${nConvocados !== 1 ? 's' : ''}</span>`
           : ''}
         ${isPickedEvent(ev)
-          ? `<span class="badge badge--${nPicked ? 'gold' : 'warn'}" style="margin-top:0.3rem;display:inline-block">${nPicked ? `${nPicked} atleta${nPicked !== 1 ? 's' : ''}` : 'Sem atletas'}</span>`
+          ? `<span class="badge badge--${nPicked ? 'gold' : 'warn'}" style="margin-top:0.3rem;align-self:flex-start">${nPicked ? `${nPicked} atleta${nPicked !== 1 ? 's' : ''}` : 'Sem atletas'}</span>`
           : ''}
       </div>
       <div class="cell-actions">

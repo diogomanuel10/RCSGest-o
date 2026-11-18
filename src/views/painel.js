@@ -407,6 +407,10 @@ function todayLine(today) {
 
 // Liga o "Ver tudo" da lista de trabalho (estado de UI da vista).
 function wireWorkCard(container, rerender) {
+  // Sem nada na coluna larga (dia calmo, ou um papel sem pendências), a agenda
+  // passa a ocupar a largura toda — ver `.panel-grid--solo` no style.css.
+  const main = container.querySelector('.panel-grid__main');
+  main?.parentElement.classList.toggle('panel-grid--solo', !main.children.length);
   container.querySelector('#work-more')?.addEventListener('click', () => {
     workExpanded = true;
     rerender();
@@ -1298,10 +1302,17 @@ function actionItem(item) {
 // coordenador com dez escalões seria uma linha de nomes por evento sobre
 // treinos a que não vai. É a mesma regra do `event_response_audience`.
 function upcomingList(events, { absences = false } = {}) {
+  // O bloco da data só no PRIMEIRO evento de cada dia: cinco eventos de
+  // quinta eram cinco quadrados "19 NOV" seguidos, e a coluna lia-se como
+  // cinco dias diferentes. Os seguintes do mesmo dia levam o bloco vazio,
+  // para as linhas continuarem alinhadas.
+  let lastDate = null;
   return `
     <ul class="event-mini">
       ${events
         .map((ev) => {
+          const sameDay = ev.date === lastDate;
+          lastDate = ev.date;
           const dt = eventDateTime(ev);
           const team = teamById(ev.team_id);
           const day = dt.toLocaleDateString('pt-PT', { day: '2-digit' });
@@ -1321,10 +1332,10 @@ function upcomingList(events, { absences = false } = {}) {
             time || '',
           ].filter(Boolean).join(' · '));
           return `
-            <li class="event-mini__item">
-              <div class="event-mini__date-block">
-                <span class="event-mini__day">${day}</span>
-                <span class="event-mini__mon">${mon}</span>
+            <li class="event-mini__item${sameDay ? ' event-mini__item--same-day' : ''}">
+              <div class="event-mini__date-block"${sameDay ? ' aria-hidden="true"' : ''}>
+                ${sameDay ? '' : `<span class="event-mini__day">${day}</span>
+                <span class="event-mini__mon">${mon}</span>`}
               </div>
               <div class="event-mini__body">
                 <span class="event-mini__meta">

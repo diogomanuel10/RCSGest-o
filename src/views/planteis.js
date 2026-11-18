@@ -210,6 +210,19 @@ export function renderPlanteis(container) {
     })
   );
 
+  // No telemóvel os separadores deslizam (ver `.team-pills` no style.css): o
+  // escolhido fica à vista, senão o re-desenho voltava a fita ao início e a
+  // equipa aberta podia ser uma que nem se vê.
+  const pills = container.querySelector('.team-pills');
+  const pillOn = pills?.querySelector('.team-pill--on');
+  if (pills && pillOn && pills.scrollWidth > pills.clientWidth) {
+    const box = pills.getBoundingClientRect();
+    const on = pillOn.getBoundingClientRect();
+    if (on.right > box.right || on.left < box.left) {
+      pills.scrollLeft += on.left - box.left - 16;
+    }
+  }
+
   // Seleção da equipa (separadores).
   container.querySelectorAll('[data-team-pick]').forEach((b) =>
     b.addEventListener('click', () => {

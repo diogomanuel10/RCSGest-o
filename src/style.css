@@ -1080,6 +1080,11 @@ button.metric--nav:focus-visible {
 .event-mini__item:last-child {
   border-bottom: none;
 }
+/* Segundo evento do mesmo dia: sem quadrado de data e sem risco por cima —
+   lê-se como continuação do dia de cima. */
+.event-mini__item--same-day { padding-top: 0.2rem; }
+.event-mini__item:has(+ .event-mini__item--same-day) { border-bottom: none; padding-bottom: 0.35rem; }
+.event-mini__item--same-day .event-mini__date-block { background: none; padding: 0; min-height: 0; }
 .event-mini__date-block {
   min-width: 54px;
   background: var(--navy-100);
@@ -1230,6 +1235,22 @@ button.metric--nav:focus-visible {
     grid-template-columns: minmax(0, 1fr) minmax(0, 360px);
   }
 }
+/* Sem trabalho nenhum (um dia calmo, ou um papel sem pendências — a direção),
+   a coluna larga ficava vazia e a agenda espremida nos 360px da estreita, com
+   "Iniciadas F · Pa…" cortado ao lado de mil píxeis em branco. Aí a coluna
+   lateral passa a ocupar a largura toda, com os cartões lado a lado. A
+   classe vem do `wireWorkCard` (um `:has()` dentro de outro não é válido). */
+@media (min-width: 1100px) {
+  .panel-grid--solo {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .panel-grid--solo > .panel-grid__main { display: none; }
+  .panel-grid--solo > .panel-grid__side {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    align-items: start;
+  }
+}
 /* Ordem no TELEMÓVEL, onde as colunas empilham (num ecrã grande as duas veem-se
    ao mesmo tempo e a ordem não decide nada): sem trabalho urgente, a agenda e
    os números sobem para cima da lista. */
@@ -1361,8 +1382,12 @@ button.stat-strip__item--nav {
   cursor: pointer;
   transition: background 0.13s ease;
 }
-button.stat-strip__item--nav:hover {
-  background: var(--navy-100);
+/* Só com rato: ao dedo o `:hover` fica "preso" depois do toque, e o número
+   em que se tocou ficava cinzento ao voltar ao Painel. */
+@media (hover: hover) {
+  button.stat-strip__item--nav:hover {
+    background: var(--navy-100);
+  }
 }
 
 /* Degraus da lista de trabalho ("Agora" / "Esta semana" / "Quando puderes") */
@@ -6614,6 +6639,13 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 .cp-item__what { font-size: 0.9rem; }
 .cp-item__meta { font-size: 0.8rem; }
 
+/* Enquanto os dados carregam, a navegação não se mostra: ainda não se sabe
+   o papel nem o plano, e a lista completa aparecia para depois encolher. */
+.app--loading .sidebar [data-route],
+.app--loading .sidebar .navgroup { visibility: hidden; }
+
+.cal-more { margin: 0.6rem 0 0.4rem; }
+
 /* Os totais da sessão numa linha, por baixo da barra de progresso. */
 .pres-tally { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0.6rem 0 0; }
 .pres-unmarked { margin: 0.7rem 0 0; font-size: 0.84rem; color: var(--warn-ink); }
@@ -10228,4 +10260,45 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 @media (max-width: 640px) {
   .pz-row, .pz-row--k { grid-template-columns: minmax(0, 1fr) 64px; row-gap: 0.2rem; }
   .pz-row > span:first-child { grid-column: 1 / -1; font-weight: 600; }
+}
+
+/* =========================================================================
+   Telemóvel: listas de presenças só de leitura e cabeçalho da lista
+   -------------------------------------------------------------------------
+   Quem não marca (direção, leitura) vê só o crachá do estado — e a linha
+   empilhava-o por baixo do nome, como se fossem os quatro botões: cada atleta
+   ocupava um cartão de 150px para dizer "—". Sem botões, o crachá fica à
+   direita, na mesma linha. E o "0/21 · 0% registado" do topo da lista, em
+   letra de título de 1.6rem, partia-se em duas linhas e empurrava o título.
+   ========================================================================= */
+@media (max-width: 600px) {
+  .pres-row:has(> .badge) {
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: nowrap;
+  }
+  .pres-row:has(> .badge) > .aval-row__player { min-width: 0; flex: 1; }
+  .pres-row > .badge { flex-shrink: 0; }
+  .goal-card__header .goal-card__pct { font-size: 1.05rem; white-space: nowrap; }
+  .goal-card__header .goal-card__title { font-size: 0.95rem; }
+}
+
+/* Telemóvel: os escalões dos Plantéis numa fita que desliza, e não em quatro
+   linhas tortas (cada separador com a largura do seu nome) a empurrar o
+   plantel para o segundo ecrã. A fita mostra meio separador à direita, que é
+   o que diz que há mais para o lado. */
+@media (max-width: 640px) {
+  .team-pills {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    scroll-padding-inline: 16px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    margin-left: -16px;
+    margin-right: -16px;
+    padding: 2px 16px 6px;
+  }
+  .team-pills::-webkit-scrollbar { display: none; }
+  .team-pills > .team-pill { flex: 0 0 auto; scroll-snap-align: start; }
 }
