@@ -6589,6 +6589,18 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 .pres-today__chip.is-active { border-color: var(--info); background: color-mix(in srgb, var(--info) 12%, var(--surface)); color: var(--info-ink); }
 @media (hover: none) { .pres-today__chip { min-height: 44px; } }
 
+/* Marcar presenças a partir do Painel: a lista desliza entre o topo
+   (contagem + "Todos presentes") e os botões, que ficam sempre à vista. */
+.qa-modal { width: min(600px, 96vw); max-height: 90vh; display: flex; flex-direction: column; }
+.qa-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.qa-top { padding-bottom: 0.6rem; border-bottom: 1px solid var(--border); }
+.qa-hint { margin: 0.5rem 0 0; font-size: 0.84rem; }
+.qa-list { flex: 1; min-height: 0; overflow-y: auto; margin: 0 -1.2rem; padding: 0 1.2rem; }
+
+/* A equipa escolhida na tabela "Por equipa" das Estatísticas. */
+.stat-table tr.is-selected td { background: color-mix(in srgb, var(--info) 8%, var(--surface)); }
+.stat-table tr.is-selected .link-btn { font-weight: 700; }
+
 /* Os totais da sessão numa linha, por baixo da barra de progresso. */
 .pres-tally { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0.6rem 0 0; }
 .pres-unmarked { margin: 0.7rem 0 0; font-size: 0.84rem; color: var(--warn-ink); }

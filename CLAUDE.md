@@ -432,7 +432,7 @@ src/
     calendario.js       Vista Calendário
     jogos.js            Secção Jogos (lista de jogos com o percurso de cada um + separador Scout)
     agenda-sync.js      Link de subscrição da agenda da fisio (Google/iPhone)
-    presencas.js        Presenças dos treinos e da musculação (por fechar, todos presentes, estatísticas)
+    presencas.js        Presenças dos treinos (por fechar, todos presentes, estatísticas, marcar do Painel)
     convocatoria.js     Convocatória de um jogo (diálogo aberto dos Jogos e do Painel)
     portal.js           Portal do atleta (a sua página pessoal, mobile-first)
     quiosque.js         Modo quiosque: câmara à entrada regista presenças por QR
@@ -2469,6 +2469,19 @@ separador antes de navegar (usado pelos cartões do Painel).
     calendário eram centenas de treinos futuros entre o hoje e o ontem. Os
     totais da sessão são uma linha de crachás por baixo da barra
     (`tallyHTML`), e não quatro cartões a empurrar a lista para baixo.
+  - **O "Marcar" do Painel é o mesmo ecrã em diálogo** (`openQuickAttendance`):
+    é o caminho de todos os dias do treinador e tinha só os quatro botões por
+    atleta e o `prompt()` do browser. Passou a ter a contagem, "Todos
+    presentes" (que salta quem avisou), o aviso e o "Justificar com o aviso"
+    na linha, e o atraso/justificação escritos na própria linha — as mesmas
+    funções do ecrã inteiro (`playerRow`, `handleStatusClick`). Marca-se por
+    EXCEÇÃO: todos presentes e depois só quem faltou. Subscreve o store
+    enquanto está aberto, para se re-desenhar a cada gravação.
+  - **"Por equipa" nas Estatísticas** (`teamsOverviewHTML`, com duas equipas
+    ou mais): a comparência dos últimos 30 dias e os treinos por fechar de
+    cada escalão lado a lado. Responder a "como está cada equipa?" escolhendo
+    uma a uma no seletor eram dez trocas; os 30 dias e não a época, porque com
+    a época um escalão que deixou de aparecer em outubro continua com 85%.
   - **As estatísticas veem-se por época E por mês** (`monthBarHTML`): a taxa da
     época é a média de oito meses e esconde precisamente o que há para
     explicar. E dizem quantos treinos ainda não têm NENHUM registo: esses não
