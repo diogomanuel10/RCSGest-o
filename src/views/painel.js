@@ -47,6 +47,8 @@ import {
   birthDateReady,
   eventRoster,
   eventResponseSummary,
+  teamsOverview,
+  gamesWithoutSquad,
 } from '../compute.js';
 import {
   EVENT_TYPE_LABEL,
@@ -212,6 +214,7 @@ export function renderPainel(container) {
     <div class="panel-grid${urgente ? '' : ' panel-grid--calm'}">
       <div class="panel-grid__main">
         ${workCard(actions)}
+        ${teamsCard()}
       </div>
       <aside class="panel-grid__side">
         ${today.length && seeCalendar ? todayCard(today) : ''}
@@ -612,6 +615,8 @@ export const ALERT_CATALOG = [
   { key: 'avaliacoes',      label: 'Avaliações de atleta por decidir', can: () => canEdit('players') },
   { key: 'documentos',      label: 'Documentos a expirar',           can: () => canEdit('documents') },
   { key: 'presencas',       label: 'Presenças por marcar',           can: () => canEdit('attendances') },
+  { key: 'convocatorias',   label: 'Jogos próximos sem convocatória', can: () => canEdit('squads') && isCoordenador() },
+  { key: 'resultados',      label: 'Jogos sem resultado registado',  can: () => canEdit('squads') && isCoordenador() },
   { key: 'aniversarios',    label: 'Aniversários no cabeçalho',      can: () => true },
   { key: 'aniversarios_falta', label: 'Datas de nascimento por preencher', can: () => canEdit('players') },
   { key: 'fichas_incompletas', label: 'Fichas de atleta por completar', can: () => canEdit('documents') },
@@ -681,6 +686,8 @@ const FAMILY_SUMMARY = {
   gap:        (n) => `${n} atletas treinam muito e jogam pouco`,
   queda:      (n) => `${n} atletas deixaram de aparecer aos treinos`,
   documentos: (n) => `${n} documentos por renovar`,
+  convocatorias: (n) => `${n} jogos próximos sem convocatória`,
+  resultados: (n) => `${n} jogos sem resultado registado`,
   sem_data:   (n) => `${n} atletas sem data de nascimento`,
   fichas:     (n) => `${n} fichas de atleta por completar`,
   marketing_datas:    (n) => `${n} datas desta semana sem iniciativa`,
@@ -737,6 +744,57 @@ function buildActions({ includePresencas = false } = {}) {
         title: `${pend.length} treino${pend.length === 1 ? '' : 's'} com presenças por marcar`,
         sub: atrasados.length ? `${atrasados.length} já passaram sem registo` : '',
       });
+    }
+  }
+
+  // Jogos — a mesma supervisão das presenças. Quem convoca e quem regista o
+  // resultado é o treinador; ao coordenador interessa saber o que ficou por
+  // fazer antes de o pavilhão ou o site darem por isso.
+  if (includePresencas && canEdit('squads') && isCoordenador()) {
+    if (alertOn('convocatorias')) {
+      // Um jogo a 48h sem lista já é para hoje (a convocatória tem de chegar
+      // às famílias a tempo de se organizarem); a 72h ainda vai a tempo.
+      const em48 = Date.now() + 48 * 3600000;
+      gamesWithoutSquad(72).forEach((ev) => {
+        const dt = eventDateTime(ev);
+        const team = teamById(ev.team_id);
+        const nome = `${team ? teamName(team) : 'Jogo'}${ev.opponent ? ' vs ' + ev.opponent : ''}`;
+        items.push({
+          urgency: dt.getTime() <= em48 ? 'agora' : 'semana',
+          variant: dt.getTime() <= em48 ? 'danger' : 'warn',
+          family: 'convocatorias',
+          name: nome,
+          // Um jogo leva à convocatória (ver `wireWorkTargets`).
+          event: ev.id,
+          route: 'jogos',
+          title: `Sem convocatória — ${nome}`,
+          sub: dt.toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'short' })
+            + (ev.time ? ` · ${ev.time.slice(0, 5)}` : ''),
+        });
+      });
+    }
+    if (alertOn('resultados')) {
+      // Só os do último mês. Um clube que nunca registou resultados teria aqui
+      // a época inteira para sempre, e uma pendência que nunca sai deixa de se
+      // ler. Os mais antigos continuam contados no cartão "Por equipa".
+      const desde = Date.now() - 30 * 86400000;
+      gamesWithoutResult(500)
+        .filter((ev) => eventDateTime(ev).getTime() >= desde)
+        .forEach((ev) => {
+          const team = teamById(ev.team_id);
+          const nome = `${team ? teamName(team) : (ev.title || 'Jogo')}${ev.opponent ? ' vs ' + ev.opponent : ''}`;
+          const dias = daysAgo(ev);
+          items.push({
+            urgency: 'semana',
+            variant: 'warn',
+            family: 'resultados',
+            name: nome,
+            result: ev.team_id ? ev.id : null,
+            route: 'jogos',
+            title: `Resultado por registar — ${nome}`,
+            sub: dias <= 0 ? 'Jogou-se hoje' : `Jogou-se há ${dias} dia${dias === 1 ? '' : 's'}`,
+          });
+        });
     }
   }
 
@@ -1045,6 +1103,77 @@ function workCard(actions) {
     </section>`;
 }
 
+// --- Por equipa ----------------------------------------------------------
+// A faixa de cima é o clube inteiro, e a média de dez escalões esconde
+// exatamente o escalão que está a correr mal. Este cartão responde a "qual
+// das minhas equipas precisa de mim?" numa linha por equipa, com o que muda
+// de semana para semana: comparência dos últimos 30 dias (e a direção dela),
+// treinos por fechar, jogos sem resultado, balanço e quem não está a 100%.
+//
+// Não é trabalho (isso está na lista de cima) — é a leitura que faz
+// encontrar o trabalho que ainda nenhum aviso apanhou. Por isso vem a seguir
+// à lista e só aparece com duas equipas ou mais: com uma, repetia a faixa.
+//
+// Só ao coordenador: é supervisão dos treinadores, e a direção já tem a
+// faixa do clube. A coluna "Não a 100%" lê `athlete_availability`, que é
+// da equipa técnica.
+function teamsCard() {
+  if (!isCoordenador() || !canAccess('presencas')) return '';
+  const rows = teamsOverview(30);
+  if (rows.length < 2) return '';
+
+  const tone = (pct) => pct == null ? '' : pct >= 70 ? 'stat-pct--ok' : pct >= 50 ? 'stat-pct--warn' : 'stat-pct--danger';
+  const seta = (d) => d == null || Math.abs(d) < 3 ? ''
+    : `<span class="team-ov__delta team-ov__delta--${d < 0 ? 'down' : 'up'}"
+             title="${d > 0 ? '+' : ''}${d} pontos face aos 30 dias anteriores">${d < 0 ? '↓' : '↑'}${Math.abs(d)}</span>`;
+  const count = (n, route, tone = 'warn') => n
+    ? `<button type="button" class="link-btn" data-nav="${route}"><span class="badge badge--${tone}">${n}</span></button>`
+    : '<span class="muted">—</span>';
+  // Uma equipa "precisa de ti" quando a comparência caiu 10 pontos ou está
+  // abaixo de 50%, ou quando há registo por fazer. A marca é uma barra à
+  // esquerda e não a linha inteira pintada: dez linhas âmbar não se leem.
+  const precisa = (r) => (r.delta != null && r.delta <= -10) || (r.pct != null && r.pct < 50)
+    || r.porFechar > 0 || r.semResultado > 0;
+  const comAtencao = rows.filter(precisa).length;
+
+  return `
+    <section class="card team-ov">
+      <h2 class="section-title upcoming-card__title">Por equipa
+        <span class="muted" style="font-weight:400">· ${comAtencao
+          ? `${comAtencao} de ${rows.length} com alguma coisa por ver`
+          : 'tudo em dia'}</span>
+      </h2>
+      <div class="stat-table-wrap">
+        <table class="stat-table table--stack team-ov__table">
+          <thead><tr>
+            <th>Equipa</th>
+            <th class="stat-col--center" title="Últimos 30 dias">Comparência</th>
+            <th class="stat-col--center">Por fechar</th>
+            <th class="stat-col--center">Sem resultado</th>
+            <th class="stat-col--center">Balanço</th>
+            <th class="stat-col--center">Não a 100%</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map((r) => `
+              <tr class="${precisa(r) ? 'team-ov__row--attn' : ''}">
+                <td><strong>${esc(teamName(r.team))}</strong>
+                  <span class="muted team-ov__sub">${r.atletas} atleta${r.atletas === 1 ? '' : 's'}</span></td>
+                <td class="stat-col--center">${r.pct == null
+                  ? `<span class="muted" title="Sem presenças registadas nos últimos 30 dias">—</span>`
+                  : `<strong class="stat-pct ${tone(r.pct)}">${r.pct}%</strong>${seta(r.delta)}`}</td>
+                <td class="stat-col--center">${count(r.porFechar, 'presencas')}</td>
+                <td class="stat-col--center">${count(r.semResultado, 'jogos')}</td>
+                <td class="stat-col--center">${r.record.jogos
+                  ? `${r.record.vitorias}–${r.record.derrotas}`
+                  : '<span class="muted">—</span>'}</td>
+                <td class="stat-col--center">${count(r.limitados, 'saude', 'info')}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </section>`;
+}
+
 // Faixa de números. Substitui os nove cartões com ícone: cada um ocupava duas
 // linhas e um ícone de 42px para dizer um número, e nove deles enchiam o ecrã
 // de um telemóvel antes de se chegar ao que há para fazer. A faixa diz os
@@ -1180,6 +1309,9 @@ function wireWorkTargets(root, { tab = 'geral', includeNav = false, before = nul
   root.querySelectorAll('[data-work-group]').forEach((el) =>
     el.addEventListener('click', () => openWorkGroup(el.dataset.workGroup, tab))
   );
+  root.querySelectorAll('[data-work-result]').forEach((el) =>
+    el.addEventListener('click', () => go(() => openResultModal(el.dataset.workResult)))
+  );
   root.querySelectorAll('[data-work-athlete]').forEach((el) =>
     el.addEventListener('click', () =>
       go(() => openAthleteProfile(el.dataset.workAthlete, { tab: el.dataset.workTab || tab }))
@@ -1258,8 +1390,10 @@ function openWorkGroup(family, tab = 'geral') {
 // a ficha do atleta, o evento concreto, e só depois a secção. Uma pendência que
 // nomeia uma pessoa ou um treino e aterra numa secção genérica devolve a quem
 // lê o trabalho de reencontrar ali o que o painel já sabia.
-function actionTarget({ group, docAthlete, athlete, tab, event, route }) {
+function actionTarget({ group, docAthlete, athlete, tab, event, result, route }) {
   if (group) return `data-work-group="${esc(group)}"`;
+  // Um jogo sem resultado abre o REGISTO do resultado, não a lista de jogos.
+  if (result) return `data-work-result="${esc(result)}"`;
   // Um documento leva à FICHA do atleta e não à secção: o que se vai fazer
   // ali é renovar aquele documento, e a lista de Plantéis é mais um clique
   // pelo meio.

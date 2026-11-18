@@ -1019,6 +1019,104 @@ export function attendanceTrend(days = 30) {
   };
 }
 
+// --- Por equipa (Painel do coordenador) ----------------------------------
+// A faixa de números do Painel é do clube inteiro, e uma média do clube
+// esconde precisamente a equipa que está a correr mal — é o argumento das
+// quedas individuais de comparência, um nível acima. Isto devolve, por
+// equipa, o que diz "este escalão precisa de mim": comparência recente e a
+// direção dela, treinos por fechar, jogos sem resultado, balanço e quem não
+// está a 100%.
+//
+// A comparência é dos últimos `days` dias e não da época: com a época, um
+// escalão que deixou de aparecer em outubro continua com 85% em dezembro.
+// A regra das Estatísticas das Presenças ("Por equipa").
+export function teamsOverview(days = 30) {
+  const now = new Date();
+  const ms = days * 86400000;
+  const ended = (ev) => {
+    const end = ev.end_time && /^\d{2}:\d{2}/.test(ev.end_time)
+      ? new Date(`${ev.date}T${ev.end_time.slice(0, 5)}:00`)
+      : new Date(eventDateTime(ev).getTime() + 90 * 60 * 1000);
+    return end <= now;
+  };
+  const attsByEvent = new Map();
+  state.attendances.forEach((a) => {
+    if (!attsByEvent.has(a.event_id)) attsByEvent.set(a.event_id, []);
+    attsByEvent.get(a.event_id).push(a);
+  });
+  const rateOf = (evs) => {
+    let total = 0, veio = 0;
+    evs.forEach((e) => (attsByEvent.get(e.id) || []).forEach((a) => {
+      total += 1;
+      if (a.status === 'presente' || a.status === 'atraso') veio += 1;
+    }));
+    return total ? Math.round((veio / total) * 100) : null;
+  };
+  const done = new Set(state.gameResults.map((r) => r.event_id));
+  const order = escaloes();
+  const rank = (t) => { const i = order.indexOf(t.escalao); return i === -1 ? 999 : i; };
+
+  return myTeams()
+    .slice()
+    .sort((a, b) => rank(a) - rank(b) || teamName(a).localeCompare(teamName(b)))
+    .map((t) => {
+      const evs = state.events.filter((e) => e.team_id === t.id);
+      const treinos = evs.filter((e) => e.type === 'treino' && ended(e));
+      const recentes = treinos.filter((e) => eventDateTime(e) >= new Date(now - ms));
+      const anteriores = treinos.filter((e) => {
+        const dt = eventDateTime(e);
+        return dt >= new Date(now - 2 * ms) && dt < new Date(now - ms);
+      });
+      const pct = rateOf(recentes);
+      const antes = rateOf(anteriores);
+      const plantel = state.players.filter((p) => p.team_id === t.id);
+      const ids = new Set(plantel.map((p) => p.id));
+      // Por fechar = acabou e falta registo a alguém do plantel. É a conta de
+      // `sessionCounts` nas Presenças, para os dois números baterem certo.
+      const porFechar = plantel.length ? treinos.filter((e) =>
+        (attsByEvent.get(e.id) || []).filter((a) => ids.has(a.player_id)).length < plantel.length
+      ).length : 0;
+      const semResultado = evs.filter(
+        (e) => e.type === 'jogo' && eventDateTime(e) < now && !done.has(e.id)
+      ).length;
+      const limitados = plantel.filter((p) => {
+        const av = playerAvailability(p.id);
+        return av && av.status && av.status !== 'apto';
+      }).length;
+      return {
+        team: t,
+        atletas: plantel.length,
+        treinos: recentes.length,
+        pct,
+        // Variação só com dados dos DOIS lados (a regra do `attendanceTrend`).
+        delta: pct != null && antes != null ? pct - antes : null,
+        porFechar,
+        semResultado,
+        record: teamRecord(t.id),
+        limitados,
+      };
+    });
+}
+
+// Jogos que se aproximam sem ninguém convocado. A convocatória é trabalho do
+// treinador, mas um jogo de sábado sem lista na quinta é o esquecimento que só
+// se descobre no pavilhão — e ao coordenador isto é supervisão, como as
+// presenças por marcar. Só jogos de uma equipa (um evento do clube não tem
+// plantel de onde convocar).
+export function gamesWithoutSquad(hours = 72) {
+  const now = new Date();
+  const limit = new Date(now.getTime() + hours * 3600000);
+  const called = new Set(state.squadPlayers.map((x) => x.squad_id));
+  const withSquad = new Set(
+    state.squads.filter((s) => called.has(s.id)).map((s) => s.event_id)
+  );
+  return state.events
+    .filter((e) => e.type === 'jogo' && e.team_id && isMyEvent(e))
+    .filter((e) => { const dt = eventDateTime(e); return dt >= now && dt <= limit; })
+    .filter((e) => !withSquad.has(e.id))
+    .sort((a, b) => eventDateTime(a) - eventDateTime(b));
+}
+
 // --- Queda individual de comparência -------------------------------------
 //
 // A tendência do clube (`attendanceTrend`) é uma média, e uma média esconde

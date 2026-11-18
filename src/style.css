@@ -1319,6 +1319,30 @@ button.metric--nav:focus-visible {
   .panel-grid--calm .panel-grid__side { order: -1; }
 }
 
+/* Painel do coordenador: "Por equipa". A equipa que precisa de atenção leva
+   uma barra à esquerda e não a linha pintada — dez linhas âmbar não se leem. */
+.team-ov .stat-table { min-width: 0; width: 100%; }
+.team-ov__sub {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+.team-ov__row--attn > td:first-child {
+  box-shadow: inset 3px 0 0 var(--warn);
+}
+.team-ov__delta {
+  margin-left: 0.3rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.team-ov__delta--down { color: var(--warn-ink); }
+.team-ov__delta--up   { color: var(--ok-ink); }
+@media (max-width: 640px) {
+  .team-ov__row--attn > td:first-child { box-shadow: none; }
+  .team-ov__row--attn { box-shadow: inset 3px 0 0 var(--warn); }
+  .team-ov__sub { display: inline; margin-left: 0.4rem; }
+}
+
 /* No telemóvel a saudação enchia duas linhas em maiúsculas de 1.75rem — cem
    píxeis, no ecrã mais apertado, para dizer o nome de quem já sabe quem é.
    O cabeçalho aperta e os botões de ação ficam compactos. */
