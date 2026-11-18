@@ -692,7 +692,6 @@ const FAMILY_SUMMARY = {
   sem_perfil:        (n) => `${n} atletas sem perfil físico`,
   sem_avaliacao:     (n) => `${n} atletas nunca avaliados`,
   avaliacao_antiga:  (n) => `${n} atletas sem avaliação há mais de ${STALE_TEST_DAYS} dias`,
-  musculacao_por_marcar:  (n) => `${n} sessões de musculação sem presenças`,
   musculacao_sem_atletas: (n) => `${n} sessões de musculação sem atletas escolhidos`,
 };
 const FAMILY_COLLAPSE_AT = 3;
@@ -1641,27 +1640,10 @@ function buildPrepActions() {
     }
   });
 
-  // As sessões de musculação que já passaram e ficaram sem registo nenhum. É o
-  // equivalente das "presenças por marcar" do treinador, e a mesma perda: o
-  // que se perde não é a linha, é saber quem apareceu — e sem isso o controlo
-  // de carga é uma folha em branco com boa vontade.
-  const agora = new Date();
-  const comRegisto = new Set(state.attendances.map((a) => a.event_id));
-  state.events
-    .filter((e) => e.type === 'musculacao' && eventDateTime(e) < agora)
-    .forEach((e) => {
-      const roster = eventRoster(e);
-      if (!roster.length || comRegisto.has(e.id)) return;
-      items.push({
-        urgency: 'semana', variant: 'warn', family: 'musculacao_por_marcar',
-        name: dataCurta(e.date), route: 'fisica',
-        title: `Musculação de ${dataCurta(e.date)} sem presenças`,
-      });
-    });
-
-  // E as que estão agendadas sem ninguém escolhido: uma sessão sem grupo não
+  // As sessões agendadas sem ninguém escolhido: uma sessão sem grupo não
   // aparece a atleta nenhuma, e quem a marcou fica à espera de gente que nunca
   // soube que tinha ginásio.
+  const agora = new Date();
   state.events
     .filter((e) => e.type === 'musculacao' && eventDateTime(e) >= agora)
     .forEach((e) => {

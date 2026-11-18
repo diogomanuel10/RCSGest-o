@@ -13,7 +13,6 @@ import {
   deleteRow,
   archiveRow,
   upsertGymAttendance,
-  upsertAttendance,
   dbErrorMessage,
 } from '../store.js';
 import { esc, emptyHTML, wireEmptyAction, paginate, paginationHTML, wirePagination, PAGE_SIZE } from '../ui.js';
@@ -34,7 +33,6 @@ import {
   eventDateTime,
   musculacaoSessions,
   eventRoster,
-  eventAttendanceMap,
 } from '../compute.js';
 import { openModal, confirmDialog, wireDialog } from '../modal.js';
 import {
@@ -43,7 +41,6 @@ import {
   PHASE_TYPES,
   PHASE_TYPE_LABEL,
   PHASE_TYPE_BADGE,
-  ATTENDANCE_STATUSES,
   ATTENDANCE_LABEL,
   ATTENDANCE_BADGE,
 } from '../constants.js';
@@ -157,8 +154,6 @@ export function renderPreparacao(container) {
   container.querySelector('#musc-recurrent')?.addEventListener('click', () => openRecurrentForm());
   container.querySelectorAll('[data-musc-edit]').forEach((b) =>
     b.addEventListener('click', () => openEventForm(b.dataset.muscEdit)));
-  container.querySelectorAll('[data-musc-att]').forEach((b) =>
-    b.addEventListener('click', () => openMusculacaoAttendance(b.dataset.muscAtt)));
   container.querySelectorAll('[data-musc-del]').forEach((b) =>
     b.addEventListener('click', () => removeSession(b.dataset.muscDel)));
 
@@ -416,7 +411,8 @@ function exerciseRowHTML(e, sessionId, editable) {
 // escolhidos para aquele horário (`event_players`).
 //
 // Aqui não se repete o calendário: mostra-se a lista de quem monta o horário,
-// com o número de atletas de cada sessão e as presenças à mão.
+// com o número de atletas de cada sessão. As sessões de musculação não
+// têm presenças: o grupo de cada horário é o registo.
 
 function renderMusculacao() {
   if (!state.musculacaoReady) {
@@ -430,8 +426,7 @@ function renderMusculacao() {
   const sessions = musculacaoSessions(selectedTeam);
   const now = new Date();
   // As próximas por ordem CRESCENTE (a de amanhã primeiro): é o horário que se
-  // está a montar. As passadas por ordem decrescente — aí a pergunta é a
-  // última, para lhe marcar as presenças.
+  // está a montar. As passadas por ordem decrescente (histórico).
   const proximas = sessions.filter((e) => eventDateTime(e) >= now).reverse();
   const passadas = sessions.filter((e) => eventDateTime(e) < now);
 
@@ -473,11 +468,7 @@ function renderMusculacao() {
 
 function sessionRowHTML(ev, editable) {
   const roster = eventRoster(ev);
-  const att = eventAttendanceMap(ev.id);
-  const marcados = roster.filter((p) => att[p.id]).length;
-  const presentes = roster.filter((p) => ['presente', 'atraso'].includes(att[p.id]?.status)).length;
   const range = eventTimeRange(ev);
-  const passou = eventDateTime(ev) < new Date();
 
   // O número de atletas é o que distingue uma sessão da outra — duas sessões
   // com a mesma hora e o mesmo sítio só diferem em quem lá vai. Vem no
@@ -498,84 +489,14 @@ function sessionRowHTML(ev, editable) {
             ? esc(roster.map((p) => p.name.split(' ')[0]).join(', '))
             : 'Sem atletas escolhidos'}
         </span>
-        ${passou && roster.length
-          ? `<span class="badge badge--${marcados === roster.length ? 'ok' : 'warn'}" style="margin-top:0.3rem;display:inline-block">
-               ${marcados === roster.length ? `${presentes} de ${roster.length} presentes` : `${roster.length - marcados} por marcar`}
-             </span>`
-          : ''}
       </div>
       <div class="cell-actions">
         ${editable
-          ? `<button class="btn btn--ghost btn--sm" data-musc-att="${ev.id}" type="button">Presenças</button>
-             <button class="btn btn--ghost btn--sm" data-musc-edit="${ev.id}" type="button">Editar</button>
+          ? `<button class="btn btn--ghost btn--sm" data-musc-edit="${ev.id}" type="button">Editar</button>
              <button class="btn btn--danger btn--sm" data-musc-del="${ev.id}" type="button">Remover</button>`
           : ''}
       </div>
     </article>`;
-}
-
-// As presenças de uma sessão marcam-se AQUI, e não só nas Presenças: o
-// preparador físico raramente tem acesso a essa secção (é do treinador), e uma
-// sessão que ele dá e não pode registar volta a viver no caderno.
-//
-// Escreve na MESMA tabela `attendances` que os treinos — é o mesmo gesto e o
-// mesmo dado. O que a mantém fora da comparência da equipa é o tipo do evento
-// (ver `attendanceStats`), não uma tabela à parte.
-function openMusculacaoAttendance(eventId) {
-  const ev = state.events.find((e) => e.id === eventId);
-  if (!ev) return;
-  const roster = eventRoster(ev);
-  const att = eventAttendanceMap(eventId);
-
-  const overlay = document.createElement('div');
-  overlay.className = 'modal-overlay';
-  overlay.innerHTML = `
-    <div class="modal card" role="dialog" aria-modal="true" aria-labelledby="musc-att-title" style="width:min(560px,96vw)">
-      <div class="modal__head">
-        <h2 class="section-title" id="musc-att-title">Presenças — ${esc(fmtDate(ev.date))}</h2>
-        <button class="modal__close" type="button" aria-label="Fechar">&times;</button>
-      </div>
-      ${roster.length
-        ? `<ul class="cf-appt-list">
-             ${roster.map((p) => `
-               <li class="cf-appt-row" data-musc-player="${p.id}">
-                 <span style="flex:1">${esc(p.name)}</span>
-                 <select class="musc-status" aria-label="Estado de ${esc(p.name)}">
-                   <option value="">Sem registo</option>
-                   ${ATTENDANCE_STATUSES.map((st) => `
-                     <option value="${st.key}" ${att[p.id]?.status === st.key ? 'selected' : ''}>${esc(st.label)}</option>`).join('')}
-                 </select>
-               </li>`).join('')}
-           </ul>`
-        : '<p class="muted">Esta sessão ainda não tem atletas escolhidos. Edita-a para escolher quem entra.</p>'}
-      <div id="musc-att-err" class="modal__error hidden"></div>
-      <div class="modal__actions">
-        <button class="btn btn--ghost" id="musc-att-cancel" type="button">Cancelar</button>
-        ${roster.length ? '<button class="btn btn--primary" id="musc-att-save" type="button">Guardar</button>' : ''}
-      </div>
-    </div>
-  `;
-  const close = wireDialog(overlay);
-  overlay.querySelector('#musc-att-cancel').addEventListener('click', close);
-
-  overlay.querySelector('#musc-att-save')?.addEventListener('click', async () => {
-    const rows = [...overlay.querySelectorAll('[data-musc-player]')]
-      .map((li) => ({ playerId: li.dataset.muscPlayer, status: li.querySelector('.musc-status').value }))
-      // "Sem registo" é uma resposta válida (ninguém marcou ainda) e não uma
-      // falta: só se escreve o que foi escolhido.
-      .filter((r) => r.status && att[r.playerId]?.status !== r.status);
-    const errEl = overlay.querySelector('#musc-att-err');
-    const btn = overlay.querySelector('#musc-att-save');
-    btn.disabled = true; btn.textContent = 'A guardar…';
-    try {
-      for (const r of rows) await upsertAttendance(eventId, r.playerId, { status: r.status });
-      close();
-    } catch (err) {
-      errEl.textContent = dbErrorMessage(err);
-      errEl.classList.remove('hidden');
-      btn.disabled = false; btn.textContent = 'Guardar';
-    }
-  });
 }
 
 // Uma sessão ARQUIVA-SE, como qualquer outro evento: o histórico de quem

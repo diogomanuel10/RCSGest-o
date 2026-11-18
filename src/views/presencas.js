@@ -1,6 +1,8 @@
 // Vista: Presenças — quem apareceu, um treino de cada vez.
 //
-// Treinos e sessões de musculação. Os JOGOS saíram daqui: a convocatória é um
+// Só treinos. A musculação deixou de ter presenças (o grupo de cada horário
+// continua a existir — é o horário do ginásio, não um registo de quem foi), e
+// os JOGOS saíram daqui: a convocatória é um
 // passo do jogo e vive na secção Jogos (`convocatoria.js`). Misturar os dois
 // no mesmo seletor punha um jogo de sábado entre vinte treinos, e o ecrã
 // mudava de forma conforme a linha escolhida.
@@ -22,7 +24,7 @@ import { esc, emptyHTML } from '../ui.js';
 import { eventDateTime, eventTimeRange, teamById, teamName, eventResponseSummary,
          playerEventResponse, eventRoster, isMyEvent, myTeams } from '../compute.js';
 import { ATTENDANCE_STATUSES, ATTENDANCE_LABEL, ATTENDANCE_BADGE,
-         EVENT_TYPE_LABEL, isPickedEvent,
+         EVENT_TYPE_LABEL,
          EVENT_RESPONSE_LABEL, EVENT_RESPONSE_BADGE } from '../constants.js';
 import { canMarkAttendance } from '../permissions.js';
 import { confirmDialog, wireDialog } from '../modal.js';
@@ -97,14 +99,14 @@ export function renderPresencas(container) {
   // Ao treinador só os das SUAS equipas (`isMyEvent`): os treinos dos outros
   // escalões não são trabalho dele, e no seletor eram metade das linhas.
   const eventos = state.events
-    .filter((e) => (e.type === 'treino' || e.type === 'musculacao') && isMyEvent(e))
+    .filter((e) => e.type === 'treino' && isMyEvent(e))
     .sort((a, b) => eventDateTime(b) - eventDateTime(a));
 
   const header = `
     <header class="page-head">
       <div>
         <h1 class="section-title">Presenças</h1>
-        <p class="muted" style="margin:0;font-size:0.88rem">Quem apareceu aos treinos e às sessões de musculação</p>
+        <p class="muted" style="margin:0;font-size:0.88rem">Quem apareceu aos treinos</p>
       </div>
       <span id="pres-head-action"></span>
     </header>`;
@@ -148,7 +150,6 @@ export function renderPresencas(container) {
   });
 
   const ev = eventos.find((e) => e.id === selectedEventId);
-  const isPicked = isPickedEvent(ev);
   const editable = canMarkAttendance(ev);
   const team = teamById(ev?.team_id);
   // Quem entra neste evento: a equipa, ou — na musculação — só o grupo daquele
@@ -180,7 +181,7 @@ export function renderPresencas(container) {
   // O quiosque procura o TREINO da equipa do atleta mais perto de agora
   // (`check_in_by_qr`): numa sessão de musculação não teria onde marcar, por
   // isso não se oferece — um botão que dá erro é pior do que botão nenhum.
-  const qrOn = editable && !isPicked && state.settings.qr_checkin_enabled === true;
+  const qrOn = editable && state.settings.qr_checkin_enabled === true;
   const note = closeNote(ev, { marked, total: totalPlayers });
 
   const shownPending = showAllPending ? pending : pending.slice(0, PENDING_LIMIT);
@@ -210,17 +211,18 @@ export function renderPresencas(container) {
           ? `<button class="btn btn--ghost btn--sm" id="pres-more" type="button">Mostrar os restantes ${pending.length - shownPending.length}</button>` : ''}
       </section>` : ''}
 
+    ${todayChipsHTML(eventos, selectedEventId, counts)}
+
     <div class="presenca-picker card" style="margin-bottom:1.2rem">
       <div class="row row--between row--wrap" style="gap:0.8rem">
         <div style="min-width:260px;flex:1">
-          <label for="pres-event">Treino ou sessão de musculação</label>
+          <label for="pres-event">Treino</label>
           <select id="pres-event">
             ${eventPickerHTML(eventos, selectedEventId, counts)}
           </select>
         </div>
         <div class="presenca-meta muted" style="font-size:0.86rem;align-self:flex-end;padding-bottom:0.1rem">
           ${team ? `<strong>${esc(teamName(team))}</strong> · ` : ''}${esc(dateStr)}${eventTimeRange(ev) ? ' · ' + esc(eventTimeRange(ev)) : ''}
-          ${isPicked ? '<br>Sessão de musculação — só os atletas deste horário.' : ''}
         </div>
       </div>
     </div>
@@ -241,19 +243,13 @@ export function renderPresencas(container) {
          </div>`
       : ''}
 
-    <section class="cards-grid aval-summary" style="margin-bottom:1.2rem">
-      ${summaryCard('Presentes', tally.presente, 'green')}
-      ${summaryCard('Atrasos', tally.atraso, 'warn')}
-      ${summaryCard('Justificados', tally.justificado, 'info')}
-      ${summaryCard('Faltas', tally.falta, 'red')}
-    </section>
-
     <section class="card">
       <div class="goal-card__header">
-        <h2 class="section-title goal-card__title">${isPicked ? 'Atletas deste horário' : 'Lista de atletas'}</h2>
+        <h2 class="section-title goal-card__title">Lista de atletas</h2>
         <span class="goal-card__pct">${marked}/${totalPlayers} · ${pct}% registado</span>
       </div>
       <div class="progress"><div class="progress__bar" style="width:${pct}%"></div></div>
+      ${marked ? `<p class="pres-tally">${tallyHTML(tally)}</p>` : ''}
 
       ${editable && team && totalPlayers && marked < totalPlayers && started
         ? `<div class="row row--between row--wrap pres-close">
@@ -274,9 +270,7 @@ export function renderPresencas(container) {
       ${!team
         ? '<p class="muted" style="margin:1rem 0 0">Este treino não tem equipa associada. Edita-o no Calendário para atribuir uma equipa.</p>'
         : !players.length
-        ? `<p class="muted" style="margin:1rem 0 0">${isPicked
-             ? 'Esta sessão ainda não tem atletas escolhidos. Edita-a no Calendário para escolher quem entra.'
-             : 'Sem atletas nesta equipa.'}</p>`
+        ? '<p class="muted" style="margin:1rem 0 0">Sem atletas nesta equipa.</p>'
         : `<ul class="pres-list">${players.map((p) => playerRow(p, attendanceMap[p.id], ev, editable)).join('')}</ul>`
       }
     </section>
@@ -388,8 +382,7 @@ function nearestEvent(eventos) {
 function shortLabel(ev) {
   const dt = eventDateTime(ev).toLocaleDateString('pt-PT', { weekday: 'short', day: '2-digit', month: 'short' });
   const tm = teamById(ev.team_id);
-  const kind = ev.type === 'musculacao' ? 'Musculação · ' : '';
-  return `${kind}${dt}${ev.time ? ' ' + ev.time.slice(0, 5) : ''}${tm ? ' — ' + teamName(tm) : ''}`;
+  return `${dt}${ev.time ? ' ' + ev.time.slice(0, 5) : ''}${tm ? ' — ' + teamName(tm) : ''}`;
 }
 
 // No seletor, cada sessão que já começou diz quantos registos tem ("12/18"):
@@ -404,7 +397,46 @@ function eventPickerHTML(eventos, selectedId, counts) {
   };
   const group = (label, list) =>
     list.length ? `<optgroup label="${esc(label)}">${list.map(opt).join('')}</optgroup>` : '';
-  return group('Hoje', hoje) + group('Próximos', proximos) + group('Anteriores', anteriores);
+  // Os "Próximos" ficam nos 14 dias seguintes: o calendário tem a época
+  // inteira lançada (centenas de treinos), e ninguém marca presenças a um
+  // treino de março — eram centenas de linhas entre o hoje e o ontem.
+  const limite = new Date(now.getTime() + 14 * 86400000);
+  const perto = proximos.filter((e) => eventDateTime(e) <= limite || e.id === selectedId);
+  return group('Hoje', hoje) + group('Próximos 14 dias', perto) + group('Anteriores', anteriores);
+}
+
+// Os treinos de HOJE num toque, por cima do seletor: é o que se procura em
+// quase todas as visitas, e num <select> são dois toques e uma lista para ler.
+function todayChipsHTML(eventos, selectedId, counts) {
+  const { hoje } = eventGroups(eventos);
+  if (!hoje.length) return '';
+  const now = new Date();
+  return `
+    <div class="pres-today" role="group" aria-label="Treinos de hoje">
+      <span class="pres-today__label">Hoje</span>
+      ${hoje.map((e) => {
+        const c = counts.get(e.id);
+        const tm = teamById(e.team_id);
+        const tag = c && c.total && eventDateTime(e) <= now ? ` · ${c.marked}/${c.total}` : '';
+        return `<button type="button" class="pres-today__chip${e.id === selectedId ? ' is-active' : ''}"
+                  data-pick-event="${esc(e.id)}" aria-pressed="${e.id === selectedId}">
+                  ${esc((e.time || '').slice(0, 5))}${tm ? ' ' + esc(teamName(tm)) : ''}${esc(tag)}
+                </button>`;
+      }).join('')}
+    </div>`;
+}
+
+// Os totais da sessão numa linha, por baixo da barra — eram quatro cartões
+// grandes entre o seletor e a lista, e num telemóvel empurravam a lista (que é
+// onde se trabalha) para fora do ecrã.
+function tallyHTML(tally) {
+  const parts = [
+    ['presente', 'Presentes', 'ok'],
+    ['atraso', 'Atrasos', 'warn'],
+    ['justificado', 'Justificados', 'info'],
+    ['falta', 'Faltas', 'danger'],
+  ].filter(([k]) => tally[k]);
+  return parts.map(([k, l, v]) => `<span class="badge badge--${v}">${tally[k]} ${l.toLowerCase()}</span>`).join(' ');
 }
 
 // O que o atleta respondeu ao evento. É informação DELE, separada do estado
@@ -430,15 +462,6 @@ async function closeSession(eventId, missing) {
   } catch (err) {
     toastError(dbErrorMessage(err));
   }
-}
-
-function summaryCard(label, value, variant) {
-  return `
-    <div class="card metric metric--${variant} aval-metric">
-      <span class="metric__label">${esc(label)}</span>
-      <strong class="metric__value">${value}</strong>
-    </div>
-  `;
 }
 
 function playerRow(player, attendance, event, editable) {
@@ -702,7 +725,7 @@ function renderSummary(container, tabBar) {
       <header class="page-head">
         <div>
           <h1 class="section-title">Presenças</h1>
-          <p class="muted" style="margin:0;font-size:0.88rem">Quem apareceu aos treinos e às sessões de musculação</p>
+          <p class="muted" style="margin:0;font-size:0.88rem">Quem apareceu aos treinos</p>
         </div>
       </header>
       ${tabBar}
@@ -766,7 +789,7 @@ function renderSummary(container, tabBar) {
     <header class="page-head">
       <div>
         <h1 class="section-title">Presenças</h1>
-        <p class="muted" style="margin:0;font-size:0.88rem">Quem apareceu aos treinos e às sessões de musculação</p>
+        <p class="muted" style="margin:0;font-size:0.88rem">Quem apareceu aos treinos</p>
       </div>
     </header>
 

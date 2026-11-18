@@ -1363,17 +1363,14 @@ separador antes de navegar (usado pelos cartões do Painel).
     "jogo", ficando com escrita no calendário inteiro por uma porta lateral. O
     treinador fica de fora: dois donos do mesmo horário é a forma de ninguém
     saber quem o mudou.
-  - **As presenças são as mesmas** (`attendances`, marcadas no ecrã de
-    Presenças ou no próprio separador da Preparação Física — o preparador
-    raramente tem acesso a Presenças, e uma sessão que ele dá e não pode
-    registar volta ao caderno). **Mas não contam para a comparência da
-    equipa**: `attendanceStats` passou a contar só os TREINOS. Misturá-las
-    fazia a taxa do escalão subir ou descer consoante quem o preparador
-    tivesse chamado ao ginásio — é a mesma razão por que os jogos nunca
-    entraram.
-  - **O `close_attendance_session` fecha sobre o GRUPO**, não sobre a equipa:
-    numa sessão de oito, a versão antiga marcava falta às doze que nem estavam
-    escaladas.
+  - **A musculação NÃO tem presenças** (desde nov. 2026). Tinha — na mesma
+    tabela `attendances`, marcadas nas Presenças e na Preparação Física — e
+    era mais uma lista por fechar ao lado das dos treinos, que ninguém
+    fechava. O grupo de cada horário (`event_players`) é o registo; quem foi
+    ao ginásio deixou de se marcar. As linhas antigas ficaram na base de
+    dados, mas a app já não as escreve nem as mostra, e o Painel do
+    preparador já não avisa "sessão sem presenças". A comparência da equipa
+    sempre contou só os TREINOS (`attendanceStats`).
   - **O quiosque QR não entra aqui**, de propósito: o `check_in_by_qr` procura
     o TREINO da equipa do atleta mais perto de agora, e um quiosque que
     "adivinhasse" o grupo marcava presença a quem passou pela porta sem estar
@@ -2427,8 +2424,8 @@ separador antes de navegar (usado pelos cartões do Painel).
   ser lida. **Não é um
   juízo sobre o treinador** — é obrigar a que seja decisão consciente em vez de
   uma coisa que simplesmente acontece.
-- **Presenças: quem apareceu, treino a treino** (`presencas.js`). Treinos e
-  sessões de musculação — os **jogos saíram daqui**: a convocatória é um passo
+- **Presenças: quem apareceu, treino a treino** (`presencas.js`). Só
+  treinos — a musculação deixou de ter presenças e os **jogos saíram daqui**: a convocatória é um passo
   do jogo e abre-se como diálogo da secção Jogos (`openSquadModal` em
   `convocatoria.js`, também usado pelo Painel). No mesmo seletor, um jogo de
   sábado vivia entre vinte treinos e o ecrã mudava de forma conforme a linha.
@@ -2467,6 +2464,11 @@ separador antes de navegar (usado pelos cartões do Painel).
     voltar a escrever o que já lá está.
   - **O treinador vê só as SUAS equipas** (`isMyEvent`/`myTeams`), no seletor
     e nas Estatísticas.
+  - **Os treinos de hoje são botões** por cima do seletor (`todayChipsHTML`),
+    e o seletor só leva os próximos 14 dias: com a época toda lançada no
+    calendário eram centenas de treinos futuros entre o hoje e o ontem. Os
+    totais da sessão são uma linha de crachás por baixo da barra
+    (`tallyHTML`), e não quatro cartões a empurrar a lista para baixo.
   - **As estatísticas veem-se por época E por mês** (`monthBarHTML`): a taxa da
     época é a média de oito meses e esconde precisamente o que há para
     explicar. E dizem quantos treinos ainda não têm NENHUM registo: esses não

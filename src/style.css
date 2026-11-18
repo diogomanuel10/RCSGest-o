@@ -6569,6 +6569,28 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 .pres-pending__label { font-weight: 600; font-size: 0.88rem; text-transform: capitalize; }
 .pres-pending__note { flex-basis: 100%; font-size: 0.8rem; }
 .pres-justify { margin-top: 0.3rem; align-self: flex-start; }
+
+/* Os treinos de hoje num toque, por cima do seletor. */
+.pres-today { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin: 0 0 0.8rem; }
+.pres-today__label { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); margin-right: 0.2rem; }
+.pres-today__chip {
+  min-height: 38px;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.pres-today__chip:hover { background: color-mix(in srgb, var(--info) 6%, var(--surface)); }
+.pres-today__chip.is-active { border-color: var(--info); background: color-mix(in srgb, var(--info) 12%, var(--surface)); color: var(--info-ink); }
+@media (hover: none) { .pres-today__chip { min-height: 44px; } }
+
+/* Os totais da sessão numa linha, por baixo da barra de progresso. */
+.pres-tally { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0.6rem 0 0; }
 .pres-unmarked { margin: 0.7rem 0 0; font-size: 0.84rem; color: var(--warn-ink); }
 
 /* Um nome que abre a ficha, sem parecer um botão. */
