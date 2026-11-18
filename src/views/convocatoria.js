@@ -12,14 +12,14 @@
 // Estar convocado é ter linha em `squad_players`; não ter linha é ficar de
 // fora. Não há terceiro estado (ver SQUAD_CALLED em constants.js).
 
-import { state, ensureSquad, upsertSquadPlayer, removeSquadPlayer, dbErrorMessage } from '../store.js';
+import { state, ensureSquad, upsertSquadPlayer, addSquadPlayers, removeSquadPlayer, dbErrorMessage } from '../store.js';
 import { esc } from '../ui.js';
 import { eventDateTime, eventTimeRange, teamById, teamName, eventResponseSummary,
          playerEventResponse, eventRoster } from '../compute.js';
 import { SQUAD_CALLED, EVENT_RESPONSE_LABEL, EVENT_RESPONSE_BADGE } from '../constants.js';
 import { canEdit } from '../permissions.js';
 import { confirmDialog, wireDialog } from '../modal.js';
-import { toastError } from '../toast.js';
+import { toastError, toastOk } from '../toast.js';
 
 export function openSquadModal(eventId) {
   const ev = state.events.find((e) => e.id === eventId);
@@ -66,9 +66,37 @@ export function openSquadModal(eventId) {
     paint();
   };
 
+  // A convocatória do jogo ANTERIOR da mesma equipa — a que mais vezes se
+  // repete quase igual. Montar vinte nomes de raiz todas as semanas, para
+  // trocar dois, era o gesto mais repetido do treinador. Só os atletas que
+  // continuam no plantel; quem avisou que não vem a ESTE jogo fica de fora
+  // (e diz-se), pela mesma regra do "Todos presentes".
+  function previousSquad() {
+    if (!ev.team_id) return null;
+    const when = eventDateTime(ev);
+    const prev = state.events
+      .filter((e) => e.type === 'jogo' && e.team_id === ev.team_id && e.id !== ev.id && eventDateTime(e) < when)
+      .sort((a, b) => eventDateTime(b) - eventDateTime(a))
+      .find((e) => {
+        const sq = state.squads.find((s) => s.event_id === e.id);
+        return sq && state.squadPlayers.some((x) => x.squad_id === sq.id);
+      });
+    if (!prev) return null;
+    const sq = state.squads.find((s) => s.event_id === prev.id);
+    const ids = new Set(state.squadPlayers.filter((x) => x.squad_id === sq.id).map((x) => x.player_id));
+    const inRoster = players.filter((p) => ids.has(p.id));
+    return inRoster.length ? { event: prev, players: inRoster } : null;
+  }
+
   function paint() {
     const avisos = eventResponseSummary(eventId);
+    const avisouIds = new Set(avisos.ausentes.map((a) => a.player.id));
     const called = players.filter((p) => isCalled(p.id)).length;
+    const prev = editable && !called ? previousSquad() : null;
+    const prevLabel = prev
+      ? `${eventDateTime(prev.event).toLocaleDateString('pt-PT', { day: '2-digit', month: 'short' }).replace('.', '')}${
+          prev.event.opponent ? ' vs ' + prev.event.opponent : ''}`
+      : '';
     body.innerHTML = `
       ${avisos.ausentes.length ? `
         <div class="card pres-avisos" style="margin-bottom:0.8rem">
@@ -84,6 +112,8 @@ export function openSquadModal(eventId) {
         <strong>${called} de ${players.length} convocad${called === 1 ? 'o' : 'os'}</strong>
         ${editable && players.length ? `
           <div class="row" style="gap:0.4rem">
+            ${prev ? `<button class="btn btn--primary btn--sm" data-sq-repeat type="button"
+                 title="Convoca quem foi ao jogo de ${esc(prevLabel)}">Repetir a do último jogo (${prev.players.length})</button>` : ''}
             ${called < players.length ? '<button class="btn btn--ghost btn--sm" data-sq-all type="button">Convocar todos</button>' : ''}
             ${called ? '<button class="btn btn--ghost btn--sm" data-sq-clear type="button">Limpar</button>' : ''}
           </div>` : ''}
@@ -108,8 +138,19 @@ export function openSquadModal(eventId) {
     })));
     body.querySelector('[data-sq-all]')?.addEventListener('click', () => withError(async () => {
       const sq = await ensureSquad(eventId);
-      for (const p of players) if (!isCalled(p.id)) await upsertSquadPlayer(sq.id, p.id, SQUAD_CALLED);
+      await addSquadPlayers(sq.id, players.filter((p) => !isCalled(p.id)).map((p) => p.id), SQUAD_CALLED);
     }));
+    body.querySelector('[data-sq-repeat]')?.addEventListener('click', (e) => {
+      e.currentTarget.disabled = true;
+      withError(async () => {
+        const ids = prev.players.filter((p) => !avisouIds.has(p.id)).map((p) => p.id);
+        const fora = prev.players.filter((p) => avisouIds.has(p.id));
+        const sq = await ensureSquad(eventId);
+        await addSquadPlayers(sq.id, ids, SQUAD_CALLED);
+        toastOk(`${ids.length} convocad${ids.length === 1 ? 'o' : 'os'} como no jogo de ${prevLabel}.${
+          fora.length ? ` Ficou de fora quem avisou que não pode: ${fora.map((p) => p.name.split(' ')[0]).join(', ')}.` : ''}`);
+      });
+    });
     body.querySelector('[data-sq-clear]')?.addEventListener('click', async () => {
       const ok = await confirmDialog(`Limpar a convocatória deste jogo (${called} atleta${called === 1 ? '' : 's'})?`,
         { confirmLabel: 'Limpar', danger: true });

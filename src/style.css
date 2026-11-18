@@ -6601,6 +6601,19 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 .stat-table tr.is-selected td { background: color-mix(in srgb, var(--info) 8%, var(--surface)); }
 .stat-table tr.is-selected .link-btn { font-weight: 700; }
 
+/* Copiar o plano de outro treino: uma linha por treino candidato. */
+.cp-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
+.cp-item {
+  width: 100%; display: grid; gap: 0.1rem; text-align: left;
+  padding: 0.6rem 0.75rem; border: 1px solid var(--border); border-radius: var(--radius-xs, 6px);
+  background: var(--surface); color: var(--text); font: inherit; cursor: pointer;
+}
+.cp-item:hover { background: color-mix(in srgb, var(--info) 6%, var(--surface)); border-color: var(--info); }
+.cp-item:disabled { opacity: 0.6; cursor: wait; }
+.cp-item__date { font-weight: 700; font-size: 0.86rem; text-transform: capitalize; }
+.cp-item__what { font-size: 0.9rem; }
+.cp-item__meta { font-size: 0.8rem; }
+
 /* Os totais da sessão numa linha, por baixo da barra de progresso. */
 .pres-tally { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0.6rem 0 0; }
 .pres-unmarked { margin: 0.7rem 0 0; font-size: 0.84rem; color: var(--warn-ink); }

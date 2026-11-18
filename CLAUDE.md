@@ -1666,6 +1666,14 @@ separador antes de navegar (usado pelos cartões do Painel).
     errada no sítio errado: o 6 inicial decide-se no pavilhão e muda no
     aquecimento, mas o portal mostrava-o como facto dias antes do jogo. A
     coluna `status` fica (com um só valor) para não mexer na chave única.
+  - **"Repetir a do último jogo"** (`previousSquad`): a convocatória do jogo
+    anterior da mesma equipa, num toque, enquanto esta ainda está vazia.
+    Montar vinte nomes de raiz todas as semanas para trocar dois era o gesto
+    mais repetido do treinador. Só entra quem continua no plantel, e quem
+    avisou que não vem a ESTE jogo fica de fora e diz-se no aviso — a regra do
+    "Todos presentes". Este botão e o "Convocar todos" gravam numa só escrita
+    (`addSquadPlayers`); os gatilhos continuam por linha, cada atleta recebe o
+    seu aviso.
 - **Scout ao vivo** (`supabase/scout.sql`, `scout-engine.js`, `scout-export.js`,
   `views/scout.js`): durante o jogo o treinador toca na atleta e na ação
   (receção, passe, ataque, serviço, bloco, defesa, com a qualidade `# + − / =`
@@ -2145,6 +2153,15 @@ separador antes de navegar (usado pelos cartões do Painel).
     não se esconde um exercício por falta de dados. O seletor abre já com o
     tamanho do plantel preenchido.
   - O atleta não lê a biblioteca: é material de trabalho do treinador.
+- **Copiar o plano de outro treino** (`plansToCopy`/`copyPlanInto` em
+  `training-plan.js`, botão "Copiar de outro treino" num plano ainda sem
+  blocos): o treino de quinta é quase sempre o de terça com dois exercícios
+  trocados, e montá-lo de raiz era o que deixava o plano por escrever. Os
+  candidatos são os treinos da MESMA equipa com blocos, os anteriores
+  primeiro. É uma CÓPIA (a regra da biblioteca): editar a cópia não reescreve
+  o original. O cabeçalho só se preenche onde está vazio, e copiam-se só as
+  colunas que a linha tem, para não partir num clube com migrações por
+  correr.
 - **Ligações no plano de treino** (`supabase/plano-links.sql`): nem todo o
   trabalho do treinador nasce aqui. O plano é muitas vezes montado noutra app
   (um quadro tático, uma folha partilhada) e o exercício tem um vídeo. Sem
