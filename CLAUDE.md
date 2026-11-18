@@ -406,6 +406,7 @@ src/
   scout-export.js       Scout: Excel (.xlsx, SheetJS lazy) e folha A4 do jogo/época
   scout-insights.js     Scout: análise pós-jogo (dicas ao treinador) e nomes das rotações
   scout-patterns.js     Scout: padrões do jogo (séries, final de set, serviço, zonas…), lógica pura
+  scout-positions.js    Scout: por posição (distribuidoras, atacantes, recetoras, sequências), lógica pura
   assets/logo.svg       Logótipo do clube (emblema SVG)
   views/
     config-help.js      Ecrã quando faltam as variáveis do Supabase
@@ -437,6 +438,7 @@ src/
     quiosque.js         Modo quiosque: câmara à entrada regista presenças por QR
     resultado.js        Registo do resultado de um jogo (parciais + participação)
     scout.js            Scout ao vivo: secção (jogos por equipa, época) + ecrã de jogo
+    scout-positions.js  Scout → Por posição: as atletas da mesma posição lado a lado
     treino.js           Secção Treino (separadores Exercícios + Decisão Tática)
     tatica.js           Decisão Tática (cenários por posição; atleta responde no portal)
     exercicios.js       Biblioteca de exercícios do clube (+ escolher da biblioteca)
@@ -2089,6 +2091,39 @@ separador antes de navegar (usado pelos cartões do Painel).
       diz em quantas ações assenta; os erros sem tipo contam-se à parte.
     - O Excel leva as colunas "Zona" e "Tipo de erro" na folha das Ações,
       vazias quando não se marcaram.
+  - **Por posição** (`scout-positions.js` para as contas, `views/scout-positions.js`
+    para o ecrã; seletor "Jogos | Por posição" no topo do Scout): as atletas
+    da MESMA posição lado a lado, para quem prepara a semana com duas ou três
+    distribuidoras, pontas ou recetoras. Desenhado sobre uma maqueta. Quatro
+    separadores, num jogo ou na época:
+    - **Distribuidoras**: para onde distribui em cada SITUAÇÃO (receção #, +,
+      −, defesa boa, defesa má), se a atacante fez ponto em cada zona (contra
+      a equipa nessa zona), o passe dela (#, +, −) → o que a atacante fez, e
+      por rotação a zona da 1.ª bola e o side-out (contra ela própria).
+    - **Atacantes** (filtro Pontas/Opostas/Centrais): ponto, defendido,
+      bloqueado ou erro consoante a BOLA que recebeu (o passe), K1 ou K2, a
+      zona e a distribuidora que lhe passou — cada um contra a média da equipa
+      na mesma situação.
+    - **Líberos e recetoras**: a receção contra a equipa, por rotação e por
+      zona (contra ELA), o side-out depois da receção dela, e as defesas que
+      viraram ponto nosso.
+    - **Sequências**: as cadeias primeiro toque → passe → ataque mais comuns e
+      como acabaram, onde a cadeia se parte (receções → jogáveis → ataque →
+      ponto), a que mais custa e a que mais rende; com filtro "Com a atleta"
+      (só as cadeias em que ela tocou, com quem fez cada toque).
+    - **O contexto lê-se para trás no rally, sem marcar nada a mais**: a
+      situação de um passe é o último primeiro-toque antes dele; a bola da
+      atacante é a qualidade do passe imediatamente antes; quem passou é o
+      dono desse passe. **Sem passe marcado**, a bola lê-se pela receção ou
+      pela defesa e o passe conta para a distribuidora que estava em campo —
+      e o cartão diz quantos foram assim, em vez de o esconder.
+    - **Cada cartão abre com uma frase** (as regras com mínimos, como na
+      Análise do jogo): "com receção má, 8 em cada 10 bolas vão para a zona 4
+      — e a eficácia aí é 11%"; "com bola má faz ponto em 9%"; "custa-lhe a
+      R4". A cor a 10 pontos de diferença só com 5 ações ou mais.
+    - **É da equipa técnica e nunca chega ao portal**: compara colegas por
+      definição. Sem posição na ficha não há distribuidora nem zonas — a
+      página di-lo no topo.
   - **Exportação**: a folha A4 (`openSheet`, como o resumo pós-jogo; o PDF
     sai da janela de impressão) e o Excel com tudo — Jogos, Atletas (época),
     Atleta x Jogo e Ações, uma por linha — porque quem quer cruzar a época
