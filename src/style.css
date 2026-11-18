@@ -1674,6 +1674,25 @@ button.stat-strip__item--nav {
 .mark-item__sub {
   font-size: 0.8rem;
 }
+/* A linha de HOJE do treinador leva os botões (Plano, Marcar). Numa coluna
+   estreita (a lateral do Painel, ou o telemóvel) eles comiam a largura toda e
+   a equipa e o pavilhão desapareciam, ou partiam-se letra a letra. Aqui os
+   botões descem para baixo e o texto fica com a linha inteira. */
+.mark-item__actions {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  flex-shrink: 0;
+}
+.mark-item--today { flex-wrap: wrap; }
+.mark-item--today .mark-item__body { flex: 1 1 140px; }
+.mark-item--today .mark-item__sub {
+  white-space: nowrap;
+}
+@media (min-width: 1100px), (max-width: 640px) {
+  .mark-item--today .mark-item__actions { flex-basis: 100%; }
+  .mark-item--today .mark-item__actions > .btn { flex: 1; justify-content: center; }
+}
 
 @media (max-width: 900px) {
   .cards-grid {
@@ -8876,6 +8895,8 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
     order: 4;
     flex: 1 1 100%;
   }
+  .mark-item__actions { order: 4; flex: 1 1 100%; }
+  .mark-item__actions > .btn { flex: 1 1 0; justify-content: center; }
   .today-item__time,
   .mark-item__when,
   .noplan-item__date {
@@ -10317,4 +10338,15 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
   }
   .team-pills::-webkit-scrollbar { display: none; }
   .team-pills > .team-pill { flex: 0 0 auto; scroll-snap-align: start; }
+}
+
+/* Telemóvel: o "Marcar presenças" do Painel com mais atletas por ecrã. Cabiam
+   dois e meio — posição e ano por baixo do nome, número num círculo grande —
+   e um plantel de 21 eram oito ecrãs para marcar duas faltas. No diálogo o
+   que interessa é o nome e os quatro botões; a posição está na ficha. */
+@media (max-width: 600px) {
+  .qa-list .pres-row { padding: 0.45rem 0.6rem; gap: 0.35rem; }
+  .qa-list .aval-row__meta { display: none; }
+  .qa-list .aval-row__num { width: 28px; height: 28px; font-size: 0.8rem; }
+  .qa-hint { display: none; }
 }

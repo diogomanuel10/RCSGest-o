@@ -1983,7 +1983,7 @@ function coachTodayRow(ev, hideLocation = false) {
   const range = eventTimeRange(ev);
   const isJogo = ev.type === 'jogo';
   return `
-    <li class="mark-item">
+    <li class="mark-item mark-item--today">
       <div class="mark-item__when">
         <span class="mark-item__date mark-item__date--today">${esc(range || 'Hoje')}</span>
         <span class="muted mark-item__time">${esc(EVENT_TYPE_LABEL[ev.type] || ev.type)}</span>
@@ -1995,7 +1995,7 @@ function coachTodayRow(ev, hideLocation = false) {
           hideLocation ? '' : (ev.location || ''),
         ].filter(Boolean).join(' · ') || '—')}</span>
       </div>
-      <div style="display:flex;gap:0.4rem;align-items:center;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
+      <div class="mark-item__actions">
         ${isJogo
           ? `${canEdit('squads') && ev.team_id ? `<button class="btn btn--ghost btn--sm" data-squad-event="${ev.id}" type="button">Convocatória</button>` : ''}
              ${canEdit('game_results') ? `<button class="btn btn--accent btn--sm" data-result-event="${ev.id}" type="button">Resultado</button>` : ''}`
