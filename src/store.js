@@ -265,6 +265,7 @@ export function resetState() {
   state.sitePosts = [];
   state.siteProducts = [];
   state.siteOrders = [];
+  siteOrdersOpenLoaded = false;
   state.profile = null;
   state.profiles = [];
   state.org = null;
@@ -2707,6 +2708,26 @@ export async function setClubSite(slug, enabled) {
 // `loadAll` corre em cada arranque de toda a gente.
 
 let siteContentLoading = null;
+
+// Só as encomendas da loja ainda POR TRATAR, para o Painel do coordenador.
+// O `loadSiteContent` traz a galeria, as notícias e os produtos — nada disso
+// interessa ao Painel, e corre em cada arranque. Escreve no mesmo
+// `state.siteOrders` (sem marcar `siteContent`), por isso o ecrã do site
+// continua a fazer a sua carga inteira e o `updateRow` de uma encomenda
+// atualiza as duas leituras. Uma vez por sessão: sem a migração falha em
+// silêncio e o aviso simplesmente não existe.
+let siteOrdersOpenLoaded = false;
+export function loadOpenSiteOrders() {
+  if (siteOrdersOpenLoaded || state.siteContent || siteContentLoading) return;
+  siteOrdersOpenLoaded = true;
+  supabase.from('site_orders').select('*').eq('status', 'nova')
+    .order('created_at', { ascending: false }).limit(100)
+    .then(({ data, error }) => {
+      if (error || state.siteContent) return;
+      state.siteOrders = data || [];
+      notify();
+    });
+}
 
 export function loadSiteContent({ force = false } = {}) {
   if (siteContentLoading) return siteContentLoading;

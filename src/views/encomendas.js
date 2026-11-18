@@ -39,6 +39,14 @@ let tab = 'tamanhos'; // 'tamanhos' | 'resumo'
 // encomenda toda, tenha ou não sido paga.
 let filtro = 'todos'; // 'todos' | 'por_pagar' | 'pagos' | 'por_confirmar' | 'sem_tamanhos'
 
+// O Painel abre as Encomendas já no filtro que deu origem ao aviso ("por
+// cobrar", "por confirmar"): largá-lo na lista inteira era devolver o
+// trabalho de procurar quem é.
+export function setEncomendasFilter(f) {
+  filtro = f;
+  tab = 'tamanhos';
+}
+
 // Corpo do separador "Encomendas" (renderizado pelo orquestrador Equipamentos).
 export function renderEncomendasBody(container) {
   const teams = state.teams.slice().sort((a, b) => teamName(a).localeCompare(teamName(b)));

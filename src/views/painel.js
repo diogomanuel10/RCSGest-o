@@ -2,7 +2,7 @@
 // Cartões de métricas, barra de progresso da meta e próximos eventos.
 
 import {
-  state, savePainelPrefs, dbErrorMessage,
+  state, savePainelPrefs, dbErrorMessage, loadOpenSiteOrders,
 } from '../store.js';
 import { esc, euros } from '../ui.js';
 import {
@@ -49,6 +49,7 @@ import {
   eventResponseSummary,
   teamsOverview,
   gamesWithoutSquad,
+  ordersPending,
 } from '../compute.js';
 import {
   EVENT_TYPE_LABEL,
@@ -82,6 +83,9 @@ import { setSelectedEvent } from './presencas.js';
 import { openSquadModal } from './convocatoria.js';
 import { openResultModal } from './resultado.js';
 import { openSeasonPlanning } from './planteis.js';
+import { openDefinicoesTab } from './definicoes.js';
+import { openEquipamentosTab } from './equipamentos.js';
+import { setEncomendasFilter } from './encomendas.js';
 import { openBirthdayCard } from './parabens.js';
 import { DEFAULT_BRANDING } from '../branding.js';
 
@@ -245,12 +249,8 @@ export function renderPainel(container) {
   // Plantéis já no modo "Planear época").
   container.querySelectorAll('[data-nav]').forEach((el) => {
     el.addEventListener('click', () => {
-      if (el.dataset.plan) openSeasonPlanning();
       // Escolher o separador ANTES de navegar: a secção lê-o ao desenhar.
-      if (el.dataset.finTabOpen) openFinanceiroTab(el.dataset.finTabOpen);
-      // A fila de triagem vive num separador do Departamento Médico: sem isto
-      // o aviso largava quem tria na lista de atletas, a um clique do trabalho.
-      if (el.dataset.medTabOpen) { openSaudeTab('medico'); openMedicoTab(el.dataset.medTabOpen); }
+      openTargetTabs(el);
       navTo(el.dataset.nav);
     });
   });
@@ -605,6 +605,10 @@ function navTo(route) {
 export const ALERT_CATALOG = [
   { key: 'quotas',          label: 'Quotas por cobrar',              can: () => canEdit('quotas') },
   { key: 'recrutamento',    label: 'Prospetos prontos a inscrever',  can: () => canEdit('prospects') },
+  { key: 'inscricoes_site', label: 'Pedidos de inscrição do site',   can: () => canEdit('prospects') },
+  { key: 'loja',            label: 'Encomendas da loja do site',     can: () => isCoordenador() },
+  { key: 'encomendas_pagar',     label: 'Encomendas de equipamento por cobrar', can: () => canEdit('sizes') && canAccess('encomendas') },
+  { key: 'encomendas_confirmar', label: 'Encomendas por confirmar pela família', can: () => canEdit('sizes') && canAccess('encomendas') },
   { key: 'equipamentos',    label: 'Equipamento em mau estado',      can: () => canEdit('equipment') },
   { key: 'pedidos_equipamento', label: 'Pedidos de equipamento por decidir', can: () => canDecideRequests() },
   // Só a quem a fila é mesmo: ver `clubHasFisio` no corpo do aviso.
@@ -687,6 +691,8 @@ const FAMILY_SUMMARY = {
   queda:      (n) => `${n} atletas deixaram de aparecer aos treinos`,
   documentos: (n) => `${n} documentos por renovar`,
   convocatorias: (n) => `${n} jogos próximos sem convocatória`,
+  inscricoes_site: (n) => `${n} pedidos de inscrição do site por responder`,
+  loja: (n) => `${n} encomendas da loja por tratar`,
   resultados: (n) => `${n} jogos sem resultado registado`,
   sem_data:   (n) => `${n} atletas sem data de nascimento`,
   fichas:     (n) => `${n} fichas de atleta por completar`,
@@ -945,6 +951,92 @@ function buildActions({ includePresencas = false } = {}) {
     });
   }
 
+  // Pedidos de inscrição que chegaram pelo site e a que ninguém respondeu
+  // ainda (continuam "observado"). Chegavam só por notificação, e uma
+  // notificação lê-se uma vez: do outro lado está uma família à espera, e
+  // quem espera uma semana inscreve a filha noutro clube. Passados 3 dias
+  // sobe a "agora". Responder é mudar o estado no Recrutamento, e com isso
+  // sai daqui sozinho.
+  if (canEdit('prospects') && alertOn('inscricoes_site')) {
+    state.prospects
+      .filter((p) => p.source === 'site' && (p.status || 'observado') === 'observado')
+      .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))
+      .forEach((p) => {
+        const dias = daysSince(p.created_at);
+        const team = teamById(p.target_team_id);
+        items.push({
+          urgency: dias >= 3 ? 'agora' : 'semana',
+          variant: dias >= 3 ? 'danger' : 'warn',
+          family: 'inscricoes_site',
+          name: p.name,
+          route: 'recrutamento',
+          title: `Pedido de inscrição — ${p.name}`,
+          sub: [team ? teamName(team) : '', agoLabel(dias)].filter(Boolean).join(' · '),
+        });
+      });
+  }
+
+  // Encomendas da loja do site por tratar: a mesma regra dos pedidos de
+  // inscrição. A loja não cobra — é o coordenador quem combina pagamento e
+  // entrega —, por isso uma encomenda esquecida é uma venda perdida. Só com o
+  // site publicado (sem site não há loja), e carregadas à parte: não vão no
+  // `loadAll` (ver `loadOpenSiteOrders`).
+  if (isCoordenador() && alertOn('loja') && state.org?.site_enabled) {
+    loadOpenSiteOrders();
+    (state.siteOrders || [])
+      .filter((o) => o.status === 'nova')
+      .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))
+      .forEach((o) => {
+        const dias = daysSince(o.created_at);
+        items.push({
+          urgency: dias >= 3 ? 'agora' : 'semana',
+          variant: 'warn',
+          family: 'loja',
+          name: o.name,
+          route: 'definicoes',
+          defTab: 'site',
+          title: `Encomenda da loja — ${o.product_name}${o.size ? ` (${o.size})` : ''}${o.quantity > 1 ? ` ×${o.quantity}` : ''}`,
+          sub: `${o.name} · ${agoLabel(dias)}`,
+        });
+      });
+  }
+
+  // Encomendas de equipamento: o dinheiro por receber e as famílias que ainda
+  // não confirmaram os dados. São UMA linha cada, e não uma por atleta: o
+  // trabalho faz-se nas Encomendas, equipa a equipa, e a linha abre-as já no
+  // filtro certo. Uma lista de quarenta nomes aqui era a tabela outra vez.
+  if (canEdit('sizes') && canAccess('encomendas')) {
+    const enc = ordersPending();
+    if (alertOn('encomendas_pagar') && state.sizesPaidReady && enc.porPagar.length) {
+      const n = enc.porPagar.length;
+      items.push({
+        urgency: 'semana',
+        variant: 'warn',
+        route: 'equipamentos',
+        equipTab: 'encomendas',
+        encFilter: 'por_pagar',
+        title: `${n} encomenda${n === 1 ? '' : 's'} de equipamento por cobrar`,
+        // Os artigos sem preço dizem-se: um total que os engole em silêncio
+        // parece fechado e não está.
+        sub: `${euros(enc.total)} por receber${enc.semPreco ? ` + ${enc.semPreco} artigo${enc.semPreco === 1 ? '' : 's'} sem preço` : ''}`,
+      });
+    }
+    if (alertOn('encomendas_confirmar') && state.sizesConfirmReady && enc.porConfirmar.length) {
+      const n = enc.porConfirmar.length;
+      items.push({
+        urgency: 'depois',
+        variant: 'info',
+        route: 'equipamentos',
+        equipTab: 'encomendas',
+        encFilter: 'por_confirmar',
+        title: `${n} família${n === 1 ? '' : 's'} por confirmar os dados da encomenda`,
+        // O subtítulo diz QUEM — a regra do painel: um subtítulo só existe
+        // quando traz dado.
+        sub: `${enc.porConfirmar.slice(0, 4).map((p) => p.name).join(', ')}${n > 4 ? ` e mais ${n - 4}` : ''}`,
+      });
+    }
+  }
+
   if (canEdit('prospects') && alertOn('recrutamento')) {
     const ready = prospectsReady();
     if (ready > 0) {
@@ -1144,7 +1236,7 @@ function teamsCard() {
           : 'tudo em dia'}</span>
       </h2>
       <div class="stat-table-wrap">
-        <table class="stat-table table--stack team-ov__table">
+        <table class="stat-table no-stack team-ov__table">
           <thead><tr>
             <th>Equipa</th>
             <th class="stat-col--center" title="Últimos 30 dias">Comparência</th>
@@ -1171,6 +1263,26 @@ function teamsCard() {
           </tbody>
         </table>
       </div>
+      <ul class="team-ov__list">
+        ${rows.map((r) => {
+          const chips = [
+            r.porFechar && `<button type="button" class="badge badge--warn" data-nav="presencas">${r.porFechar} por fechar</button>`,
+            r.semResultado && `<button type="button" class="badge badge--warn" data-nav="jogos">${r.semResultado} sem resultado</button>`,
+            r.limitados && `<button type="button" class="badge badge--info" data-nav="saude">${r.limitados} não a 100%</button>`,
+          ].filter(Boolean).join('');
+          return `
+          <li class="team-ov__item${precisa(r) ? ' team-ov__row--attn' : ''}">
+            <div class="team-ov__line">
+              <strong>${esc(teamName(r.team))}</strong>
+              <span class="muted team-ov__meta">${r.record.jogos ? `${r.record.vitorias}–${r.record.derrotas} · ` : ''}${r.atletas} atl.</span>
+              <span class="team-ov__pct">${r.pct == null
+                ? '<span class="muted">—</span>'
+                : `<strong class="stat-pct ${tone(r.pct)}">${r.pct}%</strong>${seta(r.delta)}`}</span>
+            </div>
+            ${chips ? `<div class="team-ov__chips">${chips}</div>` : ''}
+          </li>`;
+        }).join('')}
+      </ul>
     </section>`;
 }
 
@@ -1284,6 +1396,9 @@ function collapseFamilies(items) {
       route: lead.route,
       finTab: lead.finTab,
       medTab: lead.medTab,
+      defTab: lead.defTab,
+      equipTab: lead.equipTab,
+      encFilter: lead.encFilter,
       title: titulo,
       sub: nomes.length
         ? `${nomes.slice(0, 4).join(', ')}${nomes.length > 4 ? ` e mais ${nomes.length - 4}` : ''}`
@@ -1336,14 +1451,26 @@ function wireWorkTargets(root, { tab = 'geral', includeNav = false, before = nul
   );
   root.querySelectorAll('[data-nav]').forEach((el) =>
     el.addEventListener('click', () => go(() => {
-      if (el.dataset.plan) openSeasonPlanning();
-      if (el.dataset.finTabOpen) openFinanceiroTab(el.dataset.finTabOpen);
-      // A fila de triagem vive num separador do Departamento Médico: sem isto
-      // o aviso largava quem tria na lista de atletas, a um clique do trabalho.
-      if (el.dataset.medTabOpen) { openSaudeTab('medico'); openMedicoTab(el.dataset.medTabOpen); }
+      openTargetTabs(el);
       navTo(el.dataset.nav);
     }))
   );
+}
+
+// Os separadores e filtros que uma linha escolhe ANTES de navegar — a secção
+// lê-os ao desenhar. Num sítio só porque o painel e o diálogo de grupo
+// navegam pelos mesmos atributos, e cada separador novo era acrescentado a um
+// e esquecido no outro.
+function openTargetTabs(el) {
+  const d = el.dataset;
+  if (d.plan) openSeasonPlanning();
+  if (d.finTabOpen) openFinanceiroTab(d.finTabOpen);
+  // A fila de triagem vive num separador do Departamento Médico: sem isto
+  // o aviso largava quem tria na lista de atletas, a um clique do trabalho.
+  if (d.medTabOpen) { openSaudeTab('medico'); openMedicoTab(d.medTabOpen); }
+  if (d.defTabOpen) openDefinicoesTab(d.defTabOpen);
+  if (d.equipTabOpen) openEquipamentosTab(d.equipTabOpen);
+  if (d.encFilter) setEncomendasFilter(d.encFilter);
 }
 
 // O detalhe de uma linha de grupo: as N pendências que ela resume, cada uma
@@ -1404,7 +1531,7 @@ function actionTarget({ group, docAthlete, athlete, tab, event, result, route })
 }
 
 function actionItem(item) {
-  const { variant, title, sub, plan, finTab, medTab } = item;
+  const { variant, title, sub, plan, finTab, medTab, defTab, equipTab, encFilter } = item;
   const target = actionTarget(item);
   // O subtítulo só existe quando traz DADO — nomes, datas, valores. Metade
   // deles dizia o procedimento ("Aprovar, entregar ou recusar — abrir
@@ -1416,7 +1543,10 @@ function actionItem(item) {
       <button class="alert-item alert-item--${variant} alert-item--nav${sub ? '' : ' alert-item--slim'}" ${target}${
         plan ? ' data-plan="1"' : ''
       }${finTab ? ` data-fin-tab-open="${finTab}"` : ''}${
-        medTab ? ` data-med-tab-open="${medTab}"` : ''} type="button">
+        medTab ? ` data-med-tab-open="${medTab}"` : ''}${
+        defTab ? ` data-def-tab-open="${defTab}"` : ''}${
+        equipTab ? ` data-equip-tab-open="${equipTab}"` : ''}${
+        encFilter ? ` data-enc-filter="${encFilter}"` : ''} type="button">
         <span class="alert-item__dot" aria-hidden="true"></span>
         <span class="alert-item__text">
           <strong class="alert-item__title">${esc(title)}</strong>
@@ -1699,7 +1829,7 @@ function wireAreaPainel(container, tab) {
     });
   });
   container.querySelectorAll('[data-nav]').forEach((el) =>
-    el.addEventListener('click', () => navTo(el.dataset.nav))
+    el.addEventListener('click', () => { openTargetTabs(el); navTo(el.dataset.nav); })
   );
 }
 
@@ -2281,11 +2411,7 @@ function wireCoachPainel(container) {
   );
   container.querySelectorAll('[data-nav]').forEach((el) =>
     el.addEventListener('click', () => {
-      if (el.dataset.plan) openSeasonPlanning();
-      if (el.dataset.finTabOpen) openFinanceiroTab(el.dataset.finTabOpen);
-      // A fila de triagem vive num separador do Departamento Médico: sem isto
-      // o aviso largava quem tria na lista de atletas, a um clique do trabalho.
-      if (el.dataset.medTabOpen) { openSaudeTab('medico'); openMedicoTab(el.dataset.medTabOpen); }
+      openTargetTabs(el);
       navTo(el.dataset.nav);
     })
   );
@@ -2308,6 +2434,15 @@ function wireCoachPainel(container) {
 
 
 // Dias inteiros desde o evento (0 = hoje).
+// Dias desde um carimbo (`created_at`), e a frase curta que o diz.
+function daysSince(ts) {
+  if (!ts) return 0;
+  return Math.max(0, Math.floor((Date.now() - new Date(ts).getTime()) / 86400000));
+}
+function agoLabel(dias) {
+  return dias === 0 ? 'hoje' : dias === 1 ? 'ontem' : `há ${dias} dias`;
+}
+
 function daysAgo(ev) {
   const diff = Date.now() - eventDateTime(ev).getTime();
   return Math.max(0, Math.floor(diff / 86400000));

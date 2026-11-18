@@ -19,6 +19,12 @@ const MAX_LOGO_BYTES = 256 * 1024;
 // Separador ativo das Definições (mantido entre re-desenhos).
 let activeTab = 'identidade';
 
+// Deixa outra vista escolher o separador antes de navegar (o Painel abre o
+// separador Site para as encomendas da loja). A regra do `openFinanceiroTab`.
+export function openDefinicoesTab(key) {
+  activeTab = key;
+}
+
 export function renderDefinicoes(container) {
   const b = branding();
   const coordenador = isCoordenador();
