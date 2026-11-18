@@ -540,6 +540,13 @@ browser desfaz o último passo e os links são partilháveis.
 - O `renderAppShell` pode ser montado mais do que uma vez (ex.: fim do
   onboarding); `disposeGlobals` limpa os listeners de `window`/`document` e a
   subscrição ao store da montagem anterior.
+- **Nada se desenha antes de os dados chegarem** (`paint()` e o `hashchange`
+  esperam por `state.loaded`; a moldura nasce com `app--loading`). Tocar num
+  menu a meio do carregamento desenhava a secção com o estado VAZIO — o Painel
+  dizia "0 atletas, 0% de 15 000 €", números que não são do clube — e a barra
+  lateral mostrava todas as entradas (até "A minha página" do atleta) com o
+  papel "leitura", para depois encolher. O `applyHash()` do fim do `loadAll()`
+  abre onde o endereço disser.
 
 ## Camada de dados (`store.js`)
 
@@ -859,6 +866,9 @@ separador antes de navegar (usado pelos cartões do Painel).
     desaparece: três colunas num telemóvel não são três colunas, são três
     cartões ilegíveis — e um controlo que não faz nada é pior do que controlo
     nenhum.
+  - **No telemóvel os escalões são uma fita que desliza** (`.team-pills`),
+    com o escolhido sempre à vista: em quatro linhas tortas empurravam o
+    plantel para o segundo ecrã.
 - **Pedidos de equipamento** (`supabase/pedidos-equipamento.sql`,
   `views/pedidos.js`): o Inventário diz o que o clube TEM e as Encomendas dizem
   o tamanho de cada atleta. Nenhum dos dois responde à pergunta que aparece
@@ -1643,6 +1653,9 @@ separador antes de navegar (usado pelos cartões do Painel).
   - **"Por fechar" vem antes dos "Próximos"**: um jogo que passou sem
     resultado é trabalho por fazer, não histórico. Os terminados mostram os
     10 mais recentes, com "Mostrar os restantes N".
+  - **Os "Próximos" são os dos próximos 14 dias** (pelo menos 3), com
+    "Mostrar os restantes N (até …)": com a época lançada eram 56 jogos de uma
+    vez, até março, e o fim de semana que se prepara ficava enterrado.
   - **O Calendário fica com "Abrir jogo"** (`openGame`), que abre a lista com
     aquele jogo à vista — um filtro de equipa ou o corte dos terminados não o
     escondem. O crachá do resultado e o número de convocados continuam na
@@ -2327,6 +2340,13 @@ separador antes de navegar (usado pelos cartões do Painel).
     - O que ainda depende do dia é **só o telemóvel**, onde as colunas
       empilham: `--calm` manda a coluna lateral (a agenda) para cima da lista
       quando não há nada urgente.
+    - **Sem nada na coluna larga** (dia calmo, ou a direção, que quase nunca
+      tem pendências) a grelha ganha `panel-grid--solo` (posto no
+      `wireWorkCard`) e a agenda ocupa a largura toda, com os cartões lado a
+      lado: ficava espremida em 360px, com "Iniciadas F · Pa…" cortado, ao
+      lado de mil píxeis em branco.
+    - **Nos "Próximos eventos" a data só aparece no primeiro evento de cada
+      dia**: cinco quadrados "19 NOV" seguidos liam-se como cinco dias.
   - **Só o degrau "Agora" nasce aberto.** "Esta semana" e "Quando puderes" são
     `<details>` com a contagem no resumo — a convenção dos Utilizadores e dos
     convites. Com os três abertos, este cartão era o bloco mais alto do ecrã e
@@ -2486,6 +2506,9 @@ separador antes de navegar (usado pelos cartões do Painel).
     calendário eram centenas de treinos futuros entre o hoje e o ontem. Os
     totais da sessão são uma linha de crachás por baixo da barra
     (`tallyHTML`), e não quatro cartões a empurrar a lista para baixo.
+  - **Quem só lê (direção, leitura) vê o estado na mesma linha do nome**: o
+    crachá ficava empilhado por baixo, como se fossem os quatro botões, e cada
+    atleta ocupava um cartão de 150px para dizer "—".
   - **O "Marcar" do Painel é o mesmo ecrã em diálogo** (`openQuickAttendance`):
     é o caminho de todos os dias do treinador e tinha só os quatro botões por
     atleta e o `prompt()` do browser. Passou a ter a contagem, "Todos
@@ -3140,7 +3163,13 @@ separador antes de navegar (usado pelos cartões do Painel).
     jogos, musculação e consultas, e quem a abre quase sempre quer uma dessas
     coisas. `Treinos` são os treinos e a musculação (os jogos têm a secção
     Jogos); o filtro de tipo só existe em `Tudo`, e o detalhe do dia mostra o
-    mesmo que o separador de onde se abriu (`inTab`). A fisio abre por omissão
+    mesmo que o separador de onde se abriu (`inTab`).
+  - **A Lista mostra os próximos 7 dias e os 20 passados mais recentes**
+    (`LIST_NEXT_DAYS`, com pelo menos 10 eventos), cada grupo com "Mostrar os
+    restantes N". Com os treinos da época lançados eram 774 eventos de uma vez
+    — no telemóvel, centenas de ecrãs de scroll. Os passados vêm do mais
+    recente para trás (estavam por ordem cronológica, com o de ontem no fim).
+    Nos Atendimentos não se corta (a lista é curta e vem por dia). A fisio abre por omissão
     nos Atendimentos, onde os atendimentos ficam em primeiro plano. Os
     treinos continuam lá — é por eles que se decide a hora de um atendimento —
     mas como CONTEXTO: uma linha por dia ("No mesmo dia: 18:30 Iniciadas F ·

@@ -262,7 +262,7 @@ export async function renderAppShell(root, session) {
     }).join('');
 
   root.innerHTML = `
-    <div class="app" id="app-root">
+    <div class="app app--loading" id="app-root">
       <header class="topbar">
         <button class="topbar__toggle" id="menu-toggle" type="button"
                 aria-label="Mostrar ou esconder o menu">
@@ -327,8 +327,8 @@ export async function renderAppShell(root, session) {
         </div>
         <div class="topbar__account">
           <div class="topbar__user">
-            <span class="topbar__email">${session.user.email}</span>
-            <span class="badge badge--muted" id="role-badge">leitura</span>
+            <span class="topbar__email">${esc(session.user.email)}</span>
+            <span class="badge badge--muted" id="role-badge">${esc(ROLE_LABEL[state.profile?.role] || state.profile?.role || '')}</span>
           </div>
           <button class="btn btn--ghost btn--sm" id="logout" type="button">Sair</button>
         </div>
@@ -453,6 +453,12 @@ export async function renderAppShell(root, session) {
   let inAppNavs = 0;
   const onHashChange = () => {
     inAppNavs++;
+    // Enquanto os dados não chegam, não se desenha secção nenhuma: tocar num
+    // menu (ou abrir um link) a meio do carregamento desenhava a secção com o
+    // estado VAZIO — "0 atletas, 0% de 15 000 €", números que não são do
+    // clube e que se liam como dados perdidos. O `applyHash()` do fim do
+    // `loadAll()` lê o endereço e abre lá.
+    if (!state.loaded) return;
     applyHash();
   };
   window.addEventListener('hashchange', onHashChange);
@@ -785,6 +791,13 @@ export async function renderAppShell(root, session) {
   }
 
   function paint() {
+    // Com os dados por carregar fica o esqueleto: o `state` ainda está vazio e
+    // qualquer secção desenhada agora mostrava zeros como se fossem dados.
+    // A barra lateral também espera (`app--loading`): antes de saber o papel e
+    // o plano, mostrava TODAS as entradas — incluindo "A minha página" do
+    // atleta — e depois encolhia.
+    if (!state.loaded) return;
+    appRoot.classList.remove('app--loading');
     refreshChrome();
 
     // Perfil do Atleta (página) tem prioridade sobre a rota atual.

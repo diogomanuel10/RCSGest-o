@@ -86,11 +86,18 @@ export function renderJogos(container) {
 
 let teamFilter = '';
 let showAllDone = false;
+let showAllNext = false;
 let scoutsLoading = false;
 
 // Quantos jogos terminados se mostram antes do "Mostrar os restantes": a
 // lista cresce a época toda, e o que se procura quase sempre é o último.
 const DONE_LIMIT = 10;
+
+// E quantos dias de "Próximos" se mostram: com o calendário da época todo
+// lançado eram 56 jogos de uma vez, até março, entre o "Hoje" e os
+// "Terminados" — trabalho da semana enterrado num calendário de seis meses.
+// O que se prepara é o próximo fim de semana; o resto está a um toque.
+const NEXT_DAYS = 14;
 
 const todayISO = () => {
   const d = new Date();
@@ -239,6 +246,13 @@ function renderJogosList(container) {
   const terminados = passados.filter((e) => !porFechar.includes(e)).sort(desc);
   if (focus && terminados.indexOf(focus) >= DONE_LIMIT) showAllDone = true;
   const doneShown = showAllDone ? terminados : terminados.slice(0, DONE_LIMIT);
+  const limiteNext = new Date(Date.now() + NEXT_DAYS * 86400000);
+  if (focus && proximos.includes(focus) && eventDateTime(focus) > limiteNext) showAllNext = true;
+  // Pelo menos os 3 seguintes, mesmo numa paragem de mais de duas semanas:
+  // uma lista vazia de "Próximos" leria-se como "não há mais jogos".
+  const nextShown = showAllNext
+    ? proximos
+    : proximos.filter((e, i) => i < 3 || eventDateTime(e) <= limiteNext);
 
   const results = terminados.map((e) => gameResult(e.id)).filter(Boolean);
   const v = results.filter((r) => r.sets_for > r.sets_against).length;
@@ -276,7 +290,10 @@ function renderJogosList(container) {
       <section class="card">
         ${group('Hoje', hoje)}
         ${group('Por fechar', porFechar)}
-        ${group('Próximos', proximos)}
+        ${group('Próximos', nextShown, false, proximos.length > nextShown.length
+          ? `<button class="btn btn--ghost btn--sm" id="jogos-more-next" type="button" style="margin-top:0.6rem">Mostrar os restantes ${proximos.length - nextShown.length} (até ${
+              esc(eventDateTime(proximos[proximos.length - 1]).toLocaleDateString('pt-PT', { day: '2-digit', month: 'short' }).replace('.', ''))})</button>`
+          : '')}
         ${group('Terminados', doneShown, true, terminados.length > doneShown.length
           ? `<button class="btn btn--ghost btn--sm" id="jogos-more" type="button" style="margin-top:0.6rem">Mostrar os restantes ${terminados.length - doneShown.length}</button>`
           : '')}
@@ -292,8 +309,9 @@ function renderJogosList(container) {
   container.querySelector('#game-new')?.addEventListener('click', newGame);
   wireEmptyAction(container, 'game-new', newGame);
   container.querySelector('#jogos-team')?.addEventListener('change', (e) => {
-    teamFilter = e.target.value; showAllDone = false; renderJogosList(container);
+    teamFilter = e.target.value; showAllDone = false; showAllNext = false; renderJogosList(container);
   });
+  container.querySelector('#jogos-more-next')?.addEventListener('click', () => { showAllNext = true; renderJogosList(container); });
   container.querySelector('#jogos-more')?.addEventListener('click', () => { showAllDone = true; renderJogosList(container); });
   container.querySelectorAll('[data-edit-game]').forEach((b) =>
     b.addEventListener('click', () => openEventForm(b.dataset.editGame)));
