@@ -432,7 +432,7 @@ src/
     calendario.js       Vista Calendário
     jogos.js            Secção Jogos (lista de jogos com o percurso de cada um + separador Scout)
     agenda-sync.js      Link de subscrição da agenda da fisio (Google/iPhone)
-    presencas.js        Presenças dos treinos e da musculação (por fechar, todos presentes, estatísticas)
+    presencas.js        Presenças dos treinos (por fechar, todos presentes, estatísticas, marcar do Painel)
     convocatoria.js     Convocatória de um jogo (diálogo aberto dos Jogos e do Painel)
     portal.js           Portal do atleta (a sua página pessoal, mobile-first)
     quiosque.js         Modo quiosque: câmara à entrada regista presenças por QR
@@ -1363,17 +1363,14 @@ separador antes de navegar (usado pelos cartões do Painel).
     "jogo", ficando com escrita no calendário inteiro por uma porta lateral. O
     treinador fica de fora: dois donos do mesmo horário é a forma de ninguém
     saber quem o mudou.
-  - **As presenças são as mesmas** (`attendances`, marcadas no ecrã de
-    Presenças ou no próprio separador da Preparação Física — o preparador
-    raramente tem acesso a Presenças, e uma sessão que ele dá e não pode
-    registar volta ao caderno). **Mas não contam para a comparência da
-    equipa**: `attendanceStats` passou a contar só os TREINOS. Misturá-las
-    fazia a taxa do escalão subir ou descer consoante quem o preparador
-    tivesse chamado ao ginásio — é a mesma razão por que os jogos nunca
-    entraram.
-  - **O `close_attendance_session` fecha sobre o GRUPO**, não sobre a equipa:
-    numa sessão de oito, a versão antiga marcava falta às doze que nem estavam
-    escaladas.
+  - **A musculação NÃO tem presenças** (desde nov. 2026). Tinha — na mesma
+    tabela `attendances`, marcadas nas Presenças e na Preparação Física — e
+    era mais uma lista por fechar ao lado das dos treinos, que ninguém
+    fechava. O grupo de cada horário (`event_players`) é o registo; quem foi
+    ao ginásio deixou de se marcar. As linhas antigas ficaram na base de
+    dados, mas a app já não as escreve nem as mostra, e o Painel do
+    preparador já não avisa "sessão sem presenças". A comparência da equipa
+    sempre contou só os TREINOS (`attendanceStats`).
   - **O quiosque QR não entra aqui**, de propósito: o `check_in_by_qr` procura
     o TREINO da equipa do atleta mais perto de agora, e um quiosque que
     "adivinhasse" o grupo marcava presença a quem passou pela porta sem estar
@@ -1669,6 +1666,14 @@ separador antes de navegar (usado pelos cartões do Painel).
     errada no sítio errado: o 6 inicial decide-se no pavilhão e muda no
     aquecimento, mas o portal mostrava-o como facto dias antes do jogo. A
     coluna `status` fica (com um só valor) para não mexer na chave única.
+  - **"Repetir a do último jogo"** (`previousSquad`): a convocatória do jogo
+    anterior da mesma equipa, num toque, enquanto esta ainda está vazia.
+    Montar vinte nomes de raiz todas as semanas para trocar dois era o gesto
+    mais repetido do treinador. Só entra quem continua no plantel, e quem
+    avisou que não vem a ESTE jogo fica de fora e diz-se no aviso — a regra do
+    "Todos presentes". Este botão e o "Convocar todos" gravam numa só escrita
+    (`addSquadPlayers`); os gatilhos continuam por linha, cada atleta recebe o
+    seu aviso.
 - **Scout ao vivo** (`supabase/scout.sql`, `scout-engine.js`, `scout-export.js`,
   `views/scout.js`): durante o jogo o treinador toca na atleta e na ação
   (receção, passe, ataque, serviço, bloco, defesa, com a qualidade `# + − / =`
@@ -2148,6 +2153,15 @@ separador antes de navegar (usado pelos cartões do Painel).
     não se esconde um exercício por falta de dados. O seletor abre já com o
     tamanho do plantel preenchido.
   - O atleta não lê a biblioteca: é material de trabalho do treinador.
+- **Copiar o plano de outro treino** (`plansToCopy`/`copyPlanInto` em
+  `training-plan.js`, botão "Copiar de outro treino" num plano ainda sem
+  blocos): o treino de quinta é quase sempre o de terça com dois exercícios
+  trocados, e montá-lo de raiz era o que deixava o plano por escrever. Os
+  candidatos são os treinos da MESMA equipa com blocos, os anteriores
+  primeiro. É uma CÓPIA (a regra da biblioteca): editar a cópia não reescreve
+  o original. O cabeçalho só se preenche onde está vazio, e copiam-se só as
+  colunas que a linha tem, para não partir num clube com migrações por
+  correr.
 - **Ligações no plano de treino** (`supabase/plano-links.sql`): nem todo o
   trabalho do treinador nasce aqui. O plano é muitas vezes montado noutra app
   (um quadro tático, uma folha partilhada) e o exercício tem um vídeo. Sem
@@ -2427,8 +2441,8 @@ separador antes de navegar (usado pelos cartões do Painel).
   ser lida. **Não é um
   juízo sobre o treinador** — é obrigar a que seja decisão consciente em vez de
   uma coisa que simplesmente acontece.
-- **Presenças: quem apareceu, treino a treino** (`presencas.js`). Treinos e
-  sessões de musculação — os **jogos saíram daqui**: a convocatória é um passo
+- **Presenças: quem apareceu, treino a treino** (`presencas.js`). Só
+  treinos — a musculação deixou de ter presenças e os **jogos saíram daqui**: a convocatória é um passo
   do jogo e abre-se como diálogo da secção Jogos (`openSquadModal` em
   `convocatoria.js`, também usado pelo Painel). No mesmo seletor, um jogo de
   sábado vivia entre vinte treinos e o ecrã mudava de forma conforme a linha.
@@ -2467,6 +2481,24 @@ separador antes de navegar (usado pelos cartões do Painel).
     voltar a escrever o que já lá está.
   - **O treinador vê só as SUAS equipas** (`isMyEvent`/`myTeams`), no seletor
     e nas Estatísticas.
+  - **Os treinos de hoje são botões** por cima do seletor (`todayChipsHTML`),
+    e o seletor só leva os próximos 14 dias: com a época toda lançada no
+    calendário eram centenas de treinos futuros entre o hoje e o ontem. Os
+    totais da sessão são uma linha de crachás por baixo da barra
+    (`tallyHTML`), e não quatro cartões a empurrar a lista para baixo.
+  - **O "Marcar" do Painel é o mesmo ecrã em diálogo** (`openQuickAttendance`):
+    é o caminho de todos os dias do treinador e tinha só os quatro botões por
+    atleta e o `prompt()` do browser. Passou a ter a contagem, "Todos
+    presentes" (que salta quem avisou), o aviso e o "Justificar com o aviso"
+    na linha, e o atraso/justificação escritos na própria linha — as mesmas
+    funções do ecrã inteiro (`playerRow`, `handleStatusClick`). Marca-se por
+    EXCEÇÃO: todos presentes e depois só quem faltou. Subscreve o store
+    enquanto está aberto, para se re-desenhar a cada gravação.
+  - **"Por equipa" nas Estatísticas** (`teamsOverviewHTML`, com duas equipas
+    ou mais): a comparência dos últimos 30 dias e os treinos por fechar de
+    cada escalão lado a lado. Responder a "como está cada equipa?" escolhendo
+    uma a uma no seletor eram dez trocas; os 30 dias e não a época, porque com
+    a época um escalão que deixou de aparecer em outubro continua com 85%.
   - **As estatísticas veem-se por época E por mês** (`monthBarHTML`): a taxa da
     época é a média de oito meses e esconde precisamente o que há para
     explicar. E dizem quantos treinos ainda não têm NENHUM registo: esses não

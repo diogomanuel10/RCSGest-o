@@ -1,6 +1,8 @@
 // Vista: Presenças — quem apareceu, um treino de cada vez.
 //
-// Treinos e sessões de musculação. Os JOGOS saíram daqui: a convocatória é um
+// Só treinos. A musculação deixou de ter presenças (o grupo de cada horário
+// continua a existir — é o horário do ginásio, não um registo de quem foi), e
+// os JOGOS saíram daqui: a convocatória é um
 // passo do jogo e vive na secção Jogos (`convocatoria.js`). Misturar os dois
 // no mesmo seletor punha um jogo de sábado entre vinte treinos, e o ecrã
 // mudava de forma conforme a linha escolhida.
@@ -17,12 +19,12 @@
 // registo nenhum é um treino que ninguém marcou, não um a que ninguém foi — e
 // fechar não bloqueia: uma falta continua a poder passar a justificada.
 
-import { state, upsertAttendance, closeAttendanceSession, markAllPresent, dbErrorMessage } from '../store.js';
+import { state, subscribe, upsertAttendance, closeAttendanceSession, markAllPresent, dbErrorMessage } from '../store.js';
 import { esc, emptyHTML } from '../ui.js';
 import { eventDateTime, eventTimeRange, teamById, teamName, eventResponseSummary,
          playerEventResponse, eventRoster, isMyEvent, myTeams } from '../compute.js';
 import { ATTENDANCE_STATUSES, ATTENDANCE_LABEL, ATTENDANCE_BADGE,
-         EVENT_TYPE_LABEL, isPickedEvent,
+         EVENT_TYPE_LABEL,
          EVENT_RESPONSE_LABEL, EVENT_RESPONSE_BADGE } from '../constants.js';
 import { canMarkAttendance } from '../permissions.js';
 import { confirmDialog, wireDialog } from '../modal.js';
@@ -97,14 +99,14 @@ export function renderPresencas(container) {
   // Ao treinador só os das SUAS equipas (`isMyEvent`): os treinos dos outros
   // escalões não são trabalho dele, e no seletor eram metade das linhas.
   const eventos = state.events
-    .filter((e) => (e.type === 'treino' || e.type === 'musculacao') && isMyEvent(e))
+    .filter((e) => e.type === 'treino' && isMyEvent(e))
     .sort((a, b) => eventDateTime(b) - eventDateTime(a));
 
   const header = `
     <header class="page-head">
       <div>
         <h1 class="section-title">Presenças</h1>
-        <p class="muted" style="margin:0;font-size:0.88rem">Quem apareceu aos treinos e às sessões de musculação</p>
+        <p class="muted" style="margin:0;font-size:0.88rem">Quem apareceu aos treinos</p>
       </div>
       <span id="pres-head-action"></span>
     </header>`;
@@ -148,7 +150,6 @@ export function renderPresencas(container) {
   });
 
   const ev = eventos.find((e) => e.id === selectedEventId);
-  const isPicked = isPickedEvent(ev);
   const editable = canMarkAttendance(ev);
   const team = teamById(ev?.team_id);
   // Quem entra neste evento: a equipa, ou — na musculação — só o grupo daquele
@@ -180,7 +181,7 @@ export function renderPresencas(container) {
   // O quiosque procura o TREINO da equipa do atleta mais perto de agora
   // (`check_in_by_qr`): numa sessão de musculação não teria onde marcar, por
   // isso não se oferece — um botão que dá erro é pior do que botão nenhum.
-  const qrOn = editable && !isPicked && state.settings.qr_checkin_enabled === true;
+  const qrOn = editable && state.settings.qr_checkin_enabled === true;
   const note = closeNote(ev, { marked, total: totalPlayers });
 
   const shownPending = showAllPending ? pending : pending.slice(0, PENDING_LIMIT);
@@ -210,17 +211,18 @@ export function renderPresencas(container) {
           ? `<button class="btn btn--ghost btn--sm" id="pres-more" type="button">Mostrar os restantes ${pending.length - shownPending.length}</button>` : ''}
       </section>` : ''}
 
+    ${todayChipsHTML(eventos, selectedEventId, counts)}
+
     <div class="presenca-picker card" style="margin-bottom:1.2rem">
       <div class="row row--between row--wrap" style="gap:0.8rem">
         <div style="min-width:260px;flex:1">
-          <label for="pres-event">Treino ou sessão de musculação</label>
+          <label for="pres-event">Treino</label>
           <select id="pres-event">
             ${eventPickerHTML(eventos, selectedEventId, counts)}
           </select>
         </div>
         <div class="presenca-meta muted" style="font-size:0.86rem;align-self:flex-end;padding-bottom:0.1rem">
           ${team ? `<strong>${esc(teamName(team))}</strong> · ` : ''}${esc(dateStr)}${eventTimeRange(ev) ? ' · ' + esc(eventTimeRange(ev)) : ''}
-          ${isPicked ? '<br>Sessão de musculação — só os atletas deste horário.' : ''}
         </div>
       </div>
     </div>
@@ -241,19 +243,13 @@ export function renderPresencas(container) {
          </div>`
       : ''}
 
-    <section class="cards-grid aval-summary" style="margin-bottom:1.2rem">
-      ${summaryCard('Presentes', tally.presente, 'green')}
-      ${summaryCard('Atrasos', tally.atraso, 'warn')}
-      ${summaryCard('Justificados', tally.justificado, 'info')}
-      ${summaryCard('Faltas', tally.falta, 'red')}
-    </section>
-
     <section class="card">
       <div class="goal-card__header">
-        <h2 class="section-title goal-card__title">${isPicked ? 'Atletas deste horário' : 'Lista de atletas'}</h2>
+        <h2 class="section-title goal-card__title">Lista de atletas</h2>
         <span class="goal-card__pct">${marked}/${totalPlayers} · ${pct}% registado</span>
       </div>
       <div class="progress"><div class="progress__bar" style="width:${pct}%"></div></div>
+      ${marked ? `<p class="pres-tally">${tallyHTML(tally)}</p>` : ''}
 
       ${editable && team && totalPlayers && marked < totalPlayers && started
         ? `<div class="row row--between row--wrap pres-close">
@@ -274,9 +270,7 @@ export function renderPresencas(container) {
       ${!team
         ? '<p class="muted" style="margin:1rem 0 0">Este treino não tem equipa associada. Edita-o no Calendário para atribuir uma equipa.</p>'
         : !players.length
-        ? `<p class="muted" style="margin:1rem 0 0">${isPicked
-             ? 'Esta sessão ainda não tem atletas escolhidos. Edita-a no Calendário para escolher quem entra.'
-             : 'Sem atletas nesta equipa.'}</p>`
+        ? '<p class="muted" style="margin:1rem 0 0">Sem atletas nesta equipa.</p>'
         : `<ul class="pres-list">${players.map((p) => playerRow(p, attendanceMap[p.id], ev, editable)).join('')}</ul>`
       }
     </section>
@@ -315,7 +309,7 @@ export function renderPresencas(container) {
       const r = playerEventResponse(btn.dataset.justifyAviso, selectedEventId);
       saveAttendance(btn.dataset.justifyAviso, {
         status: 'justificado', justification: r?.note || 'Avisou que não vinha.', minutes_late: null,
-      }, container);
+      }, container, selectedEventId);
     }));
     container.querySelector('#pres-close')?.addEventListener('click', () =>
       closeSession(selectedEventId, totalPlayers - marked)
@@ -388,8 +382,7 @@ function nearestEvent(eventos) {
 function shortLabel(ev) {
   const dt = eventDateTime(ev).toLocaleDateString('pt-PT', { weekday: 'short', day: '2-digit', month: 'short' });
   const tm = teamById(ev.team_id);
-  const kind = ev.type === 'musculacao' ? 'Musculação · ' : '';
-  return `${kind}${dt}${ev.time ? ' ' + ev.time.slice(0, 5) : ''}${tm ? ' — ' + teamName(tm) : ''}`;
+  return `${dt}${ev.time ? ' ' + ev.time.slice(0, 5) : ''}${tm ? ' — ' + teamName(tm) : ''}`;
 }
 
 // No seletor, cada sessão que já começou diz quantos registos tem ("12/18"):
@@ -404,7 +397,46 @@ function eventPickerHTML(eventos, selectedId, counts) {
   };
   const group = (label, list) =>
     list.length ? `<optgroup label="${esc(label)}">${list.map(opt).join('')}</optgroup>` : '';
-  return group('Hoje', hoje) + group('Próximos', proximos) + group('Anteriores', anteriores);
+  // Os "Próximos" ficam nos 14 dias seguintes: o calendário tem a época
+  // inteira lançada (centenas de treinos), e ninguém marca presenças a um
+  // treino de março — eram centenas de linhas entre o hoje e o ontem.
+  const limite = new Date(now.getTime() + 14 * 86400000);
+  const perto = proximos.filter((e) => eventDateTime(e) <= limite || e.id === selectedId);
+  return group('Hoje', hoje) + group('Próximos 14 dias', perto) + group('Anteriores', anteriores);
+}
+
+// Os treinos de HOJE num toque, por cima do seletor: é o que se procura em
+// quase todas as visitas, e num <select> são dois toques e uma lista para ler.
+function todayChipsHTML(eventos, selectedId, counts) {
+  const { hoje } = eventGroups(eventos);
+  if (!hoje.length) return '';
+  const now = new Date();
+  return `
+    <div class="pres-today" role="group" aria-label="Treinos de hoje">
+      <span class="pres-today__label">Hoje</span>
+      ${hoje.map((e) => {
+        const c = counts.get(e.id);
+        const tm = teamById(e.team_id);
+        const tag = c && c.total && eventDateTime(e) <= now ? ` · ${c.marked}/${c.total}` : '';
+        return `<button type="button" class="pres-today__chip${e.id === selectedId ? ' is-active' : ''}"
+                  data-pick-event="${esc(e.id)}" aria-pressed="${e.id === selectedId}">
+                  ${esc((e.time || '').slice(0, 5))}${tm ? ' ' + esc(teamName(tm)) : ''}${esc(tag)}
+                </button>`;
+      }).join('')}
+    </div>`;
+}
+
+// Os totais da sessão numa linha, por baixo da barra — eram quatro cartões
+// grandes entre o seletor e a lista, e num telemóvel empurravam a lista (que é
+// onde se trabalha) para fora do ecrã.
+function tallyHTML(tally) {
+  const parts = [
+    ['presente', 'Presentes', 'ok'],
+    ['atraso', 'Atrasos', 'warn'],
+    ['justificado', 'Justificados', 'info'],
+    ['falta', 'Faltas', 'danger'],
+  ].filter(([k]) => tally[k]);
+  return parts.map(([k, l, v]) => `<span class="badge badge--${v}">${tally[k]} ${l.toLowerCase()}</span>`).join(' ');
 }
 
 // O que o atleta respondeu ao evento. É informação DELE, separada do estado
@@ -430,15 +462,6 @@ async function closeSession(eventId, missing) {
   } catch (err) {
     toastError(dbErrorMessage(err));
   }
-}
-
-function summaryCard(label, value, variant) {
-  return `
-    <div class="card metric metric--${variant} aval-metric">
-      <span class="metric__label">${esc(label)}</span>
-      <strong class="metric__value">${value}</strong>
-    </div>
-  `;
 }
 
 function playerRow(player, attendance, event, editable) {
@@ -499,7 +522,7 @@ async function handleStatusClick(btn, container, event) {
     return;
   }
 
-  await saveAttendance(playerId, { status }, container);
+  await saveAttendance(playerId, { status }, container, event?.id);
 }
 
 function showJustificationInput(btn, playerId, container, event) {
@@ -525,7 +548,7 @@ function showJustificationInput(btn, playerId, container, event) {
   form.querySelector('[data-confirm]').addEventListener('click', async () => {
     const text = form.querySelector('textarea').value.trim();
     form.remove();
-    await saveAttendance(playerId, { status: 'justificado', justification: text || null }, container);
+    await saveAttendance(playerId, { status: 'justificado', justification: text || null }, container, event?.id);
   });
 }
 
@@ -567,41 +590,43 @@ function showDelayInput(btn, playerId, container, event) {
   form.querySelector('[data-confirm]').addEventListener('click', async () => {
     const mins = parseInt(form.querySelector('input').value, 10) || 0;
     form.remove();
-    await saveAttendance(playerId, { status: 'atraso', minutes_late: mins > 0 ? mins : null }, container);
+    await saveAttendance(playerId, { status: 'atraso', minutes_late: mins > 0 ? mins : null }, container, event?.id);
   });
 }
 
-async function saveAttendance(playerId, values, container) {
+async function saveAttendance(playerId, values, container, eventId = selectedEventId) {
   try {
-    await upsertAttendance(selectedEventId, playerId, values);
+    await upsertAttendance(eventId, playerId, values);
   } catch (err) {
     toastError(dbErrorMessage(err));
   }
 }
 
-// Modal rápido de presenças — abre diretamente do Painel sem navegar para a vista.
+// Modal rápido de presenças — abre diretamente do Painel ("Marcar" num treino
+// de hoje) sem navegar para a vista. É o caminho de TODOS os dias do
+// treinador, por isso tem o mesmo que o ecrã inteiro: "Todos presentes" (que
+// salta quem avisou), quem avisou que não vem com o motivo, "Justificar com o
+// aviso", e o atraso/justificação escritos na própria linha — tinha só os
+// quatro botões por atleta e o `prompt()` do browser, e marcar vinte atletas
+// eram vinte toques.
+//
+// Marca-se por EXCEÇÃO: "Todos presentes" primeiro e depois toca-se só em
+// quem faltou ou chegou tarde. A lista re-desenha-se sozinha a cada gravação
+// (subscreve o store enquanto o diálogo está aberto), como o ecrã inteiro.
 export function openQuickAttendance(eventId) {
   const ev = state.events.find((e) => e.id === eventId);
   if (!ev) return;
   const team = teamById(ev.team_id);
-  // O plantel do EVENTO (na musculação, só o grupo daquele horário) — a mesma
-  // função do ecrã inteiro.
-  const players = eventRoster(ev);
-
-  const attendanceMap = {};
-  state.attendances.filter((a) => a.event_id === eventId).forEach((a) => {
-    attendanceMap[a.player_id] = a;
-  });
-
   const dateStr = eventDateTime(ev).toLocaleDateString('pt-PT', {
     weekday: 'long', day: '2-digit', month: 'long',
   });
   const range = eventTimeRange(ev);
+  const editable = canMarkAttendance(ev);
 
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
-    <div class="modal card" role="dialog" aria-modal="true" aria-labelledby="qa-title" style="width:min(540px,96vw);max-height:90vh;display:flex;flex-direction:column">
+    <div class="modal card qa-modal" role="dialog" aria-modal="true" aria-labelledby="qa-title">
       <div class="modal__head">
         <div>
           <h2 class="section-title" id="qa-title">Marcar presenças</h2>
@@ -609,81 +634,135 @@ export function openQuickAttendance(eventId) {
         </div>
         <button class="modal__close" type="button" aria-label="Fechar">&times;</button>
       </div>
-      ${!players.length
-        ? '<p class="muted">Sem atletas nesta equipa.</p>'
-        : `<ul class="pres-list" style="flex:1;overflow-y:auto;margin:0 -1.2rem;padding:0 1.2rem">
-            ${players.map((p) => {
-              const att = attendanceMap[p.id];
-              const current = att?.status || null;
-              return `
-                <li class="pres-row pres-row--${current || 'none'}" data-player-row="${p.id}">
-                  <div class="aval-row__player">
-                    <span class="aval-row__num">${esc(p.number || '—')}</span>
-                    <span class="aval-row__name">${esc(p.name)}</span>
-                  </div>
-                  <div class="pres-actions">
-                    ${ATTENDANCE_STATUSES.map((s) => `
-                      <button type="button"
-                        class="pres-btn pres-btn--${s.key} ${current === s.key ? 'is-active' : ''}"
-                        data-qa-status="${s.key}" data-qa-player="${p.id}"
-                        title="${s.label}">${s.label}</button>`).join('')}
-                  </div>
-                </li>`;
-            }).join('')}
-           </ul>`}
-      <div id="qa-err" class="modal__error hidden" style="margin-top:0.5rem"></div>
+      <div class="qa-body"></div>
       <div class="modal__actions">
-        <button class="btn btn--ghost" id="qa-cancel" type="button">Fechar</button>
+        <a class="btn btn--ghost" href="#/presencas" id="qa-full">Abrir nas Presenças</a>
+        <button class="btn btn--primary" id="qa-cancel" type="button">Concluído</button>
       </div>
     </div>
   `;
-  const close = wireDialog(overlay);
-  overlay.querySelector('#qa-cancel').addEventListener('click', close);
+  const body = overlay.querySelector('.qa-body');
 
-  overlay.querySelectorAll('[data-qa-status]').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const playerId = btn.dataset.qaPlayer;
-      const status = btn.dataset.qaStatus;
-      const errEl = overlay.querySelector('#qa-err');
-      errEl.classList.add('hidden');
-
-      if (status === 'justificado') {
-        const text = prompt('Motivo da justificação:') ?? '';
-        try {
-          await upsertAttendance(eventId, playerId, { status, justification: text || null });
-        } catch (err) {
-          errEl.textContent = dbErrorMessage(err);
-          errEl.classList.remove('hidden');
-          return;
-        }
-      } else if (status === 'atraso') {
-        const mins = parseInt(prompt('Minutos de atraso:') || '0', 10);
-        try {
-          await upsertAttendance(eventId, playerId, { status, minutes_late: mins > 0 ? mins : null });
-        } catch (err) {
-          errEl.textContent = dbErrorMessage(err);
-          errEl.classList.remove('hidden');
-          return;
-        }
-      } else {
-        try {
-          await upsertAttendance(eventId, playerId, { status });
-        } catch (err) {
-          errEl.textContent = dbErrorMessage(err);
-          errEl.classList.remove('hidden');
-          return;
-        }
-      }
-
-      // Atualiza estado visual do botão
-      const row = overlay.querySelector(`[data-player-row="${playerId}"]`);
-      if (row) {
-        ATTENDANCE_STATUSES.forEach((s) => row.querySelector(`[data-qa-status="${s.key}"]`)?.classList.remove('is-active'));
-        btn.classList.add('is-active');
-        row.className = `pres-row pres-row--${status}`;
-      }
+  function paint() {
+    // Um formulário de atraso/justificação aberto não pode ser apagado por um
+    // re-desenho vindo de outra gravação.
+    if (body.querySelector('.pres-inline')) return;
+    const players = eventRoster(ev);
+    if (!players.length) {
+      body.innerHTML = '<p class="muted">Sem atletas nesta equipa.</p>';
+      return;
+    }
+    const attendanceMap = {};
+    const tally = { presente: 0, atraso: 0, justificado: 0, falta: 0 };
+    const ids = new Set(players.map((p) => p.id));
+    state.attendances.filter((a) => a.event_id === eventId && ids.has(a.player_id)).forEach((a) => {
+      attendanceMap[a.player_id] = a;
+      tally[a.status] = (tally[a.status] || 0) + 1;
     });
+    const marked = Object.keys(attendanceMap).length;
+    const avisos = eventResponseSummary(eventId);
+    const avisouIds = new Set(avisos.ausentes.map((a) => a.player.id));
+    const toPresent = players.filter((p) => !attendanceMap[p.id] && !avisouIds.has(p.id));
+    const pct = Math.round((marked / players.length) * 100);
+
+    body.innerHTML = `
+      <div class="qa-top">
+        <div class="goal-card__header">
+          <span class="muted" style="font-size:0.85rem">${marked}/${players.length} registados</span>
+          ${editable && toPresent.length
+            ? `<button class="btn btn--primary btn--sm" id="qa-all" type="button">Todos presentes (${toPresent.length})</button>`
+            : ''}
+        </div>
+        <div class="progress"><div class="progress__bar" style="width:${pct}%"></div></div>
+        ${marked ? `<p class="pres-tally">${tallyHTML(tally)}</p>` : ''}
+        ${!marked && editable
+          ? `<p class="muted qa-hint">Marca todos presentes e depois toca só em quem faltou ou chegou atrasado.${
+              avisouIds.size ? ` Quem avisou que não vinha (${avisouIds.size}) fica de fora.` : ''}</p>`
+          : ''}
+      </div>
+      <ul class="pres-list qa-list">${players.map((p) => playerRow(p, attendanceMap[p.id], ev, editable)).join('')}</ul>
+    `;
+
+    body.querySelector('#qa-all')?.addEventListener('click', async (e) => {
+      e.currentTarget.disabled = true;
+      try { await markAllPresent(eventId, toPresent.map((p) => p.id)); }
+      catch (err) { toastError(dbErrorMessage(err)); paint(); }
+    });
+    if (!editable) return;
+    body.querySelectorAll('[data-status]').forEach((btn) => btn.addEventListener('click', () => {
+      try { navigator.vibrate?.(8); } catch { /* sem vibração */ }
+      handleStatusClick(btn, body, ev);
+    }));
+    body.querySelectorAll('[data-justify-aviso]').forEach((btn) => btn.addEventListener('click', () => {
+      const r = playerEventResponse(btn.dataset.justifyAviso, eventId);
+      saveAttendance(btn.dataset.justifyAviso, {
+        status: 'justificado', justification: r?.note || 'Avisou que não vinha.', minutes_late: null,
+      }, body, eventId);
+    }));
+  }
+  // Os formulários na linha (atraso, justificação) removem-se a si próprios;
+  // ao cancelar volta-se a desenhar o que possa ter mudado entretanto.
+  body.addEventListener('click', (e) => {
+    if (e.target.closest('.pres-inline [data-dismiss]')) setTimeout(paint, 0);
   });
+
+  const unsubscribe = subscribe(paint);
+  const close = wireDialog(overlay, { onClose: unsubscribe });
+  overlay.querySelector('#qa-cancel').addEventListener('click', close);
+  overlay.querySelector('#qa-full').addEventListener('click', () => { setSelectedEvent(eventId); close(); });
+  paint();
+}
+
+// As equipas lado a lado, antes do detalhe de uma: é a pergunta de quem tem
+// vários escalões ("como está cada equipa?"), e escolher equipa a equipa num
+// seletor para a responder eram dez trocas. Só aparece com duas equipas ou
+// mais — com uma só, repetia o cartão de baixo.
+//
+// A taxa é dos últimos 30 dias e não da época: com a época toda, um escalão que
+// deixou de aparecer em outubro continua com 85%. "Por fechar" são os treinos
+// já acabados com registos em falta, que é o que o coordenador vai cobrar.
+function teamsOverviewHTML(teams) {
+  if (teams.length < 2) return '';
+  const now = new Date();
+  const since = new Date(now.getTime() - 30 * 86400000);
+  const rows = teams.map((t) => {
+    const past = state.events.filter((e) => e.type === 'treino' && e.team_id === t.id && eventEnded(e));
+    const recent = new Set(past.filter((e) => eventDateTime(e) >= since).map((e) => e.id));
+    const atts = state.attendances.filter((a) => recent.has(a.event_id));
+    const veio = atts.filter((a) => a.status === 'presente' || a.status === 'atraso').length;
+    const pct = atts.length ? Math.round((veio / atts.length) * 100) : null;
+    const porFechar = past.filter((e) => {
+      const c = sessionCounts(e);
+      return c.total && c.marked < c.total;
+    }).length;
+    return { t, pct, treinos: recent.size, porFechar };
+  });
+  const tone = (pct) => pct == null ? '' : pct >= 70 ? 'stat-pct--ok' : pct >= 50 ? 'stat-pct--warn' : 'stat-pct--danger';
+  return `
+    <div class="card" style="margin-bottom:1.2rem">
+      <h2 class="section-title upcoming-card__title">Por equipa <span class="muted" style="font-weight:400">· últimos 30 dias</span></h2>
+      <div class="stat-table-wrap">
+        <table class="stat-table">
+          <thead><tr>
+            <th>Equipa</th>
+            <th class="stat-col--center">Treinos</th>
+            <th class="stat-col--center">Comparência</th>
+            <th class="stat-col--center">Por fechar</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map((r) => `
+              <tr${r.t.id === summaryTeamId ? ' class="is-selected"' : ''}>
+                <td><button type="button" class="link-btn" data-overview-team="${esc(r.t.id)}">${esc(teamName(r.t))}</button></td>
+                <td class="stat-col--center">${r.treinos}</td>
+                <td class="stat-col--center"><strong class="stat-pct ${tone(r.pct)}">${r.pct == null ? '—' : r.pct + '%'}</strong></td>
+                <td class="stat-col--center">${r.porFechar
+                  ? `<span class="badge badge--warn">${r.porFechar}</span>`
+                  : '<span class="muted">—</span>'}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
 }
 
 // Separador "Estatísticas": comparência por atleta de UMA equipa, ordenada da
@@ -702,7 +781,7 @@ function renderSummary(container, tabBar) {
       <header class="page-head">
         <div>
           <h1 class="section-title">Presenças</h1>
-          <p class="muted" style="margin:0;font-size:0.88rem">Quem apareceu aos treinos e às sessões de musculação</p>
+          <p class="muted" style="margin:0;font-size:0.88rem">Quem apareceu aos treinos</p>
         </div>
       </header>
       ${tabBar}
@@ -766,11 +845,13 @@ function renderSummary(container, tabBar) {
     <header class="page-head">
       <div>
         <h1 class="section-title">Presenças</h1>
-        <p class="muted" style="margin:0;font-size:0.88rem">Quem apareceu aos treinos e às sessões de musculação</p>
+        <p class="muted" style="margin:0;font-size:0.88rem">Quem apareceu aos treinos</p>
       </div>
     </header>
 
     ${tabBar}
+
+    ${teamsOverviewHTML(teams)}
 
     <div class="card" style="margin-bottom:1.2rem">
       <div class="row row--between row--wrap" style="gap:0.8rem">
@@ -830,6 +911,11 @@ function renderSummary(container, tabBar) {
     summaryMonth = '';
     renderSummary(container, tabBar);
   });
+  container.querySelectorAll('[data-overview-team]').forEach((b) => b.addEventListener('click', () => {
+    summaryTeamId = b.dataset.overviewTeam;
+    summaryMonth = '';
+    renderSummary(container, tabBar);
+  }));
   container.querySelectorAll('[data-stat-player]').forEach((b) =>
     b.addEventListener('click', () => openAthleteProfile(b.dataset.statPlayer)));
   container.querySelectorAll('[data-month]').forEach((btn) => {

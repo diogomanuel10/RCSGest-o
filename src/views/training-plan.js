@@ -7,6 +7,7 @@
 import {
   state,
   createRow,
+  createRows,
   updateRow,
   deleteRow,
   upsertTrainingPlan,
@@ -17,10 +18,10 @@ import {
 import { esc, safeUrl, linkHost } from '../ui.js';
 import { openModal, confirmDialog, wireDialog } from '../modal.js';
 import { canEdit } from '../permissions.js';
-import { toastError } from '../toast.js';
+import { toastError, toastOk } from '../toast.js';
 import { openExercisePicker, exercisePayload } from './exercicios.js';
 import { PLAN_CATEGORIES, PLAN_CATEGORY_LABEL, PLAN_CATEGORY_BADGE } from '../constants.js';
-import { eventTimeRange, teamById, teamName } from '../compute.js';
+import { eventTimeRange, eventDateTime, teamById, teamName } from '../compute.js';
 
 const STAR_ON  = '#f59e0b';
 const STAR_OFF = 'var(--muted,#9ca3af)';
@@ -136,6 +137,9 @@ function paintPlanTab(body, eventId) {
         ? `<div class="tp-add">
              <button class="btn btn--primary btn--sm" data-add-item type="button">+ Adicionar exercício</button>
              <button class="btn btn--ghost btn--sm" data-from-library type="button">Da biblioteca</button>
+             ${!items.length && plansToCopy(event).length
+               ? '<button class="btn btn--ghost btn--sm" data-copy-plan type="button">Copiar de outro treino</button>'
+               : ''}
            </div>`
         : ''}
     </div>
@@ -185,6 +189,13 @@ function paintPlanTab(body, eventId) {
         });
         paintPlanTab(body, eventId);
       },
+    });
+  });
+
+  body.querySelector('[data-copy-plan]')?.addEventListener('click', () => {
+    openCopyPlanPicker(event, async (src) => {
+      await copyPlanInto(eventId, plan, src);
+      paintPlanTab(body, eventId);
     });
   });
 
@@ -253,6 +264,97 @@ function paintPlanTab(body, eventId) {
       paintPlanTab(body, eventId);
     });
   });
+}
+
+// --- Copiar o plano de outro treino ----------------------------------------
+//
+// Uma semana de treino repete-se quase igual: o treino de quinta é o de terça
+// com dois exercícios trocados. Montá-lo de raiz, bloco a bloco (ou puxando um
+// a um da biblioteca), era o trabalho que fazia o plano ficar por escrever.
+// Copiar é uma CÓPIA — a mesma regra da biblioteca: o plano de um treino é um
+// registo do que se treinou, e editar a cópia não pode reescrever o original.
+//
+// Os candidatos são os treinos da MESMA equipa com blocos, os anteriores
+// primeiro (do mais recente para trás) e depois os já preparados à frente.
+
+function plansToCopy(event) {
+  if (!event?.team_id) return [];
+  const withItems = new Set(state.trainingPlanItems.map((i) => i.plan_id));
+  const when = eventDateTime(event);
+  return state.trainingPlans
+    .filter((p) => p.event_id !== event.id && withItems.has(p.id))
+    .map((p) => ({ plan: p, ev: state.events.find((e) => e.id === p.event_id) }))
+    .filter((x) => x.ev && x.ev.team_id === event.team_id && x.ev.type === event.type)
+    .sort((a, b) => {
+      const da = eventDateTime(a.ev) - when;
+      const db = eventDateTime(b.ev) - when;
+      if ((da < 0) !== (db < 0)) return da < 0 ? -1 : 1;
+      return Math.abs(da) - Math.abs(db);
+    })
+    .slice(0, 10);
+}
+
+function openCopyPlanPicker(event, onPick) {
+  const options = plansToCopy(event);
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal card" role="dialog" aria-modal="true" aria-labelledby="cp-title" style="width:min(520px,96vw)">
+      <div class="modal__head">
+        <h2 class="section-title" id="cp-title">Copiar de outro treino</h2>
+        <button class="modal__close" type="button" aria-label="Fechar">&times;</button>
+      </div>
+      <p class="muted" style="margin:0 0 0.8rem;font-size:0.86rem">
+        Copia o objetivo, o material e os blocos. Depois podes mudar o que quiseres — o treino de origem não muda.
+      </p>
+      <ul class="cp-list">
+        ${options.map(({ plan, ev }) => {
+          const its = state.trainingPlanItems.filter((i) => i.plan_id === plan.id);
+          const min = its.reduce((t, i) => t + (i.duration_min || 0), 0);
+          const date = eventDateTime(ev).toLocaleDateString('pt-PT', { weekday: 'short', day: '2-digit', month: 'short' });
+          return `<li><button type="button" class="cp-item" data-copy-from="${esc(plan.id)}">
+            <span class="cp-item__date">${esc(date)}${eventTimeRange(ev) ? ' · ' + esc(eventTimeRange(ev)) : ''}</span>
+            <span class="cp-item__what">${esc(plan.objective || its.slice(0, 3).map((i) => i.name).join(', '))}</span>
+            <span class="muted cp-item__meta">${its.length} bloco${its.length === 1 ? '' : 's'}${min ? ` · ${min} min` : ''}</span>
+          </button></li>`;
+        }).join('')}
+      </ul>
+      <div class="modal__actions">
+        <button class="btn btn--ghost" data-cp-cancel type="button">Cancelar</button>
+      </div>
+    </div>`;
+  const close = wireDialog(overlay);
+  overlay.querySelector('[data-cp-cancel]').addEventListener('click', close);
+  overlay.querySelectorAll('[data-copy-from]').forEach((btn) => btn.addEventListener('click', async () => {
+    const src = options.find((o) => o.plan.id === btn.dataset.copyFrom)?.plan;
+    if (!src) return;
+    overlay.querySelectorAll('[data-copy-from]').forEach((b) => { b.disabled = true; });
+    try {
+      await onPick(src);
+      close();
+    } catch (err) {
+      toastError(dbErrorMessage(err));
+      overlay.querySelectorAll('[data-copy-from]').forEach((b) => { b.disabled = false; });
+    }
+  }));
+}
+
+async function copyPlanInto(eventId, plan, src) {
+  // O cabeçalho só se preenche onde está vazio: o que o treinador já escreveu
+  // neste treino não é apagado pela cópia.
+  const head = {};
+  for (const k of ['material', 'objective', 'notes', 'link_url']) {
+    if (k in src && src[k] && !plan?.[k]) head[k] = src[k];
+  }
+  const target = plan && !Object.keys(head).length ? plan : await upsertTrainingPlan(eventId, head);
+  const items = state.trainingPlanItems
+    .filter((i) => i.plan_id === src.id)
+    .sort((a, b) => a.position - b.position)
+    // Copia só as colunas que a linha tem (as de migrações por correr não
+    // vêm), sem a identidade nem a ligação ao plano de origem.
+    .map(({ id, plan_id, created_at, updated_at, org_id, ...rest }, idx) => ({ ...rest, plan_id: target.id, position: idx }));
+  await createRows('training_plan_items', 'trainingPlanItems', items);
+  toastOk(`Plano copiado: ${items.length} bloco${items.length === 1 ? '' : 's'}.`);
 }
 
 // Totalizador de duração: soma dos blocos vs. duração real do treino.

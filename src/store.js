@@ -2549,6 +2549,27 @@ export async function upsertSquadPlayer(squadId, playerId, status) {
   return data;
 }
 
+// Convoca vários atletas numa só escrita ("Convocar todos", "Repetir a do
+// último jogo"). Eram N idas à base de dados em série, com o diálogo parado
+// enquanto subiam uma a uma. Os gatilhos continuam a ser por linha: cada
+// atleta recebe o seu aviso de convocatória.
+export async function addSquadPlayers(squadId, playerIds, status) {
+  if (!playerIds.length) return 0;
+  const rows = playerIds.map((pid) => ({ squad_id: squadId, player_id: pid, status }));
+  const { data, error } = await supabase
+    .from('squad_players')
+    .upsert(rows, { onConflict: 'squad_id,player_id' })
+    .select();
+  if (error) throw error;
+  for (const row of data || []) {
+    const i = state.squadPlayers.findIndex((sp) => sp.squad_id === squadId && sp.player_id === row.player_id);
+    if (i !== -1) state.squadPlayers[i] = row;
+    else state.squadPlayers.push(row);
+  }
+  notify();
+  return playerIds.length;
+}
+
 // Remove um atleta da convocatória.
 export async function removeSquadPlayer(squadId, playerId) {
   const { error } = await supabase

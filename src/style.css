@@ -6569,6 +6569,53 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 .pres-pending__label { font-weight: 600; font-size: 0.88rem; text-transform: capitalize; }
 .pres-pending__note { flex-basis: 100%; font-size: 0.8rem; }
 .pres-justify { margin-top: 0.3rem; align-self: flex-start; }
+
+/* Os treinos de hoje num toque, por cima do seletor. */
+.pres-today { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin: 0 0 0.8rem; }
+.pres-today__label { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); margin-right: 0.2rem; }
+.pres-today__chip {
+  min-height: 38px;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.pres-today__chip:hover { background: color-mix(in srgb, var(--info) 6%, var(--surface)); }
+.pres-today__chip.is-active { border-color: var(--info); background: color-mix(in srgb, var(--info) 12%, var(--surface)); color: var(--info-ink); }
+@media (hover: none) { .pres-today__chip { min-height: 44px; } }
+
+/* Marcar presenças a partir do Painel: a lista desliza entre o topo
+   (contagem + "Todos presentes") e os botões, que ficam sempre à vista. */
+.qa-modal { width: min(600px, 96vw); max-height: 90vh; display: flex; flex-direction: column; }
+.qa-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.qa-top { padding-bottom: 0.6rem; border-bottom: 1px solid var(--border); }
+.qa-hint { margin: 0.5rem 0 0; font-size: 0.84rem; }
+.qa-list { flex: 1; min-height: 0; overflow-y: auto; margin: 0 -1.2rem; padding: 0 1.2rem; }
+
+/* A equipa escolhida na tabela "Por equipa" das Estatísticas. */
+.stat-table tr.is-selected td { background: color-mix(in srgb, var(--info) 8%, var(--surface)); }
+.stat-table tr.is-selected .link-btn { font-weight: 700; }
+
+/* Copiar o plano de outro treino: uma linha por treino candidato. */
+.cp-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
+.cp-item {
+  width: 100%; display: grid; gap: 0.1rem; text-align: left;
+  padding: 0.6rem 0.75rem; border: 1px solid var(--border); border-radius: var(--radius-xs, 6px);
+  background: var(--surface); color: var(--text); font: inherit; cursor: pointer;
+}
+.cp-item:hover { background: color-mix(in srgb, var(--info) 6%, var(--surface)); border-color: var(--info); }
+.cp-item:disabled { opacity: 0.6; cursor: wait; }
+.cp-item__date { font-weight: 700; font-size: 0.86rem; text-transform: capitalize; }
+.cp-item__what { font-size: 0.9rem; }
+.cp-item__meta { font-size: 0.8rem; }
+
+/* Os totais da sessão numa linha, por baixo da barra de progresso. */
+.pres-tally { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0.6rem 0 0; }
 .pres-unmarked { margin: 0.7rem 0 0; font-size: 0.84rem; color: var(--warn-ink); }
 
 /* Um nome que abre a ficha, sem parecer um botão. */
