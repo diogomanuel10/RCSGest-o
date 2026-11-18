@@ -2430,6 +2430,24 @@ separador antes de navegar (usado pelos cartões do Painel).
     (`buildActions({ includePresencas })` é só do **coordenador**, para quem
     isto é supervisão e o que interessa é se está a acumular). Ver «Painel do
     treinador».
+- **O coordenador vê o clube POR EQUIPA** (`teamsCard` em `painel.js`,
+  `teamsOverview` em `compute.js`): a faixa de números é do clube inteiro, e a
+  média de dez escalões esconde exatamente o escalão que está a correr mal — o
+  argumento das quedas individuais de comparência, um nível acima. Uma linha
+  por equipa com a comparência dos últimos 30 dias (e a seta da variação
+  contra os 30 anteriores, só com dados dos dois lados), treinos por fechar,
+  jogos sem resultado, balanço e quem não está a 100%. A equipa que precisa
+  de atenção (comparência a cair 10 pontos ou abaixo de 50%, registo por
+  fazer) leva uma barra à esquerda e não a linha pintada. Fica DEPOIS da
+  lista de trabalho — é a leitura que faz encontrar o trabalho que nenhum
+  aviso apanhou — e só com duas equipas ou mais.
+  - **Os jogos entram na supervisão, como as presenças por marcar**
+    (`includePresencas`, só coordenador): jogo nas próximas 72h sem ninguém
+    convocado (`gamesWithoutSquad`; a 48h sobe a `agora`) e jogo do último mês
+    sem resultado (abre o registo do resultado, `data-work-result`). O
+    resultado só conta 30 dias para trás porque um clube que nunca regista
+    resultados teria ali a época inteira para sempre; os antigos continuam
+    contados no cartão "Por equipa". Avisos `convocatorias` e `resultados`.
 - **Painel personalizável** (`supabase/painel-avisos.sql`): dois catálogos em
   `painel.js` — `METRIC_CATALOG` (os cartões de números) e `ALERT_CATALOG` (a
   lista "A precisar da tua atenção"). Cada entrada declara quem a **pode** ver
