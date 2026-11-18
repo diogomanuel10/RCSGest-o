@@ -143,5 +143,5 @@ function cardHTML(player, team, svg, b, logo) {
 // A janela de impressão é um documento novo, sem as variáveis CSS da app:
 // as cores da marca têm de ir como valor literal.
 function cssColor(value) {
-  return /^#[0-9a-f]{3,8}$/i.test(String(value || '')) ? value : '#143b61';
+  return /^#[0-9a-f]{3,8}$/i.test(String(value || '')) ? value : '#0d6efd';
 }
