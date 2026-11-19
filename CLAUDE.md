@@ -2469,6 +2469,30 @@ separador antes de navegar (usado pelos cartões do Painel).
   certo (`setEncomendasFilter`). Os separadores que uma linha escolhe antes de
   navegar vivem num sítio só (`openTargetTabs`): o painel e o diálogo de grupo
   tinham cada um a sua cópia.
+- **O fim da demonstração avisa antes de fechar a porta** (`buildActions`):
+  com o clube em `trial` e `trial_ends_at` a 7 dias ou menos, o coordenador
+  vê-o na lista de trabalho (a 3 dias sobe a `agora`), com o mesmo contacto
+  do ecrã de bloqueio (`subscriptionContactHref`, num sítio só). Não está no
+  catálogo de avisos: não é uma preferência, é o dia em que a app deixa de
+  abrir para toda a gente. Um destino fora da app é um `href` na pendência
+  (`data-work-href`).
+- **Os números da faixa dizem para onde vão**: "Em dívida" compara com a
+  dívida de há 30 dias (`quotasOwedAt`, reconstruída das próprias quotas —
+  as que já existiam e ainda não estavam pagas; uma quota paga sem `pago_em`
+  conta como paga antes, e sem quotas dessa altura não há comparação) e o
+  "Balanço" junta à taxa da época a forma dos últimos jogos. O "Angariado"
+  continua sem ritmo: os patrocínios não guardam QUANDO foram confirmados, e
+  um ritmo inventado é pior do que nenhum.
+- **"Próximos 7 dias" substituiu os "Próximos eventos" no painel do clube**
+  (`weekCard`): cinco eventos davam para uma tarde de treinos de três escalões
+  e não diziam nada a quem gere dez — os treinos são dos treinadores. Ficam os
+  JOGOS e os eventos do clube, cada jogo com o que falta prepará-lo ("Sem
+  convocatória", que abre a convocatória; "Sem local") ou o número que o
+  confirma ("12 convocadas"), e a linha abre o jogo na secção Jogos
+  (`openGame`). Hoje não entra (está no "Hoje"); sem jogos na semana diz-se
+  qual é o próximo, para uma pausa não se confundir com um calendário por
+  lançar. Não se chama "Esta semana" porque é o nome de um degrau da lista ao
+  lado.
 - **Painel personalizável** (`supabase/painel-avisos.sql`): dois catálogos em
   `painel.js` — `METRIC_CATALOG` (os cartões de números) e `ALERT_CATALOG` (a
   lista "A precisar da tua atenção"). Cada entrada declara quem a **pode** ver

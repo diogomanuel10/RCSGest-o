@@ -1321,6 +1321,17 @@ button.metric--nav:focus-visible {
 
 /* Painel do coordenador: "Por equipa". A equipa que precisa de atenção leva
    uma barra à esquerda e não a linha pintada — dez linhas âmbar não se leem. */
+/* "Próximos 7 dias": os jogos com o que falta preparar em cada um. */
+.week-card__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.3rem;
+}
+.week-card__chip { border: none; cursor: pointer; font: inherit; font-size: 0.75rem; }
+.week-card__item--nav { cursor: pointer; border-radius: 0.375rem; }
+.week-card__item--nav:hover { background: var(--gray-100); }
+.week-card__item--nav:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .team-ov .stat-table { min-width: 0; width: 100%; }
 .team-ov__sub {
   display: block;

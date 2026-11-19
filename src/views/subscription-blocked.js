@@ -26,6 +26,12 @@ const MESSAGES = {
   },
 };
 
+// O endereço para ativar/regularizar a subscrição. Num sítio só: o Painel do
+// coordenador usa o mesmo link no aviso de fim da demonstração.
+export function subscriptionContactHref(clubName = branding().club_name) {
+  return `mailto:diomanuel10@gmail.com?subject=${encodeURIComponent('Subscrição Rumia — ' + clubName)}`;
+}
+
 export function renderSubscriptionBlocked(root, reason) {
   root.removeAttribute('aria-busy');
   const b = branding();
@@ -40,7 +46,7 @@ export function renderSubscriptionBlocked(root, reason) {
           <h1 class="section-title" style="margin-bottom:0.4rem">${esc(m.title)}</h1>
           <p class="muted" style="margin:0 0 1rem">${esc(m.body)}</p>
         </div>
-        <a class="btn btn--primary" href="mailto:diomanuel10@gmail.com?subject=${encodeURIComponent('Subscrição Rumia — ' + b.club_name)}">
+        <a class="btn btn--primary" href="${esc(subscriptionContactHref(b.club_name))}">
           Contactar
         </a>
         <button type="button" class="btn btn--ghost btn--sm" id="blocked-logout"

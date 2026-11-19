@@ -50,6 +50,8 @@ import {
   teamsOverview,
   gamesWithoutSquad,
   ordersPending,
+  quotasOwedAt,
+  squadCount,
 } from '../compute.js';
 import {
   EVENT_TYPE_LABEL,
@@ -86,6 +88,8 @@ import { openSeasonPlanning } from './planteis.js';
 import { openDefinicoesTab } from './definicoes.js';
 import { openEquipamentosTab } from './equipamentos.js';
 import { setEncomendasFilter } from './encomendas.js';
+import { openGame } from './jogos.js';
+import { subscriptionContactHref } from './subscription-blocked.js';
 import { openBirthdayCard } from './parabens.js';
 import { DEFAULT_BRANDING } from '../branding.js';
 
@@ -121,11 +125,9 @@ export function renderPainel(container) {
   const actions = buildActions({ includePresencas: true });
   const today = todayEvents();
   const todayIds = new Set(today.map((e) => e.id));
-  // "Próximos eventos" exclui os de HOJE: `upcomingEvents` filtra por
-  // `>= agora`, por isso o treino das 19h aparecia ao mesmo tempo no cartão
-  // "Hoje" e três blocos abaixo, em "Próximos". Ler o mesmo evento duas vezes
-  // no mesmo ecrã é o que faz o painel parecer cheio sem dizer mais nada.
-  const upcoming = upcomingEvents(12).filter((e) => !todayIds.has(e.id)).slice(0, 5);
+  // "Próximos 7 dias" exclui os de HOJE (`todayIds`): o jogo das 19h aparecia ao
+  // mesmo tempo no cartão "Hoje" e outra vez abaixo. Ler o mesmo evento duas
+  // vezes no mesmo ecrã é o que faz o painel parecer cheio sem dizer nada.
   const quick = quickActions();
 
   // Só se mostram os indicadores das secções a que o utilizador tem acesso.
@@ -161,7 +163,7 @@ export function renderPainel(container) {
     },
     seeQuotas && metricOn('em_divida') && {
       label: 'Em dívida', value: euros(owed.total),
-      sub: owed.count ? `${owed.count} quota${owed.count === 1 ? '' : 's'} por pagar` : 'tudo regularizado',
+      sub: owedSub(owed),
       tone: owed.total > 0 ? 'warn' : 'ok', route: 'financeiro', finTab: 'quotas',
     },
     seeMedico && metricOn('em_tratamento') && {
@@ -171,7 +173,12 @@ export function renderPainel(container) {
     },
     seeCalendar && metricOn('balanco') && record.jogos > 0 && {
       label: 'Balanço', value: `${record.vitorias}–${record.derrotas}`,
-      sub: `${record.taxa}% de vitórias`,
+      // A taxa da época e a forma recente são perguntas diferentes: "como foi
+      // a época" e "como estamos agora". Só a taxa escondia um clube que
+      // perdeu os últimos cinco jogos.
+      sub: `${record.taxa}% de vitórias${record.recentes.length >= 3
+        ? ` · últimos ${record.recentes.length}: ${record.recentesV}V ${record.recentes.length - record.recentesV}D`
+        : ''}`,
       tone: record.taxa >= 50 ? 'ok' : 'warn', route: 'jogos',
     },
   ].filter(Boolean);
@@ -223,10 +230,7 @@ export function renderPainel(container) {
       <aside class="panel-grid__side">
         ${today.length && seeCalendar ? todayCard(today) : ''}
 
-        ${seeCalendar ? `<section class="card">
-          <h2 class="section-title upcoming-card__title">Próximos eventos</h2>
-          ${upcoming.length ? upcomingList(upcoming) : '<p class="muted" style="margin:0.3rem 0 0">Sem outros eventos agendados.</p>'}
-        </section>` : ''}
+        ${seeCalendar ? weekCard(todayIds) : ''}
       </aside>
     </div>
   `;
@@ -234,6 +238,7 @@ export function renderPainel(container) {
   wireWorkCard(container, () => renderPainel(container));
   wireWorkTargets(container);
   wireBirthdayLine(container);
+  wireWeekCard(container);
 
   // Atalho: abre modal rápido de presenças diretamente do Painel.
   container.querySelectorAll('[data-mark-event]').forEach((btn) => {
@@ -728,6 +733,25 @@ export const WORK_STEPS = [
 // a mesma coisa duas vezes no mesmo scroll.
 function buildActions({ includePresencas = false } = {}) {
   const items = [];
+
+  // Fim da demonstração. Sem isto o coordenador só o descobria quando a app
+  // lhe fechava a porta — com o clube inteiro já lá dentro. Não está no
+  // catálogo de avisos, de propósito: não é uma preferência, é o dia em que a
+  // app deixa de abrir para toda a gente.
+  if (isCoordenador() && state.org?.status === 'trial' && state.org.trial_ends_at) {
+    const fim = new Date(state.org.trial_ends_at);
+    const dias = Math.ceil((fim.getTime() - Date.now()) / 86400000);
+    if (dias >= 0 && dias <= 7) {
+      const quando = dias <= 0 ? 'hoje' : dias === 1 ? 'amanhã' : `daqui a ${dias} dias`;
+      items.push({
+        urgency: dias <= 3 ? 'agora' : 'semana',
+        variant: dias <= 3 ? 'danger' : 'warn',
+        href: subscriptionContactHref(),
+        title: `A demonstração termina ${quando}`,
+        sub: `A ${fim.toLocaleDateString('pt-PT', { day: 'numeric', month: 'long' })} a app deixa de abrir para o clube. Fala connosco para ativar a subscrição.`,
+      });
+    }
+  }
 
   // Presenças por marcar — uma linha, não um cartão. Quem marca presenças é o
   // treinador; ao coordenador isto é supervisão, e o que ele precisa de saber
@@ -1286,6 +1310,127 @@ function teamsCard() {
     </section>`;
 }
 
+// O subtítulo de "Em dívida": quantas quotas e para onde vai a dívida. Um
+// valor sem direção não diz se o problema está a crescer ou a resolver-se.
+function owedSub(owed) {
+  if (!owed.count) return 'tudo regularizado';
+  const base = `${owed.count} quota${owed.count === 1 ? '' : 's'} por pagar`;
+  const antes = quotasOwedAt(30);
+  if (antes == null) return base;
+  const d = Math.round(owed.total - antes);
+  if (Math.abs(d) < 1) return `${base} · igual a há 30 dias`;
+  return `${base} · ${d > 0 ? '↑' : '↓'}${euros(Math.abs(d))} em 30 dias`;
+}
+
+// --- Próximos 7 dias ----------------------------------------------------
+// (Não se chama "Esta semana" porque é o nome de um degrau da lista de
+// trabalho mesmo ao lado.)
+// Substituiu os "Próximos eventos" no painel do clube. Cinco eventos davam
+// para uma tarde de treinos de três escalões e não diziam nada a quem gere
+// dez: os treinos são trabalho dos treinadores. O que o coordenador prepara
+// são os JOGOS da semana (e os eventos do clube), e o que pergunta sobre cada
+// um é se está pronto — convocatória feita, local marcado.
+//
+// Hoje não entra: está no cartão "Hoje", e o mesmo jogo duas vezes no mesmo
+// ecrã lê-se como dois jogos. Sem jogos nos 7 dias, diz-se o próximo — um
+// cartão vazio em novembro não distingue a pausa do calendário por lançar.
+const WEEK_DAYS = 7;
+
+function weekCard(todayIds) {
+  const now = new Date();
+  const limit = new Date(now.getTime() + WEEK_DAYS * 86400000);
+  const futuros = state.events
+    .filter((e) => (e.type === 'jogo' || e.type === 'evento') && !todayIds.has(e.id))
+    .filter((e) => eventDateTime(e) >= now)
+    .sort((a, b) => eventDateTime(a) - eventDateTime(b));
+  const semana = futuros.filter((e) => eventDateTime(e) <= limit);
+  const jogos = semana.filter((e) => e.type === 'jogo').length;
+  const proximo = !jogos ? futuros.find((e) => e.type === 'jogo') : null;
+
+  return `
+    <section class="card week-card">
+      <h2 class="section-title upcoming-card__title">Próximos 7 dias${jogos
+        ? ` <span class="muted" style="font-weight:400">· ${jogos} jogo${jogos === 1 ? '' : 's'}</span>`
+        : ''}</h2>
+      ${semana.length ? weekList(semana) : ''}
+      ${!jogos ? `<p class="muted" style="margin:${semana.length ? '0.6rem' : '0.3rem'} 0 0">${proximo
+        ? `Sem jogos nos próximos ${WEEK_DAYS} dias. O próximo é a ${esc(eventDateTime(proximo).toLocaleDateString('pt-PT', { day: 'numeric', month: 'short' }))}${proximo.team_id ? ` (${esc(teamName(teamById(proximo.team_id)))})` : ''}.`
+        : 'Sem jogos marcados no calendário.'}</p>` : ''}
+    </section>`;
+}
+
+// Uma linha por jogo, com o estado do que se prepara. Só se diz o que FALTA
+// ou o número que confirma ("12 convocados"); "local ✓" em todas as linhas
+// era ruído.
+function weekList(events) {
+  const canSquad = canEdit('squads');
+  let lastDate = null;
+  return `
+    <ul class="event-mini">
+      ${events.map((ev) => {
+        const sameDay = ev.date === lastDate;
+        lastDate = ev.date;
+        const dt = eventDateTime(ev);
+        const team = teamById(ev.team_id);
+        const day = dt.toLocaleDateString('pt-PT', { day: '2-digit' });
+        // Três letras ("sáb"): o `short` do pt-PT devolve "sábado" inteiro,
+        // que não cabe no quadrado da data.
+        const wd = dt.toLocaleDateString('pt-PT', { weekday: 'long' }).slice(0, 3);
+        const tipo = EVENT_TYPE_LABEL[ev.type] || ev.type;
+        const titulo = (ev.title || '').trim();
+        const nome = titulo && titulo.toLowerCase() !== tipo.toLowerCase() ? titulo : '';
+        const meta = [
+          team ? teamName(team) : '',
+          ev.opponent ? `vs ${ev.opponent}` : '',
+          ev.time ? ev.time.slice(0, 5) : '',
+        ].filter(Boolean).join(' · ');
+
+        const chips = [];
+        if (ev.type === 'jogo' && ev.team_id) {
+          const n = squadCount(ev.id);
+          chips.push(n
+            ? `<span class="badge badge--ok">${n} convocad${n === 1 ? 'a' : 'as'}</span>`
+            : canSquad
+              ? `<button type="button" class="badge badge--warn week-card__chip" data-week-squad="${esc(ev.id)}">Sem convocatória</button>`
+              : '<span class="badge badge--warn">Sem convocatória</span>');
+        }
+        if (!(ev.location || '').trim()) chips.push('<span class="badge badge--muted">Sem local</span>');
+
+        // O jogo abre na secção Jogos, já à vista (o percurso do jogo vive
+        // lá). Um evento do clube não tem secção própria: fica só a linha.
+        const open = ev.type === 'jogo' ? ` data-week-game="${esc(ev.id)}" role="button" tabindex="0"` : '';
+        return `
+          <li class="event-mini__item${sameDay ? ' event-mini__item--same-day' : ''}${open ? ' week-card__item--nav' : ''}"${open}>
+            <div class="event-mini__date-block"${sameDay ? ' aria-hidden="true"' : ''}>
+              ${sameDay ? '' : `<span class="event-mini__day">${day}</span>
+              <span class="event-mini__mon">${esc(wd)}</span>`}
+            </div>
+            <div class="event-mini__body">
+              <span class="event-mini__meta">
+                <span class="badge badge--${EVENT_TYPE_BADGE[ev.type] || 'muted'}">${esc(tipo)}</span>
+                ${nome ? `<strong class="event-mini__name">${esc(nome)}</strong>` : ''}
+                ${meta ? `<span class="muted">${esc(meta)}</span>` : ''}
+              </span>
+              ${chips.length ? `<span class="week-card__chips">${chips.join('')}</span>` : ''}
+            </div>
+          </li>`;
+      }).join('')}
+    </ul>`;
+}
+
+function wireWeekCard(root) {
+  root.querySelectorAll('[data-week-squad]').forEach((el) =>
+    el.addEventListener('click', (e) => { e.stopPropagation(); openSquadModal(el.dataset.weekSquad); })
+  );
+  root.querySelectorAll('[data-week-game]').forEach((el) => {
+    const go = () => { openGame(el.dataset.weekGame); navTo('jogos'); };
+    el.addEventListener('click', go);
+    el.addEventListener('keydown', (e) => {
+      if (e.target === el && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); go(); }
+    });
+  });
+}
+
 // Faixa de números. Substitui os nove cartões com ícone: cada um ocupava duas
 // linhas e um ícone de 42px para dizer um número, e nove deles enchiam o ecrã
 // de um telemóvel antes de se chegar ao que há para fazer. A faixa diz os
@@ -1424,6 +1569,9 @@ function wireWorkTargets(root, { tab = 'geral', includeNav = false, before = nul
   root.querySelectorAll('[data-work-group]').forEach((el) =>
     el.addEventListener('click', () => openWorkGroup(el.dataset.workGroup, tab))
   );
+  root.querySelectorAll('[data-work-href]').forEach((el) =>
+    el.addEventListener('click', () => go(() => { window.location.href = el.dataset.workHref; }))
+  );
   root.querySelectorAll('[data-work-result]').forEach((el) =>
     el.addEventListener('click', () => go(() => openResultModal(el.dataset.workResult)))
   );
@@ -1517,8 +1665,10 @@ function openWorkGroup(family, tab = 'geral') {
 // a ficha do atleta, o evento concreto, e só depois a secção. Uma pendência que
 // nomeia uma pessoa ou um treino e aterra numa secção genérica devolve a quem
 // lê o trabalho de reencontrar ali o que o painel já sabia.
-function actionTarget({ group, docAthlete, athlete, tab, event, result, route }) {
+function actionTarget({ group, docAthlete, athlete, tab, event, result, href, route }) {
   if (group) return `data-work-group="${esc(group)}"`;
+  // Um destino fora da app (o email para ativar a subscrição).
+  if (href) return `data-work-href="${esc(href)}"`;
   // Um jogo sem resultado abre o REGISTO do resultado, não a lista de jogos.
   if (result) return `data-work-result="${esc(result)}"`;
   // Um documento leva à FICHA do atleta e não à secção: o que se vai fazer
