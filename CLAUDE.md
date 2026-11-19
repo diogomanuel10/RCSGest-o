@@ -3317,6 +3317,12 @@ separador antes de navegar (usado pelos cartões do Painel).
   chama o `loadAll()`. Só com um dedo, só no conteúdo, nunca com um diálogo,
   a gaveta, o quiosque ou o scout por cima, e nunca a começar num `svg`
   (o campo tático arrasta-se) ou num campo de formulário.
+  - **O elástico do browser está desligado** (`overscroll-behavior-y: none`
+    no `html` e no `body`, e não `contain`): o `contain` só impedia o Chrome
+    de recarregar a página, e no iPhone mantinha o elástico — no fim de uma
+    lista longa, continuar a puxar mostrava espaço em branco a crescer por
+    baixo, que se lia como uma página sem fim. O nosso puxão lê os toques
+    diretamente e não precisa dele.
 - **O primeiro carregamento é um esqueleto** (`skeletonHTML` em `ui.js`) e não
   uma roda: mostra a forma da página que vem aí. O `loadingHTML` continua a
   servir os carregamentos pequenos dentro das vistas.

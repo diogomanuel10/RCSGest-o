@@ -10049,9 +10049,16 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 }
 @media (max-width: 820px) {
   /* O puxão é nosso: sem isto o Chrome do Android recarregava a página
-     inteira por cima do gesto. */
-  html:has(.ptr) {
-    overscroll-behavior-y: contain;
+     inteira por cima do gesto.
+     `none` e não `contain`: o `contain` só corta o encadeamento (o recarregar
+     do browser) e MANTÉM o elástico. No iPhone, chegado ao fim de uma lista
+     longa (as Presenças), continuar a puxar esticava a página e mostrava
+     espaço em branco por baixo, que acompanhava o dedo — lia-se como uma
+     página que crescia sem fim. O nosso "puxar para atualizar" não depende
+     do elástico: lê os toques diretamente (`.ptr` no app-shell). */
+  html:has(.ptr),
+  html:has(.ptr) body {
+    overscroll-behavior-y: none;
   }
   .ptr {
     position: fixed;
