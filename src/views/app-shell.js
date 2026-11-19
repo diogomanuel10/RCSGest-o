@@ -1193,10 +1193,13 @@ export async function renderAppShell(root, session) {
     // estiver por dar. Dar a permissão e não ficar subscrito é o caso mais
     // traiçoeiro: o utilizador jura que ativou e nunca lhe chega nada.
     async function updatePermUI() {
-      if (!('Notification' in window)) { permDiv.hidden = true; return; }
-
       // iOS: a Apple só entrega push a uma app instalada no ecrã principal.
       // Sem isto o botão pedia uma permissão que o Safari nem mostra.
+      //
+      // Tem de vir ANTES da verificação de `Notification`: no Safari do
+      // iPhone (fora do ecrã principal) essa API nem existe, e com a ordem ao
+      // contrário a caixa escondia-se sem dizer nada — quem abria a Rumia
+      // pelo Safari não via o botão nem a explicação de como o ter.
       if (iosNeedsInstall()) {
         permDiv.hidden = false;
         permText.textContent = 'Para receberes notificações no iPhone, abre o '
@@ -1205,6 +1208,8 @@ export async function renderAppShell(root, session) {
         enableBtn.hidden = true;
         return;
       }
+
+      if (!('Notification' in window)) { permDiv.hidden = true; return; }
 
       enableBtn.hidden = false;
       if (Notification.permission === 'denied') {
