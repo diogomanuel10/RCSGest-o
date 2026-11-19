@@ -2590,6 +2590,11 @@ separador antes de navegar (usado pelos cartões do Painel).
     explicar. E dizem quantos treinos ainda não têm NENHUM registo: esses não
     entram na taxa, e uma taxa de 95% com metade dos treinos por marcar lê-se
     como um plantel exemplar. O nome do atleta abre a ficha.
+  - **No telemóvel a tabela das Estatísticas não empilha como as outras**
+    (`stat-table--pres`, `no-stack`): com `table--stack` cada atleta era um
+    cartão de oito linhas, e 22 atletas davam 6 580 px — dez ecrãs de scroll,
+    uma lista que parecia não ter fim. Passa a duas linhas por atleta (número,
+    nome e comparência; e as contagens numa fila com etiquetas curtas).
 
 - **Portal do atleta** (`portal.js`): é o único ecrã da Rumia cujo utilizador
   não é do clube a trabalhar — é uma atleta, no telemóvel, trinta segundos.

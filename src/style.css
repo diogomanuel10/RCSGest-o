@@ -3891,6 +3891,48 @@ button.stat-strip__item--nav {
 .stat-bar__fill--danger { background: var(--danger); }
 .stat-bar__fill--       { background: var(--border); }
 
+/* Presenças → Estatísticas no telemóvel: UMA linha por atleta (número, nome,
+   comparência) e as contagens por baixo, numa fila. Empilhada como as outras
+   tabelas (`table--stack`), cada atleta era um cartão de oito linhas — 22
+   atletas davam dez ecrãs de scroll, e a lista parecia não ter fim. */
+@media (max-width: 640px) {
+  .stat-table--pres { display: block; min-width: 0; width: 100%; }
+  .stat-table--pres thead { display: none; }
+  .stat-table--pres tbody { display: block; }
+  .stat-table--pres tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 0.35rem;
+    padding: 0.55rem 0.2rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .stat-table--pres tr:last-child { border-bottom: none; }
+  .stat-table--pres td { display: block; padding: 0; border: none; }
+  .stat-table--pres .stat-num { flex: 0 0 1.6rem; width: auto; order: 1; }
+  /* O nome ocupa o que sobra da 1.ª linha (número + barra), e é isso que
+     manda as contagens para a 2.ª. */
+  .stat-table--pres .stat-name {
+    flex: 0 0 calc(100% - 1.6rem - 7rem - 0.8rem);
+    min-width: 0;
+    order: 2;
+  }
+  .stat-table--pres .stat-col--bar { flex: 0 0 7rem; min-width: 0; order: 3; }
+  .stat-table--pres .stat-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.15rem;
+    order: 4;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+  }
+  .stat-table--pres .stat-count .badge { font-size: 0.72rem; padding: 0.05rem 0.4rem; }
+  .stat-table--pres .stat-count::before { content: attr(data-short); }
+  /* As contagens começam na margem e não por baixo do nome: recuadas, as
+     cinco já não cabiam numa linha de um telemóvel de 390px, e numa linha a
+     mais por atleta voltava a lista interminável. */
+}
+
 /* Barra de períodos das estatísticas: época inteira + um botão por mês. */
 .month-bar {
   display: flex;
