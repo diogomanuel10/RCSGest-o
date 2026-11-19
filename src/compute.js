@@ -1126,11 +1126,32 @@ export function ordersPending() {
   return { porPagar, porConfirmar, total, semPreco };
 }
 
+// Quotas em dívida HÁ `days` DIAS, para a faixa do Painel dizer se a dívida
+// está a crescer ou a encolher. Reconstrói-se das próprias quotas: as que já
+// existiam nessa data e ainda não estavam pagas (pagas depois, ou por pagar).
+// Uma quota paga sem data de pagamento conta como paga antes — não se inventa
+// uma dívida. Sem quotas criadas antes da data não há comparação (null): o
+// primeiro mês de uso daria sempre uma "subida" que é só o clube a começar.
+export function quotasOwedAt(days = 30) {
+  const cutoff = new Date(Date.now() - days * 86400000);
+  const antigas = state.quotas.filter((q) => q.created_at && new Date(q.created_at) <= cutoff);
+  if (!antigas.length) return null;
+  return antigas
+    .filter((q) => !q.pago || (q.pago_em && new Date(q.pago_em) > cutoff))
+    .reduce((sum, q) => sum + Number(q.valor || 0), 0);
+}
+
 // Jogos que se aproximam sem ninguém convocado. A convocatória é trabalho do
 // treinador, mas um jogo de sábado sem lista na quinta é o esquecimento que só
 // se descobre no pavilhão — e ao coordenador isto é supervisão, como as
 // presenças por marcar. Só jogos de uma equipa (um evento do clube não tem
 // plantel de onde convocar).
+// Quantos convocados tem um jogo (0 = convocatória por fazer).
+export function squadCount(eventId) {
+  const sq = state.squads.find((s) => s.event_id === eventId);
+  return sq ? state.squadPlayers.filter((x) => x.squad_id === sq.id).length : 0;
+}
+
 export function gamesWithoutSquad(hours = 72) {
   const now = new Date();
   const limit = new Date(now.getTime() + hours * 3600000);

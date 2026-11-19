@@ -2473,6 +2473,30 @@ separador antes de navegar (usado pelos cartões do Painel).
   certo (`setEncomendasFilter`). Os separadores que uma linha escolhe antes de
   navegar vivem num sítio só (`openTargetTabs`): o painel e o diálogo de grupo
   tinham cada um a sua cópia.
+- **O fim da demonstração avisa antes de fechar a porta** (`buildActions`):
+  com o clube em `trial` e `trial_ends_at` a 7 dias ou menos, o coordenador
+  vê-o na lista de trabalho (a 3 dias sobe a `agora`), com o mesmo contacto
+  do ecrã de bloqueio (`subscriptionContactHref`, num sítio só). Não está no
+  catálogo de avisos: não é uma preferência, é o dia em que a app deixa de
+  abrir para toda a gente. Um destino fora da app é um `href` na pendência
+  (`data-work-href`).
+- **Os números da faixa dizem para onde vão**: "Em dívida" compara com a
+  dívida de há 30 dias (`quotasOwedAt`, reconstruída das próprias quotas —
+  as que já existiam e ainda não estavam pagas; uma quota paga sem `pago_em`
+  conta como paga antes, e sem quotas dessa altura não há comparação) e o
+  "Balanço" junta à taxa da época a forma dos últimos jogos. O "Angariado"
+  continua sem ritmo: os patrocínios não guardam QUANDO foram confirmados, e
+  um ritmo inventado é pior do que nenhum.
+- **"Próximos 7 dias" substituiu os "Próximos eventos" no painel do clube**
+  (`weekCard`): cinco eventos davam para uma tarde de treinos de três escalões
+  e não diziam nada a quem gere dez — os treinos são dos treinadores. Ficam os
+  JOGOS e os eventos do clube, cada jogo com o que falta prepará-lo ("Sem
+  convocatória", que abre a convocatória; "Sem local") ou o número que o
+  confirma ("12 convocadas"), e a linha abre o jogo na secção Jogos
+  (`openGame`). Hoje não entra (está no "Hoje"); sem jogos na semana diz-se
+  qual é o próximo, para uma pausa não se confundir com um calendário por
+  lançar. Não se chama "Esta semana" porque é o nome de um degrau da lista ao
+  lado.
 - **Painel personalizável** (`supabase/painel-avisos.sql`): dois catálogos em
   `painel.js` — `METRIC_CATALOG` (os cartões de números) e `ALERT_CATALOG` (a
   lista "A precisar da tua atenção"). Cada entrada declara quem a **pode** ver
@@ -2572,6 +2596,11 @@ separador antes de navegar (usado pelos cartões do Painel).
     explicar. E dizem quantos treinos ainda não têm NENHUM registo: esses não
     entram na taxa, e uma taxa de 95% com metade dos treinos por marcar lê-se
     como um plantel exemplar. O nome do atleta abre a ficha.
+  - **No telemóvel a tabela das Estatísticas não empilha como as outras**
+    (`stat-table--pres`, `no-stack`): com `table--stack` cada atleta era um
+    cartão de oito linhas, e 22 atletas davam 6 580 px — dez ecrãs de scroll,
+    uma lista que parecia não ter fim. Passa a duas linhas por atleta (número,
+    nome e comparência; e as contagens numa fila com etiquetas curtas).
 
 - **Portal do atleta** (`portal.js`): é o único ecrã da Rumia cujo utilizador
   não é do clube a trabalhar — é uma atleta, no telemóvel, trinta segundos.
@@ -3294,6 +3323,12 @@ separador antes de navegar (usado pelos cartões do Painel).
   chama o `loadAll()`. Só com um dedo, só no conteúdo, nunca com um diálogo,
   a gaveta, o quiosque ou o scout por cima, e nunca a começar num `svg`
   (o campo tático arrasta-se) ou num campo de formulário.
+  - **O elástico do browser está desligado** (`overscroll-behavior-y: none`
+    no `html` e no `body`, e não `contain`): o `contain` só impedia o Chrome
+    de recarregar a página, e no iPhone mantinha o elástico — no fim de uma
+    lista longa, continuar a puxar mostrava espaço em branco a crescer por
+    baixo, que se lia como uma página sem fim. O nosso puxão lê os toques
+    diretamente e não precisa dele.
 - **O primeiro carregamento é um esqueleto** (`skeletonHTML` em `ui.js`) e não
   uma roda: mostra a forma da página que vem aí. O `loadingHTML` continua a
   servir os carregamentos pequenos dentro das vistas.

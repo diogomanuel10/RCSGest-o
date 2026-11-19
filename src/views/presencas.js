@@ -883,7 +883,7 @@ function renderSummary(container, tabBar) {
         ? `<div class="card">${emptyHTML('Sem atletas nesta equipa.')}</div>`
         : `<div class="card">
              <div class="stat-table-wrap">
-               <table class="stat-table">
+               <table class="stat-table stat-table--pres no-stack">
                  <thead>
                    <tr>
                      <th>#</th>
@@ -984,11 +984,11 @@ function statRow({ player, byStatus, pct, semRegisto }) {
         <button type="button" class="link-btn" data-stat-player="${player.id}" title="Abrir a ficha">${esc(player.name)}</button>
         ${player.position ? `<span class="muted stat-pos">${esc(player.position)}</span>` : ''}
       </td>
-      <td class="stat-col--center"><span class="badge badge--ok">${byStatus.presente}</span></td>
-      <td class="stat-col--center"><span class="badge badge--warn">${byStatus.atraso}</span></td>
-      <td class="stat-col--center"><span class="badge badge--info">${byStatus.justificado}</span></td>
-      <td class="stat-col--center"><span class="badge badge--danger">${byStatus.falta}</span></td>
-      <td class="stat-col--center"><span class="badge badge--muted">${semRegisto}</span></td>
+      <td class="stat-col--center stat-count" data-short="Pres."><span class="badge badge--ok">${byStatus.presente}</span></td>
+      <td class="stat-col--center stat-count" data-short="Atr."><span class="badge badge--warn">${byStatus.atraso}</span></td>
+      <td class="stat-col--center stat-count" data-short="Just."><span class="badge badge--info">${byStatus.justificado}</span></td>
+      <td class="stat-col--center stat-count" data-short="Falt."><span class="badge badge--danger">${byStatus.falta}</span></td>
+      <td class="stat-col--center stat-count" data-short="s/ reg."><span class="badge badge--muted">${semRegisto}</span></td>
       <td class="stat-col--bar">
         <div class="stat-bar-wrap">
           <div class="stat-bar">
