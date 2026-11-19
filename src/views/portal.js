@@ -28,6 +28,10 @@ import { saveOfflineCard } from '../offline-card.js';
 import { renderDrill } from '../tactical-court.js';
 import { esc, euros, emptyHTML, pickFile, safeUrl } from '../ui.js';
 import { photoAvatarHTML, hydratePhotos } from '../player-photo.js';
+import { branding, logoSrc } from '../branding.js';
+import {
+  pushConfigured, pushSupported, iosNeedsInstall, isPushEnabled, enablePush,
+} from '../push.js';
 import {
   upcomingEvents,
   eventDateTime,
@@ -72,9 +76,38 @@ let portalTab = 'hoje';
 let drillsShowAll = false;
 let scoutShowAll = false;
 
+// --- Movimento -------------------------------------------------------------
+//
+// A regra da app: não se anima o que ENTRA numa vista, porque o portal volta
+// a desenhar-se a cada notificação do store — e uma lista que "entra" outra
+// vez sempre que chega um aviso é ruído. Por isso cada animação tem um
+// gatilho que só existe uma vez:
+//   - `enterAnim`: a entrada em escada dos cartões e o total que conta. Só ao
+//     abrir o portal e ao trocar de separador; o desenho seguinte já não a tem.
+//   - `slideFrom`: de onde parte a pílula da barra de separadores. A barra é
+//     redesenhada inteira, por isso nasce no separador ANTERIOR e desliza.
+//   - `justAnswered`: a confirmação de uma resposta (o ✓ que se desenha). Só
+//     a resposta que se acabou de dar; as antigas aparecem paradas.
+let enterAnim = true;
+let slideFrom = null;
+const justAnswered = new Set();
+
+// O dia escolhido na faixa da semana (yyyy-mm-dd) e o lado do cartão. Estado
+// de UI, como os filtros: sobrevive aos re-desenhos do store.
+let weekSel = null;
+let cardFlipped = false;
+
 // O SVG do cartão fica em cache pelo token: o portal re-desenha a cada
 // notificação do store e não há razão para redesenhar o mesmo código QR.
 let cardCache = { token: null, promise: null };
+
+// Os ícones da barra de separadores (traço, sem preenchimento — os da app).
+const TAB_ICONS = {
+  hoje: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  jogos: '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 4 7.5M12 12l7.8 4.5M12 12l-7.8 4.5M12 12V3"/>',
+  epoca: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  cartao: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3"/>',
+};
 
 const PORTAL_TABS = [
   { key: 'hoje',   label: 'Hoje' },
@@ -82,6 +115,22 @@ const PORTAL_TABS = [
   { key: 'epoca',  label: 'A época' },
   { key: 'cartao', label: 'Cartão', needsCard: true },
 ];
+
+// yyyy-mm-dd na hora LOCAL (o `toISOString` dava o dia anterior a quem abre
+// a app depois da meia-noite em Lisboa no horário de verão).
+function ymd(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function svgIcon(paths, cls = 'pt-ic') {
+  return `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${paths}</svg>`;
+}
+const ICON_CHECK = '<path class="pt-check" d="M5 12.5l4.5 4.5L19 7.5"/>';
+const ICON_X = '<path class="pt-check" d="M7 7l10 10M17 7L7 17"/>';
+const ICON_PIN = '<path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>';
+const ICON_HEART = '<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>';
+const ICON_SEND = '<path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/>';
+const ICON_BELL = '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>';
 
 // A posição do cenário casa com a da atleta? O cruzamento é por palavra-chave
 // porque `settings.positions` é configurável pelo clube — um chama-lhe
@@ -157,37 +206,72 @@ export function renderPortal(container) {
 
   const tabs = PORTAL_TABS.filter((t) => (!t.needsCard || me.qr_token) && (!t.needsGames || hasPlayedGames(me)));
   if (!tabs.some((t) => t.key === portalTab)) portalTab = tabs[0].key;
+  const tabIdx = tabs.findIndex((t) => t.key === portalTab);
+  const from = slideFrom != null && slideFrom < tabs.length ? slideFrom : tabIdx;
+
+  // O «Hoje» é onde se aterra, e por isso leva tudo o que antes vivia ACIMA
+  // dos separadores (a ficha por completar, o "A seguir", a fisioterapia, a
+  // encomenda): continua a ser a primeira coisa que se vê ao abrir, e os
+  // outros separadores deixam de começar três ecrãs abaixo do topo.
+  const hoje = () => `
+    ${dadosHTML(me)}
+    <div id="portal-push" hidden></div>
+    ${weekHTML(me)}
+    ${nextUpHTML(next, me)}
+    ${physioHTML()}
+    ${orderHTML(playerOrder(me.id))}
+    ${hojeHTML(me, upcoming)}
+  `;
 
   // Tudo dentro de um invólucro próprio: o portal é uma coluna só, e a app
   // corre a largura toda de propósito (ver `.content__inner`). Num monitor,
   // cartões de dois mil píxeis para três linhas de texto ficavam desertos.
+  //
+  // A barra de separadores vem ANTES do corpo no HTML: num ecrã largo fica
+  // por cima dele; no telemóvel o CSS prende-a ao fundo do ecrã, ao alcance
+  // do polegar (uma atleta segura o telemóvel numa mão só).
   container.innerHTML = `
     <div class="portal">
     ${heroHTML(me, team, availability)}
-    ${dadosHTML(me)}
-    ${nextUpHTML(next, me)}
-    ${physioHTML()}
-    ${orderHTML(playerOrder(me.id))}
 
-    <div class="cal-toggle section-tabs portal-tabs" role="tablist" aria-label="Áreas da minha página">
-      ${tabs.map((t) => `
-        <button class="cal-toggle__btn ${portalTab === t.key ? 'cal-toggle__btn--active' : ''}"
-                data-portal-tab="${t.key}" type="button" role="tab"
-                aria-selected="${portalTab === t.key}">${esc(t.label)}</button>
-      `).join('')}
-    </div>
+    ${tabs.length > 1 ? `
+    <nav class="portal-tabbar" aria-label="Áreas da minha página">
+      <div class="portal-tabbar__in" role="tablist" style="--n:${tabs.length};--i:${from}">
+        <span class="portal-tabbar__ind" aria-hidden="true"></span>
+        ${tabs.map((t) => `
+          <button class="portal-tabbar__btn${portalTab === t.key ? ' is-on' : ''}"
+                  data-portal-tab="${t.key}" type="button" role="tab"
+                  aria-selected="${portalTab === t.key}">
+            ${svgIcon(TAB_ICONS[t.key])}
+            <span>${esc(t.label)}</span>
+          </button>
+        `).join('')}
+      </div>
+    </nav>` : ''}
 
-    <div id="portal-body">
-      ${portalTab === 'hoje'   ? hojeHTML(me, upcoming) : ''}
+    <div id="portal-body" class="${enterAnim ? 'portal-body--enter' : ''}">
+      ${portalTab === 'hoje'   ? hoje() : ''}
       ${portalTab === 'jogos'  ? jogosHTML(me) : ''}
       ${portalTab === 'epoca'  ? epocaHTML(me) : ''}
-      ${portalTab === 'cartao' ? cartaoHTML() : ''}
+      ${portalTab === 'cartao' ? cartaoHTML(me, team) : ''}
     </div>
     </div>
   `;
 
-  wire(container, me, team);
+  const animate = enterAnim;
+  enterAnim = false;
+  slideFrom = null;
+  // A pílula nasceu no separador anterior; dois quadros depois passa para o
+  // novo, e a transição do CSS fá-la deslizar. Um só quadro não chega: o
+  // browser juntava as duas mudanças e saltava direto para o fim.
+  if (from !== tabIdx) {
+    const bar = container.querySelector('.portal-tabbar__in');
+    requestAnimationFrame(() => requestAnimationFrame(() => bar?.style.setProperty('--i', tabIdx)));
+  }
+
+  wire(container, me, team, { animate });
   hydratePhotos(container);
+  justAnswered.clear();
 }
 
 // --- O meu plano de recuperação -------------------------------------------
@@ -264,33 +348,52 @@ function physioHTML() {
       : '';
     const aberto = canAnswer && dt > new Date();
     const resp = a.athlete_response || '';
+    const novo = justAnswered.has(`appt:${a.id}`) ? ' is-new' : '';
+
+    // Respondido: a confirmação toma o lugar dos botões, com um "Mudar" que os
+    // devolve. Os dois botões acesos lado a lado diziam o mesmo com menos
+    // clareza — e a confirmação é o que a deixa descansada de que o aviso saiu.
+    const confirmacao = resp === 'vou'
+      ? `<div class="pt-confirm pt-confirm--ok${novo}">
+           ${svgIcon(ICON_CHECK)}
+           <span class="pt-confirm__text"><strong>Confirmado. Até lá!</strong></span>
+           ${aberto ? '<button class="pt-confirm__undo" type="button" data-resp-change>Mudar</button>' : ''}
+         </div>`
+      : resp === 'nao_posso'
+        ? `<div class="pt-confirm pt-confirm--warn${novo}">
+             ${svgIcon(ICON_SEND)}
+             <span class="pt-confirm__text">
+               <strong>Aviso enviado à fisio</strong>
+               <span>${a.athlete_note ? `Podes: ${esc(a.athlete_note)}. ` : ''}Ela vai remarcar.</span>
+             </span>
+             ${aberto ? '<button class="pt-confirm__undo" type="button" data-resp-change>Mudar</button>' : ''}
+           </div>`
+        : '';
+
+    const botoes = aberto ? `
+      <div class="pt-resp" data-appt="${esc(a.id)}"${resp ? ' hidden' : ''}>
+        <button type="button" class="pt-btn pt-btn--ok" data-appt-response="vou" data-appt="${esc(a.id)}">Vou</button>
+        <button type="button" class="pt-btn pt-btn--line" data-appt-response="nao_posso" data-appt="${esc(a.id)}">Não posso</button>
+      </div>` : '';
+
     return `
-      <li class="portal-fisio__item">
-        <span class="portal-fisio__when">
-          <strong>${esc(relativeDay(dt))}</strong>${horas ? ` · ${horas}` : ''}
-        </span>
-        ${a.location ? `<span class="portal-fisio__where">${esc(a.location)}</span>` : ''}
-        ${aberto ? `
-          <div class="portal-resp" data-appt="${esc(a.id)}">
-            ${APPT_RESPONSES.map((r) => `
-              <button type="button"
-                class="portal-resp__btn portal-resp__btn--${r.key}${resp === r.key ? ' is-active' : ''}"
-                data-appt-response="${r.key}" data-appt="${esc(a.id)}"
-                aria-pressed="${resp === r.key}">${esc(r.label)}</button>`).join('')}
-          </div>` : ''}
-        ${resp === 'nao_posso'
-          ? `<p class="portal-resp-note">Avisaste que não podes${a.athlete_note ? `: “${esc(a.athlete_note)}”` : '.'} A fisio vai remarcar.</p>`
-          : ''}
+      <li class="pt-fisio__item">
+        <div class="pt-fisio__row">
+          <span class="pt-fisio__ic">${svgIcon(ICON_HEART)}</span>
+          <div class="pt-fisio__txt">
+            <span class="pt-label">Fisioterapia</span>
+            <strong class="pt-fisio__when">${esc(relativeDay(dt))}${horas ? ` · ${horas}` : ''}</strong>
+            ${a.location ? `<span class="pt-fisio__where">${esc(a.location)}</span>` : ''}
+          </div>
+        </div>
+        <div class="pt-resp-slot">${confirmacao}${botoes}</div>
       </li>`;
   };
 
   return `
-    <section class="card portal-next portal-fisio">
-      <span class="portal-next__label">Fisioterapia</span>
-      <ul class="portal-fisio__list">${proximos.slice(0, 3).map(linha).join('')}</ul>
-      <p class="portal-fisio__note">${canAnswer
-        ? 'Se não puderes ir, carrega em “Não posso” — a fisio é avisada logo.'
-        : 'Se não puderes ir, avisa o teu treinador.'}</p>
+    <section class="card pt-card pt-fisio">
+      <ul class="pt-fisio__list">${proximos.slice(0, 3).map(linha).join('')}</ul>
+      ${canAnswer ? '' : '<p class="pt-note">Se não puderes ir, avisa o teu treinador.</p>'}
     </section>
   `;
 }
@@ -468,29 +571,257 @@ function heroHTML(me, team, availability) {
 function nextUpHTML(ev, me) {
   if (!ev) {
     return `
-      <section class="card portal-next portal-next--vazio">
-        <span class="portal-next__label">A seguir</span>
-        <p class="portal-next__title">Sem nada agendado</p>
-        <p class="portal-next__meta">Quando o teu treinador marcar o próximo treino ou jogo, aparece aqui.</p>
+      <section class="card pt-card pt-up pt-up--vazio">
+        <span class="pt-label">A seguir</span>
+        <p class="pt-up__title">Sem nada agendado</p>
+        <p class="pt-note">Quando o teu treinador marcar o próximo treino ou jogo, aparece aqui.</p>
       </section>`;
   }
 
   const dt = eventDateTime(ev);
-  const range = eventTimeRange(ev);
   const tipo = EVENT_TYPE_LABEL[ev.type] || ev.type;
-  const titulo = ev.opponent ? `${tipo} vs ${ev.opponent}` : (ev.title || tipo);
+  // O tipo já vai no crachá; o título só entra quando diz outra coisa.
+  const titulo = ev.opponent ? `vs ${ev.opponent}` : (ev.title && ev.title !== tipo ? ev.title : '');
+  const hora = ev.time ? ev.time.slice(0, 5) : '';
+  const fim = ev.end_time ? ev.end_time.slice(0, 5) : '';
+
+  // Quanto falta, num anel — só nas últimas 24 h: "falta 3 dias" num anel é
+  // um desenho sem nada para dizer. O anel enche à medida que a hora chega.
+  const faltaMin = Math.round((dt - new Date()) / 60000);
+  const anel = hora && faltaMin > 0 && faltaMin <= 24 * 60 ? (() => {
+    const h = Math.floor(faltaMin / 60);
+    const m = faltaMin % 60;
+    const txt = h ? `${h}h${String(m).padStart(2, '0')}` : `${m} min`;
+    const C = 138.2;
+    const off = (C * (faltaMin / (24 * 60))).toFixed(1);
+    return `
+      <div class="pt-ring" role="img" aria-label="Começa daqui a ${h ? `${h} h ` : ''}${m} min">
+        <svg viewBox="0 0 50 50" aria-hidden="true">
+          <circle class="pt-ring__bg" cx="25" cy="25" r="22"/>
+          <circle class="pt-ring__fg" cx="25" cy="25" r="22" style="stroke-dasharray:${C};stroke-dashoffset:${off}"/>
+        </svg>
+        <span class="pt-ring__txt"><strong>${txt}</strong><small>falta</small></span>
+      </div>`;
+  })() : '';
 
   return `
-    <section class="card portal-next portal-next--${esc(ev.type)}">
-      <span class="portal-next__label">A seguir</span>
-      <p class="portal-next__title">${esc(titulo)}</p>
-      <p class="portal-next__when">
-        <strong>${esc(relativeDay(dt))}</strong>${range ? ` · ${esc(range)}` : ''}
-      </p>
-      ${ev.location ? `<p class="portal-next__meta">${esc(ev.location)}</p>` : ''}
-      ${responseHTML(ev, me, 'portal-resp--lg')}
+    <section class="pt-up pt-up--${esc(ev.type)}">
+      <div class="pt-up__top">
+        <div class="pt-up__main">
+          <div class="pt-up__tags">
+            <span class="pt-up__chip">${esc(relativeDay(dt))}</span>
+            <span>${esc(tipo)}</span>
+          </div>
+          ${titulo ? `<p class="pt-up__title">${esc(titulo)}</p>` : ''}
+          ${hora ? `<p class="pt-up__time">${esc(hora)}</p>` : ''}
+          ${ev.location || fim ? `
+            <p class="pt-up__meta">
+              ${ev.location ? svgIcon(ICON_PIN, 'pt-ic pt-ic--sm') : ''}
+              ${esc([ev.location, fim ? `até às ${fim}` : ''].filter(Boolean).join(' · '))}
+            </p>` : ''}
+        </div>
+        ${anel}
+      </div>
+      ${upResponseHTML(ev, me)}
     </section>
   `;
+}
+
+// A resposta no cartão "A seguir". Respondido, a confirmação toma o lugar dos
+// botões (com "Mudar"); por responder, dois botões grandes. As regras são as
+// do `responseHTML` — evento do clube não se responde, o treino fecha 6 h
+// antes — só o desenho é outro, porque aqui o fundo é a cor do clube.
+function upResponseHTML(ev, me) {
+  if (!canRespondToEvent(me, ev)) {
+    return '<p class="pt-up__note">Evento do clube — não é preciso responder.</p>';
+  }
+  const resp = playerEventResponse(me.id, ev.id);
+  const win = eventResponseWindow(ev);
+  const novo = justAnswered.has(`ev:${ev.id}`) ? ' is-new' : '';
+  const nome = ev.type === 'jogo' ? 'ao jogo' : ev.type === 'treino' ? 'ao treino' : '';
+
+  const confirmacao = resp?.response === 'vou'
+    ? `<div class="pt-confirm pt-confirm--on-brand${novo}">
+         <span class="pt-confirm__dot pt-confirm__dot--ok">${svgIcon(ICON_CHECK)}</span>
+         <span class="pt-confirm__text"><strong>Vais${nome ? ' ' + nome : ''}</strong><span>O treinador já sabe.</span></span>
+         ${win.open ? '<button class="pt-confirm__undo" type="button" data-resp-change>Mudar</button>' : ''}
+       </div>`
+    : resp?.response === 'nao_vou'
+      ? `<div class="pt-confirm pt-confirm--on-brand${novo}">
+           <span class="pt-confirm__dot pt-confirm__dot--warn">${svgIcon(ICON_X)}</span>
+           <span class="pt-confirm__text"><strong>Avisaste que não vais</strong><span>${resp.note ? `“${esc(resp.note)}”` : 'O treinador já sabe.'}</span></span>
+           ${win.open ? '<button class="pt-confirm__undo" type="button" data-resp-change>Mudar</button>' : ''}
+         </div>`
+      : '';
+
+  const fechado = win.open
+    ? ''
+    : win.started
+      ? 'Já começou.'
+      : `Respostas fechadas desde ${esc(deadlineText(win.deadline))} (até 6 h antes).`;
+
+  const botoes = win.open ? `
+    <div class="pt-resp pt-resp--brand" data-event="${esc(ev.id)}"${resp ? ' hidden' : ''}>
+      <button type="button" class="pt-btn pt-btn--light" data-response="vou" data-event="${esc(ev.id)}">Vou</button>
+      <button type="button" class="pt-btn pt-btn--ghost" data-response="nao_vou" data-event="${esc(ev.id)}">Não vou</button>
+    </div>` : '';
+
+  return `
+    <div class="pt-resp-slot">${confirmacao}${botoes}</div>
+    ${fechado && !resp ? `<p class="pt-up__note">${fechado}</p>` : ''}
+  `;
+}
+
+// --- A minha semana --------------------------------------------------------
+//
+// Sete dias, de segunda a domingo, com um ponto por compromisso: treino, jogo
+// e fisioterapia. Responde a "o que tenho esta semana?" sem abrir lista
+// nenhuma; tocar num dia diz o que há nele. Os dias que já passaram contam —
+// a semana é a semana inteira, não só o que falta.
+const WEEK_KIND = { treino: 'treino', musculacao: 'treino', jogo: 'jogo' };
+
+function weekHTML(me) {
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const seg = new Date(hoje);
+  seg.setDate(hoje.getDate() - ((hoje.getDay() + 6) % 7));
+  const todayStr = ymd(hoje);
+
+  const dias = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(seg);
+    d.setDate(seg.getDate() + i);
+    const ds = ymd(d);
+    const itens = [
+      ...state.events
+        .filter((ev) => ev.date === ds && isPlayerEvent(me, ev))
+        .map((ev) => ({
+          t: ev.time ? ev.time.slice(0, 5) : '',
+          kind: WEEK_KIND[ev.type] || 'evento',
+          text: [EVENT_TYPE_LABEL[ev.type] || ev.type, ev.opponent ? `vs ${ev.opponent}` : '', ev.location || '']
+            .filter(Boolean).join(' · '),
+        })),
+      ...(state.myAppointments || [])
+        .filter((a) => a.status === 'agendado' && a.ap_date === ds)
+        .map((a) => ({
+          t: a.ap_time ? a.ap_time.slice(0, 5) : '',
+          kind: 'fisio',
+          text: ['Fisioterapia', a.location || ''].filter(Boolean).join(' · '),
+        })),
+    ].sort((a, b) => a.t.localeCompare(b.t));
+    return { d, ds, itens, today: ds === todayStr };
+  });
+
+  if (!weekSel || !dias.some((x) => x.ds === weekSel)) weekSel = todayStr;
+
+  const label = (d) => (WEEKDAYS.find((w) => w.n === d.getDay())?.label || '');
+  return `
+    <section class="pt-week" aria-label="A minha semana">
+      <div class="pt-week__days">
+        ${dias.map((x) => {
+          const kinds = [...new Set(x.itens.map((i) => i.kind))].slice(0, 3);
+          return `
+            <button type="button" class="pt-week__day${x.today ? ' is-today' : ''}${x.ds === weekSel ? ' is-sel' : ''}"
+                    data-week-day="${x.ds}" aria-pressed="${x.ds === weekSel}"
+                    aria-label="${esc(`${x.today ? 'Hoje' : label(x.d)} ${x.d.getDate()}: ${x.itens.length ? x.itens.map((i) => `${i.t} ${i.text}`).join(', ') : 'dia livre'}`)}">
+              <span class="pt-week__wd">${esc(label(x.d))}</span>
+              <span class="pt-week__n">${x.d.getDate()}</span>
+              <span class="pt-week__dots">${kinds.map((k) => `<span class="pt-dot pt-dot--${k}"></span>`).join('')}</span>
+            </button>`;
+        }).join('')}
+      </div>
+      ${dias.map((x) => `
+        <div class="pt-week__detail" data-week-detail="${x.ds}"${x.ds === weekSel ? '' : ' hidden'}>
+          ${x.itens.length
+            ? x.itens.map((i) => `
+                <p class="pt-week__line">
+                  <span class="pt-dot pt-dot--${i.kind}"></span>
+                  <strong>${esc(i.t || '—')}</strong>
+                  <span>${esc(i.text)}</span>
+                </p>`).join('')
+            : `<p class="pt-week__line pt-week__line--free">${x.today ? 'Hoje' : esc(label(x.d))}: dia livre</p>`}
+        </div>`).join('')}
+    </section>
+  `;
+}
+
+// --- Notificações neste telemóvel ------------------------------------------
+//
+// O aviso de uma fisio que mudou de hora só serve se chegar com a app
+// FECHADA — e isso pede um passo que a atleta não sabe que existe: no iPhone,
+// instalar a app no ecrã principal; em todo o lado, autorizar. Esse passo
+// vivia no fundo da lista do sino, onde ninguém o encontrava. Aqui fica no
+// «Hoje» até estar feito, e desaparece sozinho — a regra do cartão da ficha.
+//
+// Preenche-se depois do desenho porque saber se o push está ativo é
+// assíncrono (pergunta-se ao service worker). "Agora não" esconde-o neste
+// dispositivo durante duas semanas: é uma conveniência do dispositivo, não
+// uma decisão que o clube tenha de saber.
+const PUSH_SNOOZE_KEY = 'rumia.portal.pushHint';
+const PUSH_SNOOZE_DAYS = 14;
+
+function pushSnoozed() {
+  try {
+    const t = Number(localStorage.getItem(PUSH_SNOOZE_KEY) || 0);
+    return t && Date.now() - t < PUSH_SNOOZE_DAYS * 86400000;
+  } catch { return false; }
+}
+
+async function fillPushCard(container) {
+  const host = container.querySelector('#portal-push');
+  if (!host || pushSnoozed()) return;
+
+  let body = '';
+  if (iosNeedsInstall()) {
+    body = `
+      <strong>Recebe os avisos do clube no telemóvel</strong>
+      <ol class="pt-push__steps">
+        <li>No Safari, toca em <b>Partilhar</b> (o quadrado com a seta).</li>
+        <li>Escolhe <b>Adicionar ao ecrã principal</b>.</li>
+        <li>Abre a app por esse ícone e ativa aqui.</li>
+      </ol>`;
+  } else {
+    if (!pushConfigured || !pushSupported()) return;
+    if (typeof Notification !== 'undefined' && Notification.permission === 'denied') {
+      body = `
+        <strong>As notificações estão bloqueadas</strong>
+        <span>Para saberes logo quando um treino muda, ativa-as nas definições do telemóvel.</span>`;
+    } else {
+      if (await isPushEnabled()) return;
+      body = `
+        <strong>Sabe logo quando um treino muda</strong>
+        <span>Convocatórias, horas alteradas e a fisioterapia chegam-te mesmo com a app fechada.</span>
+        <button class="pt-btn pt-btn--brand pt-push__go" type="button" data-push-enable>Ativar notificações</button>`;
+    }
+  }
+
+  // Pode ter havido outro desenho enquanto se perguntava ao service worker.
+  if (!host.isConnected) return;
+  host.innerHTML = `
+    <section class="card pt-card pt-push">
+      <span class="pt-push__ic">${svgIcon(ICON_BELL)}</span>
+      <div class="pt-push__txt">${body}</div>
+      <button class="pt-push__later" type="button" data-push-later aria-label="Agora não">Agora não</button>
+    </section>`;
+  host.hidden = false;
+
+  host.querySelector('[data-push-later]')?.addEventListener('click', () => {
+    try { localStorage.setItem(PUSH_SNOOZE_KEY, String(Date.now())); } catch { /* sem armazenamento: some só agora */ }
+    host.hidden = true;
+  });
+  host.querySelector('[data-push-enable]')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    const r = await enablePush();
+    if (r === 'ok') {
+      toastOk('Notificações ativadas neste telemóvel.');
+      host.hidden = true;
+    } else {
+      btn.disabled = false;
+      toastError(r === 'recusado'
+        ? 'Recusaste as notificações. Podes ativá-las nas definições do telemóvel.'
+        : 'Não foi possível ativar as notificações. Tenta outra vez.');
+    }
+  });
 }
 
 // --- Separador "Hoje" ----------------------------------------------------
@@ -1325,16 +1656,40 @@ function epocaHTML(me) {
   // contabilidade de treinador: a um atleta sem faltas, três chips a zero só
   // enchem a linha e escondem o número que interessa.
   const chips = ATTENDANCE_STATUSES.filter((s) => att.counts[s.key] > 0);
+  const meses = monthlyAttendance(me);
+  const compareceu = att.counts.presente + att.counts.atraso;
+  const C = 276.5;
 
   return `
     <section class="card portal-section">
       <h2 class="section-title portal-section__title">As minhas presenças</h2>
       ${att.total
         ? `<div class="portal-att">
-             <div class="portal-att__pct">
-               <strong class="stat-pct ${pctClass(att.rate)}">${att.rate}%</strong>
-               <span class="muted">comparência em ${att.total} treino${att.total === 1 ? '' : 's'}</span>
+             <div class="pt-att">
+               <div class="pt-att__ring" role="img" aria-label="${att.rate}% de comparência">
+                 <svg viewBox="0 0 100 100" aria-hidden="true">
+                   <circle class="pt-att__bg" cx="50" cy="50" r="44"/>
+                   <circle class="pt-att__fg ${pctClass(att.rate)}" cx="50" cy="50" r="44"
+                           style="stroke-dasharray:${C};stroke-dashoffset:${(C * (1 - att.rate / 100)).toFixed(1)}"/>
+                 </svg>
+                 <strong>${att.rate}%</strong>
+               </div>
+               <div>
+                 <span class="pt-label">Presenças nos treinos</span>
+                 <p class="pt-att__big">${compareceu} de ${att.total} treino${att.total === 1 ? '' : 's'}</p>
+               </div>
              </div>
+             ${meses.length >= 2 ? `
+               <div class="pt-months" role="img" aria-label="${esc(meses.map((m) => `${m.label}: ${m.rate}%`).join(', '))}">
+                 ${meses.map((m, i) => `
+                   <div class="pt-months__col">
+                     <span class="pt-months__pct">${m.rate}%</span>
+                     <span class="pt-months__track">
+                       <span class="pt-months__bar" style="height:${Math.max(m.rate, 4)}%;--d:${(0.15 + i * 0.1).toFixed(2)}s;opacity:${(0.5 + 0.5 * (i + 1) / meses.length).toFixed(2)}"></span>
+                     </span>
+                     <span class="pt-months__m">${esc(m.label)}</span>
+                   </div>`).join('')}
+               </div>` : ''}
              ${form
                ? `<span class="portal-att__form">
                     Últimos ${form.total}: <strong>${form.compareceu} de ${form.total}</strong>
@@ -1359,6 +1714,36 @@ function epocaHTML(me) {
 
     ${materialHTML(pedidos, me)}
   `;
+}
+
+// A comparência mês a mês, dos últimos quatro meses com registos. A taxa da
+// época é uma média e esconde o mês em que deixou de vir; as barras dizem-no
+// sem contas. Só os treinos COM registo dela contam — a regra do
+// `playerAttendanceStats`: um treino que ninguém fechou não é uma falta.
+function monthlyAttendance(me) {
+  const trainings = new Map(
+    state.events
+      .filter((e) => e.type === 'treino' && e.team_id === me.team_id && eventDateTime(e) <= new Date())
+      .map((e) => [e.id, e])
+  );
+  const porMes = new Map();
+  for (const a of state.attendances) {
+    if (a.player_id !== me.id) continue;
+    const ev = trainings.get(a.event_id);
+    if (!ev) continue;
+    const k = ev.date.slice(0, 7);
+    const m = porMes.get(k) || { total: 0, ok: 0 };
+    m.total += 1;
+    if (a.status === 'presente' || a.status === 'atraso') m.ok += 1;
+    porMes.set(k, m);
+  }
+  return [...porMes.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .slice(-4)
+    .map(([k, m]) => ({
+      label: cap(new Date(`${k}-01T00:00`).toLocaleDateString('pt-PT', { month: 'short' }).replace('.', '')),
+      rate: Math.round((m.ok / m.total) * 100),
+    }));
 }
 
 // --- O meu material (o histórico) ----------------------------------------
@@ -1420,17 +1805,18 @@ function orderHTML(order) {
 
   return `
     <section class="card portal-order">
-      ${prontos.length ? `
-        <p class="portal-order__pickup">
-          <strong>Podes levantar:</strong> ${esc(prontos.join(' · '))}
-          <span class="portal-order__pickup-note">Está à tua espera no clube.</span>
-        </p>` : ''}
       <div class="portal-order__head">
         <span class="portal-order__label">A minha encomenda</span>
-        <strong class="portal-order__total">
+        <strong class="portal-order__total"${order.total ? ` data-countup="${order.total}"` : ''}>
           ${order.total ? esc(euros(order.total)) : '—'}
         </strong>
       </div>
+      ${prontos.length ? `
+        <p class="portal-order__pickup">
+          <span class="pt-pulse" aria-hidden="true"></span>
+          <span><strong>Podes levantar:</strong> ${esc(prontos.join(' · '))}
+          <span class="portal-order__pickup-note">Está à tua espera no clube.</span></span>
+        </p>` : ''}
       <ul class="portal-order__list">
         ${order.list.map(orderLine).join('')}
       </ul>
@@ -1520,19 +1906,44 @@ function requestRow(r) {
 
 // --- Separador "Cartão" --------------------------------------------------
 
-function cartaoHTML() {
+// O cartão vira: à frente é o cartão do clube (o nome, o número, a equipa),
+// atrás é o código. Lembra-se do lado em que ficou durante a sessão — quem o
+// virou à porta do pavilhão não quer voltar a virá-lo depois de cada
+// re-desenho do store. O código é desenhado no verso SEMPRE (ver `wire`),
+// para ficar guardado no dispositivo mesmo que ela nunca o vire.
+function cartaoHTML(me, team) {
+  const b = branding();
   return `
-    <section class="card portal-section portal-qr">
-      <h2 class="section-title portal-section__title">O meu cartão</h2>
-      <p class="portal-section__note">
-        Mostra este código no quiosque à entrada do treino para ficares com a
-        presença registada.
+    <section class="pt-card-wrap">
+      <button type="button" class="pt-flip${cardFlipped ? ' is-flipped' : ''}" data-card-flip
+              aria-pressed="${cardFlipped}" aria-label="${cardFlipped ? 'Mostrar a frente do cartão' : 'Mostrar o código QR'}">
+        <span class="pt-flip__in">
+          <span class="pt-flip__face pt-flip__front">
+            <span class="pt-flip__shine" aria-hidden="true"></span>
+            <span class="pt-flip__top">
+              <img class="pt-flip__logo" src="${esc(logoSrc())}" alt="">
+              ${me.number ? `<span class="pt-flip__num">${esc(String(me.number))}</span>` : ''}
+            </span>
+            <span class="pt-flip__who">
+              <strong>${esc(me.name || '')}</strong>
+              <span>${esc([team ? teamName(team) : '', b.club_name].filter(Boolean).join(' · '))}</span>
+              <span class="pt-flip__hint">Toca para mostrar o código</span>
+            </span>
+          </span>
+          <span class="pt-flip__face pt-flip__back">
+            <span class="portal-qr__code pt-flip__qr" id="portal-qr" role="img" aria-label="O meu código QR"></span>
+            <span class="pt-flip__how">
+              <strong>Passa no quiosque</strong>
+              à entrada do pavilhão. A presença fica marcada sozinha.
+            </span>
+          </span>
+        </span>
+      </button>
+      <p class="pt-offline">
+        ${svgIcon(ICON_CHECK.replace(' class="pt-check"', ''))}
+        <span><strong>Guardado neste telemóvel.</strong> Funciona sem rede.</span>
       </p>
-      <div class="portal-qr__code" id="portal-qr" aria-label="O meu código QR"></div>
-      <p class="portal-section__note portal-qr__note">
-        Fica guardado neste dispositivo — se o pavilhão não tiver rede, o
-        cartão aparece na mesma.
-      </p>
+      <p class="pt-note pt-note--center">Se o quiosque demorar a ler, sobe o brilho do ecrã.</p>
     </section>
   `;
 }
@@ -1691,14 +2102,82 @@ async function cancelMyRequest(id) {
   }
 }
 
-function wire(container, me, team) {
+function wire(container, me, team, { animate = false } = {}) {
   wireEvo(container);
   container.querySelectorAll('[data-portal-tab]').forEach((b) =>
     b.addEventListener('click', () => {
+      // Tocar no separador em que já se está volta ao topo (a regra da barra
+      // de baixo da app), em vez de redesenhar a mesma coisa.
+      if (b.dataset.portalTab === portalTab) {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+      const btns = [...container.querySelectorAll('[data-portal-tab]')];
+      slideFrom = btns.findIndex((x) => x.dataset.portalTab === portalTab);
       portalTab = b.dataset.portalTab;
+      enterAnim = true;
       renderPortal(container);
+      window.scrollTo({ top: 0 });
     })
   );
+
+  // A faixa da semana troca o dia SEM redesenhar o portal: redesenhar
+  // repunha a entrada em escada de tudo o resto por um toque num dia.
+  container.querySelectorAll('[data-week-day]').forEach((b) =>
+    b.addEventListener('click', () => {
+      weekSel = b.dataset.weekDay;
+      container.querySelectorAll('[data-week-day]').forEach((x) => {
+        const on = x === b;
+        x.classList.toggle('is-sel', on);
+        x.setAttribute('aria-pressed', String(on));
+      });
+      container.querySelectorAll('[data-week-detail]').forEach((d) => {
+        d.hidden = d.dataset.weekDetail !== weekSel;
+      });
+    })
+  );
+
+  // "Mudar": a confirmação dá lugar aos botões, no mesmo sítio. Não grava
+  // nada — a resposta antiga mantém-se até ela escolher outra.
+  container.querySelectorAll('[data-resp-change]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const slot = b.closest('.pt-resp-slot');
+      b.closest('.pt-confirm')?.setAttribute('hidden', '');
+      const resp = slot?.querySelector('.pt-resp');
+      if (resp) {
+        resp.hidden = false;
+        resp.querySelector('button')?.focus();
+      }
+    })
+  );
+
+  container.querySelector('[data-card-flip]')?.addEventListener('click', (e) => {
+    cardFlipped = !cardFlipped;
+    const btn = e.currentTarget;
+    btn.classList.toggle('is-flipped', cardFlipped);
+    btn.setAttribute('aria-pressed', String(cardFlipped));
+    btn.setAttribute('aria-label', cardFlipped ? 'Mostrar a frente do cartão' : 'Mostrar o código QR');
+  });
+
+  // O total da encomenda conta até ao valor — só na entrada, nunca a cada
+  // re-desenho, e nunca com o movimento reduzido.
+  if (animate && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    container.querySelectorAll('[data-countup]').forEach((el) => {
+      const alvo = Number(el.dataset.countup) || 0;
+      const t0 = performance.now();
+      const dur = 900;
+      const passo = (now) => {
+        if (!el.isConnected) return;
+        const k = Math.min(1, (now - t0) / dur);
+        el.textContent = euros(alvo * (1 - Math.pow(1 - k, 3)));
+        if (k < 1) requestAnimationFrame(passo);
+      };
+      el.textContent = euros(0);
+      requestAnimationFrame(passo);
+    });
+  }
+
+  fillPushCard(container).catch(() => {});
 
   container.querySelector('#portal-pedir')?.addEventListener('click', () => openRequestModal(me));
 
@@ -1799,7 +2278,11 @@ function cardSvg(me) {
 function onRespond(btn) {
   const eventId = btn.dataset.event;
   const response = btn.dataset.response;
-  const row = btn.closest('.portal-resp');
+  const row = btn.closest('.portal-resp, .pt-resp');
+  // Marcada ANTES de gravar: a gravação notifica o store, o portal
+  // redesenha-se a meio da chamada, e é nesse desenho que a confirmação tem
+  // de nascer animada.
+  const key = `ev:${eventId}`;
 
   if (response === 'nao_vou') {
     openModal({
@@ -1813,33 +2296,35 @@ function onRespond(btn) {
         hint: 'Opcional. Ajuda o treinador a saber com que plantel conta.',
       }],
       onSubmit: async (values) => {
+        justAnswered.add(key);
         try {
           await respondToEvent(eventId, 'nao_vou', (values.note || '').trim() || null);
         } catch (err) {
+          justAnswered.delete(key);
           throw new Error(dbErrorMessage(err));
         }
-        toastOk('Resposta enviada. O teu treinador já sabe.');
+        if (!btn.closest('.pt-resp')) toastOk('Resposta enviada. O teu treinador já sabe.');
       },
     });
     return;
   }
 
   row?.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+  justAnswered.add(key);
+  // No cartão "A seguir" a confirmação desenhada diz que o aviso saiu; nas
+  // linhas da lista não há confirmação, e o toast continua a dizê-lo.
+  const inCard = !!btn.closest('.pt-resp');
   respondToEvent(eventId, response, null)
-    .then(() => toastOk('Resposta enviada. O teu treinador já sabe.'))
+    .then(() => { if (!inCard) toastOk('Resposta enviada. O teu treinador já sabe.'); })
     .catch((err) => {
+      justAnswered.delete(key);
       toastError(dbErrorMessage(err));
       row?.querySelectorAll('button').forEach((b) => { b.disabled = false; });
     });
 }
 
-// As duas respostas a um atendimento. Como nos eventos, não há "ainda não
-// sei": ficar por responder já o diz.
-const APPT_RESPONSES = [
-  { key: 'vou', label: 'Vou' },
-  { key: 'nao_posso', label: 'Não posso' },
-];
-
+// As duas respostas a um atendimento ("Vou" e "Não posso"). Como nos eventos,
+// não há "ainda não sei": ficar por responder já o diz.
 // Responder a um atendimento. O "não posso" pede QUANDO pode — é o que deixa
 // a fisio remarcar de uma vez, em vez de trocar três mensagens para achar
 // uma hora. Não é obrigatório: um aviso sem alternativa continua a ser
@@ -1847,42 +2332,98 @@ const APPT_RESPONSES = [
 function onRespondAppointment(btn) {
   const id = btn.dataset.appt;
   const response = btn.dataset.apptResponse;
-  const ok = () => toastOk(response === 'nao_posso'
-    ? 'Aviso enviado. A fisio vai remarcar.'
-    : 'Confirmado. Até lá!');
+  const key = `appt:${id}`;
 
   if (response === 'nao_posso') {
-    openModal({
-      title: 'Não posso ir à fisioterapia',
-      submitLabel: 'Avisar a fisio',
-      fields: [{
-        name: 'note',
-        label: 'Quando podes?',
-        type: 'textarea',
-        full: true,
-        placeholder: 'ex.: quinta depois das 18h, ou sábado de manhã',
-        hint: 'Opcional, mas ajuda a fisio a marcar outra hora que te dê jeito.',
-      }],
-      onSubmit: async (values) => {
-        try {
-          await respondToAppointment(id, 'nao_posso', (values.note || '').trim() || null);
-        } catch (err) {
-          throw new Error(dbErrorMessage(err));
-        }
-        ok();
-      },
-    });
+    openCantGoSheet(id);
     return;
   }
 
-  const row = btn.closest('.portal-resp');
+  const row = btn.closest('.portal-resp, .pt-resp');
   row?.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+  justAnswered.add(key);
   respondToAppointment(id, response, null)
-    .then(ok)
     .catch((err) => {
+      justAnswered.delete(key);
       toastError(dbErrorMessage(err));
       row?.querySelectorAll('button').forEach((b) => { b.disabled = false; });
     });
+}
+
+// "Não posso" pede QUANDO pode — é o que deixa a fisio remarcar de uma vez.
+// Escreve-se com toques e não com o teclado: dias e períodos em botões, e
+// uma linha livre opcional para o que não cabe neles. Num telemóvel, um campo
+// de texto obrigatório a meio do intervalo das aulas é a forma de a resposta
+// não ser dada. Nada é obrigatório: um aviso sem alternativa continua a ser
+// melhor do que a fisio à espera.
+//
+// É um diálogo de corpo livre (`wireDialog`), e por isso no telemóvel sobe de
+// baixo como as outras folhas da app.
+const CANT_DAYS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const CANT_TIMES = ['De manhã', 'À tarde', 'Depois das 18h'];
+
+function openCantGoSheet(id) {
+  const a = (state.myAppointments || []).find((x) => x.id === id);
+  const quando = a
+    ? `${relativeDay(new Date(`${a.ap_date}T${(a.ap_time || '23:59').slice(0, 5)}`)).toLowerCase()}${a.ap_time ? ` às ${a.ap_time.slice(0, 5)}` : ''}`
+    : '';
+  const chips = (list, group) => list.map((x) => `
+    <button type="button" class="pt-chip" data-chip="${group}" aria-pressed="false">${esc(x)}</button>`).join('');
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal card pt-sheet" role="dialog" aria-modal="true" aria-labelledby="pt-cant-t">
+      <div class="modal__head">
+        <h2 class="section-title" id="pt-cant-t">Não podes${quando ? ` ${esc(quando)}` : ''}?</h2>
+        <button class="modal__close" type="button" aria-label="Fechar">&times;</button>
+      </div>
+      <p class="pt-note">Diz à fisio quando te dá jeito. Ela remarca e és avisada.</p>
+      <p class="pt-sheet__q" id="pt-cant-d">Que dias podes?</p>
+      <div class="pt-chips" role="group" aria-labelledby="pt-cant-d">${chips(CANT_DAYS, 'd')}</div>
+      <p class="pt-sheet__q" id="pt-cant-h">A que horas?</p>
+      <div class="pt-chips" role="group" aria-labelledby="pt-cant-h">${chips(CANT_TIMES, 'h')}</div>
+      <label class="pt-sheet__q" for="pt-cant-x">Outra coisa <span class="muted">(opcional)</span></label>
+      <input class="pt-sheet__input" id="pt-cant-x" type="text" maxlength="160"
+             placeholder="ex.: só depois do teste de quinta">
+      <p class="modal__error" id="pt-cant-err" role="alert" hidden></p>
+      <div class="modal__actions">
+        <button class="btn btn--ghost" type="button" data-cant-cancel>Cancelar</button>
+        <button class="btn btn--primary" type="button" data-cant-send>Avisar a fisio</button>
+      </div>
+    </div>`;
+  const close = wireDialog(overlay, { initialFocus: '.pt-chip' });
+
+  overlay.querySelectorAll('[data-chip]').forEach((c) =>
+    c.addEventListener('click', () => {
+      c.setAttribute('aria-pressed', String(c.getAttribute('aria-pressed') !== 'true'));
+    })
+  );
+  overlay.querySelector('[data-cant-cancel]').addEventListener('click', close);
+
+  overlay.querySelector('[data-cant-send]').addEventListener('click', async (e) => {
+    const send = e.currentTarget;
+    const picked = (g) => [...overlay.querySelectorAll(`[data-chip="${g}"][aria-pressed="true"]`)]
+      .map((c) => c.textContent.trim());
+    const dias = picked('d').join(', ');
+    const horas = picked('h').join(' ou ').toLowerCase();
+    const extra = overlay.querySelector('#pt-cant-x').value.trim();
+    const note = [dias, horas, extra].filter(Boolean).join(' · ') || null;
+
+    send.disabled = true;
+    const key = `appt:${id}`;
+    justAnswered.add(key);
+    try {
+      await respondToAppointment(id, 'nao_posso', note);
+      close();
+    } catch (err) {
+      justAnswered.delete(key);
+      const box = overlay.querySelector('#pt-cant-err');
+      box.textContent = dbErrorMessage(err);
+      box.hidden = false;
+      send.disabled = false;
+    }
+  });
 }
 
 // --- Linhas e blocos reutilizados ----------------------------------------
