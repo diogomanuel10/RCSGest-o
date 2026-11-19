@@ -34,27 +34,42 @@
 --
 -- `security definer` não passa pelo RLS, por isso o `org_id` é filtrado à
 -- MÃO — a mesma regra do `check_in_by_qr`.
-create or replace function public.my_physio_appointments()
-returns table (
-  id       uuid,
-  ap_date  date,
-  ap_time  text,
-  end_time text,
-  location text,
-  status   text,
-  type     text
-)
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select a.id, a.date, a.time, a.end_time, a.location, a.status, a.type
-  from physio_appointments a
-  where a.player_id = athlete_player_id()
-    and a.org_id is not distinct from current_org_id()
-  order by a.date, a.time;
-$$;
+--
+-- Só se cria se ainda NÃO existir. resposta-atendimento.sql substitui-a por
+-- uma versão com mais colunas (a resposta da atleta), e o Postgres não deixa
+-- um `create or replace` mudar o tipo de retorno: correr este ficheiro outra
+-- vez depois daquele rebentava aqui e abortava o resto — foi assim que as
+-- notificações do atendimento e o `appointment_when` ficaram por criar, e o
+-- "Não posso" da atleta falhava sempre.
+do $do$
+begin
+  if to_regprocedure('public.my_physio_appointments()') is null then
+    execute $f$
+      create function public.my_physio_appointments()
+      returns table (
+        id       uuid,
+        ap_date  date,
+        ap_time  text,
+        end_time text,
+        location text,
+        status   text,
+        type     text
+      )
+      language sql
+      stable
+      security definer
+      set search_path = public
+      as $$
+        select a.id, a.date, a.time, a.end_time, a.location, a.status, a.type
+        from physio_appointments a
+        where a.player_id = athlete_player_id()
+          and a.org_id is not distinct from current_org_id()
+        order by a.date, a.time;
+      $$
+    $f$;
+  end if;
+end
+$do$;
 
 revoke all on function public.my_physio_appointments() from public;
 grant execute on function public.my_physio_appointments() to authenticated;
