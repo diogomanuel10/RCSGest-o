@@ -2607,18 +2607,53 @@ separador antes de navegar (usado pelos cartões do Painel).
   Estava desenhado como uma página de gestão: nove secções empilhadas, todas
   com o mesmo peso, cinco ou seis ecrãs de scroll. A estrutura responde agora
   às três perguntas por que alguém abre isto, por ordem:
-  - **O que tenho a seguir** — um cabeçalho de ação com o próximo compromisso
-    (dia relativo: "Hoje", "Amanhã"), hora, sítio e os botões de resposta já à
-    mão. Vive ACIMA dos separadores, porque é a razão da visita e não uma das
-    áreas; a pergunta mais frequente do portal não pode estar a meio de um
-    scroll. Só o cartão QR e a disponibilidade lhe disputavam o topo — e a
-    disponibilidade só aparece quando NÃO está tudo bem: dizer "Apto" a quem
-    está apto é gastar o cimo do ecrã com uma não-notícia.
+  - **O que tenho a seguir** — um cartão na cor do clube com o próximo
+    compromisso (dia relativo: "Hoje", "Amanhã"), a hora em grande, o sítio e
+    os botões de resposta já à mão. É a primeira coisa do «Hoje», que é onde
+    se aterra: a pergunta mais frequente do portal não pode estar a meio de um
+    scroll. A disponibilidade só aparece (no cabeçalho) quando NÃO está tudo
+    bem: dizer "Apto" a quem está apto é gastar o cimo do ecrã com uma
+    não-notícia.
   - **Como vai a época** e **onde está o cartão** — separadores (`Hoje` ·
-    `Jogos` · `A época` · `Cartão`), no mesmo padrão do `saude.js`/`treino.js`. O cartão
-    é guardado no dispositivo em TODAS as visitas, mesmo com o separador
-    fechado: é à porta do pavilhão, sem rede, que ele faz falta, e aí já não
-    há como o ir buscar.
+    `Jogos` · `A época` · `Cartão`). O cartão é guardado no dispositivo em
+    TODAS as visitas, mesmo com o separador fechado: é à porta do pavilhão, sem
+    rede, que ele faz falta, e aí já não há como o ir buscar.
+  - **Barra em baixo, semana e movimento** (nov. 2026, decidido sobre uma
+    maqueta; classes `pt-*` no `style.css`):
+    - **Os separadores descem para o fundo do ecrã** no telemóvel
+      (`.portal-tabbar`, até aos 820px; num ecrã largo ficam por cima do
+      corpo). Estavam a meio da página, por baixo do "A seguir", da fisio e da
+      encomenda — trocar de área era descer três cartões primeiro. Uma atleta
+      segura o telemóvel numa mão. A barra mede-se por `--tabbar-h` (os toasts
+      e o fundo do conteúdo acompanham) e tocar no separador atual volta ao
+      topo. O que vivia acima dos separadores (a ficha por completar, o "A
+      seguir", a fisio, a encomenda) passou para dentro do «Hoje».
+    - **"A minha semana"**: sete dias com um ponto por compromisso (treino,
+      jogo, fisio), os que já passaram incluídos; tocar num dia diz o que há
+      nele. Troca o dia SEM redesenhar o portal — redesenhar repunha a entrada
+      em escada de tudo por um toque.
+    - **A confirmação toma o lugar dos botões**: respondido, o "A seguir" e a
+      fisio mostram "Vais ao treino · O treinador já sabe" (ou o aviso à fisio)
+      com um "Mudar" que devolve os botões sem gravar nada. Dois botões acesos
+      lado a lado diziam o mesmo com menos clareza.
+    - **O "Não posso" da fisio escreve-se com toques** (`openCantGoSheet`):
+      dias e períodos em botões, mais uma linha livre opcional, juntos na nota
+      que a fisio lê. Um campo de texto a meio do intervalo das aulas é a forma
+      de a resposta não ser dada.
+    - **O cartão vira** (frente: nome, número, equipa e clube; verso: o QR) e
+      lembra-se do lado durante a sessão.
+    - **"Ativa as notificações" vive no «Hoje»** até estarem ativas
+      (`fillPushCard`), com os passos do iPhone quando a app está no Safari.
+      No fundo do sino ninguém o encontrava, e sem esse passo nada do que o
+      clube manda chega com a app fechada. "Agora não" esconde-o duas semanas
+      neste dispositivo (`localStorage`).
+    - **O movimento só tem gatilhos que acontecem uma vez**, porque o portal
+      redesenha-se a cada notificação do store: a entrada em escada, o total
+      da encomenda a contar e os anéis/barras a encher só ao abrir ou trocar
+      de separador (`enterAnim`); a pílula da barra desliza do separador
+      anterior (`slideFrom`); o ✓ desenha-se só na resposta acabada de dar
+      (`justAnswered`, marcada ANTES de gravar, porque a gravação redesenha a
+      meio da chamada). Com `prefers-reduced-motion` cala-se tudo.
   - **Não se desenham botões que só servem para dar erro** (`canRespondToEvent`
     em `compute.js`): um evento do clube (`team_id` nulo) é visível a toda a
     gente — o RLS de `events` deixa-o passar — mas o `respond_to_event`
@@ -2640,7 +2675,7 @@ separador antes de navegar (usado pelos cartões do Painel).
     separador. O HISTÓRICO fica onde estava — pedir é a ação, ver em que ficou
     é a consulta.
   - **"A minha encomenda"** (`playerOrder` em `compute.js`) é secção própria,
-    ACIMA dos separadores e logo a seguir ao próximo treino. Esteve dentro de
+    no «Hoje», logo a seguir ao próximo treino e à fisio. Esteve dentro de
     "O meu material", em «A época», e isso punha-a a três gestos de distância
     (trocar de separador, passar as presenças, passar as quotas) — e sem total
     nenhum, que é precisamente a pergunta que a família faz: "quanto é que
@@ -2661,7 +2696,7 @@ separador antes de navegar (usado pelos cartões do Painel).
       preparar o dinheiro.
     - **É UMA lista e não duas**: a pergunta é "o que pedi e em que está", e a
       resposta é o crachá de cada linha. A exceção é o que está **pronto a
-      levantar**, que sai para uma linha própria no topo do cartão: é a única
+      levantar**, que sai para uma linha própria, com um ponto que pulsa: é a única
       coisa ali que lhe pede uma AÇÃO, e no meio de quatro crachás parecidos
       lia-se como mais um estado — com o material a ficar no gabinete.
   - **As quotas saíram do portal**: são assunto entre o clube e a família,
@@ -3093,11 +3128,12 @@ separador antes de navegar (usado pelos cartões do Painel).
   - **A alta é dela primeiro.** O treinador já era avisado
     (`notify_trainers_clinical_alta`); a atleta, que é quem quer ouvir a
     notícia, era a única do circuito a quem ela não chegava.
-  - **O cartão vive ACIMA dos separadores**, a seguir ao "A seguir": é um
-    compromisso com hora e sítio, e um compromisso não se esconde atrás de um
-    separador. Desaparece sozinho quando não há nenhum. A barra é `--ok` e não
-    `--warn`: isto é cuidado, não é problema — a linha da disponibilidade lá em
-    cima já diz, quando é preciso, que ela não está a 100%.
+  - **O cartão vive logo a seguir ao "A seguir"**, no «Hoje» (onde se
+    aterra): é um compromisso com hora e sítio, e um compromisso não se
+    esconde no fundo da página. Desaparece sozinho quando não há nenhum. O
+    tom é `--ok` e não `--warn`: isto é cuidado, não é problema — a linha da
+    disponibilidade lá em cima já diz, quando é preciso, que ela não está a
+    100%.
   - **Quando o aviso NÃO vai chegar, diz-se a quem marca**: sem conta ligada à
     ficha não há a quem notificar, e o formulário de atendimento avisa a fisio
     disso em vez de a deixar a contar com uma notificação que não sai. É a
