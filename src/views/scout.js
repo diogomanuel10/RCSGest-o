@@ -1648,10 +1648,17 @@ export function openScoutLive(row, { view = false } = {}) {
   function changeSlot(slot, pid) {
     const set = curSet();
     const d = derive(D(), D().cur);
-    if (pid && d.lineup.includes(pid) && d.lineup[slot] !== pid) { toastInfo(`${pname(pid)} já está na formação.`); lineupDlg?.render(); return; }
+    const pts = hasPoints(D(), D().cur);
+    // Antes do 1.º ponto, escolher uma atleta que já está noutra posição TROCA
+    // as duas: o set seguinte nasce com a formação do anterior, e recusar
+    // obrigava a esvaziar posições e a voltar a pôr as seis para mudar a ordem.
+    const other = pid ? d.lineup.indexOf(pid) : -1;
+    if (pid && other >= 0 && other !== slot && pts) { toastInfo(`${pname(pid)} já está na formação.`); lineupDlg?.render(); return; }
     if (pid && (pid === set.libero || pid === set.liberoDef)) { toastInfo('Uma líbero não entra na formação base: escolhe-a nos campos de líbero.'); lineupDlg?.render(); return; }
-    if (!hasPoints(D(), D().cur)) set.lineup[slot] = pid;
-    else {
+    if (!pts) {
+      if (other >= 0 && other !== slot) set.lineup[other] = set.lineup[slot];
+      set.lineup[slot] = pid;
+    } else {
       if (!pid) { lineupDlg?.render(); return; }
       D().events.push({ set: D().cur, t: 'SUB', out: d.lineup[slot], in: pid, ts: Date.now() });
       toastInfo(`Substituição: sai ${pname(d.lineup[slot])}, entra ${pname(pid)}.`);
@@ -2045,6 +2052,11 @@ export function openScoutLive(row, { view = false } = {}) {
     }
 
     return `
+      ${!pts && canWrite ? `<div class="cell-actions scout-lineup-tools">
+        <button class="btn btn--ghost btn--sm" type="button" data-lu-rotate ${d.lineup.some(Boolean) ? '' : 'disabled'} title="Quem está na posição 2 passa à 1, e assim por diante">Rodar ↻</button>
+        <button class="btn btn--ghost btn--sm" type="button" data-lu-clear ${d.lineup.some(Boolean) ? '' : 'disabled'}>Limpar</button>
+        <span class="muted">Escolher uma atleta que já está na formação troca as duas de posição.</span>
+      </div>` : ''}
       <div class="scout-lineup">
         <span class="scout-lineup__h">Pos.</span><span class="scout-lineup__h">${pts ? 'Em campo (posição de partida)' : 'Atleta'}</span><span class="scout-lineup__h">Líbero</span>
         ${rows}
@@ -2076,6 +2088,19 @@ export function openScoutLive(row, { view = false } = {}) {
       changed();
     });
     on('[data-slot]', 'change', (e) => changeSlot(Number(e.currentTarget.dataset.slot), e.currentTarget.value || null));
+    // Só antes do 1.º ponto: depois disso as posições de partida estão fixas.
+    on('[data-lu-rotate]', 'click', () => {
+      if (!canWrite || hasPoints(D(), D().cur)) return;
+      const l = curSet().lineup;
+      l.push(l.shift()); // posição 2 → 1, 3 → 2, …, 1 → 6 (o sentido da rotação)
+      changed();
+    });
+    on('[data-lu-clear]', 'click', () => {
+      if (!canWrite || hasPoints(D(), D().cur)) return;
+      curSet().lineup = [null, null, null, null, null, null];
+      ui.sel = null;
+      changed();
+    });
     on('[data-libero]', 'change', (e) => {
       const field = e.currentTarget.dataset.libero; // 'libero' (receção) | 'liberoDef' (defesa)
       const other = field === 'libero' ? 'liberoDef' : 'libero';

@@ -1784,6 +1784,13 @@ separador antes de navegar (usado pelos cartões do Painel).
     já jogados, e com eles os pontos jogados de cada atleta. O modal conta as
     substituições do set contra as 6 do regulamento, mas não bloqueia: na
     formação as regras de substituição variam por escalão.
+    - **O set seguinte nasce com a formação do anterior** (com as
+      substituições feitas), e mexe-se nela em vez de a refazer: escolher uma
+      atleta que já está noutra posição TROCA as duas, "Rodar ↻" passa a
+      formação uma posição (a da 2 vai para a 1) e "Limpar" esvazia as seis.
+      Recusar a atleta repetida obrigava a esvaziar posições e a voltar a pôr
+      as seis a cada set. Não se limpa sozinha: na maioria dos sets entram as
+      mesmas seis, e começar vazio era escolhê-las todas outra vez.
   - **A líbero** entra no lugar das atletas marcadas nas zonas 5, 6 e 1, e
     sai quando é a vez delas servirem (`positions()` em `scout-engine.js`).
     **Pode haver duas** (`libero` + `liberoDef`, `activeLibero()`): a de
