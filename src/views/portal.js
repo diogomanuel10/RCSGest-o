@@ -17,9 +17,9 @@ import {
 } from '../store.js';
 import {
   setsWon, partials, teamSummary, playerRows, pointsPlayed, usedCols, counts, QUALITY, qualityOf,
-  ACT, ERR_TYPES,
+  ACT, ERR_TYPES, replay, teamCounts, playerStats, errTypeLabel,
 } from '../scout-engine.js';
-import { serveZoneStats, receptionZoneStats, errorTypeStats, runsLost, ZONES } from '../scout-patterns.js';
+import { serveZoneStats, receptionZoneStats, errorTypeStats, runsLost, ZONES, setBySet } from '../scout-patterns.js';
 import { evoChart, wireEvo } from '../scout-charts.js';
 import { toastOk, toastError } from '../toast.js';
 import { getNotifications, markRead } from '../notifications.js';
@@ -75,6 +75,14 @@ import {
 let portalTab = 'hoje';
 let drillsShowAll = false;
 let scoutShowAll = false;
+
+// O jogo aberto no separador «Jogos» e a vista escolhida dentro dele. Estado de
+// UI, como o separador: sobrevive aos re-desenhos do store.
+let openGameId = null;
+let gameView = 'mine';      // 'mine' | 'errors' | 'team'
+let errFilter = 'all';      // fundamento dos erros, ou 'all'
+let gameViewAnim = false;   // a vista acabou de mudar: o conteúdo entra
+let gmSlideFrom = null;     // de onde parte a pílula das vistas
 
 // --- Movimento -------------------------------------------------------------
 //
@@ -217,6 +225,7 @@ export function renderPortal(container) {
     ${dadosHTML(me)}
     <div id="portal-push" hidden></div>
     ${weekHTML(me)}
+    ${lastGameCardHTML(me)}
     ${nextUpHTML(next, me)}
     ${physioHTML()}
     ${orderHTML(playerOrder(me.id))}
@@ -261,6 +270,14 @@ export function renderPortal(container) {
   const animate = enterAnim;
   enterAnim = false;
   slideFrom = null;
+  gameViewAnim = false;
+  // A pílula das vistas do jogo desliza da vista anterior, como a da barra.
+  if (gmSlideFrom != null) {
+    const seg = container.querySelector('.gm-seg');
+    const to = GAME_VIEWS.findIndex(([k]) => k === gameView);
+    requestAnimationFrame(() => requestAnimationFrame(() => seg?.style.setProperty('--i', to)));
+    gmSlideFrom = null;
+  }
   // A pílula nasceu no separador anterior; dois quadros depois passa para o
   // novo, e a transição do CSS fá-la deslizar. Um só quadro não chega: o
   // browser juntava as duas mudanças e saltava direto para o fim.
@@ -1035,12 +1052,12 @@ function mainQuality(datas, me) {
 // tem de passar por cima disto todas as vezes —, e só com os fundamentos que
 // se marcaram.
 const HELP = {
-  RECEPTION: ['Receção', 'Boa (bola verde): a bola chegou à distribuidora e deu para atacar. Difícil (círculo vazio): ficou em jogo, mas difícil de atacar. Erro (bola com ×): ponto para o adversário.'],
-  ATTACK: ['Ataque', 'Ponto (bola verde): a bola caiu no campo delas ou ficou perdida para elas. Defendido (círculo vazio): elas defenderam e o jogo seguiu — não é erro. Bloqueado (quadrado laranja): o bloco delas parou a bola e ganhou o ponto. Erro (bola com ×): fora ou na rede.'],
-  SERVICE: ['Serviço', 'Ás (bola verde): ponto direto. Em jogo (círculo vazio): entrou e o jogo seguiu. Erro (bola com ×): fora ou na rede. A percentagem é a dos serviços que entraram.'],
-  DEFENSE: ['Defesa', 'Boa (bola verde): a bola ficou jogável para a equipa. Difícil (círculo vazio): ficou em jogo, mas difícil de jogar. Erro (bola com ×): a bola caiu ou ficou impossível de jogar.'],
-  SETTING: ['Passe', 'Bom (bola verde): a atacante pôde atacar à vontade. Difícil (círculo vazio): deu para jogar, mas com dificuldade. Erro (bola com ×): dupla, condução ou bola perdida.'],
-  BLOCK: ['Bloco', 'Ponto (bola verde): o teu bloco ganhou o ponto. Toque (círculo vazio): tocaste e a bola ficou em jogo. Erro (bola com ×): rede ou bola que saiu por ti.'],
+  RECEPTION: ['Receção', 'Boa: a bola chegou à distribuidora e deu para atacar. Difícil: ficou em jogo, mas difícil de atacar. Erro: ponto para o adversário.'],
+  ATTACK: ['Ataque', 'Ponto: a bola caiu no campo delas ou ficou perdida para elas. Defendido: elas defenderam e o jogo seguiu — não é erro. Bloqueado: o bloco delas parou a bola e ganhou o ponto. Erro: fora ou na rede.'],
+  SERVICE: ['Serviço', 'Ás: ponto direto. Em jogo: entrou e o jogo seguiu. Erro: fora ou na rede. A percentagem é a dos serviços que entraram.'],
+  DEFENSE: ['Defesa', 'Boa: a bola ficou jogável para a equipa. Difícil: ficou em jogo, mas difícil de jogar. Erro: a bola caiu ou ficou impossível de jogar.'],
+  SETTING: ['Passe', 'Bom: a atacante pôde atacar à vontade. Difícil: deu para jogar, mas com dificuldade. Erro: dupla, condução ou bola perdida.'],
+  BLOCK: ['Bloco', 'Ponto: o teu bloco ganhou o ponto. Toque: tocaste e a bola ficou em jogo. Erro: rede ou bola que saiu por ti.'],
 };
 function helpHTML(used, { charts = false } = {}) {
   return `<details class="sc-help">
@@ -1050,7 +1067,9 @@ function helpHTML(used, { charts = false } = {}) {
         <dt>Pontos que jogaste</dt><dd>Quantos pontos do jogo estiveste dentro de campo. Diz quanto jogaste — não quanto jogaste bem.</dd>
         ${QUALITY.filter((q) => used.has(q.k)).map((q) => `<dt>${esc(HELP[q.k][0])}</dt><dd>${esc(HELP[q.k][1])}</dd>`).join('')}
       </dl>
-      <p><strong>Cada bola é uma ação tua.</strong> Quando fazes 10 ou mais, a fila passa a ser <strong>«em cada 10»</strong>: as tuas 42 receções viram 10 bolas, na mesma proporção, e os números certos estão escritos por baixo. Conta a proporção, e não quantas fizeste — quem joga menos tempo faz menos ações.</p>
+      <p><strong>As barras de cada jogo</strong> têm todas as tuas ações, cada parte do tamanho do que aconteceu, com os números escritos por baixo. O erro, às riscas vermelhas, aparece sempre, por pequeno que seja.</p>
+      <p><strong>Nos «Erros»</strong> estão os teus erros lance a lance: em que set, com que marcador (o de antes do ponto) e em que ação. Um ataque bloqueado aparece à parte — o bloco delas parou a bola, e isso não é erro teu.</p>
+      <p><strong>No «Antes e agora» da época</strong>, cada bola é uma ação tua, «em cada 10»: as tuas 42 receções viram 10 bolas, na mesma proporção, para os primeiros jogos e os últimos se compararem à vista.</p>
       <p><strong>No campo</strong>, em cima é o lado delas e em baixo o nosso. O contorno marca a tua melhor zona. Numa zona com muitas ações aparece a conta («12 de 15») em vez das bolas.</p>
       <p><strong>Mais / menos do que costumas</strong> compara este jogo contigo própria, nos teus outros jogos. Ninguém mais entra nesta conta, e só aparece quando fizeste pelo menos ${COMPARE_MIN} ações nesse fundamento — com menos, uma bola mudava tudo.</p>
       ${charts ? '<p><strong>Os gráficos</strong> mostram cada jogo, do mais antigo para o mais recente. O tracejado é a tua média. Uma bolinha vazia é um jogo com poucas ações, que não conta. Toca num ponto para veres o jogo.</p>' : ''}
@@ -1248,7 +1267,7 @@ function topErrorLine(data, me, k) {
 // mais subiu em relação ao costume dela e, se houver, o que mais desceu (ou o
 // erro que mais se repetiu). Sem com que comparar: onde ela mais jogou, sem
 // juízo. Só fundamentos com ações que cheguem (`COMPARE_MIN`).
-function gameHero(data, me, avgs) {
+function heroParts(data, me, avgs) {
   const c = counts([data])[me.id] || {};
   const used = usedCols([data]);
   const rows = QUALITY.filter((q) => used.has(q.k))
@@ -1265,7 +1284,7 @@ function gameHero(data, me, avgs) {
     sub = `${cap(goodPhrase(best.k, best.qo))}. Mais do que costumas.`;
   } else {
     const main = rows.slice().sort((a, b) => b.qo.n - a.qo.n)[0];
-    if (!main) return '';
+    if (!main) return null;
     const w = FUND_WORDS[main.k];
     title = `Jogaste sobretudo ${w.in} ${w.name}`;
     sub = `${cap(goodPhrase(main.k, main.qo))}${main.vs ? `, ${main.vs.text.replace(/ \(.*\)$/, '')}` : ''}.`;
@@ -1280,6 +1299,12 @@ function gameHero(data, me, avgs) {
     const k = QUALITY.map((q) => q.k).find((x) => (!best || x !== best.k) && topErrorLine(data, me, x));
     if (k) next = `${cap(FUND_WORDS[k].the)} ${FUND_WORDS[k].name}: ${topErrorLine(data, me, k)}.`;
   }
+  return { title, sub, next };
+}
+function gameHero(data, me, avgs) {
+  const h = heroParts(data, me, avgs);
+  if (!h) return '';
+  const { title, sub, next } = h;
   return `<section class="sb-hero">
       <span class="sb-hero__label">O teu jogo</span>
       <strong class="sb-hero__title">${esc(title)}</strong>
@@ -1400,41 +1425,375 @@ function wireCourts(root) {
 }
 
 // --- Um jogo, aberto ------------------------------------------------------------
-function gameBody(g, me, avgs) {
+//
+// O jogo abre numa PÁGINA própria dentro do separador (com "Os meus jogos" para
+// voltar), e não por baixo da linha da lista: com três vistas e os números
+// todos, aberto no meio da lista era um scroll sem fim entre dois jogos.
+//
+// As atletas pediram a informação TODA (nov. 2026, decidido sobre uma
+// maqueta). Até aqui o portal escondia os erros de propósito — no máximo um
+// "Para a próxima", e as bolas "em cada 10" deixavam 2 erros em 42 receções
+// sem bola nenhuma — e o que se ouvia era "não percebo que erros fiz". As
+// regras que ficam: tudo comparado com ELA própria, nunca com as colegas, e
+// a equipa sem nomes.
+//
+// Três vistas, porque são três perguntas:
+//   - «O meu jogo»: o que fiz, com os números exatos de cada fundamento.
+//   - «Erros»: quais foram, lance a lance (set, marcador, ação, tipo).
+//   - «A equipa»: como jogou a equipa, de onde vieram e para onde foram os
+//     pontos — sem dizer de quem foi cada ação.
+
+// As partes de um fundamento, com as palavras de quem tem catorze anos. A
+// ordem é a da barra: o que correu melhor à esquerda, o erro no fim.
+const FUND_PARTS = {
+  RECEPTION: [[['PERFECT'], 'perfeitas', 'perf'], [['OK'], 'boas', 'good'], [['BAD'], 'difíceis', 'cont'], [['ERROR'], 'erros', 'err']],
+  DEFENSE: [[['PERFECT'], 'perfeitas', 'perf'], [['OK'], 'boas', 'good'], [['BAD'], 'difíceis', 'cont'], [['ERROR'], 'erros', 'err']],
+  SETTING: [[['PERFECT'], 'perfeitos', 'perf'], [['OK'], 'bons', 'good'], [['BAD'], 'difíceis', 'cont'], [['ERROR'], 'erros', 'err']],
+  ATTACK: [[['PERFECT'], 'pontos', 'perf'], [['OK', 'BAD'], 'defendidos', 'cont'], [['BLOCKED'], 'bloqueados', 'blk'], [['ERROR'], 'erros', 'err']],
+  SERVICE: [[['PERFECT'], 'ases', 'perf'], [['OK', 'BAD'], 'entraram', 'good'], [['ERROR'], 'erros', 'err']],
+  BLOCK: [[['PERFECT'], 'pontos', 'perf'], [['OK'], 'amorteceram', 'good'], [['BAD'], 'toques', 'cont'], [['ERROR'], 'erros', 'err']],
+};
+const HEAD_WORD = { RECEPTION: 'boas', DEFENSE: 'boas', SETTING: 'bons', ATTACK: 'pontos', SERVICE: 'entraram', BLOCK: 'boas' };
+const capFirst = (x) => (x ? x.charAt(0).toUpperCase() + x.slice(1) : x);
+
+function fundParts(c, k) {
+  return (FUND_PARTS[k] || [])
+    .map(([qs, label, tone]) => ({ label, tone, n: qs.reduce((a, q) => a + (c[`${k}.${q}`] || 0), 0) }))
+    .filter((p) => p.n);
+}
+
+// A barra EXATA: cada parte com o tamanho do que aconteceu, e o erro com um
+// mínimo de largura e às riscas — nunca desaparece, que era o defeito das
+// bolas "em cada 10". Os números vão escritos por baixo, sempre.
+function barHTML(parts, aria, cls = '') {
+  return `<div class="gm-bar ${cls}" role="img" aria-label="${esc(aria)}">${parts.map((p, i) =>
+    `<span class="gm-bar__p gm-bar__p--${p.tone}" style="flex:${p.n} 0 0;--d:${(0.12 + i * 0.08).toFixed(2)}s"></span>`).join('')}</div>`;
+}
+function keyHTML(parts) {
+  return `<p class="gm-key">${parts.map((p) =>
+    `<span><span class="gm-sw gm-sw--${p.tone}" aria-hidden="true"></span><b>${p.n}</b> ${esc(p.label)}</span>`).join('')}</p>`;
+}
+
+function fundCardHTML(c, k, avg) {
+  const q = QUALITY.find((x) => x.k === k);
+  const qo = qualityOf(c, k);
+  if (!qo.n) return '';
+  const parts = fundParts(c, k);
+  const vs = avg != null ? compareToSelf(qo, avg) : null;
+  return `<section class="sb-card gm-fund">
+      <div class="gm-fund__head">
+        <strong>${esc(q.label)} <span class="gm-n">· ${qo.n}</span></strong>
+        <span class="gm-fund__good">${qo.good} ${esc(HEAD_WORD[k])} (${Math.round(qo.rate * 100)}%)</span>
+      </div>
+      ${barHTML(parts, `${q.label}: ${parts.map((p) => `${p.n} ${p.label}`).join(', ')}`)}
+      ${keyHTML(parts)}
+      ${vs ? `<p class="gm-vs gm-vs--${vs.tone}">${esc(vs.arrow)}${esc(capFirst(vs.text))}</p>` : ''}
+    </section>`;
+}
+
+// --- Os lances dela: os erros e os ataques bloqueados -------------------------
+//
+// Lidos rally a rally pelo `replay`, que dá o marcador ANTES do ponto — é o
+// que a atleta reconhece ("aquele serviço com 18–17"). O ataque bloqueado não
+// é erro dela (o bloco delas é mérito delas) e conta-se à parte, a dizê-lo.
+const ERR_WHAT = {
+  RECEPTION: 'a bola caiu', DEFENSE: 'a bola caiu', SERVICE: 'serviço falhado', ATTACK: 'ataque falhado',
+  SETTING: 'passe falhado', BLOCK: 'erro no bloco', OTHER: 'falta (rede, invasão…)',
+};
+function myLances(data, me) {
+  const total = new Map(partials(data).map((s) => [s.set, s.our + s.their]));
+  const out = [];
+  (data.sets || []).forEach((_, si) => {
+    const len = total.get(si + 1);
+    if (!len) return;
+    replay(data, si, (pos, e, srv, acts, score) => {
+      for (const a of acts) {
+        if (a.pid !== me.id) continue;
+        const base = { set: si + 1, score, at: Math.min(0.98, (score.our + score.their + 0.5) / len) };
+        if (a.q === 'ERROR') out.push({ ...base, t: a.t, et: a.et || null, kind: 'err' });
+        else if (a.t === 'ATTACK' && a.q === 'BLOCKED') out.push({ ...base, t: 'ATTACK', kind: 'blk' });
+      }
+    });
+  });
+  return out;
+}
+const actLabel = (t) => ACT[t]?.l || t;
+const errTypeWords = (t, et) => (et ? (ERR_WORDS[et] || (errTypeLabel(t, et) || '').toLowerCase() || null) : null);
+
+// A média dela, por jogo, nos OUTROS jogos em que teve ações: erros no total
+// e por fundamento. Com menos de dois jogos não há costume.
+function myErrorAverages(others, me) {
+  const played = others.map((d) => counts([d])[me.id]).filter((c) => c && Object.keys(c).length);
+  if (played.length < 2) return null;
+  const byT = {};
+  let all = 0;
+  for (const c of played) {
+    all += playerStats(c).errs;
+    for (const key of Object.keys(c)) {
+      const [t, q] = key.split('.');
+      if (q === 'ERROR') byT[t] = (byT[t] || 0) + c[key];
+    }
+  }
+  for (const t of Object.keys(byT)) byT[t] /= played.length;
+  return { all: all / played.length, byT };
+}
+
+function errorsViewHTML(g, me, others) {
   const data = g.data;
   const c = counts([data])[me.id] || {};
+  const nActs = Object.values(c).reduce((a, b) => a + b, 0);
+  if (!nActs) {
+    return `<section class="sb-card"><p class="sb-card__lead">Não tiveste ações marcadas neste jogo.</p></section>`;
+  }
+  const lances = myLances(data, me);
+  const errs = lances.filter((l) => l.kind === 'err');
+  const blk = lances.filter((l) => l.kind === 'blk');
+  const avg = myErrorAverages(others, me);
+  const costume = avg ? (avg.all < 1 ? 'menos de 1' : String(Math.round(avg.all))) : null;
+
+  // Os filtros são os fundamentos em que ela errou (o bloqueado vai com o
+  // ataque), pelo número de erros.
+  const errByT = {};
+  for (const l of errs) errByT[l.t] = (errByT[l.t] || 0) + 1;
+  const fTs = [...new Set(lances.map((l) => l.t))].sort((a, b) => (errByT[b] || 0) - (errByT[a] || 0));
+  if (errFilter !== 'all' && !fTs.includes(errFilter)) errFilter = 'all';
+  const match = (l) => errFilter === 'all' || l.t === errFilter;
+
+  // Uma linha por set, com cada lance no momento em que aconteceu.
+  const sets = partials(data);
+  const timeline = sets.map((s) => {
+    const mine = lances.filter((l) => l.set === s.set);
+    return `<div class="gm-tl__row">
+        <span class="gm-tl__set">Set ${s.set}</span>
+        <span class="gm-tl__track" role="img" aria-label="Set ${s.set}: ${mine.filter((l) => l.kind === 'err').length} erros">
+          ${mine.map((l, i) => `<span class="gm-tl__dot${l.kind === 'blk' ? ' gm-tl__dot--blk' : ''}${match(l) ? '' : ' gm-tl__dot--off'}" style="left:${(l.at * 100).toFixed(1)}%;--d:${(0.2 + (s.set - 1) * 0.1 + i * 0.05).toFixed(2)}s" aria-hidden="true"></span>`).join('')}
+        </span>
+        <span class="gm-tl__res gm-tl__res--${s.our > s.their ? 'won' : 'lost'}">${s.our}–${s.their}</span>
+      </div>`;
+  }).join('');
+
+  // O que se repetiu — sempre contra ela própria, e no máximo três frases.
+  const ins = [];
+  if (errFilter === 'all' && errs.length >= 4) {
+    const perSet = sets.map((s) => ({ s: s.set, n: errs.filter((l) => l.set === s.set).length })).sort((a, b) => b.n - a.n);
+    if (perSet[0] && perSet[0].n >= 3 && perSet[0].n / errs.length >= 0.4) {
+      ins.push(`O <b>${perSet[0].s}.º set</b> foi o mais difícil: ${perSet[0].n} dos ${errs.length} erros foram lá.`);
+    }
+  }
+  if (errFilter === 'all' && avg) {
+    for (const t of Object.keys(errByT)) {
+      const now = errByT[t];
+      const usual = Math.round(avg.byT[t] || 0);
+      if (now >= 2 && now >= usual + 1) {
+        const n = Object.keys(c).filter((k) => k.startsWith(`${t}.`)).reduce((a, k) => a + c[k], 0);
+        ins.push(`<b>${esc(actLabel(t))}</b>: ${now} erros em ${n} — costumas ter ${usual}.`);
+      }
+    }
+  }
+  if (errFilter === 'all') {
+    const byType = {};
+    for (const l of errs) if (l.et) byType[`${l.t}|${l.et}`] = (byType[`${l.t}|${l.et}`] || 0) + 1;
+    for (const [key, n] of Object.entries(byType)) {
+      if (n < 2) continue;
+      const [t, et] = key.split('|');
+      const unit = QUALITY.find((q) => q.k === t)?.unit || 'ações';
+      ins.push(`${n} ${esc(unit)} foram <b>${esc(errTypeWords(t, et))}</b>.`);
+    }
+  }
+
+  const shown = lances.filter(match);
+  const untyped = errs.some((l) => !l.et);
+  return `
+    <section class="sb-card gm-errhead">
+      <p class="gm-errhead__n">${errs.length
+        ? `<strong>${errs.length} erro${errs.length === 1 ? '' : 's'}</strong> <span>em ${nActs} ações (${Math.round((errs.length / nActs) * 100)}%)</span>`
+        : '<strong class="gm-errhead__zero">Nenhum erro neste jogo</strong>'}</p>
+      ${errs.length ? `<p class="gm-errhead__txt">${costume ? `Costumas fazer ${costume} por jogo. ` : ''}Errar faz parte do jogo — o que vale a pena é ver <b>onde se repetem</b>, porque é isso que se treina.</p>` : ''}
+      ${blk.length ? `<p class="gm-errhead__blk">E ${blk.length} ataque${blk.length === 1 ? ' foi bloqueado' : 's foram bloqueados'}: o bloco delas parou a bola. Não conta como erro teu.</p>` : ''}
+    </section>
+    ${lances.length ? `
+    <div class="gm-chips" role="group" aria-label="Ver os erros de uma ação">
+      <button type="button" class="pt-chip" data-err-filter="all" aria-pressed="${errFilter === 'all'}">Todos <span class="gm-chip-n">${errs.length}</span></button>
+      ${fTs.map((t) => `<button type="button" class="pt-chip" data-err-filter="${t}" aria-pressed="${errFilter === t}">${esc(actLabel(t))} <span class="gm-chip-n">${errByT[t] || 0}</span></button>`).join('')}
+    </div>
+    <section class="sb-card">
+      <h3 class="sb-card__title">Quando aconteceram</h3>
+      <p class="sb-card__lead sb-card__lead--sm">Cada linha é um set, do primeiro ao último ponto.</p>
+      <div class="gm-tl">${timeline}</div>
+    </section>
+    ${ins.length ? `<section class="sb-card">
+      <h3 class="sb-card__title">O que se repetiu</h3>
+      ${ins.slice(0, 3).map((x) => `<p class="gm-ins">${x}</p>`).join('')}
+    </section>` : ''}
+    <section class="sb-card gm-list">
+      <h3 class="sb-card__title">Lance a lance</h3>
+      <ul class="gm-lances">
+        ${shown.map((l) => {
+          const type = l.kind === 'err' ? errTypeWords(l.t, l.et) : null;
+          return `<li class="gm-lance">
+            <span class="gm-mark${l.kind === 'blk' ? ' gm-mark--blk' : ''}" aria-hidden="true"></span>
+            <span class="gm-lance__txt">
+              <strong>${l.kind === 'blk' ? 'Ataque bloqueado' : esc(actLabel(l.t))}${type ? ` <span class="gm-tag">${esc(type)}</span>` : ''}</strong>
+              <span>Set ${l.set} · ${l.kind === 'blk' ? 'não é erro teu' : esc(ERR_WHAT[l.t] || 'erro')}</span>
+            </span>
+            <span class="gm-score" aria-label="Marcador ${l.score.our} a ${l.score.their}">${l.score.our}–${l.score.their}</span>
+          </li>`;
+        }).join('')}
+      </ul>
+    </section>
+    <p class="gm-foot">O marcador é o de antes do ponto (nós–elas).${untyped ? ' «À rede» e «fora» só aparecem quando o treinador marca o tipo de erro.' : ''}</p>` : ''}`;
+}
+
+// --- A equipa ------------------------------------------------------------------
+//
+// Mais detalhe do que tinha (os parciais e a série mais difícil), e com a
+// mesma regra: NUNCA de quem foi cada ação. As ações das colegas chegam do
+// servidor sem dono (`my_scout_games`), por isso aqui só há totais.
+const OUR_ERR_ORDER = ['SERVICE', 'ATTACK', 'RECEPTION', 'DEFENSE', 'SETTING', 'BLOCK', 'OTHER'];
+function ringHTML(rate, tone) {
+  const C = 213.6;
+  return `<span class="gm-ring" aria-hidden="true"><svg viewBox="0 0 80 80">
+      <circle class="gm-ring__bg" cx="40" cy="40" r="34"/>
+      <circle class="gm-ring__fg gm-ring__fg--${tone}" cx="40" cy="40" r="34" style="stroke-dasharray:${C};stroke-dashoffset:${(C * (1 - (rate || 0))).toFixed(1)}"/>
+    </svg><strong>${rate == null ? '—' : `${Math.round(rate * 100)}%`}</strong></span>`;
+}
+function teamViewHTML(data) {
+  const sets = partials(data);
+  if (!sets.length) return '<section class="sb-card"><p class="sb-card__lead">Ainda não há pontos neste jogo.</p></section>';
+  const ts = teamSummary([data]);
+  const tc = teamCounts([data]);
+  const bySet = setBySet(data);
+  const our = sets.reduce((a, s) => a + s.our, 0);
+  const their = sets.reduce((a, s) => a + s.their, 0);
+  const used = usedCols([data]);
+
+  const won = [[ts.kill, 'Ataque', 'atk'], [ts.blk, 'Bloco', 'tblk'], [ts.ace, 'Serviço (ases)', 'ace'], [ts.oppErr, 'Erros delas', 'opp']].filter((x) => x[0]);
+  const lost = [[ts.oppPt, 'Pontos que elas fizeram', 'their'], [ts.ourErr, 'Erros nossos', 'err']].filter((x) => x[0]);
+  const stack = (rows, aria) => `<div class="gm-stack" role="img" aria-label="${esc(aria)}">${rows.map(([n, , tone], i) =>
+    `<span class="gm-stack__p gm-stack__p--${tone}" style="flex:${n} 0 0;--d:${(0.12 + i * 0.1).toFixed(2)}s">${n}</span>`).join('')}</div>
+    <p class="gm-key">${rows.map(([n, l, tone]) => `<span><span class="gm-sw gm-sw--${tone}" aria-hidden="true"></span>${esc(l)}</span>`).join('')}</p>`;
+  const errByT = OUR_ERR_ORDER.map((t) => [t, tc[`${t}.ERROR`] || 0]).filter(([, n]) => n).sort((a, b) => b[1] - a[1]);
+
+  const funds = QUALITY.filter((q) => used.has(q.k)).map((q) => {
+    const qo = qualityOf(tc, q.k);
+    if (!qo.n) return '';
+    const parts = fundParts(tc, q.k);
+    return `<div class="gm-tf">
+        <div class="gm-tf__head"><strong>${esc(q.label)}</strong><span class="gm-n">${qo.n} ações</span><span class="gm-tf__pct">${Math.round(qo.rate * 100)}%</span></div>
+        ${barHTML(parts, `${q.label} da equipa: ${parts.map((p) => `${p.n} ${p.label}`).join(', ')}`, 'gm-bar--thin')}
+        <p class="gm-tf__detail">${parts.map((p) => `${p.n} ${esc(p.label)}`).join(' · ')}</p>
+      </div>`;
+  }).filter(Boolean);
+
+  const r = bySet.reduce((a, b) => ({
+    so: a.so + b.r.so, soWon: a.soWon + b.r.soWon, bp: a.bp + b.r.bp, bpWon: a.bpWon + b.r.bpWon,
+  }), { so: 0, soWon: 0, bp: 0, bpWon: 0 });
+  const pct = (a, b) => (b ? a / b : null);
+
+  return `
+    <section class="sb-card">
+      <p class="gm-score-big"><strong>${our}<span>–</span>${their}</strong> <span>pontos no jogo</span></p>
+      <div class="sb-sets">${sets.map((x) => `<span class="sb-set sb-set--${x.our > x.their ? 'won' : 'lost'}">${x.our}–${x.their}</span>`).join('')}</div>
+    </section>
+    <section class="sb-card">
+      <h3 class="sb-card__title">De onde vieram os nossos ${ts.our} pontos</h3>
+      ${stack(won, `De onde vieram os pontos: ${won.map(([n, l]) => `${l} ${n}`).join(', ')}`)}
+      <h3 class="sb-card__title gm-mt">E os ${ts.their} que demos</h3>
+      ${stack(lost, `Pontos dados: ${lost.map(([n, l]) => `${l} ${n}`).join(', ')}`)}
+      ${errByT.length ? `<div class="gm-errgrid">${errByT.map(([t, n]) => `<span><strong>${n}</strong>${esc(actLabel(t))}</span>`).join('')}</div>` : ''}
+    </section>
+    ${funds.length ? `<section class="sb-card">
+      <h3 class="sb-card__title">A equipa em cada ação</h3>
+      ${funds.join('')}
+    </section>` : ''}
+    ${r.so + r.bp ? `<section class="sb-card">
+      <h3 class="sb-card__title">Quando elas serviam e quando servíamos nós</h3>
+      <div class="gm-phases">
+        <div class="gm-phase">${ringHTML(pct(r.soWon, r.so), 'so')}<span><strong>Elas serviam</strong>Ganhámos ${r.soWon} de ${r.so} pontos.</span></div>
+        <div class="gm-phase">${ringHTML(pct(r.bpWon, r.bp), 'bp')}<span><strong>Servíamos nós</strong>Ganhámos ${r.bpWon} de ${r.bp} pontos.</span></div>
+      </div>
+    </section>` : ''}
+    ${sets.length > 1 ? `<section class="sb-card">
+      <h3 class="sb-card__title">Set a set</h3>
+      <table class="gm-tbl no-stack">
+        <thead><tr><th scope="col">Set</th><th scope="col">Resultado</th><th scope="col">Erros nossos</th><th scope="col">Quando elas serviam</th></tr></thead>
+        <tbody>${sets.map((s, i) => {
+          const b = bySet[i]?.r;
+          return `<tr><td><strong>${s.set}.º</strong></td>
+            <td class="gm-tbl__${s.our > s.their ? 'won' : 'lost'}">${s.our}–${s.their}</td>
+            <td>${b ? b.lostErr : '—'}</td>
+            <td>${b && b.so ? `${Math.round((b.soWon / b.so) * 100)}%` : '—'}</td></tr>`;
+        }).join('')}</tbody>
+      </table>
+    </section>` : ''}
+    ${(() => { const pat = teamPatternsHTML([data]); return pat ? `<section class="sb-card"><h3 class="sb-card__title">Séries e erros</h3>${pat}</section>` : ''; })()}
+    <p class="gm-foot">Os números da equipa nunca dizem de quem foi cada ação.</p>`;
+}
+
+// --- «O meu jogo» ------------------------------------------------------------------
+function mineViewHTML(g, me, avgs, nErr) {
+  const data = g.data;
+  const c = counts([data])[me.id] || {};
+  const nActs = Object.values(c).reduce((a, b) => a + b, 0);
+  const played = pointsPlayed(data)[me.id] || 0;
+  if (!nActs && !played) {
+    return `<section class="sb-card">
+        <p class="sb-card__lead">Não entraste em campo neste jogo.</p>
+        <button type="button" class="btn btn--ghost btn--sm" data-game-view="team">Ver como jogou a equipa</button>
+      </section>`;
+  }
+  const st = playerStats(c);
   const used = usedCols([data]);
   const order = QUALITY.map((q) => q.k).filter((k) => used.has(k)).sort((a, b) => qualityOf(c, b).n - qualityOf(c, a).n);
-  const rows = order.map((k) => fundRow(c, k, { avg: avgs?.[k] ?? null })).filter(Boolean);
-  // Com poucas ações (menos de 5) o fundamento vai para "Ver mais": quatro
-  // defesas não dizem nada do jogo dela. O primeiro fica sempre à vista.
-  const shown = rows.filter((r, i) => i === 0 || r.n >= FUND_SHOW_MIN);
-  const few = rows.filter((r) => !shown.includes(r));
-  const kindsUsed = BALL_ORDER.filter((kind) => order.some((k) => ballKinds(c, k)[kind]));
-  const sets = partials(data);
-  const team = teamPatternsHTML([data]);
-  const errs = myErrorTypes([data], me);
   return `
     ${gameHero(data, me, avgs)}
-    ${rows.length ? `<section class="sb-card">
-      <h3 class="sb-card__title">O que fizeste</h3>
-      ${ballLegend(kindsUsed)}
-      ${shown.map((r) => r.html).join('')}
-    </section>` : ''}
-    ${courtCardHTML(`g:${g.id}`, [data], me)}
-    <section class="sb-card">
-      <h3 class="sb-card__title">A equipa</h3>
-      <div class="sb-sets">${sets.map((x) => `<span class="sb-set sb-set--${x.our > x.their ? 'won' : 'lost'}">${x.our}–${x.their}</span>`).join('')}</div>
-      ${team || ''}
+    <section class="gm-totals" aria-label="Os teus números neste jogo">
+      <span><strong>${nActs}</strong>ações</span>
+      <span class="gm-totals--ok"><strong>${st.pts}</strong>pontos teus</span>
+      <span class="gm-totals--err"><strong>${nErr}</strong>erros</span>
+      <span><strong>${played}</strong>pontos em campo</span>
     </section>
-    <details class="sb-more">
-      <summary>Ver mais${few.length ? `: ${esc(few.map((r) => QUALITY.find((q) => q.k === r.k).label).join(', '))}` : ''}</summary>
-      <div class="sb-more__body">
-        ${few.map((r) => r.html).join('')}
-        ${errs}
-        ${teamBlock([data])}
+    ${order.map((k) => fundCardHTML(c, k, avgs?.[k] ?? null)).join('')}
+    ${courtCardHTML(`g:${g.id}`, [data], me)}
+    ${nErr ? `<button type="button" class="sb-card gm-goerr" data-game-view="errors">
+      <span class="gm-mark" aria-hidden="true"></span>
+      <span><strong>Ver os ${nErr} erro${nErr === 1 ? '' : 's'}, lance a lance</strong><span>Em que set, com que marcador, em que ação.</span></span>
+      <span class="gm-chev" aria-hidden="true">›</span>
+    </button>` : ''}`;
+}
+
+// A página do jogo: cabeçalho, as três vistas e o corpo da escolhida.
+const GAME_VIEWS = [['mine', 'O meu jogo'], ['errors', 'Erros'], ['team', 'A equipa']];
+function gamePageHTML(g, me, games) {
+  const data = g.data;
+  const others = games.filter((x) => x !== g).map((x) => x.data);
+  const avgs = others.length >= 2 ? myAverages(others, me) : null;
+  const r = setsWon(data);
+  const res = r.o > r.t ? ['ok', `Ganhámos ${r.o}–${r.t}`] : r.o < r.t ? ['muted', `Perdemos ${r.o}–${r.t}`] : ['muted', `${r.o}–${r.t}`];
+  const nErr = myLances(data, me).filter((l) => l.kind === 'err').length;
+  if (!GAME_VIEWS.some(([k]) => k === gameView)) gameView = 'mine';
+  const idx = GAME_VIEWS.findIndex(([k]) => k === gameView);
+  const from = gmSlideFrom != null ? gmSlideFrom : idx;
+  const fmt = (d) => (d ? d.split('-').reverse().slice(0, 2).join('/') : '');
+  const body = gameView === 'errors' ? errorsViewHTML(g, me, others)
+    : gameView === 'team' ? teamViewHTML(data)
+      : mineViewHTML(g, me, avgs, nErr);
+  return `<div class="gm-page">
+      <button type="button" class="gm-back" data-close-game><span aria-hidden="true">‹</span> Os meus jogos</button>
+      <header class="gm-head">
+        <div>
+          <span class="gm-head__meta">${esc([fmt(g.game_date), g.competition].filter(Boolean).join(' · '))}</span>
+          <h2 class="gm-head__title">vs ${esc(g.opponent || 'Adversário')}</h2>
+        </div>
+        <span class="badge badge--${res[0]}">${esc(res[1])}</span>
+      </header>
+      <div class="gm-seg" role="tablist" aria-label="O que ver deste jogo" style="--i:${from}">
+        <span class="gm-seg__ind" aria-hidden="true"></span>
+        ${GAME_VIEWS.map(([k, l]) => `<button type="button" class="gm-seg__btn${k === gameView ? ' is-on' : ''}" role="tab"
+            aria-selected="${k === gameView}" data-game-view="${k}">${esc(l)}${k === 'errors' && nErr ? ` <span class="gm-seg__n">${nErr}</span>` : ''}</button>`).join('')}
       </div>
-    </details>`;
+      <div class="gm-view${gameViewAnim ? ' gm-view--enter' : ''}">${body}</div>
+    </div>`;
 }
 
 // --- A época (B) ----------------------------------------------------------------
@@ -1527,33 +1886,69 @@ function seasonBallsHTML(games, me, used) {
 // trinta, e a pergunta de quem abre isto é quase sempre o último jogo.
 const SCOUT_VISIBLE = 5;
 
-function scoutGameRow(g, me, { open = false, others = [] } = {}) {
-  const fmt = (d) => (d ? d.split('-').reverse().slice(0, 2).join('/') : '');
+// Quantos dias um jogo conta como "o último" — o cartão no «Hoje» e a
+// etiqueta "Novo" na lista. Um clube vive ao ritmo do fim de semana: o jogo
+// de sábado ainda é notícia na terça, e na quarta já se prepara o seguinte.
+const LAST_GAME_DAYS = 3;
+const fmtDM = (d) => (d ? d.split('-').reverse().slice(0, 2).join('/') : '');
+function daysSince(dateStr) {
+  if (!dateStr) return Infinity;
+  const d = new Date(`${dateStr}T00:00`);
+  const t = new Date();
+  t.setHours(0, 0, 0, 0);
+  return Math.round((t - d) / 86400000);
+}
+
+// Uma linha da lista: o adversário, o resultado e, já fechada, o que ela fez
+// e quantos erros — sem isso, trinta linhas de "data · adversário" eram o
+// calendário outra vez.
+function gameListRow(g, me, i) {
   const r = setsWon(g.data);
-  const res = r.o > r.t ? 'V' : r.o < r.t ? 'D' : 'E';
+  const res = r.o > r.t ? ['ok', `Ganhámos ${r.o}–${r.t}`] : r.o < r.t ? ['muted', `Perdemos ${r.o}–${r.t}`] : ['muted', `${r.o}–${r.t}`];
   const p = pointsPlayed(g.data)[me.id] || 0;
-  const m = playerRows([g.data])[0];
+  const c = counts([g.data])[me.id] || {};
   const main = mainQuality([g.data], me);
-  // Fechada, a linha diz o que ela fez nesse jogo — sem isso, trinta linhas
-  // de "data · adversário · resultado" eram o calendário outra vez. Diz a
-  // QUALIDADE do que mais fez ("Receção 70%"), e não os pontos: a líbero
-  // nunca tinha mais do que "0 pts".
-  const mineShort = main && main.n >= EVO_MIN ? `${main.q.label} ${Math.round(main.rate * 100)}%` : p ? 'jogaste' : 'não jogaste';
-  // A média dela nos OUTROS jogos: comparar um jogo com uma média que já o
-  // inclui puxava a média para ele. Só com dois jogos para comparar.
-  const avgs = others.length >= 2 ? myAverages(others, me) : null;
-  return `<li><details class="portal-scout-game"${open ? ' open' : ''}>
-    <summary>
-      <span class="portal-scout-game__title">vs ${esc(g.opponent || 'Adversário')}</span>
-      <span class="portal-scout-game__meta">${esc(fmt(g.game_date))} · ${esc(mineShort)}</span>
-      <span class="badge badge--${res === 'V' ? 'ok' : res === 'D' ? 'danger' : 'muted'}">${r.o}–${r.t}</span>
-      <span class="portal-scout-game__chev" aria-hidden="true">▾</span>
-    </summary>
-    <div class="portal-scout-game__body">
-      <p class="sb-meta">${p ? `${p} pontos em campo` : 'Não entraste em campo neste jogo.'}${g.competition ? ` · ${esc(g.competition)}` : ''}</p>
-      ${p || m ? gameBody(g, me, avgs) : ''}
-    </div>
-  </details></li>`;
+  const nErr = playerStats(c).errs;
+  const mine = main && main.n >= EVO_MIN
+    ? `${main.q.label} ${Math.round(main.rate * 100)}%`
+    : (p || Object.keys(c).length ? 'jogaste' : 'não jogaste');
+  const isNew = i === 0 && daysSince(g.game_date) <= LAST_GAME_DAYS;
+  return `<li><button type="button" class="gm-row" data-open-game="${esc(g.id)}">
+      <span class="gm-row__main">
+        <span class="gm-row__title">vs ${esc(g.opponent || 'Adversário')}${isNew ? ' <span class="gm-new">Novo</span>' : ''}</span>
+        <span class="gm-row__meta">${esc(fmtDM(g.game_date))} · ${esc(mine)}${Object.keys(c).length ? ` · <span class="gm-row__err">${nErr} erro${nErr === 1 ? '' : 's'}</span>` : ''}</span>
+      </span>
+      <span class="badge badge--${res[0]}" aria-label="${esc(res[1])}">${r.o}–${r.t}</span>
+      <span class="gm-chev" aria-hidden="true">›</span>
+    </button></li>`;
+}
+
+// Erros por jogo, do mais antigo para o mais recente: a pergunta "estou a
+// errar menos?" que a lista lance a lance, jogo a jogo, não responde. Só os
+// jogos em que ela teve ações; contra ela própria.
+function errorsTrendHTML(games, me) {
+  const pts = games.slice().reverse()
+    .map((g) => ({ g, c: counts([g.data])[me.id] }))
+    .filter((x) => x.c && Object.keys(x.c).length)
+    .slice(-10)
+    .map((x) => ({ n: playerStats(x.c).errs, opp: x.g.opponent || 'Adversário', d: x.g.game_date }));
+  if (pts.length < 3) return '';
+  const max = Math.max(...pts.map((x) => x.n), 1);
+  const k = Math.min(3, Math.floor(pts.length / 2));
+  const mean = (xs) => xs.reduce((a, x) => a + x.n, 0) / xs.length;
+  const a = mean(pts.slice(0, k));
+  const b = mean(pts.slice(-k));
+  const fmt1 = (v) => String(Math.round(v * 10) / 10).replace('.', ',');
+  const line = pts.length >= 4 && Math.round(a) !== Math.round(b)
+    ? `Nos primeiros ${k} jogos, ${fmt1(a)} por jogo; nos últimos ${k}, ${fmt1(b)}.`
+    : `Em média, ${fmt1(mean(pts))} por jogo.`;
+  return `<section class="sb-card">
+      <h3 class="sb-card__title">Os meus erros por jogo</h3>
+      <div class="gm-spark" role="img" aria-label="${esc(pts.map((x) => `${fmtDM(x.d)} vs ${x.opp}: ${x.n}`).join('; '))}">
+        ${pts.map((x, i) => `<span class="gm-spark__b${i === pts.length - 1 ? ' is-last' : ''}" style="height:${Math.max(6, (x.n / max) * 100).toFixed(0)}%"><span>${x.n}</span></span>`).join('')}
+      </div>
+      <p class="sb-card__lead sb-card__lead--sm">${esc(line)} O último jogo é o mais escuro.</p>
+    </section>`;
 }
 
 // O separador só aparece a quem tem jogos JÁ JOGADOS no calendário da sua
@@ -1579,54 +1974,47 @@ function jogosHTML(me) {
       <p class="portal-section__note">Ainda não há jogos com estatística. Aparecem aqui quando o treinador fizer o scout de um jogo da tua equipa.</p>
     </section>`;
   }
-  const note = '<p class="portal-section__note">As tuas ações e as da equipa. As das colegas não aparecem aqui.</p>';
 
-  // Com um jogo só, o resumo da época ERA esse jogo: desenhá-lo duas vezes
-  // dizia o mesmo em dois blocos seguidos. Mostra-se o jogo, já aberto.
-  if (games.length === 1) {
-    return `
-    <section class="card portal-section">
-      <h2 class="section-title portal-section__title">Os meus jogos</h2>
-      ${note}
-      ${helpHTML(usedCols([games[0].data]))}
-      <ul class="portal-scout-list portal-scout-list--solo">${scoutGameRow(games[0], me, { open: true })}</ul>
-    </section>`;
-  }
+  // Um jogo aberto é uma página própria (ver «Um jogo, aberto»).
+  const open = openGameId && games.find((g) => g.id === openGameId);
+  if (open) return gamePageHTML(open, me, games);
+  openGameId = null;
 
   const datas = games.map((g) => g.data);
   const used = usedCols(datas);
-  const played = datas.reduce((a, d) => a + (pointsPlayed(d)[me.id] || 0), 0);
-  const w = games.filter((g) => { const r = setsWon(g.data); return r.o > r.t; }).length;
-  const teamSeason = teamPatternsHTML(datas, { season: true });
   const shown = scoutShowAll ? games : games.slice(0, SCOUT_VISIBLE);
   const rest = games.length - shown.length;
-
-  // Os JOGOS vêm primeiro, com o último já aberto: quem abre isto no sábado à
-  // noite quer saber como lhe correu aquele jogo, e com o resumo da época por
-  // cima (números, gráficos, barras) o jogo de hoje ficava três ecrãs abaixo.
-  // A época é a leitura de fundo, e fica a seguir.
-  return `
+  const list = `
     <section class="card portal-section">
       <h2 class="section-title portal-section__title">Os meus jogos</h2>
-      ${note}
-      ${helpHTML(used, { charts: games.length >= 3 })}
-      <p class="portal-scout-hint">Toca num jogo para o abrir e veres o que fizeste.</p>
-      <ul class="portal-scout-list portal-scout-list--solo">
-        ${shown.map((g, i) => scoutGameRow(g, me, { open: i === 0, others: datas.filter((d) => d !== g.data) })).join('')}
-      </ul>
+      <p class="portal-section__note">Toca num jogo para veres o que fizeste, os teus erros e a equipa. As ações das colegas não aparecem aqui.</p>
+      <ul class="gm-list-games">${shown.map((g, i) => gameListRow(g, me, i)).join('')}</ul>
       ${games.length > SCOUT_VISIBLE
         ? `<button class="btn btn--link portal-section__more" data-scout-toggle type="button">
              ${scoutShowAll ? 'Mostrar só os últimos' : `Mostrar os restantes ${rest}`}
            </button>`
         : ''}
-    </section>
+      ${helpHTML(used, { charts: games.length >= 3 })}
+    </section>`;
 
+  // Com um jogo só, a época ERA esse jogo: a lista chega.
+  if (games.length === 1) return list;
+
+  const played = datas.reduce((a, d) => a + (pointsPlayed(d)[me.id] || 0), 0);
+  const w = games.filter((g) => { const r = setsWon(g.data); return r.o > r.t; }).length;
+  const teamSeason = teamPatternsHTML(datas, { season: true });
+
+  // Os JOGOS vêm primeiro: quem abre isto no sábado à noite quer saber como
+  // lhe correu aquele jogo. A época é a leitura de fundo, e fica a seguir.
+  return `
+    ${list}
     <section class="card portal-section">
       <h2 class="section-title portal-section__title">A minha época</h2>
       <p class="sb-meta">${games.length} jogos · ${w} vitória${w === 1 ? '' : 's'} · ${played} pontos em campo</p>
       <div class="sb-stack">
         ${seasonHero(games, me, used)}
         ${seasonBallsHTML(games, me, used)}
+        ${errorsTrendHTML(games, me)}
         ${courtCardHTML('season', datas, me)}
         ${teamSeason ? `<section class="sb-card"><h3 class="sb-card__title">A equipa</h3>${teamSeason}</section>` : ''}
         <details class="sb-more">
@@ -1639,6 +2027,56 @@ function jogosHTML(me) {
         </details>
       </div>
     </section>`;
+}
+
+// --- O teu último jogo (no «Hoje») ---------------------------------------------
+//
+// Nos dias a seguir a um jogo, o jogo vem ter com ela: abre o portal na
+// segunda e o sábado está logo no «Hoje», com a frase, os pontos e os erros —
+// e um toque abre-o. Ninguém tem de saber que existe um separador «Jogos»
+// para lá chegar. Desaparece sozinho ao fim de `LAST_GAME_DAYS`.
+//
+// As ações da época só se descarregam quando há um jogo recente da equipa no
+// calendário (é a mesma chamada do separador): para um card que quase sempre
+// não existe, descarregar a época a cada abertura do portal era a rede a
+// trabalhar para nada.
+function recentTeamGame(me) {
+  const now = new Date();
+  return state.events.some((e) => e.type === 'jogo' && e.team_id === me.team_id
+    && eventDateTime(e) < now && daysSince(e.date) <= LAST_GAME_DAYS);
+}
+function lastGameCardHTML(me) {
+  if (state.myScoutGames === null) {
+    if (recentTeamGame(me)) loadMyScoutGames();
+    return '';
+  }
+  const games = state.myScoutGames || [];
+  const g = games[0];
+  if (!g || daysSince(g.game_date) > LAST_GAME_DAYS) return '';
+  const data = g.data;
+  const c = counts([data])[me.id] || {};
+  const played = pointsPlayed(data)[me.id] || 0;
+  if (!Object.keys(c).length && !played) return '';
+  const others = games.slice(1).map((x) => x.data);
+  const h = heroParts(data, me, others.length >= 2 ? myAverages(others, me) : null);
+  const st = playerStats(c);
+  const r = setsWon(data);
+  const won = r.o > r.t;
+  const wd = WEEKDAYS.find((w) => w.n === new Date(`${g.game_date}T00:00`).getDay())?.label || '';
+  return `
+    <button type="button" class="gm-last" data-open-last="${esc(g.id)}">
+      <span class="gm-last__top">
+        <span class="gm-last__dot" aria-hidden="true"></span>
+        <span>O teu último jogo · ${esc(wd)} vs ${esc(g.opponent || 'Adversário')}</span>
+        <span class="gm-last__res gm-last__res--${won ? 'won' : 'lost'}">${r.o}–${r.t}</span>
+      </span>
+      ${h ? `<strong class="gm-last__title">${esc(h.title)}</strong><span class="gm-last__sub">${esc(h.sub)}</span>` : ''}
+      <span class="gm-last__foot">
+        <span>${st.pts} ponto${st.pts === 1 ? '' : 's'}</span><span aria-hidden="true">·</span>
+        <span class="gm-last__err">${st.errs} erro${st.errs === 1 ? '' : 's'}</span>
+        <span class="gm-last__go">Ver o meu jogo ›</span>
+      </span>
+    </button>`;
 }
 
 // --- Separador "A minha época" -------------------------------------------
@@ -2107,19 +2545,70 @@ function wire(container, me, team, { animate = false } = {}) {
   container.querySelectorAll('[data-portal-tab]').forEach((b) =>
     b.addEventListener('click', () => {
       // Tocar no separador em que já se está volta ao topo (a regra da barra
-      // de baixo da app), em vez de redesenhar a mesma coisa.
+      // de baixo da app), em vez de redesenhar a mesma coisa. Com um jogo
+      // aberto, volta à lista: é o "voltar ao princípio" de qualquer barra.
       if (b.dataset.portalTab === portalTab) {
+        if (portalTab === 'jogos' && openGameId) {
+          openGameId = null;
+          enterAnim = true;
+          renderPortal(container);
+        }
         window.scrollTo({ top: 0, behavior: 'smooth' });
         return;
       }
       const btns = [...container.querySelectorAll('[data-portal-tab]')];
       slideFrom = btns.findIndex((x) => x.dataset.portalTab === portalTab);
       portalTab = b.dataset.portalTab;
+      // Sair do separador fecha o jogo: quem volta aos «Jogos» espera a lista.
+      openGameId = null;
       enterAnim = true;
       renderPortal(container);
       window.scrollTo({ top: 0 });
     })
   );
+
+  // --- O jogo aberto ---------------------------------------------------------
+  const openGame = (id, view = 'mine') => {
+    openGameId = id;
+    gameView = view;
+    errFilter = 'all';
+    enterAnim = true;
+    renderPortal(container);
+    window.scrollTo({ top: 0 });
+  };
+  container.querySelectorAll('[data-open-game]').forEach((b) =>
+    b.addEventListener('click', () => openGame(b.dataset.openGame)));
+  // O cartão do «Hoje» leva direto ao jogo, já no separador «Jogos».
+  container.querySelector('[data-open-last]')?.addEventListener('click', (e) => {
+    const btns = [...container.querySelectorAll('[data-portal-tab]')];
+    slideFrom = btns.findIndex((x) => x.dataset.portalTab === portalTab);
+    portalTab = 'jogos';
+    openGame(e.currentTarget.dataset.openLast);
+  });
+  container.querySelector('[data-close-game]')?.addEventListener('click', () => {
+    openGameId = null;
+    enterAnim = true;
+    renderPortal(container);
+    window.scrollTo({ top: 0 });
+  });
+  container.querySelectorAll('[data-game-view]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const v = b.dataset.gameView;
+      if (v === gameView) return;
+      gmSlideFrom = GAME_VIEWS.findIndex(([k]) => k === gameView);
+      gameView = v;
+      gameViewAnim = true;
+      renderPortal(container);
+      // Quem tocou no botão do fundo de «O meu jogo» vai ver os erros do
+      // princípio, e não a meio da página.
+      if (!b.closest('.gm-seg')) container.querySelector('.gm-seg')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }));
+  // O filtro dos erros não anima nada: é a mesma vista, com menos linhas.
+  container.querySelectorAll('[data-err-filter]').forEach((b) =>
+    b.addEventListener('click', () => {
+      errFilter = b.dataset.errFilter;
+      renderPortal(container);
+    }));
 
   // A faixa da semana troca o dia SEM redesenhar o portal: redesenhar
   // repunha a entrada em escada de tudo o resto por um toque num dia.
