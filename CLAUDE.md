@@ -1823,6 +1823,50 @@ separador antes de navegar (usado pelos cartões do Painel).
       memória): saber se há scout obrigava a descarregar as ações da época
       só para decidir se se desenha um botão. Sem scout ainda, o separador
       diz porquê.
+    - **O jogo abre numa PÁGINA com três vistas** (nov. 2026, decidido sobre
+      uma maqueta — `gamePageHTML`, `mineViewHTML`, `errorsViewHTML`,
+      `teamViewHTML` em `portal.js`): «O meu jogo», «Erros» e «A equipa»,
+      num segmentado com a pílula que desliza, e "Os meus jogos" para
+      voltar. As atletas diziam que **não percebiam que erros tinham feito**:
+      o portal escondia-os de propósito (um "Para a próxima" no máximo, e as
+      bolas "em cada 10" deixavam 2 erros em 42 receções sem bola nenhuma).
+      Passou a mostrar a informação TODA, com as regras que ficam: tudo
+      comparado com ELA própria, nunca com as colegas, e a equipa sem nomes.
+      Aberto por baixo da linha da lista, como estava, eram três vistas num
+      scroll sem fim entre dois jogos.
+      - **«O meu jogo»**: a frase (`heroParts`), quatro números exatos
+        (ações, pontos dela, erros, pontos em campo) e, por fundamento, uma
+        **barra exata** (`fundCardHTML`) com todas as ações e os números por
+        baixo. O erro tem largura mínima e riscas (a forma além da cor): é
+        por ele nunca desaparecer que a barra substituiu as bolas no jogo.
+        O campo desenhado continua a seguir.
+      - **«Erros»**: o total contra o costume DELA (`myErrorAverages`), filtro
+        por ação, uma linha por set com cada erro no momento em que
+        aconteceu, "O que se repetiu" (o set com mais erros, a ação acima do
+        costume dela, o mesmo tipo de erro duas vezes) e a lista **lance a
+        lance** (`myLances`): ação, set e o marcador de ANTES do ponto, que é
+        o que ela reconhece ("aquele serviço com 18–17"), lido do `replay`.
+        O **ataque bloqueado** aparece à parte e diz que não é erro dela — o
+        bloco delas é mérito delas. "À rede"/"fora" só existe quando o
+        treinador marca o tipo de erro (hoje uns 3% dos erros), e diz-se.
+      - **«A equipa»**: o resultado, de onde vieram os pontos (ataque, bloco,
+        ases, erros delas) e para onde foram (pontos delas, erros nossos por
+        ação), a equipa em cada ação com a mesma barra exata, side-out e
+        break-point ("quando elas serviam / servíamos nós"), set a set e as
+        séries. Só totais: as ações das colegas chegam sem dono.
+      - O movimento é só ao abrir o jogo e ao trocar de vista
+        (`gameViewAnim`, `gmSlideFrom`); o filtro dos erros não anima nada.
+      - **A lista** (`gameListRow`) diz em cada linha o que ela fez e
+        quantos erros, com "Novo" no último jogo dos 3 dias. Na época entrou
+        **"Os meus erros por jogo"** (`errorsTrendHTML`), contra ela própria;
+        o "Antes e agora" e os gráficos de evolução ficam como estavam.
+      - **No «Hoje», "O teu último jogo"** (`lastGameCardHTML`) aparece nos 3
+        dias a seguir a um jogo (`LAST_GAME_DAYS`) e abre-o: ninguém tem de
+        saber que existe um separador «Jogos» para lá chegar. As ações da
+        época só se descarregam quando há um jogo recente da equipa no
+        calendário (`recentTeamGame`).
+      - O que vem a seguir (os "três passos" com bolas) continua a valer para
+        a época; no jogo aberto foi substituído por isto.
     - **Um jogo conta-se em três passos, e não com barras** (decidido sobre
       uma maqueta com três versões — `gameBody`, `gameHero`, `fundRow`,
       `courtCardHTML` em `portal.js`). As barras proporcionais com
@@ -1891,22 +1935,20 @@ separador antes de navegar (usado pelos cartões do Painel).
     - **Fundamentos com menos de 5 ações vão para "Ver mais"**: quatro
       defesas não dizem nada sobre o jogo dela, e cinco filas empilhadas
       enterravam as duas que dizem.
-    - **«Como ler isto»** (`helpHTML`): o que cada bola, o "em cada 10" e o
-      campo querem dizer, em palavras de quem tem catorze anos. Fechado por
+    - **«Como ler isto»** (`helpHTML`): o que as barras, os «Erros», as
+      bolas do "antes e agora" e o campo querem dizer, em palavras de quem
+      tem catorze anos. Fechado por
       omissão, só com os fundamentos marcados.
     - **Uma época tem trinta jogos**: "Os meus jogos" mostra os 5 mais
       recentes, com "Mostrar os restantes N", e o resumo da época vem DEPOIS.
       Esteve ao contrário, e o jogo de sábado ficava abaixo de quatro
       gráficos e das barras da época — três ecrãs de scroll para responder à
-      pergunta por que ela abriu o separador. O último jogo nasce ABERTO; os
-      outros fechados.
-    - **Cada jogo é um cartão com seta (▾)**, e por cima diz-se "Toca num
-      jogo para o abrir": em linhas de texto soltas ninguém adivinhava que
-      se tocava no jogo. O adversário vai na 1.ª linha e a data com o que
-      ela fez na 2.ª — numa linha só, o nome do jogo ficava "vs …".
-      Fechada, cada linha já diz os pontos DELA nesse jogo — sem isso era o
-      calendário outra vez. Com UM jogo só não há resumo da época: era o
-      mesmo bloco duas vezes, e mostra-se o jogo já aberto.
+      pergunta por que ela abriu o separador.
+    - **Cada jogo é uma linha com seta (›)**, e por cima diz-se "Toca num
+      jogo…": em linhas de texto soltas ninguém adivinhava que se tocava no
+      jogo. O adversário vai na 1.ª linha e a data com o que ela fez e os
+      erros na 2.ª — sem isso era o calendário outra vez. Com UM jogo só não
+      há resumo da época: era o mesmo bloco duas vezes.
     - Carrega-se só ao abrir o separador (`loadMyScoutGames`): são as ações
       da época inteira, e o portal abre-se quase sempre para ver o treino de
       logo. Sem a migração a chamada falha e diz que ainda não há jogos.
