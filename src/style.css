@@ -10471,11 +10471,19 @@ details[open] .plan-section__title::before { transform: rotate(90deg); }
 .scout-pat .group__count { white-space: nowrap; }
 
 /* Scout — detalhe opcional da última ação (zona / tipo de erro). Vive por
-   cima dos botões das ações e não bloqueia nada: marcar a ação seguinte larga-o. */
-.scout-extra { display: flex; flex-direction: column; gap: 0.45rem; padding: 0.6rem 0.75rem; margin-top: 0.6rem; border: 1px solid var(--info); border-left-width: 4px; border-radius: var(--radius-sm); background: var(--surface-2); }
-.scout-extra__head { display: flex; justify-content: space-between; align-items: center; gap: 0.6rem; font-size: 0.9rem; }
+   CIMA dos botões das ações, num espaço de altura FIXA reservado enquanto o
+   jogo tiver detalhe ligado: aparecer e desaparecer a cada toque empurrava a
+   grelha, e carregava-se no botão errado. Texto à esquerda, controlos à
+   direita, para caber nessa altura. Não bloqueia: marcar a ação seguinte larga-o. */
+.scout-extra { display: grid; grid-template-columns: minmax(0, 1fr) 10.5rem; align-items: center; gap: 0.6rem; min-height: 8.6rem; box-sizing: border-box; padding: 0.5rem 0.7rem; margin: 0.6rem 0; border: 1px solid var(--info); border-left-width: 4px; border-radius: var(--radius-sm); background: var(--surface-2); }
+.scout-extra--idle { display: flex; align-items: center; justify-content: center; text-align: center; border: 1px dashed var(--border); background: transparent; font-size: 0.82rem; }
+.scout-extra__txt { display: flex; flex-direction: column; align-items: flex-start; gap: 0.2rem; min-width: 0; font-size: 0.88rem; }
+.scout-extra__txt > * { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .scout-extra__q { margin: 0; font-size: 0.82rem; color: var(--text-muted); }
-.scout-extra__chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.scout-extra__chips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.35rem; }
+.scout-extra__chips .btn { min-height: 44px; white-space: normal; line-height: 1.15; }
+.scout-extra .scout-zgrid { max-width: none; }
+@media (min-width: 700px) { .scout-extra { grid-template-columns: minmax(0, 1fr) 13rem; } }
 .scout-zgrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.3rem; max-width: 260px; }
 .scout-zgrid__net, .scout-zmap__net { grid-column: 1 / -1; text-align: center; font-size: 0.68rem; font-weight: 700;color: var(--text-muted); border-top: 3px solid var(--text-muted); padding-top: 0.1rem; }
 .scout-zgrid--far .scout-zgrid__net, .scout-zmap--far .scout-zmap__net { border-top: none; border-bottom: 3px solid var(--text-muted); padding: 0 0 0.1rem; }

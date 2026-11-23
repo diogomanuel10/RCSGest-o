@@ -1583,8 +1583,11 @@ export function openScoutLive(row, { view = false } = {}) {
   }
 
   // --- Detalhe da última ação (zona / tipo de erro) ----------------------------
-  // A faixa vive POR BAIXO dos botões das ações: por cima, empurrava-os a cada
-  // toque, e quem marca ao ritmo do jogo carregava no botão errado.
+  // A faixa vive POR CIMA dos botões das ações, logo a seguir ao campo: por
+  // baixo obrigava a deslizar a cada serviço no telemóvel. Para não empurrar os
+  // botões a cada toque (era o que fazia carregar no botão errado), o espaço é
+  // RESERVADO enquanto o jogo tiver detalhe ligado: vazio, diz o que lá vai
+  // aparecer, e a grelha das ações nunca muda de sítio.
   // O que ainda falta perguntar sobre a ação pendente (o que já foi dado sai).
   function pendingAsk() {
     if (ui.pend == null) return null;
@@ -1606,15 +1609,29 @@ export function openScoutLive(row, { view = false } = {}) {
     return `<div class="scout-zgrid${t === 'SERVICE' ? ' scout-zgrid--far' : ''}">${t === 'SERVICE' ? `${grid}${net}` : `${net}${grid}`}</div>`;
   }
   function extraHTML() {
+    if (!canWrite) return '';
+    const x = activeExtras(D());
+    if (!x.zones.length && !x.errTypes) return '';
     const ask = pendingAsk();
-    if (!ask || !canWrite) return '';
+    if (!ask) {
+      const both = x.zones.length && x.errTypes;
+      const what = both ? 'a zona e o tipo de erro escolhem-se' : x.zones.length ? 'a zona escolhe-se' : 'o tipo de erro escolhe-se';
+      return `<div class="scout-extra scout-extra--idle" aria-hidden="true"><span class="muted">Depois de marcar a ação, ${what} aqui.</span></div>`;
+    }
     const { e } = ask;
-    const what = e.t === 'SERVICE' ? 'Onde caiu o serviço? (campo adversário, visto do nosso lado)' : 'Onde estava a recetora?';
-    return `<div class="scout-extra" role="group" aria-label="Detalhe da última ação">
-      <div class="scout-extra__head"><span><strong>${esc(ACT[e.t].l)} ${SYM[e.q]}</strong> · ${esc(pname(e.pid))}${e.z ? ` · zona ${e.z}` : ''}</span>
-        <button class="scout-linkbtn" type="button" data-xskip>Saltar</button></div>
-      ${ask.zone ? `<p class="scout-extra__q">${what}</p>${zoneGridHTML(e.t)}` : ''}
-      ${ask.err ? `<p class="scout-extra__q">Que erro foi?</p><div class="scout-extra__chips">${ERR_TYPES[e.t].map(([k, l]) => `<button class="btn btn--ghost btn--sm" type="button" data-xe="${k}">${esc(l)}</button>`).join('')}</div>` : ''}
+    // Linhas curtas, uma ideia cada: ao lado da grelha, no telemóvel, a coluna
+    // do texto tem uns 100px. A frase inteira vai no `title` e no aria-label.
+    const [q, full] = !ask.zone ? ['Que erro foi?', 'Que erro foi?']
+      : e.t === 'SERVICE' ? ['Onde caiu?', 'Onde caiu o serviço? (campo adversário, visto do nosso lado)']
+        : ['Onde estava?', 'Onde estava a recetora?'];
+    return `<div class="scout-extra" role="group" aria-label="Detalhe da última ação: ${esc(full)}">
+      <div class="scout-extra__txt" title="${esc(full)}">
+        <strong>${esc(ACT[e.t].l)} ${SYM[e.q]}</strong>
+        <span>${esc(pname(e.pid))}</span>
+        <p class="scout-extra__q">${q}</p>
+        <button class="scout-linkbtn" type="button" data-xskip>Saltar</button>
+      </div>
+      ${ask.zone ? zoneGridHTML(e.t) : `<div class="scout-extra__chips">${ERR_TYPES[e.t].map(([k, l]) => `<button class="btn btn--ghost btn--sm" type="button" data-xe="${k}">${esc(l)}</button>`).join('')}</div>`}
     </div>`;
   }
   function setDetail(field, value) {
@@ -1857,8 +1874,8 @@ export function openScoutLive(row, { view = false } = {}) {
               ${canWrite ? `<button class="btn btn--ghost" type="button" data-cols title="Escolher que ações marcar neste jogo">Ações (${cols.length - 1})</button>` : ''}
             </span>
           </div>
-          <div class="scout-agrid" style="grid-template-columns:repeat(${cols.length}, minmax(0, 1fr))">${head}${body}</div>
           ${extraHTML()}
+          <div class="scout-agrid" style="grid-template-columns:repeat(${cols.length}, minmax(0, 1fr))">${head}${body}</div>
           <div class="scout-legend">
             <span><code>#</code> perfeito</span><span><code>+</code> bom</span><span><code>−</code> fraco</span><span><code>/</code> bloqueado</span><span><code>=</code> erro</span>
             <span><i class="scout-dot" style="background:var(--ok)"></i>ponto nosso</span><span><i class="scout-dot" style="background:var(--danger)"></i>ponto do adversário</span>

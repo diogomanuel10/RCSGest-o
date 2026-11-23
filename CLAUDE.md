@@ -2103,12 +2103,21 @@ separador antes de navegar (usado pelos cartões do Painel).
       ataque (rede, fora, antena, invasão), passe (dois toques, condução,
       rede), bloco (rede, invasão), outros (rede, invasão, rotação, outro).
       Receção e defesa não têm tipo: o erro já diz que a bola caiu.
-    - **Não bloqueia**: depois da ação aparece uma faixa POR BAIXO dos
-      botões (por cima empurrava-os a cada toque, e carregava-se no botão
-      errado) com as zonas desenhadas como se veem do nosso lado (no serviço,
-      o campo adversário com a fila de trás deles mais longe) e/ou os tipos.
-      Marcar a ação seguinte larga-a e a anterior fica sem detalhe, que é o
-      mesmo que "Saltar": a ação conta na mesma para tudo o resto.
+    - **Não bloqueia**: depois da ação aparece uma faixa POR CIMA dos
+      botões, entre o campo e as ações, com as zonas desenhadas como se veem
+      do nosso lado (no serviço, o campo adversário com a fila de trás deles
+      mais longe) ou os tipos. Marcar a ação seguinte larga-a e a anterior
+      fica sem detalhe, que é o mesmo que "Saltar": a ação conta na mesma
+      para tudo o resto.
+    - **O espaço da faixa está sempre reservado** enquanto o jogo tiver
+      detalhe ligado (vazio, diz o que lá vai aparecer), com a MESMA altura
+      nas três formas — vazia, zonas e tipos de erro. Esteve por baixo dos
+      botões porque, por cima, aparecia e desaparecia a cada toque e
+      empurrava a grelha (carregava-se no botão errado); por baixo, no
+      telemóvel, era preciso deslizar a cada serviço. Com altura fixa fica à
+      mão sem mexer em nada. Para caber nessa altura o texto vai à esquerda
+      em linhas curtas ("Onde caiu?", a frase inteira no `title`) e os
+      controlos à direita.
     - **Três quadros nos Padrões, só quando há detalhe marcado**: Serviço por
       zona (mapa com o break-point a partir de cada zona, e por servidora),
       Receção por zona (receção boa e side-out por zona; por recetora contra o
