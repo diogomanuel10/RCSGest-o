@@ -1784,6 +1784,13 @@ separador antes de navegar (usado pelos cartões do Painel).
     já jogados, e com eles os pontos jogados de cada atleta. O modal conta as
     substituições do set contra as 6 do regulamento, mas não bloqueia: na
     formação as regras de substituição variam por escalão.
+    - **O set seguinte nasce com a formação do anterior** (com as
+      substituições feitas), e mexe-se nela em vez de a refazer: escolher uma
+      atleta que já está noutra posição TROCA as duas, "Rodar ↻" passa a
+      formação uma posição (a da 2 vai para a 1) e "Limpar" esvazia as seis.
+      Recusar a atleta repetida obrigava a esvaziar posições e a voltar a pôr
+      as seis a cada set. Não se limpa sozinha: na maioria dos sets entram as
+      mesmas seis, e começar vazio era escolhê-las todas outra vez.
   - **A líbero** entra no lugar das atletas marcadas nas zonas 5, 6 e 1, e
     sai quando é a vez delas servirem (`positions()` em `scout-engine.js`).
     **Pode haver duas** (`libero` + `liberoDef`, `activeLibero()`): a de
@@ -2096,12 +2103,21 @@ separador antes de navegar (usado pelos cartões do Painel).
       ataque (rede, fora, antena, invasão), passe (dois toques, condução,
       rede), bloco (rede, invasão), outros (rede, invasão, rotação, outro).
       Receção e defesa não têm tipo: o erro já diz que a bola caiu.
-    - **Não bloqueia**: depois da ação aparece uma faixa POR BAIXO dos
-      botões (por cima empurrava-os a cada toque, e carregava-se no botão
-      errado) com as zonas desenhadas como se veem do nosso lado (no serviço,
-      o campo adversário com a fila de trás deles mais longe) e/ou os tipos.
-      Marcar a ação seguinte larga-a e a anterior fica sem detalhe, que é o
-      mesmo que "Saltar": a ação conta na mesma para tudo o resto.
+    - **Não bloqueia**: depois da ação aparece uma faixa POR CIMA dos
+      botões, entre o campo e as ações, com as zonas desenhadas como se veem
+      do nosso lado (no serviço, o campo adversário com a fila de trás deles
+      mais longe) ou os tipos. Marcar a ação seguinte larga-a e a anterior
+      fica sem detalhe, que é o mesmo que "Saltar": a ação conta na mesma
+      para tudo o resto.
+    - **O espaço da faixa está sempre reservado** enquanto o jogo tiver
+      detalhe ligado (vazio, diz o que lá vai aparecer), com a MESMA altura
+      nas três formas — vazia, zonas e tipos de erro. Esteve por baixo dos
+      botões porque, por cima, aparecia e desaparecia a cada toque e
+      empurrava a grelha (carregava-se no botão errado); por baixo, no
+      telemóvel, era preciso deslizar a cada serviço. Com altura fixa fica à
+      mão sem mexer em nada. Para caber nessa altura o texto vai à esquerda
+      em linhas curtas ("Onde caiu?", a frase inteira no `title`) e os
+      controlos à direita.
     - **Três quadros nos Padrões, só quando há detalhe marcado**: Serviço por
       zona (mapa com o break-point a partir de cada zona, e por servidora),
       Receção por zona (receção boa e side-out por zona; por recetora contra o
