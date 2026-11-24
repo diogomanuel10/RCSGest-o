@@ -19,7 +19,7 @@
 // registo nenhum é um treino que ninguém marcou, não um a que ninguém foi — e
 // fechar não bloqueia: uma falta continua a poder passar a justificada.
 
-import { state, subscribe, upsertAttendance, closeAttendanceSession, markAllPresent, dbErrorMessage } from '../store.js';
+import { state, subscribe, upsertAttendance, closeAttendanceSession, markAllPresent, attendanceOfflineCount, dbErrorMessage } from '../store.js';
 import { esc, emptyHTML } from '../ui.js';
 import { eventDateTime, eventTimeRange, teamById, teamName, eventResponseSummary,
          playerEventResponse, eventRoster, isMyEvent, myTeams } from '../compute.js';
@@ -250,6 +250,7 @@ export function renderPresencas(container) {
       </div>
       <div class="progress"><div class="progress__bar" style="width:${pct}%"></div></div>
       ${marked ? `<p class="pres-tally">${tallyHTML(tally)}</p>` : ''}
+      ${offlineNoteHTML(ev.id)}
 
       ${editable && team && totalPlayers && marked < totalPlayers && started
         ? `<div class="row row--between row--wrap pres-close">
@@ -429,6 +430,16 @@ function todayChipsHTML(eventos, selectedId, counts) {
 // Os totais da sessão numa linha, por baixo da barra — eram quatro cartões
 // grandes entre o seletor e a lista, e num telemóvel empurravam a lista (que é
 // onde se trabalha) para fora do ecrã.
+// Sem rede, as marcações ficam no dispositivo (ver `upsertAttendance` no
+// store). Diz-se quantas, e que seguem sozinhas: sem isto, quem vê os botões
+// acesos conclui que está tudo gravado e fecha a app descansado — e está, no
+// dispositivo, mas mais ninguém as vê até a rede voltar.
+function offlineNoteHTML(eventId) {
+  const n = attendanceOfflineCount(eventId);
+  if (!n) return '';
+  return `<p class="pres-offline" role="status">Sem rede: ${n} marcaç${n === 1 ? 'ão guardada' : 'ões guardadas'} neste dispositivo. Enviam-se sozinhas quando a ligação voltar.</p>`;
+}
+
 function tallyHTML(tally) {
   const parts = [
     ['presente', 'Presentes', 'ok'],
@@ -477,6 +488,9 @@ function playerRow(player, attendance, event, editable) {
           ${editable && current !== 'justificado' && playerEventResponse(player.id, event?.id)?.response === 'nao_vou'
             ? `<button type="button" class="btn btn--ghost btn--sm pres-justify" data-justify-aviso="${player.id}"
                  title="Marca justificado, com o motivo que o atleta deu">Justificar com o aviso</button>`
+            : ''}
+          ${attendance?._offline
+            ? '<span class="pres-detail pres-detail--offline" title="Guardado neste dispositivo; envia-se sozinho quando a rede voltar">Por enviar</span>'
             : ''}
           ${attendance?.minutes_late != null ? `<span class="pres-detail">${attendance.minutes_late} min de atraso</span>` : ''}
           ${attendance?.justification ? `<span class="pres-detail">${esc(attendance.justification)}</span>` : ''}
@@ -675,6 +689,7 @@ export function openQuickAttendance(eventId) {
         </div>
         <div class="progress"><div class="progress__bar" style="width:${pct}%"></div></div>
         ${marked ? `<p class="pres-tally">${tallyHTML(tally)}</p>` : ''}
+        ${offlineNoteHTML(eventId)}
         ${!marked && editable
           ? `<p class="muted qa-hint">Marca todos presentes e depois toca só em quem faltou ou chegou atrasado.${
               avisouIds.size ? ` Quem avisou que não vinha (${avisouIds.size}) fica de fora.` : ''}</p>`

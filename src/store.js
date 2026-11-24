@@ -8,7 +8,7 @@
 
 import { supabase, supabaseUrl } from './supabase.js';
 import { applyBranding } from './branding.js';
-import { toastOk } from './toast.js';
+import { toastOk, toastError } from './toast.js';
 import { DEFAULT_EQUIPMENT_ARTICLES } from './constants.js';
 
 // Nome legível de cada tabela, para as mensagens de confirmação das operações
@@ -199,6 +199,7 @@ export const state = {
 
 // Limpa a cache (usado ao terminar sessão, para o próximo login recarregar).
 export function resetState() {
+  resetAttendanceQueue();
   state.coaches = [];
   state.teams = [];
   state.players = [];
@@ -700,6 +701,10 @@ export async function loadAll() {
   // interessa (aos restantes papéis devolve vazio, que é o correto — a agenda
   // clínica deles vem de `physio_appointments`).
   await loadMyAppointments();
+
+  // As presenças marcadas sem rede (nesta visita ou numa anterior) voltam a
+  // pôr-se por cima do que o servidor devolveu, e seguem para lá.
+  restoreAttendanceQueue();
 
   state.loaded = true;
   notify();
@@ -1443,6 +1448,12 @@ export async function regeneratePlayerQr(playerId, token) {
 // Fecha a sessão: marca falta a quem ficou sem qualquer registo neste treino.
 // Devolve quantas faltas foram criadas.
 export async function closeAttendanceSession(eventId) {
+  // Antes de fechar, o que está na fila tem de chegar: fechar com marcações
+  // por enviar dava falta a quem o treinador acabou de marcar presente.
+  await flushAttendance(eventId);
+  if (attendanceOfflineCount(eventId) || [...attPending.values()].some((e) => e.eventId === eventId)) {
+    throw new Error('Há presenças deste treino ainda por enviar (sem rede). Fecha a sessão quando a ligação voltar.');
+  }
   const { data, error } = await supabase.rpc('close_attendance_session', {
     p_event_id: eventId,
   });
@@ -1456,6 +1467,7 @@ export async function closeAttendanceSession(eventId) {
     if (readErr) throw readErr;
     state.attendances = state.attendances.filter((a) => a.event_id !== eventId);
     state.attendances.push(...(rows || []));
+    reapplyAttendancePending();
     toastOk(`${created} falta${created === 1 ? '' : 's'} registada${created === 1 ? '' : 's'}.`);
     notify();
   } else {
@@ -1471,6 +1483,11 @@ export async function closeAttendanceSession(eventId) {
 // Devolve o total de faltas criadas.
 export async function closeAttendanceSessions(eventIds) {
   if (!eventIds.length) return 0;
+  const touchedIds = new Set(eventIds);
+  for (const id of eventIds) await flushAttendance(id);
+  if ([...attPending.values()].some((e) => touchedIds.has(e.eventId))) {
+    throw new Error('Há presenças destes treinos ainda por enviar (sem rede). Fecha as sessões quando a ligação voltar.');
+  }
   let created = 0;
   for (const id of eventIds) {
     const { data, error } = await supabase.rpc('close_attendance_session', { p_event_id: id });
@@ -1485,6 +1502,7 @@ export async function closeAttendanceSessions(eventIds) {
   const touched = new Set(eventIds);
   state.attendances = state.attendances.filter((a) => !touched.has(a.event_id));
   state.attendances.push(...(rows || []));
+  reapplyAttendancePending();
   toastOk(
     created
       ? `${eventIds.length} ${eventIds.length === 1 ? 'sessão fechada' : 'sessões fechadas'} — ${created} falta${created === 1 ? '' : 's'} registada${created === 1 ? '' : 's'}.`
@@ -1494,43 +1512,345 @@ export async function closeAttendanceSessions(eventIds) {
   return created;
 }
 
-// Upsert de presença (cria ou atualiza — chave única event_id+player_id).
-export async function upsertAttendance(eventId, playerId, values) {
-  const { data, error } = await supabase
+// ---------------------------------------------------------------------------
+// Presenças: gravação otimista, com fila no dispositivo
+// ---------------------------------------------------------------------------
+// Marcar presenças é a ação mais repetida do treinador, e faz-se no pavilhão,
+// onde a rede "existe" e não responde. Cada toque esperava pelo Supabase antes
+// de o botão acender: com rede fraca, o treinador tocava, nada mudava, tocava
+// outra vez — e com vinte atletas à frente perdia a conta a quem já marcou.
+//
+// Por isso o toque muda o ecrã LOGO, e a gravação segue por trás:
+// - **Uma marcação pendente por atleta e treino** (`attPending`). Tocar em
+//   "presente" e logo a seguir em "falta" não manda dois pedidos em corrida:
+//   o segundo espera pelo primeiro e só vai o valor mais recente. Sem isto, a
+//   resposta do pedido antigo chegava depois e repunha o estado errado.
+// - **Sem rede, a marcação fica no dispositivo** (`localStorage`, por conta)
+//   e volta a tentar sozinha a cada 15 s, ao voltar o `online` e ao regressar
+//   à app. É a mesma decisão do scout e da fila do quiosque: o evento `online`
+//   não chega, porque no pavilhão o browser nunca dá pela falha. Um pedido
+//   que não responde em 12 s conta como falta de rede.
+// - **Repetir é seguro**: é um upsert por (evento, atleta), por isso reenviar
+//   uma marcação que afinal chegou só escreve o mesmo valor outra vez.
+// - **Uma recusa do servidor desfaz a marcação** e diz porquê: sem permissão
+//   não é falta de rede, e guardá-la para "tentar depois" deixava no ecrã uma
+//   presença que nunca vai existir.
+// - **O "Todos presentes" continua a não pisar nada** (`ifAbsent`): vai com
+//   `ignoreDuplicates`, e depois relê o treino, porque o quiosque pode ter
+//   registado um atraso entretanto. Um toque num atleta depois disso passa a
+//   ser uma marcação normal, que manda.
+const attPending = new Map();      // `${evento}|${atleta}` → marcação por confirmar
+const ATT_TIMEOUT_MS = 12000;
+const ATT_RETRY_MS = 15000;
+let attRetryTimer = null;
+let attRestoredFor = null;         // conta cuja fila guardada já foi lida
+let attListening = false;
+
+const attKey = (eventId, playerId) => `${eventId}|${playerId}`;
+const attStorageKey = () => (state.profile?.id ? `rumia-att-queue:${state.profile.id}` : null);
+
+function isNetworkError(err) {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return true;
+  const msg = `${err?.name || ''} ${err?.message || ''}`.toLowerCase();
+  return /failed to fetch|network|load failed|abort|timeout|fetch/.test(msg);
+}
+
+// Guarda a fila no dispositivo. Vai TUDO o que está por confirmar, incluindo
+// o que está a meio do caminho: fechar a app com um pedido no ar perdia-o.
+function persistAttQueue() {
+  const key = attStorageKey();
+  if (!key) return;
+  try {
+    const items = [...attPending.values()].map((e) => ({
+      eventId: e.eventId, playerId: e.playerId, values: e.values, ifAbsent: e.ifAbsent,
+    }));
+    if (items.length) localStorage.setItem(key, JSON.stringify(items));
+    else localStorage.removeItem(key);
+  } catch { /* sem armazenamento: fica só em memória */ }
+}
+
+// Escreve a marcação na cache, por cima do que veio do servidor. A linha leva
+// `_pending` (e `_offline` quando já se sabe que não há rede), que é o que a
+// lista usa para dizer "por enviar".
+function applyAttLocal(entry) {
+  const i = state.attendances.findIndex(
+    (a) => a.event_id === entry.eventId && a.player_id === entry.playerId
+  );
+  const flags = { _pending: true, _offline: !!entry.offline };
+  if (i !== -1) {
+    if (entry.ifAbsent && !state.attendances[i]._pending) return; // já há registo: não se pisa
+    state.attendances[i] = { ...state.attendances[i], ...entry.values, ...flags };
+  } else {
+    state.attendances.push({
+      id: `tmp-${attKey(entry.eventId, entry.playerId)}`,
+      event_id: entry.eventId, player_id: entry.playerId, source: 'manual',
+      status: 'falta', justification: null, minutes_late: null,
+      ...entry.values, ...flags,
+    });
+  }
+}
+
+// Repõe o último valor confirmado pelo servidor (ou nenhum).
+function restoreAttSnapshot(entry) {
+  state.attendances = state.attendances.filter(
+    (a) => !(a.event_id === entry.eventId && a.player_id === entry.playerId)
+  );
+  if (entry.snapshot) state.attendances.push(entry.snapshot);
+}
+
+function serverRow(eventId, playerId) {
+  const row = state.attendances.find((a) => a.event_id === eventId && a.player_id === playerId);
+  if (!row) return null;
+  if (row._pending) return attPending.get(attKey(eventId, playerId))?.snapshot ?? null;
+  return row;
+}
+
+// Depois de uma releitura do servidor (loadAll, fechar sessão, "Todos
+// presentes"), volta a pôr por cima o que ainda não foi confirmado — senão a
+// releitura apagava do ecrã as marcações que estão na fila.
+export function reapplyAttendancePending() {
+  for (const entry of attPending.values()) {
+    const row = state.attendances.find(
+      (a) => a.event_id === entry.eventId && a.player_id === entry.playerId && !a._pending
+    );
+    entry.snapshot = row || null;
+    applyAttLocal(entry);
+  }
+}
+
+function scheduleAttRetry() {
+  if (attRetryTimer) return;
+  attRetryTimer = setTimeout(() => {
+    attRetryTimer = null;
+    flushAttendance();
+  }, ATT_RETRY_MS);
+}
+
+function listenAttNetwork() {
+  if (attListening || typeof window === 'undefined') return;
+  attListening = true;
+  window.addEventListener('online', () => flushAttendance());
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') flushAttendance();
+  });
+}
+
+function markAttOffline(entries) {
+  for (const e of entries) {
+    e.offline = true;
+    if (attPending.get(attKey(e.eventId, e.playerId)) === e) applyAttLocal(e);
+  }
+  persistAttQueue();
+  scheduleAttRetry();
+  notify();
+}
+
+async function withAttTimeout(build) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ATT_TIMEOUT_MS);
+  try { return await build(ctrl.signal); }
+  catch (err) { return { data: null, error: err }; }
+  finally { clearTimeout(t); }
+}
+
+// Envia UMA marcação normal. Se entretanto houve outro toque no mesmo atleta
+// (`rev` mudou), não se confirma nada: envia-se o valor novo a seguir.
+async function sendAttEntry(entry) {
+  if (entry.inflight) return;
+  entry.inflight = true;
+  const rev = entry.rev;
+  const values = entry.values;
+  const { data, error } = await withAttTimeout((signal) => supabase
     .from('attendances')
     .upsert(
-      { event_id: eventId, player_id: playerId, source: 'manual', ...values },
+      { event_id: entry.eventId, player_id: entry.playerId, source: 'manual', ...values },
       { onConflict: 'event_id,player_id' }
     )
     .select()
-    .single();
-  if (error) throw error;
-  const i = state.attendances.findIndex(
-    (a) => a.event_id === eventId && a.player_id === playerId
-  );
-  if (i !== -1) state.attendances[i] = data;
-  else state.attendances.push(data);
+    .abortSignal(signal)
+    .single());
+  entry.inflight = false;
+  const k = attKey(entry.eventId, entry.playerId);
+  if (attPending.get(k) !== entry) return; // substituída por outra marcação
+
+  if (error) {
+    if (isNetworkError(error)) { markAttOffline([entry]); return; }
+    if (entry.rev !== rev) { sendAttEntry(entry); return; } // o valor novo pode passar
+    attPending.delete(k);
+    restoreAttSnapshot(entry);
+    persistAttQueue();
+    toastError(`Presença não gravada: ${dbErrorMessage(error)}`);
+    notify();
+    return;
+  }
+
+  entry.snapshot = data;
+  if (entry.rev !== rev) { sendAttEntry(entry); return; }
+  attPending.delete(k);
+  restoreAttSnapshot(entry); // `snapshot` é agora a linha do servidor
+  persistAttQueue();
   notify();
-  return data;
+  // A rede voltou: aproveita-se para despachar o que estava à espera.
+  if ([...attPending.values()].some((e) => e.offline && !e.inflight)) flushAttendance();
+}
+
+// Envia um lote do "Todos presentes" de um treino: não pisa o que já existe
+// no servidor, e relê o treino para ficar com o que lá está de facto.
+async function sendAttAbsentBatch(eventId, entries) {
+  entries.forEach((e) => { e.inflight = true; });
+  const revs = entries.map((e) => e.rev);
+  const rows = entries.map((e) => ({
+    event_id: e.eventId, player_id: e.playerId, source: 'manual', ...e.values,
+  }));
+  const { error } = await withAttTimeout((signal) => supabase
+    .from('attendances')
+    .upsert(rows, { onConflict: 'event_id,player_id', ignoreDuplicates: true })
+    .abortSignal(signal));
+  let read = null;
+  if (!error) {
+    read = await withAttTimeout((signal) => supabase
+      .from('attendances').select('*').eq('event_id', eventId).abortSignal(signal));
+  }
+  entries.forEach((e) => { e.inflight = false; });
+  const err = error || read?.error;
+  const live = entries.filter((e) => attPending.get(attKey(e.eventId, e.playerId)) === e);
+
+  if (err && isNetworkError(err)) { markAttOffline(live); return; }
+  if (err) {
+    // Recusado: desfazem-se as marcações do lote que ninguém mexeu depois.
+    live.forEach((e) => {
+      if (e.rev !== revs[entries.indexOf(e)]) return;
+      attPending.delete(attKey(e.eventId, e.playerId));
+      restoreAttSnapshot(e);
+    });
+    persistAttQueue();
+    toastError(`Presenças não gravadas: ${dbErrorMessage(err)}`);
+    notify();
+    flushAttendance(); // o que foi tocado entretanto segue como marcação normal
+    return;
+  }
+
+  for (const e of live) {
+    if (e.ifAbsent && e.rev === revs[entries.indexOf(e)]) attPending.delete(attKey(e.eventId, e.playerId));
+  }
+  state.attendances = state.attendances.filter((a) => a.event_id !== eventId);
+  state.attendances.push(...(read.data || []));
+  reapplyAttendancePending();
+  persistAttQueue();
+  notify();
+  flushAttendance();
+}
+
+// Despacha tudo o que está à espera (ou só um treino). Um treino de cada vez
+// e uma marcação de cada vez: à primeira falha de rede, o resto espera pela
+// próxima tentativa em vez de fazer vinte pedidos a dar o mesmo erro.
+export async function flushAttendance(eventId = null) {
+  const waiting = [...attPending.values()].filter(
+    (e) => !e.inflight && (!eventId || e.eventId === eventId)
+  );
+  if (!waiting.length) return;
+  const batches = new Map();
+  for (const e of waiting.filter((x) => x.ifAbsent)) {
+    if (!batches.has(e.eventId)) batches.set(e.eventId, []);
+    batches.get(e.eventId).push(e);
+  }
+  for (const [evId, entries] of batches) {
+    await sendAttAbsentBatch(evId, entries);
+    if (entries.some((e) => e.offline && attPending.get(attKey(e.eventId, e.playerId)) === e)) return;
+  }
+  for (const e of waiting.filter((x) => !x.ifAbsent)) {
+    if (attPending.get(attKey(e.eventId, e.playerId)) !== e || e.inflight) continue;
+    await sendAttEntry(e);
+    if (e.offline && attPending.get(attKey(e.eventId, e.playerId)) === e) return;
+  }
+}
+
+// Quantas marcações estão no dispositivo à espera de rede (as que estão só a
+// caminho não contam: essas resolvem-se em segundos e não pedem aviso).
+export function attendanceOfflineCount(eventId = null) {
+  let n = 0;
+  for (const e of attPending.values()) if (e.offline && (!eventId || e.eventId === eventId)) n++;
+  return n;
+}
+
+// Lê a fila guardada no dispositivo (uma vez por conta) e volta a tentar.
+// Chamado no fim de cada `loadAll`, que é quando já se sabe quem é a conta e
+// o que o servidor tem.
+function restoreAttendanceQueue() {
+  const key = attStorageKey();
+  if (key && attRestoredFor !== key) {
+    attRestoredFor = key;
+    let items = [];
+    try { items = JSON.parse(localStorage.getItem(key) || '[]'); } catch { items = []; }
+    const events = new Set(state.events.map((e) => e.id));
+    const players = new Set(state.players.map((p) => p.id));
+    for (const it of Array.isArray(items) ? items : []) {
+      if (!it?.eventId || !it?.playerId || !events.has(it.eventId) || !players.has(it.playerId)) continue;
+      const k = attKey(it.eventId, it.playerId);
+      if (attPending.has(k)) continue;
+      attPending.set(k, {
+        eventId: it.eventId, playerId: it.playerId, values: it.values || {},
+        ifAbsent: !!it.ifAbsent, rev: 0, inflight: false, offline: true, snapshot: null,
+      });
+    }
+    persistAttQueue();
+  }
+  reapplyAttendancePending();
+  if (attPending.size) { listenAttNetwork(); flushAttendance(); }
+}
+
+function resetAttendanceQueue() {
+  attPending.clear();
+  attRestoredFor = null;
+  if (attRetryTimer) { clearTimeout(attRetryTimer); attRetryTimer = null; }
+}
+
+// Marca a presença de um atleta. O ecrã muda já; a gravação segue por trás
+// (ver acima). Não lança erro: uma recusa do servidor desfaz a marcação e
+// avisa por toast, e a falta de rede fica na fila.
+export async function upsertAttendance(eventId, playerId, values) {
+  listenAttNetwork();
+  const k = attKey(eventId, playerId);
+  const prev = attPending.get(k);
+  const entry = prev && !prev.ifAbsent
+    ? prev
+    : { eventId, playerId, values: {}, rev: 0, inflight: false, offline: !!prev?.offline,
+        snapshot: prev ? prev.snapshot : serverRow(eventId, playerId) };
+  entry.ifAbsent = false;
+  // Os valores juntam-se, como no servidor: um upsert só escreve as colunas
+  // que leva, por isso "presente" depois de "justificado" mantém o texto.
+  entry.values = { ...(prev?.values || {}), ...values };
+  entry.rev += 1;
+  attPending.set(k, entry);
+  applyAttLocal(entry);
+  persistAttQueue();
+  notify();
+  if (!entry.inflight) sendAttEntry(entry);
+  return state.attendances.find((a) => a.event_id === eventId && a.player_id === playerId);
 }
 
 // "Todos presentes": marca presente a quem ainda NÃO tem registo neste evento.
 // Uma escrita só, e `ignoreDuplicates` para nunca pisar um estado que alguém
 // (ou o quiosque) marcou entretanto — um atraso não volta a "presente".
+// Também otimista: os botões acendem já, e o lote segue por trás.
 export async function markAllPresent(eventId, playerIds) {
-  if (!playerIds.length) return 0;
-  const rows = playerIds.map((pid) => ({ event_id: eventId, player_id: pid, status: 'presente', source: 'manual' }));
-  const { error } = await supabase
-    .from('attendances')
-    .upsert(rows, { onConflict: 'event_id,player_id', ignoreDuplicates: true });
-  if (error) throw error;
-  const { data, error: readErr } = await supabase.from('attendances').select('*').eq('event_id', eventId);
-  if (readErr) throw readErr;
-  state.attendances = state.attendances.filter((a) => a.event_id !== eventId);
-  state.attendances.push(...(data || []));
-  toastOk(`${playerIds.length} atleta${playerIds.length === 1 ? '' : 's'} marcad${playerIds.length === 1 ? 'o' : 'os'} como presente${playerIds.length === 1 ? '' : 's'}.`);
+  listenAttNetwork();
+  const has = new Set(state.attendances.filter((a) => a.event_id === eventId).map((a) => a.player_id));
+  const todo = playerIds.filter((pid) => !has.has(pid));
+  if (!todo.length) return 0;
+  const entries = todo.map((pid) => ({
+    eventId, playerId: pid, values: { status: 'presente' }, ifAbsent: true,
+    rev: 1, inflight: false, offline: false, snapshot: null,
+  }));
+  for (const e of entries) {
+    attPending.set(attKey(eventId, e.playerId), e);
+    applyAttLocal(e);
+  }
+  persistAttQueue();
+  toastOk(`${todo.length} atleta${todo.length === 1 ? '' : 's'} marcad${todo.length === 1 ? 'o' : 'os'} como presente${todo.length === 1 ? '' : 's'}.`);
   notify();
-  return playerIds.length;
+  sendAttAbsentBatch(eventId, entries);
+  return todo.length;
 }
 
 // Upsert de uma tabela com chave `player_id` (perfil físico, história clínica).

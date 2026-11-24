@@ -2620,6 +2620,25 @@ separador antes de navegar (usado pelos cartões do Painel).
     escrita só, sem pisar o que já estava marcado (`markAllPresent`,
     `ignoreDuplicates`) — e **salta quem avisou que não vinha**: marcar
     presente a quem disse que faltava é o engano que depois ninguém repara.
+  - **Marcar é imediato; a gravação segue por trás** (`upsertAttendance` e
+    `markAllPresent` no `store.js`). No pavilhão a rede "existe" e não
+    responde: cada toque esperava pelo Supabase antes de o botão acender, o
+    treinador tocava outra vez e perdia a conta a meio de vinte atletas.
+    - **Uma marcação pendente por atleta e treino**: tocar em "presente" e
+      logo em "falta" não manda dois pedidos em corrida — o segundo espera
+      pelo primeiro e só vai o valor mais recente.
+    - **Sem rede (ou 12 s sem resposta), fica no dispositivo**
+      (`rumia-att-queue:<conta>` no `localStorage`) e tenta sozinha a cada
+      15 s, ao voltar o `online` e ao regressar à app; sobrevive a fechar a
+      app e é reposta no fim do `loadAll`. A linha diz "Por enviar" e a lista
+      diz quantas estão no dispositivo. Reenviar é seguro: é um upsert por
+      (evento, atleta).
+    - **Uma recusa do servidor desfaz a marcação** e diz porquê — não é falta
+      de rede, e guardá-la deixava no ecrã uma presença que nunca vai existir.
+    - **"Todos presentes" continua a não pisar nada**: `ignoreDuplicates` e
+      releitura do treino, porque o quiosque pode ter registado um atraso.
+    - **Fechar a sessão com marcações por enviar é recusado**: o fecho dava
+      falta a quem o treinador acabou de marcar presente.
   - **"Justificar com o aviso"** na linha de quem respondeu "não vou": a
     justificação leva o motivo que o atleta deu. Um aviso continua a não ser
     uma justificação por si só (decide quem treina) — o botão só poupa
