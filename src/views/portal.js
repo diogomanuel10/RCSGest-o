@@ -39,7 +39,7 @@ import {
   teamById,
   teamName,
   playerAttendanceStats,
-  playerEventResponse, eventResponseWindow, canRespondToEvent, isPlayerEvent,
+  playerEventResponse, eventResponseWindow, responseBlock, isPlayerEvent,
   playerRecentTrainings,
   playerRecentForm,
   playerUpcomingSquads,
@@ -649,9 +649,8 @@ function nextUpHTML(ev, me) {
 // do `responseHTML` — evento do clube não se responde, o treino fecha 6 h
 // antes — só o desenho é outro, porque aqui o fundo é a cor do clube.
 function upResponseHTML(ev, me) {
-  if (!canRespondToEvent(me, ev)) {
-    return '<p class="pt-up__note">Evento do clube — não é preciso responder.</p>';
-  }
+  const block = responseBlock(me, ev);
+  if (block) return `<p class="pt-up__note">${esc(blockNote(block))}</p>`;
   const resp = playerEventResponse(me.id, ev.id);
   const win = eventResponseWindow(ev);
   const novo = justAnswered.has(`ev:${ev.id}`) ? ' is-new' : '';
@@ -2917,14 +2916,23 @@ function openCantGoSheet(id) {
 
 // --- Linhas e blocos reutilizados ----------------------------------------
 
+// O que se diz no lugar dos botões quando não há resposta a dar
+// (`responseBlock`). Num jogo sem convocatória, dizer "não é preciso
+// responder" fazia-a pensar que o jogo não era com ela; o que se passa é que
+// a pergunta ainda não foi feita — e é a convocatória que a faz.
+function blockNote(block) {
+  if (block === 'nao_convocado') return 'Respondes quando fores convocada — o aviso chega-te aqui.';
+  if (block === 'grupo') return 'Não estás no grupo desta sessão.';
+  return 'Evento do clube — não é preciso responder.';
+}
+
 // Os botões de resposta de um evento, ou a razão pela qual não existem.
 // Um evento do CLUBE (sem equipa) não se responde: o `respond_to_event`
 // recusa-o, e um botão que só serve para dar erro é pior do que não haver
 // botão nenhum — diz-se antes o que é aquilo.
 function responseHTML(ev, me, extraClass = '') {
-  if (!canRespondToEvent(me, ev)) {
-    return '<p class="portal-resp-note">Evento do clube — não é preciso responder.</p>';
-  }
+  const block = responseBlock(me, ev);
+  if (block) return `<p class="portal-resp-note">${esc(blockNote(block))}</p>`;
 
   const resp = playerEventResponse(me.id, ev.id);
   // A janela de resposta: o treino fecha 6 h antes de começar. Fechada, os

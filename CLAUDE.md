@@ -477,6 +477,7 @@ supabase/dados-atleta.sql      Foto de perfil + a atleta completa a sua ficha (f
 supabase/remover-utilizadores.sql Eliminar contas do clube (RPC delete_org_member)
 supabase/portal-atleta.sql     Portal: o atleta lê a sua própria disponibilidade
 supabase/comunicacao.sql       Respostas do atleta a eventos + avisos do clube
+supabase/resposta-convocados.sql Ao jogo só responde quem está convocado
 supabase/notificacoes-atleta.sql Notificações para o atleta (agenda + convocatória)
 supabase/resultados.sql        Resultado dos jogos (final + parciais) e pontos jogados
 supabase/tatica.sql            Decisão Tática: cenários de leitura de jogo + respostas
@@ -2781,6 +2782,19 @@ separador antes de navegar (usado pelos cartões do Painel).
     escreve pela RPC `respond_to_event` (`security definer`), que valida que é o
     próprio, que o evento é da sua equipa e que está dentro do prazo; a tabela
     não tem política de escrita.
+  - **Ao jogo só responde quem está CONVOCADO** (`supabase/resposta-convocados.sql`,
+    `responseBlock`/`isPlayerCalled` em `compute.js`). Respondia-se a qualquer
+    jogo da equipa, dias antes de haver convocatória — uma resposta a uma
+    pergunta que ninguém fez, e um "não vou" de terça aparecia ao treinador
+    como ausência de quem nem estava na lista. A resposta ao jogo é a resposta
+    À CONVOCATÓRIA: o servidor recusa-a a quem não tem linha em
+    `squad_players` (como recusa a musculação a quem não está no grupo), o
+    portal diz "Respondes quando fores convocada" no lugar dos botões, e o
+    aviso "Foste convocado" diz que se responde na app. **Sair da
+    convocatória apaga a resposta** a esse jogo (trigger
+    `clear_response_on_uncall`, e a cache no `removeSquadPlayer`): era sobre
+    uma convocatória que deixou de existir para ela. O treino não muda — é da
+    equipa toda.
   - **São duas respostas, não três.** Havia um "ainda não sei", e ele
     respondia-se exatamente como o silêncio: o treinador continuava sem saber
     com quem contava, mas via a linha como respondida e deixava de insistir.

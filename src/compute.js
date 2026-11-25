@@ -1456,11 +1456,37 @@ export function eventResponseWindow(ev) {
 // estar NO GRUPO daquele horário. Uma atleta da equipa que não foi escolhida
 // para a sessão das 19h não tem o que responder — e responder-lhe "vou" seria
 // aparecer a um treino onde não há banco para ela.
+//
+// O JOGO também: só responde quem está CONVOCADO. Antes da convocatória não
+// há pergunta nenhuma a fazer — "vou ao jogo" a um jogo para o qual ninguém a
+// chamou é uma resposta a uma pergunta que o treinador não fez, e um "não
+// vou" dado na terça lia-se no painel como uma ausência de quem nem estava na
+// lista. A resposta passa a ser o "recebido" da convocatória: foste chamada,
+// confirmas ou avisas que não podes.
 export function canRespondToEvent(player, ev) {
-  if (!player || !ev) return false;
-  if ((ev.team_id ?? null) !== (player.team_id ?? null)) return false;
-  if (isPickedEvent(ev)) return isEventParticipant(player.id, ev.id);
-  return true;
+  return !responseBlock(player, ev);
+}
+
+// Porque é que este atleta NÃO pode responder a este evento (null se pode).
+// O portal precisa da razão e não só do "não": "evento do clube" e "ainda não
+// foste convocada" pedem frases diferentes a quem lê.
+//   'clube'         — evento sem equipa, ou de outra equipa
+//   'grupo'         — musculação de um grupo em que não está
+//   'nao_convocado' — jogo para o qual não está convocada
+export function responseBlock(player, ev) {
+  if (!player || !ev) return 'clube';
+  if ((ev.team_id ?? null) !== (player.team_id ?? null)) return 'clube';
+  if (isPickedEvent(ev)) return isEventParticipant(player.id, ev.id) ? null : 'grupo';
+  if (ev.type === 'jogo' && ev.team_id) return isPlayerCalled(player.id, ev.id) ? null : 'nao_convocado';
+  return null;
+}
+
+// Está convocado para este jogo? Ter linha em `squad_players` é estar
+// convocado (`SQUAD_CALLED`). A atleta só lê as SUAS linhas (RLS `sp_read`),
+// o que chega para responder a esta pergunta sobre ela própria.
+export function isPlayerCalled(playerId, eventId) {
+  const sq = state.squads.find((s) => s.event_id === eventId);
+  return !!sq && state.squadPlayers.some((x) => x.squad_id === sq.id && x.player_id === playerId);
 }
 
 // --- Plantel de um evento --------------------------------------------------

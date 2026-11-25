@@ -2582,6 +2582,16 @@ export async function removeSquadPlayer(squadId, playerId) {
   state.squadPlayers = state.squadPlayers.filter(
     (sp) => !(sp.squad_id === squadId && sp.player_id === playerId)
   );
+  // A resposta ao jogo é a resposta À CONVOCATÓRIA: quem sai dela deixa de
+  // ter resposta (o servidor apaga-a, `resposta-convocados.sql`). Sem isto, o
+  // "não vou" de quem já foi retirada continuava no aviso da convocatória e
+  // no painel até alguém recarregar a app.
+  const eventId = state.squads.find((s) => s.id === squadId)?.event_id;
+  if (eventId) {
+    state.eventResponses = state.eventResponses.filter(
+      (r) => !(r.event_id === eventId && r.player_id === playerId)
+    );
+  }
   notify();
 }
 
